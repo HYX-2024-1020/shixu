@@ -19,10 +19,10 @@ const hash = createHash("sha256")
   .digest("hex")
   .slice(0, 12);
 const worker = (await readFile("public/sw.js", "utf8"))
-  .replace(/const CACHE = [^;]+;/, `const CACHE = "shixu-shell-${hash}";`)
+  .replace(/const CACHE = [^;]+;/, `const CACHE = CACHE_PREFIX + "${hash}";`)
   .replace(
     /const PRECACHE = \[[\s\S]*?\];/,
-    `const PRECACHE = ${JSON.stringify(["/", ...assets.map((file) => "/" + file)])};`,
+    `const PRECACHE = ${JSON.stringify(["./", ...assets.map((file) => "./" + file)])};`,
   );
 await writeFile("dist/sw.js", worker);
 console.log(`Offline shell ready: ${assets.length} assets, version ${hash}`);
