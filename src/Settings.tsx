@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Cloud,
@@ -62,6 +62,28 @@ export default function Settings(props: Props) {
     [importData, setImportData] = useState<Snapshot | null>(null),
     [encrypted, setEncrypted] = useState<Record<string, string> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [offlineStatus, setOfflineStatus] =
+    useState("离线资源正在准备，请保持联网并稍候。");
+  useEffect(() => {
+    let active = true;
+    if (!("serviceWorker" in navigator)) {
+      setOfflineStatus(
+        "当前浏览器环境不支持离线安装，请在 Safari 中打开正式 HTTPS 地址。",
+      );
+      return;
+    }
+    navigator.serviceWorker.ready
+      .then(() => {
+        if (active)
+          setOfflineStatus("离线资源已就绪，可添加到主屏幕后重新打开验证。");
+      })
+      .catch(() => {
+        if (active) setOfflineStatus("离线资源尚未准备好，请保持联网后重试。");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     try {
@@ -209,14 +231,18 @@ export default function Settings(props: Props) {
             </button>
             <div className="settings-divider" />
             <h3>安装到手机或电脑</h3>
+            <p className="helper" role="status">
+              {offlineStatus}
+            </p>
             <p>
               手机浏览器打开应用地址，在浏览器菜单选择“添加到主屏幕”；电脑上的
               Chrome / Edge
-              可点击地址栏中的安装图标。首次完整访问后支持离线使用。
+              可点击地址栏中的安装图标。离线资源准备完成后，日常打开优先读取本机缓存。
             </p>
             <p className="helper">
-              iPhone 请使用 Safari 的“分享 → 添加到主屏幕”。安装需要
-              HTTPS，电脑本机预览地址仅供本机使用。
+              iPhone：用 Safari 打开在线地址 → 分享（方框向上箭头）→
+              添加到主屏幕。如果有“作为网页 App 打开”，请开启。
+              添加后从主屏幕图标重新打开，并保持联网完成该空间的离线准备。电脑本机预览地址不能在手机上直接使用。
             </p>
           </form>
         )}
