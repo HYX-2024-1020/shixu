@@ -46,6 +46,7 @@ test("capture, confirm, finish, restore and persist a Chinese task", async ({
   await page.getByLabel("标签", { exact: true }).pressSequentially("学习，生活");
   await expect(page.getByLabel("标签", { exact: true })).toHaveValue("学习，生活");
   await page.getByRole("button", { name: "保存修改" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.reload();
   await page.getByLabel("搜索全部事项").fill("测试后的高数作业");
   await expect(page.locator(".entry-row")).toHaveCount(1);
