@@ -54,6 +54,7 @@ import {
 import Connection from "./Connection";
 import PacketCard from "./PacketCard";
 import GroupCard from "./GroupCard";
+import InstallGuide from "./InstallGuide";
 import type { Packet, Attachment } from "./types";
 import "./bucket.css";
 
@@ -750,7 +751,7 @@ export default function BucketApp() {
           )}
           <textarea
             ref={textarea}
-            autoFocus
+            autoFocus={matchMedia("(hover: hover) and (pointer: fine)").matches}
             aria-label="往桶里放入内容"
             placeholder={
               "想到什么就写什么，也可以直接粘贴一大段。\n文件和相关的通知，一起放进来就好。"
@@ -919,6 +920,7 @@ export default function BucketApp() {
               ))}
           </section>
         )}
+        <InstallGuide />
         <footer className="bucket-footer">
           <Sparkles size={12} />
           <span>留住原文，分清事实与建议。拿不准的事，不乱替你决定。</span>

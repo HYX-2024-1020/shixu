@@ -1895,3 +1895,153 @@ button:hover:not(:disabled) {
     font-size: 10px;
   }
 }
+
+/* Touch devices: one fluid column, safe edges and controls sized for fingers. */
+.bucket-app {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.bucket-install {
+  margin: 28px auto 0;
+  color: #647e56;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.bucket-install summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  min-height: 44px;
+  list-style: none;
+}
+.bucket-install summary::-webkit-details-marker {
+  display: none;
+}
+.bucket-install[open] {
+  border: 1px solid #dfe7d7;
+  border-radius: 14px;
+  padding: 12px 20px;
+}
+.bucket-install p {
+  margin: 10px 0;
+}
+.bucket-install ol {
+  padding-left: 22px;
+}
+.bucket-install li {
+  margin: 8px 0;
+}
+@media (pointer: coarse) {
+  .bucket-app {
+    -webkit-text-size-adjust: 100%;
+  }
+  .bucket-app button,
+  .bucket-dialog button,
+  .bucket-app summary,
+  .bucket-dialog summary {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  .bucket-settings,
+  .bucket-dialog header > button,
+  .attachment-chip button,
+  .bucket-toast button {
+    min-width: 44px;
+  }
+  .bucket-composer textarea,
+  .bucket-dialog input:not([type="checkbox"]),
+  .bucket-dialog select {
+    font-size: 16px;
+  }
+  .bucket-composer textarea {
+    resize: none;
+    min-height: 128px;
+  }
+  .bucket-dialog {
+    overscroll-behavior: contain;
+    max-height: calc(
+      100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+  }
+  .bucket-dialog header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fdfefb;
+  }
+  .bucket-check {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .group-unit-title .bucket-check,
+  .bucket-item-line .bucket-check {
+    margin-top: 0;
+  }
+  .group-unit-title > strong {
+    flex: 1 1 calc(100% - 60px);
+  }
+  .group-unit-due,
+  .group-unit > ul,
+  .group-repeat {
+    margin-left: 53px;
+  }
+  .bucket-item-title strong,
+  .group-unit-title > strong {
+    font-size: 15px;
+  }
+  .packet-summary,
+  .group-unit > ul,
+  .bucket-item li {
+    font-size: 14px;
+  }
+  .bucket-main {
+    padding-top: 12px;
+  }
+}
+@media (pointer: coarse) and (min-width: 600px) {
+  .bucket-main {
+    width: min(740px, calc(100% - 64px));
+  }
+  .bucket-composer {
+    padding: 28px;
+  }
+  .bucket-composer textarea {
+    min-height: 170px;
+  }
+}
+@media (max-width: 600px) and (pointer: coarse) {
+  .bucket-header {
+    padding-top: 18px;
+    padding-bottom: 14px;
+  }
+  .bucket-intro {
+    margin-bottom: 20px;
+  }
+  .bucket-drawing {
+    width: 48px;
+    height: 46px;
+    margin-bottom: 10px;
+  }
+  .bucket-intro h1 {
+    font-size: 27px;
+  }
+  .bucket-intro > p {
+    font-size: 13px;
+  }
+}
+@media (max-height: 500px) and (pointer: coarse) {
+  .bucket-drawing,
+  .bucket-intro > p {
+    display: none;
+  }
+  .bucket-mobile-break {
+    display: none;
+  }
+  .bucket-intro h1 {
+    font-size: 23px;
+  }
+}
