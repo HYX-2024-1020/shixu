@@ -93,6 +93,7 @@ describe("installed application shell", () => {
   });
   it("does not intercept another application or external AI and sync requests", async () => {
     const w = workerHarness();
+    expect(await w.request(w.scope + "api/packets")).toBeUndefined();
     expect(
       await w.request("https://api.example.test/chat/completions"),
     ).toBeUndefined();

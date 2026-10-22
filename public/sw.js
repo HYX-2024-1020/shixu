@@ -27,6 +27,9 @@ self.addEventListener("fetch", (event) => {
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||
+    url.pathname.startsWith(
+      new URL("api/", self.registration.scope).pathname,
+    ) ||
     !url.href.startsWith(self.registration.scope)
   )
     return;
