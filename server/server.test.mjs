@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildGroups } from "../shared/relations.mjs";
 const port = 19878,
   origin = `http://127.0.0.1:${port}`,
   data = resolve(".private/server-tests/" + Date.now());
@@ -15,7 +16,9 @@ writeFileSync(
   if(url==='https://api.deepseek.com/models')return Response.json({data:[{id:'deepseek-flash'},{id:'deepseek-v4-pro'}]});
   if(url==='https://api.deepseek.com/user/balance')return Response.json({balance_infos:[{currency:'CNY',total_balance:'98.12'}]});
   if(url==='https://api.deepseek.com/chat/completions'){
-    const body=JSON.parse(init.body),input=JSON.parse(body.messages[1].content),s=input.sources.find(s=>s.id==='input');
+    const body=JSON.parse(init.body),input=JSON.parse(body.messages[1].content);
+    if(input.newItems){const a=input.newItems[0],b=input.openItems[0];return Response.json({model:body.model,usage:{prompt_tokens:1000,completion_tokens:100,prompt_cache_hit_tokens:200,prompt_cache_miss_tokens:800},choices:[{finish_reason:'stop',message:{content:JSON.stringify({links:[{from:a.ref,target:b.ref,relation:'related',title:'两份课程报告',confidence:0.99,newEvidence:a.evidence[0],oldEvidence:b.evidence[0]}]})}}]});}
+    const s=input.sources.find(s=>s.id==='input');
     return Response.json({model:body.model,usage:{prompt_tokens:1000,completion_tokens:100,prompt_cache_hit_tokens:200,prompt_cache_miss_tokens:800},choices:[{finish_reason:'stop',message:{content:JSON.stringify({summary:'已整理',items:[{kind:'task',title:'交报告',summary:'提交报告',facts:[],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:s.id,quote:s.text}]}],warnings:[]})}}]});
   }
   throw Error('Unexpected test network request');
@@ -178,6 +181,93 @@ test("personal API requires auth and origin; preserves files and queue across re
       await fetch(origin + "/api/packets", { headers: { Cookie: cookie } })
     ).json();
     assert.equal(persisted.usage[0].cost.min, 0.00498);
+    const second = {
+      ...packet,
+      id: "fixture-second",
+      text: "第二份报告也要完成",
+      sources: [{ id: "input", name: "输入", text: "第二份报告也要完成" }],
+      attachments: [],
+    };
+    const nextForm = new FormData();
+    nextForm.append("packet", JSON.stringify(second));
+    assert.equal(
+      (
+        await fetch(origin + "/api/packets", {
+          method: "POST",
+          headers: { Origin: origin, Cookie: cookie },
+          body: nextForm,
+        })
+      ).status,
+      202,
+    );
+    let grouped;
+    for (let i = 0; i < 40; i++) {
+      grouped = await (
+        await fetch(origin + "/api/packets", { headers: { Cookie: cookie } })
+      ).json();
+      if (buildGroups(grouped.packets).length) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(buildGroups(grouped.packets)[0].units.length, 2);
+    assert.equal(grouped.usage.length, 3);
+    const split = await fetch(origin + "/api/associations/split", {
+      method: "POST",
+      headers: {
+        Origin: origin,
+        Cookie: cookie,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refs: buildGroups(grouped.packets)[0].refs }),
+    });
+    assert.equal(split.status, 200);
+    assert.equal(
+      buildGroups(
+        (
+          await (
+            await fetch(origin + "/api/packets", {
+              headers: { Cookie: cookie },
+            })
+          ).json()
+        ).packets,
+      ).length,
+      0,
+    );
+    assert.equal(
+      (
+        await fetch(origin + "/api/packets/fixture-second/relate", {
+          method: "POST",
+          headers: {
+            Origin: origin,
+            Cookie: cookie,
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        })
+      ).status,
+      200,
+    );
+    for (let i = 0; i < 40; i++) {
+      grouped = await (
+        await fetch(origin + "/api/packets", { headers: { Cookie: cookie } })
+      ).json();
+      if (buildGroups(grouped.packets).length) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(buildGroups(grouped.packets).length, 1);
+    await stop();
+    await start();
+    assert.equal(
+      buildGroups(
+        (
+          await (
+            await fetch(origin + "/api/packets", {
+              headers: { Cookie: cookie },
+            })
+          ).json()
+        ).packets,
+      ).length,
+      1,
+    );
     const removed = await fetch(origin + "/api/packets/fixture-packet", {
       method: "DELETE",
       headers: { Origin: origin, Cookie: cookie },
@@ -193,7 +283,16 @@ test("personal API requires auth and origin; preserves files and queue across re
           await fetch(origin + "/api/packets", { headers: { Cookie: cookie } })
         ).json()
       ).usage.length,
-      1,
+      4,
+    );
+    const afterDelete = await (
+      await fetch(origin + "/api/packets", { headers: { Cookie: cookie } })
+    ).json();
+    assert.equal(buildGroups(afterDelete.packets).length, 0);
+    assert.deepEqual(
+      afterDelete.packets.find((p) => p.id === "fixture-second").association
+        .links,
+      [],
     );
     assert.equal(
       (

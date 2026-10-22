@@ -37,6 +37,20 @@ export function buildMessages(
   context?: string,
 ): { role: string; content: string }[];
 export function splitSources(sources: Source[], limit?: number): Source[][];
+export interface RequestOptions {
+  apiKey: string;
+  model?: string;
+  captureDate: string;
+  fetcher?: typeof fetch;
+  signal?: AbortSignal;
+  onProgress?: (message: string) => void;
+  packetId?: string;
+  onUsage?: (record: UsageRecord) => void | Promise<void>;
+}
+export function requestJSON(
+  messages: { role: string; content: string }[],
+  options: RequestOptions,
+): Promise<unknown>;
 export function organizePacket(
   sources: Source[],
   options: {

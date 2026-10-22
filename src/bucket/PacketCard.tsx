@@ -19,18 +19,22 @@ const ICONS = { task: Check, idea: Lightbulb, habit: Sprout, note: FileText };
 export default function PacketCard({
   packet,
   usage,
+  itemIndexes,
   progress,
   onRetry,
   onToggle,
   onDelete,
+  onRelate,
   notify,
 }: {
   packet: Packet;
   usage: UsageRecord[];
+  itemIndexes?: number[];
   progress: string;
   onRetry: () => void;
   onToggle: (index: number) => void;
   onDelete: () => void;
+  onRelate?: () => void;
   notify: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false),
@@ -61,7 +65,10 @@ export default function PacketCard({
       minute: "2-digit",
     });
   return (
-    <article className={`bucket-packet packet-${packet.status}`}>
+    <article
+      className={`bucket-packet packet-${packet.status}`}
+      data-association-state={packet.association?.state}
+    >
       <div className="packet-stamp">
         <span>
           {packet.status === "ready"
@@ -98,6 +105,7 @@ export default function PacketCard({
           <p className="packet-summary">{packet.result.summary}</p>
           <div className="bucket-items">
             {packet.result.items.map((item, index) => {
+              if (itemIndexes && !itemIndexes.includes(index)) return null;
               const Icon = ICONS[item.kind],
                 done = packet.doneIds.includes(index);
               return (
@@ -202,6 +210,25 @@ export default function PacketCard({
           )}
           {packet.result.warnings.length > 0 && (
             <p className="packet-note">{packet.result.warnings.join("；")}</p>
+          )}
+          {packet.association?.state === "pending" && (
+            <p className="packet-note">
+              {progress || "正在核对已有事项，整理结果已先保留。"}
+            </p>
+          )}
+          {packet.association?.state === "error" && (
+            <div className="association-warning">
+              <p>
+                这次内容已经收好，跨次关联未完成：
+                {packet.association.warnings.join("；")}
+              </p>
+              {onRelate && (
+                <button onClick={onRelate}>
+                  <RotateCcw size={13} />
+                  仅重试关联
+                </button>
+              )}
+            </div>
           )}
         </>
       ) : (

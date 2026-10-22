@@ -206,7 +206,7 @@ export default function Connection({
                 {rateFor(selected)
                   ? `每百万 Tokens：未缓存输入 ¥${rateFor(selected)!.miss}–${rateFor(selected)!.miss * 2}，输出 ¥${rateFor(selected)!.output}–${rateFor(selected)!.output * 2}。`
                   : "该模型暂无价格快照，记录用量但不猜费用。"}{" "}
-                长文件可能多次调用。切换对下一次投递生效，已开始的整理使用原模型。
+                长文件和跨次关联可能多次调用。切换对下一次投递生效，已开始的整理使用原模型。
               </p>
             </div>
             {!health && (
@@ -223,7 +223,7 @@ export default function Connection({
               <KeyRound size={14} />
               {health
                 ? "密钥只保存在你的个人服务，不发送给其他设备。"
-                : "文字和提取出的文件内容会直接发送给 DeepSeek。默认密钥仅留在当前页面；勾选记住后会存入本机浏览器，不进入备份或仓库。"}
+                : "输入、文件文字及已有未完成事项的摘要会发送给 DeepSeek，用于整理和关联。默认密钥仅留在当前页面；勾选记住后存入本机浏览器，不进入备份或仓库。"}
             </p>
           </>
         )}
