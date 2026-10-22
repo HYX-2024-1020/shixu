@@ -9,7 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "check": "tsc -b",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "test:server": "node --test server/server.test.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

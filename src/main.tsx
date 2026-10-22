@@ -1,12 +1,27 @@
-import React from "react";
+import { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./styles.css";
-import "./design.css";
+const App = lazy(() =>
+  new URLSearchParams(location.search).get("legacy") === "1"
+    ? import("./LegacyApp")
+    : import("./bucket/BucketApp"),
+);
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  <Suspense
+    fallback={
+      <div
+        style={{
+          padding: "20vh 24px",
+          textAlign: "center",
+          fontFamily: "sans-serif",
+          color: "#697b70",
+        }}
+      >
+        正在打开拾序…
+      </div>
+    }
+  >
     <App />
-  </React.StrictMode>,
+  </Suspense>,
 );
 if ("serviceWorker" in navigator && import.meta.env.PROD)
   window.addEventListener("load", () => {

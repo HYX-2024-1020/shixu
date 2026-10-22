@@ -1,0 +1,13 @@
+.git
+.private
+.openai
+node_modules
+dist
+data
+.env
+.env.*
+backups
+test-results
+*.log
+*.zip
+*.tar.gz

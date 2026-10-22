@@ -14,5 +14,6 @@ playwright-report/
 test-results/
 .private/
 backups/
+data/
 .DS_Store
 Thumbs.db

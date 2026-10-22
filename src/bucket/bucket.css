@@ -1,0 +1,1570 @@
+:root {
+  font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #2b4038;
+  background: #f7f8f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  --bucket-green: #2b5b49;
+  --bucket-muted: #8c998c;
+  --bucket-line: #e7ece2;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  color: inherit;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #bccfb0;
+  outline-offset: 4px;
+}
+input:focus {
+  outline: 2px solid #afc59e;
+  outline-offset: 2px;
+}
+textarea::selection,
+::selection {
+  background: #e0ead5;
+}
+button svg {
+  flex-shrink: 0;
+}
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    box-shadow 0.15s;
+}
+button:hover:not(:disabled) {
+  color: var(--bucket-green);
+}
+.bucket-app {
+  min-height: 100dvh;
+}
+.bucket-header {
+  max-width: 1180px;
+  margin: auto;
+  padding: 30px 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bucket-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+.bucket-brand > span {
+  width: 35px;
+  height: 35px;
+  border-radius: 11px 11px 11px 3px;
+  background: #2b5b49;
+  color: #eef4e4;
+  display: grid;
+  place-items: center;
+}
+.bucket-brand small {
+  border-left: 1px solid #dce4d5;
+  padding-left: 14px;
+  margin-left: 5px;
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  font-weight: 400;
+  color: #9da994;
+}
+.bucket-settings {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: #93a088;
+  border-radius: 50%;
+}
+.bucket-settings:hover {
+  background: #edf2e7;
+}
+.bucket-main {
+  width: min(740px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 50px;
+}
+.bucket-intro {
+  text-align: center;
+  margin-bottom: 31px;
+}
+.bucket-drawing {
+  width: 71px;
+  height: 70px;
+  margin: 0 auto 18px;
+}
+.bucket-drawing svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #a3b590;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bucket-drawing svg ellipse {
+  fill: #eef3e6;
+}
+.bucket-drawing svg .bucket-spark {
+  stroke: #c7b58d;
+  stroke-width: 1.3;
+}
+.bucket-intro h1 {
+  font-size: 34px;
+  letter-spacing: 0.8px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: #3c5948;
+}
+.bucket-intro > p {
+  font-size: 12px;
+  line-height: 2;
+  color: #98a38f;
+  margin-top: 11px;
+}
+.bucket-mobile-break {
+  display: none;
+}
+.bucket-demo-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 11px 14px;
+  background: #f7f0df;
+  border: 1px solid #ede2c8;
+  border-radius: 8px;
+  color: #ab976e;
+  font-size: 10px;
+  margin: 0 0 31px;
+  line-height: 1.8;
+}
+.bucket-demo-note a {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.bucket-composer {
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 16px;
+  padding: 24px 25px 18px;
+  box-shadow: 0 7px 26px #304a3205;
+  position: relative;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.bucket-composer:focus-within {
+  border-color: #9cb58b;
+  box-shadow:
+    0 0 0 3px #e6eedc60,
+    0 7px 26px #304a3206;
+}
+.bucket-composer textarea {
+  display: block;
+  width: 100%;
+  padding: 0;
+  min-height: 115px;
+  max-height: 360px;
+  resize: vertical;
+  background: none;
+  border: 0;
+  outline: 0;
+  line-height: 2;
+  font-size: 15px;
+  color: #344e40;
+  letter-spacing: 0.2px;
+}
+.bucket-composer textarea::placeholder {
+  color: #aab59f;
+}
+.bucket-composer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 19px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0e8;
+}
+.bucket-attach {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 0;
+  font-size: 11px;
+  color: #95a187;
+}
+.bucket-primary {
+  background: var(--bucket-green);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 19px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 40px;
+  box-shadow: 0 3px 8px #2b5b4910;
+}
+.bucket-primary:hover:not(:disabled) {
+  background: #214d3c;
+  color: #fff;
+}
+.bucket-primary:disabled {
+  opacity: 0.45;
+}
+.bucket-send {
+  min-width: 109px;
+}
+.bucket-under-composer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 3px 0;
+  font-size: 9px;
+  color: #a7b09c;
+  line-height: 1.9;
+}
+.model-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.model-status i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  background: #c1c9b8;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.model-status.is-connected {
+  color: #93a982;
+}
+.model-status.is-connected i {
+  background: #9eb78e;
+}
+.bucket-keyboard {
+  font-size: 9px;
+  color: #bdc5b3;
+  white-space: nowrap;
+}
+.bucket-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 16px 0 0;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  background: #f0f4ea;
+  border: 1px solid #e5ebdb;
+  color: #8ca07b;
+  max-width: 100%;
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+.attachment-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.attachment-chip button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  margin-left: 5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: #a3b08f;
+}
+.attachment-chip button:hover {
+  background: #e2ead7;
+}
+.bucket-empty {
+  text-align: center;
+  margin: 55px 0 72px;
+  color: #a7b29d;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+.bucket-quiet-line {
+  display: block;
+  height: 29px;
+  width: 1px;
+  background: #dfe6d7;
+  margin-bottom: 18px;
+}
+.bucket-empty p {
+  font-size: 12px;
+  line-height: 2.1;
+  letter-spacing: 0.4px;
+}
+.bucket-empty button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #8ba174;
+  margin-top: 22px;
+  padding: 6px;
+}
+.bucket-empty > a {
+  display: block;
+  font-size: 9px;
+  color: #b3bca8;
+  margin-top: 6px;
+  padding: 4px;
+}
+.bucket-collection {
+  margin-top: 43px;
+}
+.bucket-collection-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin: 0 3px 17px;
+}
+.bucket-collection-heading h2 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a9c7c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bucket-collection-heading h2 > span {
+  font-size: 10px;
+  background: #eaf0e2;
+  color: #9bad8d;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1.2;
+  font-weight: 400;
+}
+.bucket-collection-heading > p {
+  font-size: 9px;
+  color: #afb9a2;
+}
+.bucket-packet {
+  background: #fff;
+  border: 1px solid #e5eadf;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 17px;
+  box-shadow: 0 2px 3px #253d2402;
+}
+.packet-stamp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  font-size: 9px;
+  color: #adb79e;
+  margin-bottom: 15px;
+}
+.packet-stamp > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.packet-stamp i {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #bac4ac;
+}
+.packet-original {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: #aab59a;
+  padding: 2px 0;
+}
+.packet-original svg,
+.bucket-item-title svg {
+  transition: transform 0.15s;
+}
+.turned {
+  transform: rotate(180deg);
+}
+.packet-summary {
+  font-size: 12px;
+  line-height: 2;
+  color: #6c8160;
+  margin-bottom: 17px;
+}
+.bucket-items {
+  display: flex;
+  flex-direction: column;
+}
+.bucket-item {
+  border-top: 1px solid #edf1e6;
+  padding: 17px 0;
+}
+.bucket-item:last-child {
+  padding-bottom: 0;
+}
+.bucket-item-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bucket-check {
+  width: 17px;
+  height: 17px;
+  border: 1px solid #c6d5ba;
+  border-radius: 5px;
+  flex-shrink: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  margin-left: 1px;
+}
+.bucket-check.checked {
+  background: #8aab75;
+  color: white;
+  border-color: #8aab75;
+}
+.bucket-kind-icon {
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  color: #b5a16c;
+  flex-shrink: 0;
+}
+.kind-habit .bucket-kind-icon {
+  color: #93aa7e;
+}
+.kind-note .bucket-kind-icon {
+  color: #9bafbb;
+}
+.bucket-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+}
+.bucket-kind-label {
+  font-size: 8px;
+  color: #a3b08f;
+  border-radius: 4px;
+  padding: 3px 4px;
+  background: #f2f5ec;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.kind-idea .bucket-kind-label {
+  color: #baa775;
+  background: #faf5e8;
+}
+.kind-habit .bucket-kind-label {
+  background: #edf4e8;
+  color: #96af80;
+}
+.kind-note .bucket-kind-label {
+  background: #f0f4f6;
+  color: #a1b4be;
+}
+.bucket-item-title strong {
+  font-weight: 500;
+  color: #506b47;
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.kind-idea .bucket-item-title strong {
+  color: #958558;
+}
+.kind-note .bucket-item-title strong {
+  color: #728996;
+}
+.bucket-item-title > svg {
+  margin-left: auto;
+  color: #b9c4ac;
+  flex-shrink: 0;
+}
+.bucket-due {
+  font-size: 9px;
+  color: #a6b393;
+  white-space: nowrap;
+  margin-left: auto;
+  line-height: 1.8;
+}
+.bucket-due + svg {
+  margin-left: 1px;
+}
+.item-facts {
+  font-size: 11px;
+  line-height: 2.1;
+  color: #91a27e;
+  margin: 9px 0 0 28px;
+  padding-left: 14px;
+}
+.item-facts li {
+  padding-left: 1px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.item-short-summary {
+  font-size: 11px;
+  line-height: 2;
+  color: #a1ac91;
+  margin: 8px 0 0 28px;
+}
+.item-uncertain {
+  background: #fbf5e9;
+  border-radius: 6px;
+  padding: 9px 11px;
+  margin: 11px 0 0 28px;
+  font-size: 10px;
+  color: #b19d70;
+  line-height: 1.9;
+}
+.item-done .bucket-item-title strong {
+  text-decoration: line-through;
+  color: #b1bba7;
+}
+.item-done .item-facts {
+  color: #bbc3b1;
+}
+.item-details {
+  margin: 14px 0 0 28px;
+}
+.item-suggestions {
+  background: #f5f8f0;
+  border: 1px solid #edf2e5;
+  border-radius: 8px;
+  padding: 13px 15px;
+  margin-bottom: 14px;
+}
+.item-details h4 {
+  font-size: 10px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #94a581;
+  margin: 0 0 8px;
+}
+.item-details h4 > span {
+  font-size: 8px;
+  font-weight: 400;
+  border: 1px solid #dfe8d5;
+  border-radius: 4px;
+  padding: 2px 4px;
+  color: #acb89a;
+}
+.item-suggestions ul {
+  font-size: 11px;
+  line-height: 2;
+  color: #98a986;
+  margin: 0;
+  padding-left: 16px;
+}
+.item-suggestions li + li {
+  margin-top: 5px;
+}
+.item-evidence {
+  padding-top: 2px;
+}
+.item-evidence blockquote {
+  border-left: 2px solid #e2ead8;
+  margin: 9px 0;
+  padding: 0 0 0 10px;
+  font-size: 10px;
+  line-height: 1.9;
+  color: #abb69d;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.item-evidence blockquote > span {
+  display: block;
+  font-size: 8px;
+  color: #b9c3ac;
+  margin-bottom: 3px;
+}
+.item-source-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #91a77b;
+  font-size: 9px;
+  padding: 5px 0;
+  margin-top: 9px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.packet-note {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #b0b9a4;
+  background: #fafbf7;
+  border-radius: 5px;
+  padding: 8px 10px;
+  margin-top: 14px;
+}
+.packet-waiting {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0 13px;
+  color: #a4b58e;
+}
+.packet-waiting > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.packet-waiting > div {
+  flex: 1;
+  min-width: 0;
+}
+.packet-waiting h3 {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.9;
+  color: #91a47d;
+  overflow-wrap: anywhere;
+}
+.packet-waiting p {
+  font-size: 10px;
+  line-height: 2;
+  color: #b0bba1;
+  margin-top: 5px;
+}
+.waiting-dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c4d1b6;
+  margin: 10px 6px 0;
+  flex-shrink: 0;
+}
+.packet-retry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #a7b88e;
+  margin-top: 4px;
+}
+.packet-error .packet-waiting h3 {
+  color: #b89a77;
+}
+.packet-error .waiting-dot {
+  background: #d9c4a5;
+}
+.packet-source {
+  padding-top: 17px;
+  margin-top: 17px;
+  border-top: 1px dashed #e5ebdc;
+}
+.source-caption {
+  font-size: 9px;
+  color: #a1b08f;
+  margin-bottom: 11px;
+}
+.packet-source pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 11px;
+  line-height: 2;
+  color: #9eae8b;
+  background: #f7f9f2;
+  border-radius: 7px;
+  padding: 12px 14px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0 0 12px;
+}
+.source-file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f8faf5;
+  border: 1px solid #eaf0e2;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  color: #9eb28b;
+  font-size: 10px;
+  text-align: left;
+}
+.source-file > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.source-extracted {
+  font-size: 9px;
+  color: #acb89e;
+  margin-top: 12px;
+  line-height: 1.9;
+}
+.source-extracted summary {
+  cursor: pointer;
+  margin-bottom: 7px;
+}
+.packet-delete {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: #bdc4b3;
+  padding: 3px 0;
+  margin-top: 16px;
+}
+.bucket-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 9px;
+  line-height: 1.9;
+  color: #bac3ad;
+  margin: 38px 0 0;
+  text-align: center;
+}
+.bucket-footer svg {
+  flex-shrink: 0;
+}
+.bucket-dialog {
+  width: min(470px, calc(100% - 28px));
+  max-height: calc(100dvh - 44px);
+  border: 1px solid #e5ecdc;
+  border-radius: 16px;
+  background: #fdfefb;
+  color: #516e44;
+  padding: 0;
+  box-shadow: 0 20px 80px #24402b30;
+}
+.bucket-dialog::backdrop {
+  background: #253c2b44;
+  backdrop-filter: blur(4px);
+}
+.bucket-dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 25px 27px 21px;
+  border-bottom: 1px solid #eaf0e3;
+}
+.bucket-dialog header > button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: #a5b297;
+  border-radius: 5px;
+}
+.bucket-dialog h2 {
+  font-size: 20px;
+  font-weight: 500;
+  margin-top: 7px;
+  letter-spacing: 0.2px;
+}
+.dialog-kicker {
+  font-size: 9px;
+  color: #a7b499;
+  letter-spacing: 0.7px;
+}
+.bucket-dialog form {
+  padding: 22px 27px 26px;
+}
+.connection-intro {
+  font-size: 11px;
+  line-height: 2;
+  color: #a1b08e;
+  margin-bottom: 20px;
+}
+.bucket-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11px;
+  color: #91a87d;
+  margin-bottom: 18px;
+}
+.bucket-dialog input:not([type="checkbox"]) {
+  width: 100%;
+  border: 1px solid #dee8d4;
+  border-radius: 8px;
+  background: white;
+  color: #6d865c;
+  font-size: 13px;
+  padding: 12px 13px;
+}
+.bucket-dialog input::placeholder {
+  color: #b9c4ac;
+  font-size: 11px;
+}
+.connection-advanced {
+  font-size: 10px;
+  color: #a8b699;
+  margin: 2px 0 19px;
+}
+.connection-advanced summary {
+  cursor: pointer;
+}
+.connection-advanced label {
+  margin: 14px 0 10px;
+  font-size: 10px;
+}
+.connection-advanced p {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #b7c1a8;
+}
+.bucket-dialog label.remember-key {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+  line-height: 1.9;
+  margin: 20px 0 14px;
+}
+.remember-key input {
+  accent-color: #779d61;
+  width: 13px;
+  height: 13px;
+  margin: 3px 0 0;
+  flex-shrink: 0;
+}
+.connection-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 9px;
+  line-height: 2;
+  color: #b1bea0;
+}
+.connection-privacy svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.connection-submit {
+  width: 100%;
+  margin-top: 21px;
+  font-size: 12px;
+}
+.connection-data {
+  border-top: 1px solid #e7eedf;
+  padding: 18px 27px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.connection-data > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #a2b68d;
+  padding: 0;
+  width: max-content;
+}
+.connection-data > details {
+  font-size: 9px;
+  line-height: 2;
+  color: #b5c0a5;
+}
+.connection-data summary {
+  cursor: pointer;
+}
+.connection-data p {
+  margin-top: 11px;
+}
+.connection-data a {
+  display: block;
+  text-decoration: underline;
+  font-size: 9px;
+  margin-top: 10px;
+  color: #a2b88b;
+  width: max-content;
+  max-width: 100%;
+}
+.bucket-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  background: #fcfef8;
+  border: 1px solid #dfe8d3;
+  border-radius: 9px;
+  box-shadow: 0 8px 24px #32492c20;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #8c9f78;
+  z-index: 999;
+}
+.bucket-toast button {
+  display: flex;
+  padding: 0;
+  color: #b3c1a2;
+}
+.bucket-drop-hint {
+  position: absolute;
+  inset: 0;
+  border: 1px dashed #a2bd8b;
+  background: #f6faeeed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 13px;
+  z-index: 2;
+  color: #93ad79;
+  font-size: 13px;
+  border-radius: 16px;
+  backdrop-filter: blur(2px);
+}
+.bucket-spin {
+  animation: bucket-spin 1.3s linear infinite;
+}
+@keyframes bucket-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (min-width: 1500px) {
+  .bucket-main {
+    padding-top: 48px;
+    width: 760px;
+  }
+  .bucket-intro {
+    margin-bottom: 36px;
+  }
+  .bucket-intro h1 {
+    font-size: 37px;
+  }
+  .bucket-intro > p {
+    font-size: 13px;
+  }
+  .bucket-composer textarea {
+    min-height: 130px;
+  }
+  .bucket-header {
+    padding-top: 35px;
+  }
+}
+@media (max-width: 760px) {
+  .bucket-header {
+    padding: 23px 24px;
+  }
+  .bucket-main {
+    width: calc(100% - 42px);
+    max-width: 600px;
+    padding-top: 35px;
+  }
+  .bucket-brand {
+    font-size: 21px;
+    gap: 9px;
+  }
+  .bucket-brand small {
+    font-size: 9px;
+    padding-left: 11px;
+    margin-left: 2px;
+  }
+  .bucket-intro h1 {
+    font-size: 30px;
+  }
+  .bucket-intro > p {
+    font-size: 11px;
+  }
+  .bucket-composer textarea {
+    font-size: 16px;
+    min-height: 130px;
+  }
+  .bucket-composer {
+    padding: 23px 23px 18px;
+  }
+  .bucket-composer-bottom {
+    padding-top: 15px;
+    margin-top: 18px;
+  }
+  .bucket-primary {
+    font-size: 12px;
+    min-height: 43px;
+  }
+  .bucket-attach {
+    font-size: 11px;
+  }
+  .bucket-packet {
+    padding: 21px 22px;
+  }
+  .packet-summary {
+    font-size: 13px;
+  }
+  .bucket-item-title strong {
+    font-size: 14px;
+  }
+  .item-facts {
+    font-size: 12px;
+  }
+  .item-short-summary {
+    font-size: 12px;
+  }
+  .bucket-dialog input:not([type="checkbox"]) {
+    font-size: 16px;
+  }
+  .bucket-due {
+    font-size: 10px;
+  }
+  .packet-stamp,
+  .packet-original {
+    font-size: 10px;
+  }
+  .bucket-collection-heading h2 {
+    font-size: 13px;
+  }
+  .bucket-footer {
+    font-size: 9px;
+    margin-top: 33px;
+  }
+  .item-uncertain {
+    font-size: 11px;
+  }
+  .bucket-toast {
+    font-size: 11px;
+    bottom: 23px;
+  }
+  .bucket-demo-note {
+    font-size: 9px;
+    margin-bottom: 30px;
+  }
+}
+@media (max-width: 480px) {
+  .bucket-header {
+    padding: 21px 20px;
+  }
+  .bucket-brand small {
+    display: none;
+  }
+  .bucket-settings {
+    width: 34px;
+    height: 34px;
+  }
+  .bucket-brand {
+    font-size: 21px;
+    gap: 9px;
+  }
+  .bucket-brand > span {
+    width: 33px;
+    height: 33px;
+  }
+  .bucket-main {
+    width: calc(100% - 34px);
+    padding-top: 26px;
+    padding-bottom: 30px;
+  }
+  .bucket-drawing {
+    width: 64px;
+    height: 63px;
+    margin-bottom: 17px;
+  }
+  .bucket-intro h1 {
+    font-size: 29px;
+    line-height: 1.65;
+    letter-spacing: 1px;
+  }
+  .bucket-mobile-break {
+    display: block;
+  }
+  .bucket-intro > p {
+    font-size: 10px;
+    max-width: 255px;
+    margin: 12px auto 0;
+    line-height: 2.1;
+  }
+  .bucket-intro {
+    margin-bottom: 27px;
+  }
+  .bucket-composer {
+    padding: 20px 19px 16px;
+    border-radius: 13px;
+  }
+  .bucket-composer textarea {
+    font-size: 16px;
+    min-height: 144px;
+    line-height: 1.95;
+    letter-spacing: 0;
+  }
+  .bucket-composer-bottom {
+    padding-top: 14px;
+    margin-top: 15px;
+  }
+  .bucket-attach {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .bucket-send {
+    min-width: 99px;
+    padding: 12px 15px;
+    font-size: 11px;
+  }
+  .bucket-under-composer {
+    padding-top: 12px;
+    font-size: 8px;
+    gap: 7px;
+    align-items: flex-start;
+  }
+  .bucket-keyboard {
+    display: none;
+  }
+  .bucket-empty {
+    margin: 43px 0 56px;
+  }
+  .bucket-empty p {
+    font-size: 11px;
+    line-height: 2.2;
+  }
+  .bucket-empty button {
+    font-size: 10px;
+    margin-top: 19px;
+  }
+  .bucket-empty > a {
+    font-size: 9px;
+  }
+  .attachment-chip {
+    font-size: 9px;
+    padding: 6px 7px;
+  }
+  .attachment-chip > span {
+    max-width: 190px;
+  }
+  .bucket-collection {
+    margin-top: 32px;
+  }
+  .bucket-collection-heading {
+    margin: 0 3px 14px;
+    gap: 10px;
+  }
+  .bucket-collection-heading h2 {
+    font-size: 12px;
+  }
+  .bucket-collection-heading > p {
+    font-size: 8px;
+  }
+  .bucket-packet {
+    padding: 18px 18px 19px;
+    margin-bottom: 14px;
+    border-radius: 11px;
+  }
+  .packet-stamp {
+    font-size: 8px;
+    margin-bottom: 14px;
+  }
+  .packet-original {
+    font-size: 8px;
+  }
+  .packet-summary {
+    font-size: 12px;
+    line-height: 2;
+    margin-bottom: 14px;
+  }
+  .bucket-item {
+    padding: 16px 0;
+  }
+  .bucket-item-line {
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .bucket-check,
+  .bucket-kind-icon {
+    margin-top: 4px;
+  }
+  .bucket-item-title {
+    flex-wrap: wrap;
+    gap: 6px;
+    position: relative;
+    padding-right: 17px;
+    align-items: center;
+  }
+  .bucket-item-title strong {
+    font-size: 12px;
+    line-height: 1.9;
+    flex: 1;
+    min-width: 65%;
+  }
+  .bucket-kind-label {
+    font-size: 8px;
+    padding: 3px 4px;
+  }
+  .bucket-item-title > svg {
+    position: absolute;
+    right: 0;
+    top: 6px;
+    width: 12px;
+  }
+  .bucket-due {
+    font-size: 9px;
+    margin: 3px 0 0;
+    flex-basis: 100%;
+    text-align: left;
+    padding-left: 0;
+    color: #a2b18c;
+  }
+  .item-facts {
+    font-size: 11px;
+    margin-top: 8px;
+    margin-left: 25px;
+    line-height: 2;
+  }
+  .item-short-summary {
+    font-size: 11px;
+    margin-left: 25px;
+    line-height: 2;
+  }
+  .item-uncertain {
+    font-size: 10px;
+    margin-left: 25px;
+    padding: 9px 10px;
+  }
+  .item-details {
+    margin-left: 25px;
+  }
+  .item-suggestions {
+    padding: 12px;
+  }
+  .item-suggestions ul {
+    font-size: 10px;
+    line-height: 2;
+  }
+  .item-details h4 {
+    font-size: 10px;
+  }
+  .item-evidence blockquote {
+    font-size: 10px;
+  }
+  .packet-note {
+    font-size: 8px;
+    padding: 8px;
+    margin-top: 12px;
+  }
+  .packet-waiting {
+    gap: 9px;
+    padding: 7px 0 9px;
+  }
+  .packet-waiting h3 {
+    font-size: 11px;
+    line-height: 1.9;
+  }
+  .packet-waiting p {
+    font-size: 9px;
+    line-height: 2;
+  }
+  .packet-retry {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .packet-waiting > svg {
+    width: 17px;
+  }
+  .packet-source pre {
+    font-size: 11px;
+    padding: 11px 12px;
+  }
+  .source-file {
+    font-size: 10px;
+    padding: 10px;
+  }
+  .bucket-footer {
+    font-size: 8px;
+    line-height: 2;
+    gap: 4px;
+    margin-top: 30px;
+    padding: 0 2px;
+    align-items: flex-start;
+  }
+  .bucket-footer svg {
+    margin-top: 2px;
+  }
+  .bucket-dialog header {
+    padding: 23px 22px 19px;
+  }
+  .bucket-dialog h2 {
+    font-size: 19px;
+  }
+  .bucket-dialog form {
+    padding: 21px 22px 24px;
+  }
+  .connection-intro {
+    font-size: 11px;
+    line-height: 2;
+  }
+  .bucket-dialog label {
+    font-size: 11px;
+  }
+  .bucket-dialog input:not([type="checkbox"]) {
+    padding: 12px;
+    font-size: 16px;
+  }
+  .connection-privacy {
+    font-size: 9px;
+  }
+  .connection-data {
+    padding: 18px 22px 23px;
+  }
+  .bucket-toast {
+    font-size: 10px;
+    gap: 13px;
+    padding: 12px 13px;
+    bottom: 20px;
+  }
+  .bucket-demo-note {
+    font-size: 8px;
+    padding: 10px 11px;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 25px;
+  }
+  .bucket-demo-note a {
+    white-space: nowrap;
+    gap: 1px;
+    font-size: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition: none !important;
+  }
+}
+
+.packet-summary,
+.item-facts,
+.item-short-summary,
+.packet-waiting h3,
+.connection-intro,
+.bucket-dialog label,
+.item-suggestions ul {
+  color: #687d59;
+}
+.kind-idea .bucket-item-title strong {
+  color: #817044;
+}
+.bucket-dialog input:not([type="checkbox"]) {
+  color: #506b43;
+}
+.item-first-step {
+  font-size: 11px;
+  line-height: 2;
+  color: #8b9d77;
+  margin: 10px 0 0 28px;
+}
+.item-first-step > span {
+  font-size: 9px;
+  color: #a4b28f;
+  margin-right: 6px;
+}
+.item-first-step > small {
+  font-size: 8px;
+  color: #bac4ab;
+  white-space: nowrap;
+  margin-left: 5px;
+}
+.item-file-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: #96ac7f;
+  padding: 5px 7px;
+  border-radius: 5px;
+  border: 1px solid #e7eedf;
+  background: #f8faf3;
+  margin: 10px 0 0 28px;
+  max-width: calc(100% - 28px);
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+@media (max-width: 480px) {
+  .item-first-step {
+    font-size: 10px;
+    margin-left: 25px;
+  }
+  .item-file-pill {
+    margin-left: 25px;
+    font-size: 9px;
+  }
+  .item-first-step > span {
+    font-size: 8px;
+  }
+}
+
+/* Keep the quiet visual style readable on a phone. */
+.packet-summary {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #526846;
+}
+.bucket-item-title strong {
+  font-size: 14px;
+  color: #3f613d;
+}
+.item-facts,
+.item-short-summary,
+.item-suggestions ul {
+  font-size: 13px;
+  line-height: 1.9;
+  color: #526846;
+}
+.item-first-step {
+  font-size: 12px;
+  color: #697e56;
+}
+.item-first-step > span,
+.item-first-step > small {
+  font-size: 10px;
+  color: #728364;
+}
+.bucket-intro > p,
+.bucket-attach,
+.bucket-under-composer,
+.packet-stamp,
+.bucket-due,
+.packet-note,
+.packet-original,
+.item-file-pill,
+.packet-waiting p {
+  color: #718166;
+}
+.bucket-attach,
+.bucket-primary,
+.bucket-settings {
+  min-height: 44px;
+}
+.bucket-settings {
+  min-width: 44px;
+}
+.bucket-kind-label,
+.bucket-due,
+.packet-stamp,
+.packet-note,
+.item-file-pill {
+  font-size: 11px;
+}
+.packet-source pre,
+.item-evidence blockquote {
+  font-size: 12px;
+  color: #5c7250;
+}
+.connection-intro,
+.bucket-dialog label {
+  font-size: 13px;
+}
+.connection-privacy {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #718166;
+}
+@media (max-width: 480px) {
+  .packet-summary {
+    font-size: 13px;
+  }
+  .bucket-item-title strong {
+    font-size: 14px;
+  }
+  .item-facts,
+  .item-short-summary,
+  .item-first-step {
+    font-size: 12px;
+  }
+  .item-first-step > span,
+  .item-first-step > small {
+    font-size: 10px;
+  }
+  .bucket-attach,
+  .bucket-primary {
+    font-size: 13px;
+  }
+  .packet-stamp,
+  .bucket-due,
+  .item-file-pill,
+  .packet-original {
+    font-size: 11px;
+  }
+  .bucket-under-composer,
+  .packet-note,
+  .bucket-demo-note,
+  .bucket-demo-note a {
+    font-size: 10px;
+  }
+  .bucket-intro > p {
+    font-size: 12px;
+  }
+}
