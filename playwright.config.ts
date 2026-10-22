@@ -6,21 +6,34 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: "http://localhost:5173",
-    channel,
     trace: "retain-on-failure",
   },
   projects: [
     {
       name: "desktop",
+      testIgnore: "**/apple.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
+        channel,
         viewport: { width: 1440, height: 1080 },
       },
     },
     {
       name: "mobile",
+      testIgnore: "**/apple.spec.ts",
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium", channel },
     },
+    ...["iPhone 13", "iPad (gen 7)", "iPad (gen 7) landscape"].map(
+      (device) => ({
+        name: device,
+        testMatch: "**/apple.spec.ts",
+        use: {
+          ...devices[device],
+          browserName: "webkit" as const,
+          channel: undefined,
+        },
+      }),
+    ),
   ],
   webServer: {
     command: "npm run dev",
