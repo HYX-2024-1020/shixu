@@ -6,7 +6,7 @@ const browser = await chromium.launch({
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("http://localhost:4173");
+  await page.goto(process.env.APP_URL || "http://localhost:4173");
   await page.waitForSelector(".welcome-card");
   page.on("pageerror", (error) => console.log("Browser error:", error.message));
   page.on("requestfailed", (request) =>

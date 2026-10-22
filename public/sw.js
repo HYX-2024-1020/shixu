@@ -1,5 +1,6 @@
-const CACHE = "shixu-shell-v1";
-const PRECACHE = ["/", "/icon.svg", "/manifest.webmanifest"];
+const CACHE_PREFIX = "shixu-shell-" + encodeURIComponent(self.registration.scope) + "-";
+const CACHE = CACHE_PREFIX + "v1";
+const PRECACHE = ["./", "./icon.svg", "./manifest.webmanifest"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
   self.skipWaiting();
@@ -11,7 +12,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("shixu-shell-") && key !== CACHE)
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -40,7 +41,7 @@ self.addEventListener("fetch", (event) => {
             (cached) =>
               cached ||
               (event.request.mode === "navigate"
-                ? caches.match("/", { ignoreVary: true })
+                ? caches.match(self.registration.scope, { ignoreVary: true })
                 : Response.error()),
           ),
       ),
