@@ -27,6 +27,7 @@ import {
 import { localDate } from "./organize";
 
 interface Props {
+  preview?: boolean;
   preferences: Preferences;
   entries: Entry[];
   aiKey: string;
@@ -158,16 +159,18 @@ export default function Settings(props: Props) {
           ["ai", "AI 整理"],
           ["cloud", "登录与同步"],
           ["data", "数据与备份"],
-        ].map(([id, label]) => (
-          <button
-            role="tab"
-            aria-selected={tab === id}
-            key={id}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
+        ]
+          .filter(([id]) => !props.preview || id !== "cloud")
+          .map(([id, label]) => (
+            <button
+              role="tab"
+              aria-selected={tab === id}
+              key={id}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
       </div>
       <div className="settings-body">
         {tab === "general" && (
