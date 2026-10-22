@@ -52,6 +52,7 @@ import {
 } from "./components";
 import { addDays, localDate } from "./organize";
 import { demoEntries } from "./demo";
+import Overview from "./Overview";
 import { useWorkspace } from "./useWorkspace";
 import { type Entry, type Kind, type Snapshot } from "./types";
 const Capture = lazy(() => import("./Capture"));
@@ -99,68 +100,9 @@ function sortEntries(a: Entry, b: Entry) {
   );
 }
 
-function DeskIllustration() {
-  return (
-    <svg viewBox="0 0 300 210" className="desk-illustration" aria-hidden="true">
-      <defs>
-        <pattern id="dots" width="13" height="13" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" fill="#b3c1a8" opacity=".4" />
-        </pattern>
-      </defs>
-      <ellipse
-        cx="153"
-        cy="187"
-        rx="120"
-        ry="11"
-        fill="#ced6c1"
-        opacity=".55"
-      />
-      <circle cx="176" cy="100" r="86" fill="#e5ead9" />
-      <rect x="88" y="18" width="177" height="155" fill="url(#dots)" />
-      <g transform="rotate(-12 96 129)">
-        <rect x="42" y="69" width="101" height="117" rx="7" fill="#d5b990" />
-        <rect x="49" y="65" width="96" height="116" rx="6" fill="#fdfaf1" />
-        <path
-          d="M64 86h53M64 100h60M64 114h36M64 142h47M64 155h54"
-          stroke="#d1d5c5"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <rect x="102" y="48" width="22" height="25" rx="4" fill="#77987b" />
-      </g>
-      <g transform="rotate(9 175 121)">
-        <rect x="128" y="67" width="91" height="119" rx="7" fill="#496d55" />
-        <rect x="134" y="63" width="88" height="118" rx="6" fill="#648468" />
-        <path d="M145 68v108" stroke="#95ac87" strokeWidth="2" />
-        <rect x="158" y="92" width="48" height="37" rx="2" fill="#edead6" />
-        <path
-          d="m172 109 7 7 12-15"
-          stroke="#648468"
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <path d="m202 63-1 30-7-5-6 4 2-30" fill="#d5b990" />
-      </g>
-      <path
-        d="M245 154c-1-32-3-54 6-75M249 115c-16-1-20-12-22-23 17-1 24 7 22 23M249 103c18-2 23-14 23-23-16 1-23 9-23 23M247 132c-16 0-23-9-25-17 13-4 25 3 25 17"
-        fill="#819b70"
-      />
-      <path d="M229 149h35l-5 36h-24z" fill="#b6c1a4" />
-      <path
-        d="M33 184h238"
-        stroke="#9dac8d"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="64" cy="38" r="4" fill="#c9aa78" />
-      <path d="m227 39 3 6 6 3-6 3-3 6-3-6-6-3 6-3z" fill="#a1b595" />
-    </svg>
-  );
-}
-
 export default function App() {
   const [toast, setToast] = useState("");
+  const [autoCapture, setAutoCapture] = useState(false);
   const toastTimer = useRef<number>(0);
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -464,7 +406,7 @@ export default function App() {
               <br />
               也可以一件一件来。
             </p>
-            <span>TAKE YOUR TIME</span>
+            <span>一点点，也很好。</span>
           </div>
           <button className="nav-item" onClick={() => setSettings(true)}>
             <SettingsIcon size={18} />
@@ -552,6 +494,18 @@ export default function App() {
           </div>
         </header>
         <main className="main-content">
+          {workspace.preview && (
+            <div className="design-preview-banner">
+              <span>
+                <Sparkles size={14} />
+                设计预览 · 示例数据，可自由体验
+              </span>
+              <a href={location.pathname}>
+                返回我的空间
+                <ArrowUpRight size={13} />
+              </a>
+            </div>
+          )}
           <div className="page-heading">
             <div>
               <div className="eyebrow">
@@ -561,7 +515,7 @@ export default function App() {
                   weekday: "long",
                 })}
                 <span />
-                LIFE, A LITTLE MORE ORGANIZED
+                你的日常工作台
               </div>
               <h1>
                 {query
@@ -607,322 +561,26 @@ export default function App() {
           ) : (
             <>
               {view === "overview" && (
-                <>
-                  <section className="welcome-card">
-                    <div className="welcome-copy">
-                      <span className="pill">
-                        <span className="live-dot" />
-                        你的日常，有处可放
-                      </span>
-                      <h2>
-                        先记录，
-                        <br />
-                        生活会慢慢有序。
-                      </h2>
-                      <p>
-                        作业、通知、项目，或一个还没成形的念头。
-                        <br className="desktop-break" />
-                        丢进来，给大脑留一点空白。
-                      </p>
-                      <button
-                        className="button primary"
-                        onClick={() => setCapture("")}
-                      >
-                        <Plus size={16} />
-                        记下此刻想到的
-                        <ArrowRight size={16} />
-                      </button>
-                    </div>
-                    <DeskIllustration />
-                    <span className="welcome-caption">
-                      A LITTLE SPACE FOR YOUR MIND
-                    </span>
-                  </section>
-                  <div className="stats-grid">
-                    {[
-                      {
-                        label: "今天要做",
-                        value: todayTasks.length,
-                        foot: todayTasks.filter((e) => e.due < today).length
-                          ? `含 ${todayTasks.filter((e) => e.due < today).length} 件逾期`
-                          : "把注意力留给今天",
-                        icon: Target,
-                        view: "today" as View,
-                        color: "green",
-                      },
-                      {
-                        label: "等待整理",
-                        value: inbox.length,
-                        foot: "让零散的事各归其位",
-                        icon: Inbox,
-                        view: "inbox" as View,
-                        color: "orange",
-                      },
-                      {
-                        label: "进行中的项目",
-                        value: projects.length,
-                        foot: "每一步都离目标更近",
-                        icon: FolderOpen,
-                        view: "projects" as View,
-                        color: "blue",
-                      },
-                      {
-                        label: "收下的灵感",
-                        value: ideas.length,
-                        foot: "好想法值得被记住",
-                        icon: Lightbulb,
-                        view: "ideas" as View,
-                        color: "yellow",
-                      },
-                    ].map((s) => (
-                      <button
-                        className="stat-card"
-                        key={s.label}
-                        onClick={() => navigate(s.view)}
-                      >
-                        <div>
-                          <span>{s.label}</span>
-                          <span className={`stat-icon ${s.color}`}>
-                            <s.icon size={18} />
-                          </span>
-                        </div>
-                        <strong>{String(s.value).padStart(2, "0")}</strong>
-                        <small>
-                          {s.foot}
-                          <ArrowUpRight size={13} />
-                        </small>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="dashboard-columns">
-                    <div className="dashboard-primary">
-                      <section className="panel today-panel">
-                        <SectionHeading
-                          title="今天，专注眼前"
-                          count={todayTasks.length}
-                          action={
-                            <LinkArrow onClick={() => navigate("today")}>
-                              查看全部
-                            </LinkArrow>
-                          }
-                        />
-                        {todayTasks.length ? (
-                          todayTasks.slice(0, 4).map(row)
-                        ) : (
-                          <Empty
-                            icon={<Coffee size={26} />}
-                            title="今天，可以从容一点"
-                          >
-                            {visible.length
-                              ? "没有到期事项。也可以挑一件想做的小事。"
-                              : "记下第一件事，让它从脑海来到这里。"}
-                          </Empty>
-                        )}
-                        <button
-                          className="add-row"
-                          onClick={() => setCapture("今天 ")}
-                        >
-                          <Plus size={15} />
-                          给今天加一件小事
-                        </button>
-                      </section>
-                      <section className="panel inbox-panel">
-                        <SectionHeading
-                          title="给零散的事，理理头绪"
-                          action={
-                            <LinkArrow onClick={() => navigate("inbox")}>
-                              去收集箱
-                            </LinkArrow>
-                          }
-                        />
-                        {inbox.length ? (
-                          <>
-                            <p className="section-note">
-                              有 {inbox.length}{" "}
-                              条记录等待你确认，整理好就安心了。
-                            </p>
-                            {inbox.slice(0, 2).map((e) => (
-                              <button
-                                className="inbox-preview"
-                                key={e.id}
-                                onClick={() => setEditing(e)}
-                              >
-                                <span className="inbox-mark">
-                                  <Inbox size={17} />
-                                </span>
-                                <span>
-                                  <strong>{e.title}</strong>
-                                  <small>
-                                    <Badge kind={e.kind} />
-                                    分类与日期待确认
-                                  </small>
-                                </span>
-                                <ArrowRight size={17} />
-                              </button>
-                            ))}
-                          </>
-                        ) : (
-                          <div className="clear-inbox">
-                            <CheckCheck size={23} />
-                            <div>
-                              <strong>收集箱很清爽</strong>
-                              <p>新的事情来了，随时丢进来就好。</p>
-                            </div>
-                          </div>
-                        )}
-                      </section>
-                      {visible.length === 0 && (
-                        <section className="getting-started">
-                          <div>
-                            <BookOpen size={20} />
-                            <h3>第一次见，先轻轻开始</h3>
-                          </div>
-                          <p>输入一条真实通知，或先用虚构示例逛一圈。</p>
-                          <div className="inline-actions">
-                            <button
-                              className="button primary"
-                              onClick={() => setCapture("")}
-                            >
-                              开始第一条记录
-                              <ArrowRight size={14} />
-                            </button>
-                            <button
-                              className="text-button"
-                              onClick={() => void safely(loadDemo)}
-                            >
-                              体验示例空间
-                            </button>
-                          </div>
-                        </section>
-                      )}
-                    </div>
-                    <div className="dashboard-secondary">
-                      <section className="progress-card">
-                        <div className="section-heading">
-                          <h2>今天的小小进展</h2>
-                          <Leaf size={17} />
-                        </div>
-                        <div className="progress-layout">
-                          <div
-                            className="progress-ring"
-                            style={{
-                              background: `conic-gradient(var(--green) ${progress}%, var(--track) 0)`,
-                            }}
-                          >
-                            <div>
-                              <strong>
-                                {doneToday}
-                                <small> / {preferences.dailyGoal}</small>
-                              </strong>
-                              <span>已完成</span>
-                            </div>
-                          </div>
-                          <p>
-                            {doneToday
-                              ? "每一件小事，\n都在让生活向前。"
-                              : "先从一件小事开始，\n一点点，也很好。"}
-                          </p>
-                        </div>
-                        <button
-                          className="focus-button"
-                          onClick={() => setFocusOpen(true)}
-                        >
-                          <Timer size={15} />
-                          {focusEnd
-                            ? `专注中 ${Math.floor(focusLeft / 60)}:${String(focusLeft % 60).padStart(2, "0")}`
-                            : "给自己 25 分钟专注"}
-                          <ArrowRight size={14} />
-                        </button>
-                      </section>
-                      <section className="panel habit-panel">
-                        <SectionHeading
-                          title="一点点，养成习惯"
-                          action={
-                            <LinkArrow onClick={() => navigate("habits")}>
-                              全部
-                            </LinkArrow>
-                          }
-                        />
-                        {habits.length ? (
-                          habits.slice(0, 3).map((e) => (
-                            <div className="habit-mini" key={e.id}>
-                              <button
-                                className="habit-name"
-                                onClick={() => setEditing(e)}
-                              >
-                                <span className="habit-mini-icon">
-                                  <Sprout size={16} />
-                                </span>
-                                {e.title}
-                              </button>
-                              <button
-                                className={`habit-check ${e.checkins.includes(today) ? "checked" : ""}`}
-                                aria-label={`打卡：${e.title}`}
-                                onClick={() => void safely(() => toggle(e))}
-                              >
-                                {e.checkins.includes(today) ? (
-                                  <Check size={15} />
-                                ) : (
-                                  <Plus size={14} />
-                                )}
-                              </button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="mini-empty">
-                            <Sprout size={23} />
-                            <p>给喜欢的事一点固定时间</p>
-                            <button
-                              className="text-button"
-                              onClick={() => setCapture("每天 ")}
-                            >
-                              种下第一个习惯
-                              <Plus size={13} />
-                            </button>
-                          </div>
-                        )}
-                      </section>
-                      <section className="idea-note">
-                        <span className="note-label">
-                          <Lightbulb size={16} />
-                          灵感拾光
-                        </span>
-                        {ideas.length ? (
-                          <button
-                            onClick={() => setEditing(ideas[ideas.length - 1])}
-                          >
-                            <h3>{ideas[ideas.length - 1].title}</h3>
-                            <p>
-                              {ideas[ideas.length - 1].content.slice(0, 85)}
-                            </p>
-                            <span>
-                              让这个想法长大一点
-                              <ArrowUpRight size={14} />
-                            </span>
-                          </button>
-                        ) : (
-                          <button onClick={() => setCapture("灵感：")}>
-                            <h3>
-                              有些想法，
-                              <br />
-                              值得被认真留下。
-                            </h3>
-                            <p>不必完整，几个字也可以。</p>
-                            <span>
-                              接住一个小念头
-                              <ArrowUpRight size={14} />
-                            </span>
-                          </button>
-                        )}
-                        <Feather
-                          className="note-feather"
-                          size={64}
-                          strokeWidth={0.8}
-                        />
-                      </section>
-                    </div>
-                  </div>
-                </>
+                <Overview
+                  today={today}
+                  entries={visible}
+                  tasks={todayTasks}
+                  inbox={inbox}
+                  projects={projects}
+                  ideas={ideas}
+                  habits={habits}
+                  doneToday={doneToday}
+                  preferences={preferences}
+                  onCapture={(text, organize = false) => {
+                    setAutoCapture(organize);
+                    setCapture(text);
+                  }}
+                  onOpen={setEditing}
+                  onToggle={(entry) => void safely(() => toggle(entry))}
+                  onNavigate={navigate}
+                  onFocus={() => setFocusOpen(true)}
+                  onDemo={() => void safely(loadDemo)}
+                />
               )}
               {view === "today" && (
                 <>
@@ -1448,13 +1106,40 @@ export default function App() {
           </footer>
         </main>
       </div>
-      <button
-        className="mobile-capture"
-        aria-label="随手记一笔"
-        onClick={() => setCapture("")}
-      >
-        <Plus size={25} />
-      </button>
+      <nav className="mobile-dock" aria-label="手机快捷导航">
+        <button
+          className={view === "overview" ? "active" : ""}
+          onClick={() => navigate("overview")}
+        >
+          <LayoutDashboard size={20} />
+          <span>总览</span>
+        </button>
+        <button
+          className={view === "today" ? "active" : ""}
+          onClick={() => navigate("today")}
+        >
+          <Target size={20} />
+          <span>今日</span>
+        </button>
+        <button
+          className="mobile-capture"
+          aria-label="随手记一笔"
+          onClick={() => setCapture("")}
+        >
+          <Plus size={25} />
+        </button>
+        <button
+          className={view === "ideas" ? "active" : ""}
+          onClick={() => navigate("ideas")}
+        >
+          <Lightbulb size={20} />
+          <span>灵感</span>
+        </button>
+        <button onClick={() => setSidebar(true)}>
+          <Menu size={20} />
+          <span>更多</span>
+        </button>
+      </nav>
       <Suspense
         fallback={
           <div className="modal-loading" role="status">
@@ -1465,12 +1150,16 @@ export default function App() {
       >
         {capture !== null && (
           <Capture
-            draftKey={`shixu-draft-${account?.session.user.id || "local"}`}
+            draftKey={`shixu-draft-${workspace.preview ? "preview-design-v2" : account?.session.user.id || "local"}`}
             initialText={capture}
+            autoOrganize={autoCapture}
             preferences={preferences}
             aiKey={aiKey}
             projects={projectNames}
-            onClose={() => setCapture(null)}
+            onClose={() => {
+              setCapture(null);
+              setAutoCapture(false);
+            }}
             onSave={workspace.save}
             notify={notify}
             openSettings={() => setSettings(true)}
@@ -1501,6 +1190,7 @@ export default function App() {
         )}
         {settings && (
           <Settings
+            preview={workspace.preview}
             preferences={preferences}
             entries={entries}
             aiKey={aiKey}

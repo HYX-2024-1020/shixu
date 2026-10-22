@@ -16,6 +16,7 @@ import { type Draft, type Entry, type Preferences } from "./types";
 export default function Capture({
   draftKey,
   initialText,
+  autoOrganize = false,
   preferences,
   aiKey,
   projects,
@@ -26,6 +27,7 @@ export default function Capture({
 }: {
   draftKey: string;
   initialText: string;
+  autoOrganize?: boolean;
   preferences: Preferences;
   aiKey: string;
   projects: string[];
@@ -41,13 +43,17 @@ export default function Capture({
         return initialText;
       }
     }),
-    [drafts, setDrafts] = useState<Draft[]>([]),
+    [drafts, setDrafts] = useState<Draft[]>(() =>
+      autoOrganize ? organize(initialText) : [],
+    ),
     [expanded, setExpanded] = useState(0);
   const [busy, setBusy] = useState(""),
     [fileName, setFileName] = useState(""),
-    [mode, setMode] = useState("本机整理"),
-    [summary, setSummary] = useState<string[]>([]);
-  const [source, setSource] = useState("");
+    [mode, setMode] = useState(autoOrganize ? "本机规则提取" : "本机整理"),
+    [summary, setSummary] = useState<string[]>(() =>
+      autoOrganize ? extractiveSummary(initialText) : [],
+    );
+  const [source, setSource] = useState(autoOrganize ? initialText : "");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const timeout = setTimeout(() => {

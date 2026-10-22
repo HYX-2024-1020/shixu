@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_PREFS, type Entry, type Preferences } from "./types";
+import { demoEntries } from "./demo";
 import {
   mergeEntries,
   readAll,
@@ -18,6 +19,9 @@ import {
 const AUTH_KEY = "shixu-cloud-session-v1";
 type Account = { config: CloudConfig; session: CloudSession };
 export function useWorkspace(onError: (message: string) => void) {
+  const [preview] = useState(
+    () => new URLSearchParams(location.search).get("preview") === "design-v2",
+  );
   const [entries, setEntries] = useState<Entry[]>([]);
   const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFS);
   const [ready, setReady] = useState(false);
@@ -41,7 +45,7 @@ export function useWorkspace(onError: (message: string) => void) {
       let stored: Account | null = null;
       try {
         const raw = localStorage.getItem(AUTH_KEY);
-        if (raw) {
+        if (raw && !preview) {
           const parsed = JSON.parse(raw);
           if (
             parsed.session?.user?.id &&
@@ -57,17 +61,24 @@ export function useWorkspace(onError: (message: string) => void) {
       setNamespace(
         stored
           ? `shixu-${new URL(stored.config.url).hostname}-${stored.session.user.id}`
-          : "shixu",
+          : preview
+            ? "shixu-preview-design-v2"
+            : "shixu",
       );
       accountRef.current = stored;
       setAccount(stored);
+      if (preview) {
+        const initial = await readAll();
+        if (!active) return;
+        if (!initial.entries.length) await writeEntries(demoEntries());
+      }
       await reload();
       if (active) setReady(true);
     })().catch((e) => errorRef.current(e.message));
     return () => {
       active = false;
     };
-  }, [reload]);
+  }, [reload, preview]);
 
   const save = useCallback(async (updates: Entry[]) => {
     await writeEntries(updates);
@@ -84,6 +95,7 @@ export function useWorkspace(onError: (message: string) => void) {
   }, []);
   const connect = useCallback(
     async (config: CloudConfig, session: CloudSession, mergeLocal: boolean) => {
+      if (preview) throw new Error("示例空间不连接真实账号，请先返回我的空间");
       const guest = mergeLocal ? (await readAll()).entries : [];
       generation.current++;
       const next = { config, session };
@@ -99,7 +111,7 @@ export function useWorkspace(onError: (message: string) => void) {
       await reload();
       setSyncState("等待同步");
     },
-    [reload],
+    [reload, preview],
   );
   const disconnect = useCallback(async () => {
     const current = accountRef.current;
@@ -194,6 +206,7 @@ export function useWorkspace(onError: (message: string) => void) {
     channel.close();
   };
   return {
+    preview,
     entries,
     preferences,
     ready,
