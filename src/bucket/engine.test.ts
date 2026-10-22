@@ -7,6 +7,7 @@ import {
   validateResult,
   type Source,
 } from "../../shared/bucket-engine.mjs";
+import type { UsageRecord } from "../../shared/usage.mjs";
 const today = "2026-10-22";
 const sources: Source[] = [
   {
@@ -60,6 +61,68 @@ function response(value: unknown, reason = "stop") {
   );
 }
 describe("the bucket understands one complete packet", () => {
+  it("records every billed repair even when a generated result is rejected", async () => {
+    const rows = new Map<string, UsageRecord>();
+    const wrong = result();
+    wrong.items[0].evidence[0].quote = "这不是原文";
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: "deepseek-flash",
+            usage: {
+              prompt_tokens: 1000,
+              completion_tokens: 100,
+              prompt_cache_hit_tokens: 200,
+              prompt_cache_miss_tokens: 800,
+            },
+            choices: [
+              {
+                finish_reason: "stop",
+                message: { content: JSON.stringify(wrong) },
+              },
+            ],
+          }),
+        ),
+    ) as unknown as typeof fetch;
+    await expect(
+      organizePacket(sources, {
+        apiKey: "fixture-secret",
+        packetId: "fixture-packet",
+        captureDate: today,
+        fetcher,
+        onUsage: (r) => {
+          rows.set(r.id, r);
+        },
+      }),
+    ).rejects.toThrow("引用不在原文");
+    expect(rows.size).toBe(2);
+    for (const r of rows.values()) {
+      expect(r.state).toBe("reported");
+      expect(r.cost?.min).toBe(0.001204);
+      expect(r.packetId).toBe("fixture-packet");
+    }
+    expect(JSON.stringify([...rows.values()])).not.toContain("fixture-secret");
+    expect(JSON.stringify([...rows.values()])).not.toContain("交报告");
+  });
+  it("marks an interrupted request unknown instead of treating it as free", async () => {
+    const rows = new Map<string, UsageRecord>();
+    await expect(
+      organizePacket(sources, {
+        apiKey: "fixture",
+        captureDate: today,
+        fetcher: (async () => {
+          throw new TypeError("Network failed");
+        }) as typeof fetch,
+        onUsage: (r) => {
+          rows.set(r.id, r);
+        },
+      }),
+    ).rejects.toThrow("Network failed");
+    expect([...rows.values()]).toMatchObject([
+      { state: "unreported", usage: null, cost: null },
+    ]);
+  });
   it("keeps the notice and attachment together, with grounded date and file attribution", async () => {
     const requests: any[] = [];
     const fetcher = vi.fn(async (_url: any, init: any) => {

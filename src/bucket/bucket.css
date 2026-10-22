@@ -1568,3 +1568,166 @@ button:hover:not(:disabled) {
     font-size: 12px;
   }
 }
+
+.bucket-model-cost {
+  font-size: 11px;
+  color: #526e49;
+  text-align: right;
+  max-width: 60%;
+  line-height: 1.8;
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+}
+.connection-model {
+  margin: 20px 0;
+}
+.bucket-dialog .connection-model label {
+  margin-bottom: 6px;
+}
+.bucket-dialog select {
+  width: 100%;
+  min-height: 45px;
+  border: 1px solid #d7e2cd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #3f5e36;
+  font-size: 14px;
+}
+.connection-model > button {
+  font-size: 12px;
+  color: #396b50;
+  min-height: 38px;
+  padding: 4px 0;
+}
+.connection-model > p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #718166;
+}
+.bucket-usage {
+  padding: 23px 27px;
+  border-top: 1px solid #e7eedf;
+}
+.usage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.usage-heading h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #3f5f3a;
+}
+.usage-heading > span {
+  font-size: 11px;
+  color: #718166;
+}
+.usage-amount {
+  font-size: 21px;
+  color: #2b5b49;
+  line-height: 1.8;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.usage-tokens {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #5f7553;
+}
+.usage-scope,
+.usage-incomplete {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #718166;
+  margin-top: 9px;
+}
+.usage-incomplete {
+  color: #926c36;
+}
+.bucket-usage details {
+  font-size: 11px;
+  line-height: 1.9;
+  margin-top: 15px;
+  color: #667d59;
+}
+.bucket-usage summary {
+  cursor: pointer;
+}
+.bucket-usage details > p {
+  margin-top: 10px;
+}
+.bucket-usage a {
+  display: inline-block;
+  text-decoration: underline;
+  margin: 10px 0;
+  color: #397057;
+}
+.usage-call {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  border-top: 1px solid #e7eedf;
+  padding: 9px 0;
+  overflow-wrap: anywhere;
+}
+.usage-call > span {
+  min-width: 0;
+}
+.usage-call > span:last-child {
+  text-align: right;
+}
+.usage-call small {
+  display: block;
+  color: #78866f;
+  font-size: 10px;
+}
+.usage-balance {
+  border-top: 1px solid #e7eedf;
+  padding-top: 14px;
+  margin-top: 17px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #506d45;
+}
+.usage-balance button {
+  color: #2b5b49;
+  white-space: nowrap;
+  min-height: 36px;
+}
+.packet-cost {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #78866f;
+  margin: 0 0 13px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .bucket-under-composer {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 3px 12px;
+  }
+  .bucket-model-cost {
+    font-size: 11px;
+    max-width: 100%;
+    text-align: left;
+  }
+  .bucket-usage {
+    padding: 22px;
+  }
+  .bucket-dialog select {
+    font-size: 16px;
+  }
+  .usage-amount {
+    font-size: 18px;
+  }
+  .usage-call {
+    gap: 10px;
+  }
+}

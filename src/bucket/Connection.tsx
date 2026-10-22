@@ -3,6 +3,9 @@ import { Check, Download, KeyRound, LoaderCircle, X } from "lucide-react";
 import { DEFAULT_MODEL } from "../../shared/bucket-engine.mjs";
 import { exportPackets, serviceRequest, type Health } from "./service";
 import type { Packet } from "./types";
+import { getModels, KNOWN_MODELS, modelLabel } from "./model-api";
+import UsagePanel from "./UsagePanel";
+import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection({
   apiKey,
@@ -10,6 +13,7 @@ export default function Connection({
   remember,
   health,
   packets,
+  usage,
   onConnected,
   onClose,
   notify,
@@ -19,6 +23,7 @@ export default function Connection({
   remember: boolean;
   health: Health | null;
   packets: Packet[];
+  usage: UsageRecord[];
   onConnected: (key: string, model: string, remember: boolean) => void;
   onClose: () => void;
   notify: (message: string) => void;
@@ -32,10 +37,33 @@ export default function Connection({
     [authenticated, setAuthenticated] = useState(
       health?.authenticated || false,
     ),
-    [models, setModels] = useState<string[]>([model || DEFAULT_MODEL]);
+    [models, setModels] = useState<string[]>([
+      ...new Set([model || DEFAULT_MODEL, ...KNOWN_MODELS]),
+    ]),
+    [modelsBusy, setModelsBusy] = useState(false);
+  const verified = useRef<{ key: string; ids: string[] } | null>(null);
   useEffect(() => {
     ref.current?.showModal();
     return () => ref.current?.close();
+  }, []);
+  async function readModels() {
+    setModelsBusy(true);
+    try {
+      const ids = await getModels(key, health);
+      verified.current = { key: key.trim(), ids };
+      setModels(ids);
+      if (!ids.includes(selected)) {
+        setSelected(ids[0]);
+        notify("已读取可用模型，请确认选择后再连接");
+      }
+      return ids;
+    } finally {
+      setModelsBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (apiKey || (health?.authenticated && health.modelReady))
+      void readModels().catch(() => {});
   }, []);
   async function connect() {
     setBusy(true);
@@ -58,6 +86,12 @@ export default function Connection({
           notify("访问口令已验证，可以连接 DeepSeek");
           return;
         }
+        const available =
+          verified.current?.key === key.trim()
+            ? verified.current.ids
+            : await readModels();
+        if (!available.includes(selected))
+          throw new Error("当前模型不可用，请确认新选择后再连接");
         await serviceRequest("settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,32 +106,13 @@ export default function Connection({
         return;
       }
       if (!key.trim()) throw new Error("填写你的 DeepSeek API 密钥即可开始");
-      const response = await fetch("https://api.deepseek.com/models", {
-        headers: { Authorization: `Bearer ${key.trim()}` },
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!response.ok)
-        throw new Error(
-          response.status === 401
-            ? "DeepSeek 密钥不正确"
-            : "暂时无法校验 DeepSeek，请检查网络",
-        );
-      const payload = await response.json(),
-        available = Array.isArray(payload.data)
-          ? payload.data
-              .map((m: { id: string }) => m.id)
-              .filter((id: unknown) => typeof id === "string")
-          : [];
-      let choice = selected;
-      if (available.length && !available.includes(choice))
-        choice = available.includes(DEFAULT_MODEL)
-          ? DEFAULT_MODEL
-          : available.includes("deepseek-chat")
-            ? "deepseek-chat"
-            : available[0];
-      setModels(available.length ? available : [choice]);
-      setSelected(choice);
-      onConnected(key.trim(), choice, persist);
+      const available =
+        verified.current?.key === key.trim()
+          ? verified.current.ids
+          : await readModels();
+      if (!available.includes(selected))
+        throw new Error("当前模型不可用，请确认新选择后再连接");
+      onConnected(key.trim(), selected, persist);
       notify("已连接。桶里等待整理的内容会自动开始处理。");
       onClose();
     } catch (error) {
@@ -158,27 +173,42 @@ export default function Connection({
                 autoFocus
               />
             </label>
-            <details className="connection-advanced">
-              <summary>模型选项</summary>
+            <div className="connection-model">
               <label>
-                模型 ID
-                <input
+                整理模型
+                <select
+                  aria-label="整理模型"
                   value={selected}
                   onChange={(e) => setSelected(e.target.value)}
-                  list="bucket-models"
-                  maxLength={100}
-                />
-                <datalist id="bucket-models">
+                  disabled={busy || modelsBusy}
+                >
                   {models.map((id) => (
-                    <option value={id} key={id} />
+                    <option value={id} key={id}>
+                      {modelLabel(id)} · {id}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </label>
+              <button
+                type="button"
+                disabled={busy || modelsBusy}
+                onClick={() =>
+                  void readModels().catch((error) =>
+                    notify(
+                      error instanceof Error ? error.message : "读取模型失败",
+                    ),
+                  )
+                }
+              >
+                {modelsBusy ? "读取中…" : "读取可用模型"}
+              </button>
               <p>
-                默认优先使用账号中可用的 {DEFAULT_MODEL}
-                。长文件会自动分段并合并，可能产生多次按量调用。
+                {rateFor(selected)
+                  ? `每百万 Tokens：未缓存输入 ¥${rateFor(selected)!.miss}–${rateFor(selected)!.miss * 2}，输出 ¥${rateFor(selected)!.output}–${rateFor(selected)!.output * 2}。`
+                  : "该模型暂无价格快照，记录用量但不猜费用。"}{" "}
+                长文件可能多次调用。切换对下一次投递生效，已开始的整理使用原模型。
               </p>
-            </details>
+            </div>
             {!health && (
               <label className="remember-key">
                 <input
@@ -200,7 +230,7 @@ export default function Connection({
         <button
           className="bucket-primary connection-submit"
           type="submit"
-          disabled={busy}
+          disabled={busy || modelsBusy}
         >
           {busy ? (
             <LoaderCircle size={17} className="bucket-spin" />
@@ -210,13 +240,21 @@ export default function Connection({
           {health && !authenticated ? "进入" : "连接并开始"}
         </button>
       </form>
+      {(!health || authenticated) && (
+        <UsagePanel
+          records={usage}
+          apiKey={key}
+          health={health}
+          notify={notify}
+        />
+      )}
       <div className="connection-data">
         <button
           disabled={busy}
           onClick={async () => {
             setBusy(true);
             try {
-              await exportPackets(packets);
+              await exportPackets(packets, usage);
               notify(
                 "已导出原文、整理结果和附件。备份包含个人内容，请妥善保管。",
               );

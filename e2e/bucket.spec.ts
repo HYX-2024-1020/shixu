@@ -7,7 +7,9 @@ const INPUT =
 const FILE = "提交 PDF 报告，不少于 2000 字，附上访谈记录。";
 async function modelRoutes(page: Page, requests: any[]) {
   await page.route("https://api.deepseek.com/models", (route) =>
-    route.fulfill({ json: { data: [{ id: "deepseek-flash" }] } }),
+    route.fulfill({
+      json: { data: [{ id: "deepseek-flash" }, { id: "deepseek-v4-pro" }] },
+    }),
   );
   await page.route(
     "https://api.deepseek.com/chat/completions",
@@ -72,6 +74,13 @@ async function modelRoutes(page: Page, requests: any[]) {
         });
       await route.fulfill({
         json: {
+          model: body.model,
+          usage: {
+            prompt_tokens: 1000,
+            completion_tokens: 100,
+            prompt_cache_hit_tokens: 200,
+            prompt_cache_miss_tokens: 800,
+          },
           choices: [
             {
               finish_reason: "stop",
@@ -144,6 +153,70 @@ test("one input plus file becomes organized items without any classification for
   expect(
     Object.keys(zip).filter((key) => key.startsWith("files/")),
   ).toHaveLength(1);
+});
+
+test("model choice reaches requests and cumulative costs persist after deleting a packet", async ({
+  page,
+}) => {
+  const requests: any[] = [];
+  await modelRoutes(page, requests);
+  await page.route("https://api.deepseek.com/user/balance", (route) =>
+    route.fulfill({
+      json: {
+        is_available: true,
+        balance_infos: [
+          {
+            currency: "CNY",
+            total_balance: "98.12",
+            granted_balance: "0",
+            topped_up_balance: "98.12",
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "连接与设置" }).click();
+  await page.getByLabel("DeepSeek API 密钥", { exact: true }).fill(KEY);
+  await page.getByRole("button", { name: "读取可用模型", exact: true }).click();
+  await expect(page.getByLabel("整理模型", { exact: true })).toBeEnabled();
+  await page
+    .getByLabel("整理模型", { exact: true })
+    .selectOption("deepseek-v4-pro");
+  await page.getByRole("button", { name: "连接并开始", exact: true }).click();
+  await page.getByLabel("往桶里放入内容").fill("明天交第一份报告");
+  await page.getByRole("button", { name: "丢进去", exact: true }).click();
+  await expect(page.locator(".packet-ready")).toHaveCount(1);
+  expect(requests[0].model).toBe("deepseek-v4-pro");
+  await expect(page.locator(".packet-cost")).toContainText(
+    "¥0.004980–0.009960",
+  );
+  await page.getByRole("button", { name: "选择模型与查看费用" }).click();
+  await expect(page.getByLabel("整理模型", { exact: true })).toBeEnabled();
+  await page
+    .getByLabel("整理模型", { exact: true })
+    .selectOption("deepseek-flash");
+  await page.getByRole("button", { name: "刷新余额", exact: true }).click();
+  await expect(page.locator(".usage-balance")).toContainText("CNY 98.12");
+  await page.getByRole("button", { name: "连接并开始", exact: true }).click();
+  await page.getByLabel("往桶里放入内容").fill("明天交第二份报告");
+  await page.getByRole("button", { name: "丢进去", exact: true }).click();
+  await expect(page.locator(".packet-ready")).toHaveCount(2);
+  expect(requests[1].model).toBe("deepseek-flash");
+  await page.getByRole("button", { name: "原文与附件" }).first().click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "删除这一包" }).click();
+  await expect(page.locator(".bucket-packet")).toHaveCount(1);
+  await page.reload();
+  await page.getByRole("button", { name: "选择模型与查看费用" }).click();
+  await expect(page.locator(".usage-tokens")).toContainText("2 次调用");
+  await expect(page.locator(".usage-amount")).toContainText(
+    "¥0.006184 – 0.012368",
+  );
+  await expect(page.getByLabel("整理模型", { exact: true })).toHaveValue(
+    "deepseek-flash",
+  );
+  await expect(page.locator(".bucket-usage")).toContainText("历史消耗无法补齐");
 });
 
 test("offline or unconfigured input is kept and starts automatically after connection", async ({
