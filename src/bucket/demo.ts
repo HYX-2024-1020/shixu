@@ -5,6 +5,92 @@ export const SAMPLE_TEXT =
   "老师说下周三 23:59 前交课程调研报告，具体要求看附件。\n另外，突然想到：做一个校园旧书地图。\n想每天睡前读十分钟书。";
 export const SAMPLE_FILE =
   "课程调研报告要求\n提交一份 PDF 报告和访谈记录，报告不少于 2000 字。\n文件名格式：学号_姓名_调研报告。\n请通过课程平台提交。";
+export function sampleRelations(): Packet[] {
+  const today = localDate(),
+    shift = (n: number) => {
+      const d = new Date(today + "T12:00:00Z");
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+  const rows = ["一", "二"].map((lesson, i): Packet => {
+    const date = shift(i === 0 ? -1 : 0),
+      due = shift(i === 0 ? 1 : 3),
+      at = date + "T10:00:00Z",
+      id = "relation-demo-" + i,
+      fileId = id + "-file";
+    const text = `做 Python 第${lesson}课作业，${due.replace(/(\d{4})-(\d{2})-(\d{2})/, "$1年$2月$3日")} ${i === 0 ? "18:00" : "23:59"} 前交，具体要求见附件。`;
+    const file =
+      i === 0
+        ? "第一课：完成变量与输入输出练习，提交 .py 源文件。"
+        : "第二课：完成条件分支练习，提交 .py 源文件和运行截图。";
+    const sources = [
+        { id: "input", name: "随手输入", text },
+        { id: fileId, name: `Python第${lesson}课要求.txt`, text: file },
+      ],
+      blob = new Blob([file], { type: "text/plain" });
+    return {
+      id,
+      text,
+      sources,
+      attachments: [
+        {
+          id: fileId,
+          name: sources[1].name,
+          size: blob.size,
+          type: "text/plain",
+          blob,
+        },
+      ],
+      capturedAt: at,
+      captureDate: date,
+      status: "ready",
+      doneIds: [],
+      updatedAt: at,
+      error: "",
+      result: validateResult(
+        {
+          summary: `收下了 Python 第${lesson}课的作业与附件。`,
+          items: [
+            {
+              kind: "task",
+              title: `完成 Python 第${lesson}课作业`,
+              summary: "按课程要求完成并提交。",
+              facts: [file],
+              nextSteps: [],
+              uncertainties: [],
+              due: {
+                date: due,
+                time: i === 0 ? "18:00" : "23:59",
+                anchor: text,
+                sourceId: "input",
+              },
+              evidence: [
+                { sourceId: "input", quote: text },
+                { sourceId: fileId, quote: file },
+              ],
+            },
+          ],
+          warnings: ["这是虚构的跨次关联示例，未调用模型。"],
+        },
+        sources,
+        date,
+      ),
+      association: { state: "ready", links: [], warnings: [] },
+    };
+  });
+  rows[1].association!.links = [
+    {
+      id: "relation-demo-link",
+      from: rows[1].id + "#0",
+      target: rows[0].id + "#0",
+      relation: "related",
+      title: "Python 第一、二课作业",
+      confidence: 0.99,
+      contextRefs: rows.map((p) => p.id + "#0"),
+    },
+  ];
+  return rows;
+}
 export function samplePacket(): Packet {
   const at = new Date().toISOString(),
     date = localDate(),

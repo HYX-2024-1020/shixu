@@ -16,6 +16,26 @@ async function modelRoutes(page: Page, requests: any[]) {
     async (route) => {
       const body = route.request().postDataJSON();
       requests.push(body);
+      if (JSON.parse(body.messages[1].content).newItems) {
+        await route.fulfill({
+          json: {
+            model: body.model,
+            usage: {
+              prompt_tokens: 1000,
+              completion_tokens: 100,
+              prompt_cache_hit_tokens: 200,
+              prompt_cache_miss_tokens: 800,
+            },
+            choices: [
+              {
+                finish_reason: "stop",
+                message: { content: JSON.stringify({ links: [] }) },
+              },
+            ],
+          },
+        });
+        return;
+      }
       const input = JSON.parse(body.messages[1].content),
         sources = input.sources as { id: string; name: string; text: string }[],
         text = sources.find((s) => s.id === "input")!,
@@ -202,6 +222,9 @@ test("model choice reaches requests and cumulative costs persist after deleting 
   await page.getByLabel("往桶里放入内容").fill("明天交第二份报告");
   await page.getByRole("button", { name: "丢进去", exact: true }).click();
   await expect(page.locator(".packet-ready")).toHaveCount(2);
+  await expect(
+    page.locator('.packet-ready[data-association-state="ready"]'),
+  ).toHaveCount(2);
   expect(requests[1].model).toBe("deepseek-flash");
   await page.getByRole("button", { name: "原文与附件" }).first().click();
   page.once("dialog", (d) => d.accept());
@@ -209,9 +232,9 @@ test("model choice reaches requests and cumulative costs persist after deleting 
   await expect(page.locator(".bucket-packet")).toHaveCount(1);
   await page.reload();
   await page.getByRole("button", { name: "选择模型与查看费用" }).click();
-  await expect(page.locator(".usage-tokens")).toContainText("2 次调用");
+  await expect(page.locator(".usage-tokens")).toContainText("3 次调用");
   await expect(page.locator(".usage-amount")).toContainText(
-    "¥0.006184 – 0.012368",
+    "¥0.007388 – 0.014776",
   );
   await expect(page.getByLabel("整理模型", { exact: true })).toHaveValue(
     "deepseek-flash",

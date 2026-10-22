@@ -54,7 +54,7 @@ export default function UsagePanel({
         </p>
       )}
       <p className="usage-scope">
-        从本次更新开始记录，包含分段、合并与修复。历史消耗无法补齐；仅统计此
+        从用量统计功能上线开始记录，包含分段、跨次关联、合并与修复。历史消耗无法补齐；仅统计此
         {health ? "个人服务" : "浏览器"}的调用，包含在此使用的不同密钥。
       </p>
       <details>

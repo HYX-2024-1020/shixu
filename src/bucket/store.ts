@@ -1,7 +1,9 @@
 import type { Packet, Attachment } from "./types";
 import type { UsageRecord } from "../../shared/usage.mjs";
 const name = new URLSearchParams(location.search).has("preview")
-  ? "shixu-bucket-demo"
+  ? new URLSearchParams(location.search).get("preview") === "relations"
+    ? "shixu-bucket-demo-relations"
+    : "shixu-bucket-demo"
   : "shixu-bucket";
 let promise: Promise<IDBDatabase> | null = null;
 function database() {
@@ -59,10 +61,13 @@ export async function allPackets(): Promise<Packet[]> {
   });
 }
 export async function putPacket(packet: Packet) {
+  return putPackets([packet]);
+}
+export async function putPackets(packets: Packet[]) {
   const db = await database();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("packets", "readwrite");
-    tx.objectStore("packets").put(packet);
+    for (const packet of packets) tx.objectStore("packets").put(packet);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(new Error("保存失败，请检查设备剩余空间"));
   });

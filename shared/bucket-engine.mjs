@@ -340,6 +340,7 @@ async function ask(messages, options) {
     throw error;
   }
 }
+export { ask as requestJSON };
 export async function organizePacket(sources, options) {
   checkSources(sources);
   if (!options.apiKey?.trim()) throw new Error("请先连接 DeepSeek");

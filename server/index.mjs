@@ -20,6 +20,12 @@ import {
   checkSources,
   DEFAULT_MODEL,
 } from "../shared/bucket-engine.mjs";
+import {
+  associatePacket,
+  filterLiveLinks,
+  removeGroupLinks,
+  removePacketLinks,
+} from "../shared/relations.mjs";
 process.umask(0o077);
 
 const host = process.env.HOST || "127.0.0.1",
@@ -98,32 +104,64 @@ async function drain() {
   try {
     for (;;) {
       const packet = allPackets().find(
-        (p) => p.status === "pending" && !p.deletedAt,
+        (p) =>
+          (p.status === "pending" ||
+            (p.status === "ready" && p.association?.state === "pending")) &&
+          !p.deletedAt,
       );
       if (!packet) break;
-      packet.status = "processing";
+      const associationOnly = packet.status === "ready" && packet.result;
+      if (!associationOnly) packet.status = "processing";
       packet.updatedAt = new Date().toISOString();
       savePacket(packet);
       try {
-        const result = await organizePacket(packet.sources, {
+        const options = {
           apiKey: apiKey(),
           model: model(),
           captureDate: packet.captureDate,
           signal: AbortSignal.timeout(240000),
           packetId: packet.id,
           onUsage: saveUsage,
-        });
+        };
+        const result = associationOnly
+          ? packet.result
+          : await organizePacket(packet.sources, options);
         const current = readPacket(packet.id);
         if (current && !current.deletedAt) {
           current.result = result;
           current.status = "ready";
           current.error = "";
+          current.association = { state: "pending", links: [], warnings: [] };
           current.updatedAt = new Date().toISOString();
           savePacket(current);
+          const association = await associatePacket(
+            current,
+            allPackets(),
+            options,
+          );
+          const latest = readPacket(packet.id);
+          if (latest && !latest.deletedAt) {
+            latest.association = {
+              ...association,
+              links: filterLiveLinks(association.links, allPackets()),
+            };
+            latest.updatedAt = new Date().toISOString();
+            savePacket(latest);
+          }
         }
       } catch (error) {
         const current = readPacket(packet.id);
         if (current && !current.deletedAt) {
+          if (current.result && current.status === "ready") {
+            current.association = {
+              state: "error",
+              links: [],
+              warnings: [error.message],
+            };
+            current.updatedAt = new Date().toISOString();
+            savePacket(current);
+            continue;
+          }
           current.status = "error";
           current.error =
             error.name === "TimeoutError"
@@ -419,8 +457,28 @@ const server = http.createServer(async (req, res) => {
         void drain();
         return;
       }
+      if (url.pathname === "/api/associations/split" && req.method === "POST") {
+        const value = await jsonBody(req);
+        if (
+          !Array.isArray(value.refs) ||
+          value.refs.length > 1000 ||
+          value.refs.some((r) => typeof r !== "string" || r.length > 120)
+        )
+          throw new Error("分组标识不正确");
+        const changed = removeGroupLinks(allPackets(), value.refs);
+        db.exec("BEGIN");
+        try {
+          for (const p of changed) savePacket(p);
+          db.exec("COMMIT");
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+        json(res, 200, { packets: changed });
+        return;
+      }
       const packetRoute = url.pathname.match(
-        /^\/api\/packets\/([a-zA-Z0-9-]{1,100})(?:\/(retry|done))?$/,
+        /^\/api\/packets\/([a-zA-Z0-9-]{1,100})(?:\/(retry|done|relate))?$/,
       );
       if (packetRoute) {
         const p = readPacket(packetRoute[1]);
@@ -432,6 +490,16 @@ const server = http.createServer(async (req, res) => {
           if (p.status === "error") {
             p.status = "pending";
             p.error = "";
+            p.updatedAt = new Date().toISOString();
+            savePacket(p);
+            void drain();
+          }
+          json(res, 200, { packet: p });
+          return;
+        }
+        if (req.method === "POST" && packetRoute[2] === "relate") {
+          if (p.status === "ready" && !p.deletedAt && p.result) {
+            p.association = { state: "pending", links: [], warnings: [] };
             p.updatedAt = new Date().toISOString();
             savePacket(p);
             void drain();
@@ -475,6 +543,8 @@ const server = http.createServer(async (req, res) => {
           try {
             db.prepare("DELETE FROM files WHERE packet_id=?").run(p.id);
             savePacket(tombstone);
+            for (const changed of removePacketLinks(allPackets(), p.id))
+              savePacket(changed);
             db.exec("COMMIT");
           } catch (error) {
             db.exec("ROLLBACK");

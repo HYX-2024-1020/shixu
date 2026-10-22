@@ -21,6 +21,7 @@ import { extractFile } from "../files";
 import {
   allPackets,
   putPacket,
+  putPackets,
   readDraft,
   writeDraft,
   allUsage,
@@ -29,14 +30,30 @@ import {
 import { usageTotals, money, type UsageRecord } from "../../shared/usage.mjs";
 import { modelLabel } from "./model-api";
 import {
+  associatePacket,
+  buildGroups,
+  itemMap,
+  itemRef,
+  filterLiveLinks,
+  removeGroupLinks,
+  removePacketLinks,
+  type ItemGroup,
+} from "../../shared/relations.mjs";
+import {
   detectService,
   serviceRequest,
   uploadPacket,
   type Health,
 } from "./service";
-import { samplePacket, SAMPLE_TEXT, SAMPLE_FILE } from "./demo";
+import {
+  samplePacket,
+  sampleRelations,
+  SAMPLE_TEXT,
+  SAMPLE_FILE,
+} from "./demo";
 import Connection from "./Connection";
 import PacketCard from "./PacketCard";
+import GroupCard from "./GroupCard";
 import type { Packet, Attachment } from "./types";
 import "./bucket.css";
 
@@ -97,16 +114,17 @@ export default function BucketApp() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
-  const save = useCallback(async (packet: Packet) => {
-    await putPacket(packet);
+  const saveMany = useCallback(async (changes: Packet[]) => {
+    await putPackets(changes);
     const map = new Map(packetsRef.current.map((p) => [p.id, p]));
-    map.set(packet.id, packet);
+    for (const p of changes) map.set(p.id, p);
     const next = [...map.values()].sort((a, b) =>
       b.capturedAt.localeCompare(a.capturedAt),
     );
     packetsRef.current = next;
     setPackets(next);
   }, []);
+  const save = useCallback((packet: Packet) => saveMany([packet]), [saveMany]);
   const recordUsage = useCallback(async (record: UsageRecord) => {
     await putUsage(record);
     setUsage((rows) => [...rows.filter((r) => r.id !== record.id), record]);
@@ -117,9 +135,12 @@ export default function BucketApp() {
       let stored = await allPackets();
       if (!active) return;
       if (DEMO && !stored.length) {
-        const sample = samplePacket();
-        await putPacket(sample);
-        stored = [sample];
+        const samples =
+          new URLSearchParams(location.search).get("preview") === "relations"
+            ? sampleRelations()
+            : [samplePacket()];
+        for (const sample of samples) await putPacket(sample);
+        stored = samples;
       }
       for (const p of stored)
         if (p.status === "processing" && !p.remote) {
@@ -252,21 +273,53 @@ export default function BucketApp() {
     )
       return;
     if (health && !health.modelReady) return;
-    const packet = packets.find(
-      (p) => p.status === "pending" && !p.deletedAt && !p.remote,
-    );
+    const packet = packets
+      .filter(
+        (p) =>
+          !p.deletedAt &&
+          !p.remote &&
+          (p.status === "pending" ||
+            (p.status === "ready" && p.association?.state === "pending")),
+      )
+      .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))[0];
     if (!packet) return;
     working.current = true;
     setWorkingId(packet.id);
     setProgress("正在读取这次投递");
     (async () => {
+      async function relate(ready: Packet) {
+        const association = await associatePacket(ready, packetsRef.current, {
+          apiKey,
+          model,
+          captureDate: ready.captureDate,
+          packetId: ready.id,
+          signal: AbortSignal.timeout(240000),
+          onProgress: setProgress,
+          onUsage: recordUsage,
+        });
+        const latest = packetsRef.current.find((p) => p.id === ready.id);
+        if (!latest || latest.deletedAt) return;
+        const links = filterLiveLinks(association.links, packetsRef.current);
+        await save({
+          ...latest,
+          association: { ...association, links },
+          updatedAt: new Date().toISOString(),
+        });
+      }
       let current = {
         ...packet,
-        status: "processing" as const,
+        status:
+          packet.status === "ready"
+            ? ("ready" as const)
+            : ("processing" as const),
         updatedAt: new Date().toISOString(),
       };
       await save(current);
       try {
+        if (current.status === "ready" && current.result) {
+          await relate(current);
+          return;
+        }
         const sources = current.text.trim()
           ? [{ id: "input", name: "随手输入", text: current.text.trim() }]
           : [];
@@ -316,17 +369,32 @@ export default function BucketApp() {
           });
           if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt)
             return;
-          await save({
+          const ready: Packet = {
             ...current,
             status: "ready",
             result,
             error: "",
+            association: { state: "pending", links: [], warnings: [] },
             updatedAt: new Date().toISOString(),
-          });
+          };
+          await save(ready);
+          await relate(ready);
         }
       } catch (error) {
-        if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt)
+        const latest = packetsRef.current.find((p) => p.id === current.id);
+        if (latest?.deletedAt) return;
+        if (latest?.result && latest.status === "ready") {
+          await save({
+            ...latest,
+            association: {
+              state: "error",
+              links: [],
+              warnings: [message(error)],
+            },
+            updatedAt: new Date().toISOString(),
+          });
           return;
+        }
         await save({
           ...current,
           status: "error",
@@ -448,17 +516,81 @@ export default function BucketApp() {
     }
   }
   async function toggle(p: Packet, index: number) {
-    const doneIds = p.doneIds.includes(index)
-      ? p.doneIds.filter((i) => i !== index)
-      : [...p.doneIds, index];
+    const latest = packetsRef.current.find((x) => x.id === p.id) || p;
+    await toggleRefs([itemRef(p.id, index)], !latest.doneIds.includes(index));
+  }
+  async function toggleRefs(refs: string[], done: boolean) {
     try {
-      await save({
-        ...p,
-        doneIds,
-        remoteDirty: !!p.remote,
-        updatedAt: new Date().toISOString(),
-      });
+      const nodes = itemMap(packetsRef.current),
+        changes = new Map<string, Packet>();
+      for (const ref of refs) {
+        const n = nodes.get(ref);
+        if (!n || n.item.kind !== "task") continue;
+        const p =
+          changes.get(n.packet.id) ||
+          packetsRef.current.find((x) => x.id === n.packet.id)!;
+        const ids = new Set(p.doneIds);
+        if (done) ids.add(n.index);
+        else ids.delete(n.index);
+        changes.set(p.id, {
+          ...p,
+          doneIds: [...ids],
+          remoteDirty: !!p.remote,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      await saveMany([...changes.values()]);
       void sync();
+    } catch (error) {
+      notify(message(error));
+    }
+  }
+  async function retryAssociation(p: Packet) {
+    try {
+      if (p.remote) {
+        const response = await serviceRequest("packets/" + p.id + "/relate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        await save({
+          ...response.packet,
+          attachments: p.attachments,
+          remote: true,
+        });
+      } else
+        await save({
+          ...p,
+          association: { state: "pending", links: [], warnings: [] },
+          updatedAt: new Date().toISOString(),
+        });
+      if (!apiKey && !health?.modelReady) setSettings(true);
+    } catch (error) {
+      notify(message(error));
+    }
+  }
+  async function splitGroup(group: ItemGroup) {
+    try {
+      if (
+        group.packetIds.some(
+          (id) => packetsRef.current.find((p) => p.id === id)?.remote,
+        )
+      ) {
+        const response = await serviceRequest("associations/split", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refs: group.refs }),
+        });
+        await saveMany(
+          response.packets.map((p: Packet) => ({
+            ...p,
+            attachments:
+              packetsRef.current.find((x) => x.id === p.id)?.attachments ||
+              p.attachments,
+          })),
+        );
+      } else await saveMany(removeGroupLinks(packetsRef.current, group.refs));
+      notify("已拆开，原文、附件和完成状态都保留着");
     } catch (error) {
       notify(message(error));
     }
@@ -472,17 +604,25 @@ export default function BucketApp() {
           method: "DELETE",
         });
         await save(response.packet);
+        void sync();
       } else {
         const at = new Date().toISOString();
-        await save({
-          ...p,
-          deletedAt: at,
-          text: "",
-          sources: [],
-          attachments: [],
-          result: null,
-          updatedAt: at,
-        });
+        await saveMany([
+          {
+            ...p,
+            deletedAt: at,
+            text: "",
+            sources: [],
+            attachments: [],
+            result: null,
+            status: "ready",
+            error: "",
+            doneIds: [],
+            association: undefined,
+            updatedAt: at,
+          },
+          ...removePacketLinks(packetsRef.current, p.id),
+        ]);
       }
     } catch (error) {
       notify(message(error));
@@ -522,6 +662,8 @@ export default function BucketApp() {
     textarea.current?.focus();
   }
   const cost = usageTotals(usage);
+  const groups = buildGroups(packets);
+  const groupedRefs = new Set(groups.flatMap((g) => g.refs));
   const visible = packets.filter((p) => !p.deletedAt),
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
@@ -734,22 +876,47 @@ export default function BucketApp() {
           <section className="bucket-collection">
             <div className="bucket-collection-heading">
               <h2>
-                都在这里了<span>{visible.length}</span>
+                都在这里了<span>{visible.length} 次投递</span>
               </h2>
               <p>你只管放下，我来理清楚。</p>
             </div>
-            {visible.map((p) => (
-              <PacketCard
-                key={p.id}
-                packet={p}
-                usage={usage.filter((r) => r.packetId === p.id)}
-                progress={workingId === p.id ? progress : ""}
-                onRetry={() => void retry(p)}
-                onToggle={(i) => void toggle(p, i)}
-                onDelete={() => void erase(p)}
+            {groups.map((group) => (
+              <GroupCard
+                key={group.id}
+                group={group}
+                packets={packets}
+                usage={usage}
+                onToggle={toggleRefs}
+                onSplit={() => void splitGroup(group)}
+                onDelete={erase}
                 notify={notify}
               />
             ))}
+            {visible
+              .filter(
+                (p) =>
+                  p.status !== "ready" ||
+                  !p.result?.items.length ||
+                  p.result.items.some(
+                    (_, i) => !groupedRefs.has(itemRef(p.id, i)),
+                  ),
+              )
+              .map((p) => (
+                <PacketCard
+                  key={p.id}
+                  packet={p}
+                  usage={usage.filter((r) => r.packetId === p.id)}
+                  itemIndexes={p.result?.items
+                    .map((_, i) => i)
+                    .filter((i) => !groupedRefs.has(itemRef(p.id, i)))}
+                  progress={workingId === p.id ? progress : ""}
+                  onRetry={() => void retry(p)}
+                  onToggle={(i) => void toggle(p, i)}
+                  onDelete={() => void erase(p)}
+                  onRelate={() => void retryAssociation(p)}
+                  notify={notify}
+                />
+              ))}
           </section>
         )}
         <footer className="bucket-footer">

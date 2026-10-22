@@ -1,4 +1,5 @@
 import type { Source, BucketResult } from "../../shared/bucket-engine.mjs";
+import type { Association } from "../../shared/relations.mjs";
 export type {
   Source,
   BucketResult,
@@ -27,6 +28,7 @@ export interface Packet {
   remote?: boolean;
   remoteDirty?: boolean;
   deletedAt?: string;
+  association?: Association;
 }
 export interface BucketConfig {
   model: string;
