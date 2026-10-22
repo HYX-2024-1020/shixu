@@ -261,8 +261,7 @@ export function DraftFields({
                 ...new Set(
                   e.target.value
                     .split(/[,，]/)
-                    .map((t) => t.trim())
-                    .filter(Boolean),
+                      .map((t) => t.trim()),
                 ),
               ]
                 .slice(0, 12)
