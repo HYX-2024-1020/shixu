@@ -126,6 +126,7 @@ export default function Capture({
       await onSave(
         list.map((d) => ({
           ...d,
+          tags: d.tags.filter(Boolean),
           id: crypto.randomUUID(),
           title: d.title.trim(),
           content: d.content.slice(0, 20000),

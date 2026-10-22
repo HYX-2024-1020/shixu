@@ -43,6 +43,7 @@ export default function Editor({
       await onSave({
         ...entry,
         ...value,
+        tags: value.tags.filter(Boolean),
         title: value.title.trim(),
         status,
         confirmedDate: true,
