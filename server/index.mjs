@@ -44,6 +44,22 @@ const secret = readFileSync(secretPath),
 db.exec(
   "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS packets(id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS files(id TEXT PRIMARY KEY,packet_id TEXT NOT NULL REFERENCES packets(id) ON DELETE CASCADE,name TEXT NOT NULL,body BLOB NOT NULL); CREATE TABLE IF NOT EXISTS settings(id TEXT PRIMARY KEY,value TEXT NOT NULL)",
 );
+db.exec(
+  "CREATE TABLE IF NOT EXISTS usage(id TEXT PRIMARY KEY,payload TEXT NOT NULL)",
+);
+const allUsage = () =>
+  db
+    .prepare("SELECT payload FROM usage")
+    .all()
+    .map((row) => JSON.parse(row.payload));
+const saveUsage = (record) =>
+  db
+    .prepare(
+      "INSERT INTO usage(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+    )
+    .run(record.id, JSON.stringify(record));
+for (const r of allUsage())
+  if (r.state === "pending") saveUsage({ ...r, state: "unreported" });
 const getSetting = (id) =>
   db.prepare("SELECT value FROM settings WHERE id=?").get(id)?.value || "";
 const setSetting = (id, value) =>
@@ -94,6 +110,8 @@ async function drain() {
           model: model(),
           captureDate: packet.captureDate,
           signal: AbortSignal.timeout(240000),
+          packetId: packet.id,
+          onUsage: saveUsage,
         });
         const current = readPacket(packet.id);
         if (current && !current.deletedAt) {
@@ -248,6 +266,36 @@ const server = http.createServer(async (req, res) => {
         );
         return;
       }
+      if (
+        (url.pathname === "/api/models" &&
+          ["GET", "POST"].includes(req.method)) ||
+        (url.pathname === "/api/balance" && req.method === "GET")
+      ) {
+        const value = req.method === "POST" ? await jsonBody(req) : {};
+        if (
+          value.apiKey !== undefined &&
+          (typeof value.apiKey !== "string" || value.apiKey.length > 300)
+        )
+          throw new Error("密钥格式不正确");
+        const key = value.apiKey?.trim() || apiKey();
+        if (!key) throw new Error("请先配置 DeepSeek 密钥");
+        const r = await fetch(
+          "https://api.deepseek.com/" +
+            (url.pathname.endsWith("models") ? "models" : "user/balance"),
+          {
+            headers: { Authorization: `Bearer ${key}` },
+            signal: AbortSignal.timeout(20000),
+          },
+        );
+        if (!r.ok) {
+          json(res, r.status === 401 ? 401 : 502, {
+            error: "读取 DeepSeek 信息失败，请检查密钥与网络",
+          });
+          return;
+        }
+        json(res, 200, await r.json());
+        return;
+      }
       if (url.pathname === "/api/settings" && req.method === "POST") {
         const value = await jsonBody(req);
         let selected =
@@ -273,12 +321,8 @@ const server = http.createServer(async (req, res) => {
                 .map((m) => m.id)
                 .filter((id) => typeof id === "string")
             : [];
-          if (available.length && !available.includes(selected))
-            selected = available.includes(DEFAULT_MODEL)
-              ? DEFAULT_MODEL
-              : available.includes("deepseek-chat")
-                ? "deepseek-chat"
-                : available[0];
+          if (!available.includes(selected))
+            throw new Error("所选模型不可用，请重新读取并选择模型");
           setSetting("deepseek-key", value.apiKey.trim());
         }
         setSetting("model", selected);
@@ -288,6 +332,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (url.pathname === "/api/packets" && req.method === "GET") {
         json(res, 200, {
+          usage: allUsage(),
           packets: allPackets().sort((a, b) =>
             b.capturedAt.localeCompare(a.capturedAt),
           ),

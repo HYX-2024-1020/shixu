@@ -1,4 +1,5 @@
 import type { Packet } from "./types";
+import type { UsageRecord } from "../../shared/usage.mjs";
 export interface Health {
   application: "shixu-bucket";
   authenticated: boolean;
@@ -50,7 +51,10 @@ export async function uploadPacket(packet: Packet): Promise<Packet> {
   return (await serviceRequest("packets", { method: "POST", body: form }))
     .packet;
 }
-export async function exportPackets(packets: Packet[]) {
+export async function exportPackets(
+  packets: Packet[],
+  usage: UsageRecord[] = [],
+) {
   const { zipSync, strToU8 } = await import("fflate");
   const files: Record<string, Uint8Array> = {};
   let total = 0;
@@ -76,6 +80,7 @@ export async function exportPackets(packets: Packet[]) {
       {
         format: "shixu-bucket-v1",
         exportedAt: new Date().toISOString(),
+        usage,
         packets: packets
           .filter((p) => !p.deletedAt)
           .map((p) => ({

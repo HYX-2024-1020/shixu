@@ -12,10 +12,13 @@ import {
 } from "lucide-react";
 import type { Packet, BucketItem } from "./types";
 import { apiUrl } from "./service";
+import { usageTotals, money, type UsageRecord } from "../../shared/usage.mjs";
+import { modelLabel } from "./model-api";
 const LABELS = { task: "待办", idea: "灵感", habit: "习惯", note: "资料" };
 const ICONS = { task: Check, idea: Lightbulb, habit: Sprout, note: FileText };
 export default function PacketCard({
   packet,
+  usage,
   progress,
   onRetry,
   onToggle,
@@ -23,6 +26,7 @@ export default function PacketCard({
   notify,
 }: {
   packet: Packet;
+  usage: UsageRecord[];
   progress: string;
   onRetry: () => void;
   onToggle: (index: number) => void;
@@ -31,6 +35,7 @@ export default function PacketCard({
 }) {
   const [open, setOpen] = useState(false),
     [expanded, setExpanded] = useState<number | null>(null);
+  const total = usageTotals(usage);
   function download(id: string) {
     const a = packet.attachments.find((a) => a.id === id);
     if (!a) return;
@@ -77,6 +82,17 @@ export default function PacketCard({
           <ChevronDown size={13} className={open ? "turned" : ""} />
         </button>
       </div>
+      {total.calls > 0 && (
+        <p className="packet-cost">
+          {[...new Set(usage.map((r) => modelLabel(r.requestedModel)))].join(
+            " / ",
+          )}{" "}
+          · {total.calls} 次调用 ·{" "}
+          {total.unpriced === total.calls
+            ? "费用待核对"
+            : `本次约 ¥${money(total.min)}–${money(total.max)}${total.unpriced ? "，部分待核对" : ""}`}
+        </p>
+      )}
       {packet.status === "ready" && packet.result ? (
         <>
           <p className="packet-summary">{packet.result.summary}</p>

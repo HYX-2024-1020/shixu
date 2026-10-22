@@ -1,3 +1,4 @@
+import type { UsageRecord } from "./usage.mjs";
 export type BucketKind = "task" | "idea" | "habit" | "note";
 export interface Source {
   id: string;
@@ -45,5 +46,7 @@ export function organizePacket(
     fetcher?: typeof fetch;
     signal?: AbortSignal;
     onProgress?: (message: string) => void;
+    packetId?: string;
+    onUsage?: (record: UsageRecord) => void | Promise<void>;
   },
 ): Promise<BucketResult>;

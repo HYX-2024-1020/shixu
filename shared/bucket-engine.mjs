@@ -1,4 +1,5 @@
 // Shared by the browser and personal server. No credentials or user content is logged.
+import { normalizeUsage, estimateCost } from "./usage.mjs";
 export const DEEPSEEK_ORIGIN = "https://api.deepseek.com";
 export const DEFAULT_MODEL = "deepseek-flash";
 const KINDS = ["task", "idea", "habit", "note"];
@@ -268,42 +269,75 @@ export function splitSources(sources, limit = 26000) {
 }
 async function ask(messages, options) {
   const { apiKey, model = DEFAULT_MODEL, fetcher = fetch, signal } = options;
-  const response = await fetcher(`${DEEPSEEK_ORIGIN}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    signal,
-    body: JSON.stringify({
-      model,
-      messages,
-      response_format: { type: "json_object" },
-      max_tokens: 7000,
-      stream: false,
-    }),
-  });
-  if (!response.ok) {
-    if (response.status === 401)
-      throw new Error("DeepSeek 密钥无效，请重新连接");
-    if (response.status === 402)
-      throw new Error("DeepSeek 余额不足，内容已经保留");
-    if (response.status === 429)
-      throw new Error("DeepSeek 暂时繁忙，请稍后重试");
-    throw new Error(`DeepSeek 返回 ${response.status}，内容已经保留`);
-  }
-  const payload = await response.json(),
-    choice = payload.choices?.[0];
-  if (choice?.finish_reason === "length")
-    throw new Error("模型输出被截断，未保存不完整的整理结果，请重试");
-  const content = choice?.message?.content;
-  if (typeof content !== "string") throw new Error("模型没有返回可用内容");
+  const call = {
+    id: crypto.randomUUID(),
+    packetId: options.packetId || "",
+    startedAt: new Date().toISOString(),
+    requestedModel: model,
+    model,
+    state: "pending",
+    usage: null,
+    cost: null,
+  };
+  await options.onUsage?.(call);
+  let recorded = false;
   try {
-    return JSON.parse(
-      content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, ""),
-    );
-  } catch {
-    throw new Error("模型未返回有效JSON，原内容已经保留");
+    const response = await fetcher(`${DEEPSEEK_ORIGIN}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal,
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: { type: "json_object" },
+        max_tokens: 7000,
+        stream: false,
+      }),
+    });
+    if (!response.ok) {
+      if (response.status === 401)
+        throw new Error("DeepSeek 密钥无效，请重新连接");
+      if (response.status === 402)
+        throw new Error("DeepSeek 余额不足，内容已经保留");
+      if (response.status === 429)
+        throw new Error("DeepSeek 暂时繁忙，请稍后重试");
+      throw new Error(`DeepSeek 返回 ${response.status}，内容已经保留`);
+    }
+    const payload = await response.json(),
+      choice = payload.choices?.[0];
+    const usage = normalizeUsage(payload.usage);
+    await options.onUsage?.({
+      ...call,
+      finishedAt: new Date().toISOString(),
+      model:
+        typeof payload.model === "string" ? payload.model.slice(0, 100) : model,
+      state: usage ? "reported" : "unreported",
+      usage,
+      cost: estimateCost(usage, model),
+    });
+    recorded = true;
+    if (choice?.finish_reason === "length")
+      throw new Error("模型输出被截断，未保存不完整的整理结果，请重试");
+    const content = choice?.message?.content;
+    if (typeof content !== "string") throw new Error("模型没有返回可用内容");
+    try {
+      return JSON.parse(
+        content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, ""),
+      );
+    } catch {
+      throw new Error("模型未返回有效JSON，原内容已经保留");
+    }
+  } catch (error) {
+    if (!recorded)
+      await options.onUsage?.({
+        ...call,
+        state: "unreported",
+        finishedAt: new Date().toISOString(),
+      });
+    throw error;
   }
 }
 export async function organizePacket(sources, options) {

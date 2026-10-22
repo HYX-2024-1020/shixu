@@ -18,7 +18,16 @@ import {
 } from "../../shared/bucket-engine.mjs";
 import { localDate } from "../organize";
 import { extractFile } from "../files";
-import { allPackets, putPacket, readDraft, writeDraft } from "./store";
+import {
+  allPackets,
+  putPacket,
+  readDraft,
+  writeDraft,
+  allUsage,
+  putUsage,
+} from "./store";
+import { usageTotals, money, type UsageRecord } from "../../shared/usage.mjs";
+import { modelLabel } from "./model-api";
 import {
   detectService,
   serviceRequest,
@@ -64,6 +73,7 @@ export default function BucketApp() {
     [model, setModel] = useState(initial.model),
     [remember, setRemember] = useState(initial.rememberKey);
   const [packets, setPackets] = useState<Packet[]>([]),
+    [usage, setUsage] = useState<UsageRecord[]>([]),
     [text, setText] = useState(""),
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [loaded, setLoaded] = useState(false),
@@ -97,6 +107,10 @@ export default function BucketApp() {
     packetsRef.current = next;
     setPackets(next);
   }, []);
+  const recordUsage = useCallback(async (record: UsageRecord) => {
+    await putUsage(record);
+    setUsage((rows) => [...rows.filter((r) => r.id !== record.id), record]);
+  }, []);
   useEffect(() => {
     let active = true;
     (async () => {
@@ -113,9 +127,11 @@ export default function BucketApp() {
           await putPacket(p);
         }
       const draft = await readDraft();
+      const calls = await allUsage();
       if (!active) return;
       packetsRef.current = stored;
       setPackets(stored);
+      setUsage(calls);
       setText(draft.text);
       setAttachments(draft.attachments);
       setLoaded(true);
@@ -183,6 +199,7 @@ export default function BucketApp() {
       }
       const data = await serviceRequest("packets");
       if (!Array.isArray(data.packets)) throw new Error("同步内容无效");
+      if (Array.isArray(data.usage)) setUsage(data.usage);
       for (const raw of data.packets) {
         if (
           !raw ||
@@ -294,6 +311,8 @@ export default function BucketApp() {
             captureDate: current.captureDate,
             signal: AbortSignal.timeout(240000),
             onProgress: setProgress,
+            packetId: current.id,
+            onUsage: recordUsage,
           });
           if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt)
             return;
@@ -323,7 +342,18 @@ export default function BucketApp() {
         setProgress("");
         setPackets([...packetsRef.current]);
       });
-  }, [packets, apiKey, model, loaded, online, health, save, sync, notify]);
+  }, [
+    packets,
+    apiKey,
+    model,
+    loaded,
+    online,
+    health,
+    save,
+    sync,
+    notify,
+    recordUsage,
+  ]);
 
   async function addFiles(files: FileList | File[] | null) {
     if (!files) return;
@@ -491,6 +521,7 @@ export default function BucketApp() {
     ]);
     textarea.current?.focus();
   }
+  const cost = usageTotals(usage);
   const visible = packets.filter((p) => !p.deletedAt),
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
@@ -671,7 +702,18 @@ export default function BucketApp() {
                   : "连接 DeepSeek 后，自动整理"}
             {waiting > 0 && online ? ` · ${waiting} 包等待处理` : ""}
           </span>
-          <span className="bucket-keyboard">⌘ / Ctrl + Enter</span>
+          <button
+            className="bucket-model-cost"
+            onClick={() => setSettings(true)}
+            aria-label="选择模型与查看费用"
+          >
+            {modelLabel(model)} ·{" "}
+            {cost.calls
+              ? cost.unpriced === cost.calls
+                ? "费用待核对"
+                : `累计约 ¥${money(cost.min)}–${money(cost.max)}${cost.unpriced ? " + 待核对" : ""}`
+              : "尚无用量记录"}
+          </button>
         </div>
         {!visible.length && (
           <div className="bucket-empty">
@@ -700,6 +742,7 @@ export default function BucketApp() {
               <PacketCard
                 key={p.id}
                 packet={p}
+                usage={usage.filter((r) => r.packetId === p.id)}
                 progress={workingId === p.id ? progress : ""}
                 onRetry={() => void retry(p)}
                 onToggle={(i) => void toggle(p, i)}
@@ -721,6 +764,7 @@ export default function BucketApp() {
           remember={remember}
           health={health}
           packets={packets}
+          usage={usage}
           onConnected={connected}
           onClose={() => setSettings(false)}
           notify={notify}
