@@ -117,3 +117,11 @@
 - 本地与远程早期提交历史不同，但早期代码快照基本相同；同步保留两边历史，以当前验证过的桌面成果为最终文件快照，不使用强制推送。
 - 同步源码、用户提供的参考前端、离线素材/字体和许可、测试与交接清单。构建产物不进入 Git，Windows 安装包在 GitHub Releases；个人 workspace、密钥、草稿、导出备份及 .private 不上传。
 - .openai/hosting.json 只保留本地运行配置，不进入仓库；原远程也没有此文件。
+
+### 2026-10-23 同步已完成
+
+- [x] 桌面成果提交 7660ceb；保留远程历史的合并提交 506257129a992c612ad2d918492863b019dda764 已推送 main，GitHub package.json 已核对为 0.3.3。无强制推送。
+- [x] Release：https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.3 。安装包资产名 Shixu-Setup-0.3.3.exe，144240623 字节，SHA-256 7923e920c1c5090614952e4b485d18ecdc2ea2db3ca0005144d1b076f7f1d33a，GitHub 返回摘要与本地一致。附 blockmap、预览截图、去除本机路径的验证摘要、SHA256SUMS.txt。
+- [x] 工作区追踪 main → origin/main；个人资料/密钥/.private/备份未上传。GitHub 仍为私有仓库。
+- GitHub 原有 Pages 发布工作流的构建、测试、产物上传通过，但部署返回 404，日志提示启用 GitHub Pages（settings/pages）。本次为源码与 Windows 成果同步，未改仓库可见性或 Pages 设置；这不是 Windows 安装包发布失败。云端 Verify 在同步时仍执行，不宣称云端全部通过。
+- 大包首次 push 出现 HTTP 408，重试使用 git -c http.postBuffer=524288000 -c http.version=HTTP/1.1 push -u origin main 成功。
