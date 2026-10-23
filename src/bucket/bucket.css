@@ -1396,14 +1396,6 @@ button:hover:not(:disabled) {
     font-size: 8px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition: none !important;
-  }
-}
 
 .packet-summary,
 .item-facts,

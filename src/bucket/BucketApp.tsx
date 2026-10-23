@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -91,18 +92,27 @@ export default function BucketApp() {
     results: 0,
   });
   const clearFocus = useCallback(() => setFocusPacket(""), []);
+  const workspaceMotion = useRef<ViewTransition | null>(null);
+  const workspaceSequence = useRef(0);
   function goWorkspace(next: string, packetId?: string) {
+    const sequence = ++workspaceSequence.current;
     scrollPositions.current[workspace] = window.scrollY;
     if (packetId) {
       setFocusPacket(packetId);
       setRecordsOpen(false);
     }
-    setWorkspace(next);
-    requestAnimationFrame(() =>
-      window.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0),
-    );
+    workspaceMotion.current?.skipTransition();
+    const reveal = () => {
+      if (sequence !== workspaceSequence.current) return;
+      flushSync(() => setWorkspace(next));
+      window.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0);
+    };
+    if (next !== workspace && document.startViewTransition)
+      workspaceMotion.current = document.startViewTransition(reveal);
+    else reveal();
   }
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [dropVisible, setDropVisible] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
     [apiKey, setApiKey] = useState(initial.key),
@@ -122,6 +132,14 @@ export default function BucketApp() {
     [progress, setProgress] = useState(""),
     [workingId, setWorkingId] = useState("");
   useTransientUI(drag, () => setDrag(false));
+  useEffect(() => {
+    if (drag) {
+      setDropVisible(true);
+      return;
+    }
+    const timer = setTimeout(() => setDropVisible(false), 150);
+    return () => clearTimeout(timer);
+  }, [drag]);
   const linkedItems = useMemo(() => itemMap(packets), [packets]);
   const packetsRef = useRef<Packet[]>([]),
     working = useRef(false),
@@ -1608,9 +1626,9 @@ export default function BucketApp() {
                 setDrag(false);
             }}
           >
-            {drag && (
+            {dropVisible && (
               <div
-                className="bucket-drop-hint"
+                className={"bucket-drop-hint" + (!drag ? " is-leaving" : "")}
                 onDrop={(e) => {
                   e.preventDefault();
                   e.stopPropagation();

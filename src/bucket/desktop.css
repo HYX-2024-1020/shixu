@@ -1038,13 +1038,7 @@
     font-size: 17px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .bucket-app * {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-}
+
 .world-heading {
   margin-bottom: 20px;
 }
@@ -1540,13 +1534,7 @@
     grid-template-columns: 1fr;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .bucket-app * {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-}
+
 @media (max-height: 900px) {
   .bucket-intro {
     gap: clamp(14px, 2.3vh, 28px);
@@ -1865,12 +1853,12 @@
 }
 .result-card .completion-orbit.is-checking {
   background: #ffd43b;
-  animation: check-pop 420ms ease-out;
+  animation: check-pop 230ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .completion-orbit.is-checking svg path {
   stroke-dasharray: 26;
   stroke-dashoffset: 26;
-  animation: check-stroke 280ms ease-out forwards;
+  animation: check-stroke 180ms ease-out forwards;
 }
 @keyframes check-pop {
   0% {
@@ -1940,13 +1928,7 @@
   flex: 1;
   min-width: 180px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .completion-orbit.is-checking,
-  .completion-orbit.is-checking svg path {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-}
+
 .item-dialog button:disabled {
   cursor: default;
 }
@@ -2015,5 +1997,152 @@
   .source-file > img {
     width: 32px;
     height: 32px;
+  }
+}
+
+/* Motion follows the action while keeping the original paper-and-ink design. */
+.bucket-app {
+  --motion-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-spring: linear(
+    0,
+    0.16 8%,
+    0.48 19%,
+    0.8 34%,
+    0.98 51%,
+    1.025 65%,
+    1.012 82%,
+    1
+  );
+}
+.bucket-app button,
+.bucket-app summary {
+  transition:
+    transform 220ms var(--motion-spring),
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.bucket-app button:active:not(:disabled),
+.bucket-app summary:active {
+  transform: translateY(1px) scale(0.97);
+  transition-duration: 70ms;
+}
+.result-card {
+  transition: box-shadow 180ms ease;
+}
+.result-card[data-departing] {
+  pointer-events: none;
+}
+.result-card .card-star[aria-pressed="true"] svg,
+.card-topline > svg[aria-label="已置顶"] {
+  animation: mark-settle 350ms var(--motion-spring);
+  transform-origin: center;
+}
+@keyframes mark-settle {
+  0% {
+    transform: scale(0.65) rotate(-15deg);
+  }
+  65% {
+    transform: scale(1.12) rotate(4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+.item-dialog[data-closing] {
+  pointer-events: none;
+}
+.bucket-drop-hint {
+  animation: drop-arrive 260ms var(--motion-spring) both;
+  transform-origin: center;
+}
+.bucket-drop-hint.is-leaving {
+  pointer-events: none;
+  animation: drop-leave 150ms var(--motion-settle) both;
+}
+@keyframes drop-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes drop-leave {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+.attachment-chip {
+  animation: chip-arrive 240ms var(--motion-spring) both;
+}
+@keyframes chip-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.bucket-toast {
+  animation: toast-arrive 260ms var(--motion-spring) both;
+}
+@keyframes toast-arrive {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+:root {
+  view-transition-name: none;
+}
+.bucket-main {
+  view-transition-name: workspace;
+}
+::view-transition-group(workspace) {
+  animation: none;
+  pointer-events: none;
+}
+::view-transition-old(workspace) {
+  animation: workspace-leave 90ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  mix-blend-mode: normal;
+}
+::view-transition-new(workspace) {
+  animation: workspace-arrive 220ms 50ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  mix-blend-mode: normal;
+}
+::view-transition {
+  pointer-events: none;
+}
+@keyframes workspace-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+@keyframes workspace-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

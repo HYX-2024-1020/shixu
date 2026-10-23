@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { setMenuOpen } from "./motion";
 export function useTransientUI(drag: boolean, resetDrag: () => void) {
   const reset = useRef(resetDrag);
   reset.current = resetDrag;
@@ -11,17 +12,30 @@ export function useTransientUI(drag: boolean, resetDrag: () => void) {
       );
     const outside = (e: PointerEvent) =>
       menus().forEach((menu) => {
-        if (!menu.contains(e.target as Node)) menu.open = false;
+        if (!menu.contains(e.target as Node)) setMenuOpen(menu, false);
       });
     const chosen = (e: MouseEvent) => {
       if (!(e.target instanceof Element)) return;
       const target = e.target as Element;
-      if (target.closest("button,a"))
-        target
-          .closest<HTMLDetailsElement>(
-            ".card-menu,.detail-action-menu,.source-options,.result-filter-menu",
-          )
-          ?.removeAttribute("open");
+      const summary = target.closest("summary");
+      const owner = summary?.parentElement;
+      if (
+        owner instanceof HTMLDetailsElement &&
+        owner.matches(
+          ".card-menu,.detail-action-menu,.source-options,.result-filter-menu",
+        )
+      ) {
+        e.preventDefault();
+        setMenuOpen(
+          owner,
+          owner.dataset.motionState === "closing" || !owner.open,
+        );
+      } else if (target.closest("button,a")) {
+        const menu = target.closest<HTMLDetailsElement>(
+          ".card-menu,.detail-action-menu,.source-options,.result-filter-menu",
+        );
+        if (menu) setMenuOpen(menu, false);
+      }
     };
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -30,11 +44,11 @@ export function useTransientUI(drag: boolean, resetDrag: () => void) {
       if (open.length) {
         e.preventDefault();
         e.stopPropagation();
-        open.forEach((menu) => (menu.open = false));
+        open.forEach((menu) => setMenuOpen(menu, false));
       }
     };
     document.addEventListener("pointerdown", outside, true);
-    const blur = () => menus().forEach((menu) => (menu.open = false));
+    const blur = () => menus().forEach((menu) => setMenuOpen(menu, false));
     window.addEventListener("blur", blur);
     document.addEventListener("click", chosen);
     document.addEventListener("keydown", key, true);

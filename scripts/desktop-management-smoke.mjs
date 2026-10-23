@@ -258,7 +258,9 @@ try {
   );
   await page.screenshot({ path: "release/desktop-detail.png" });
   await page.keyboard.press("Escape");
-  assert.equal(await page.getByRole("dialog", { name: "事项详情" }).count(), 0);
+  await page
+    .getByRole("dialog", { name: "事项详情" })
+    .waitFor({ state: "detached" });
   console.log(
     "PASS: Windows key encryption, seven-category workspace, per-item status, star, habit undo/deletion/restoration, edit/group persistence",
   );

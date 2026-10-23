@@ -13,6 +13,8 @@ import DeliverySources from "./DeliverySources";
 import ItemChat from "./ItemChat";
 import { cardCopy } from "./card-copy";
 import LinkText from "./LinkText";
+import { leaveCard, resetCard } from "./motion";
+import { useCardMotion } from "./useCardMotion";
 import type { Packet, ItemState, BucketKind } from "./types";
 import { localDate } from "../organize";
 import { compareItems } from "./management";
@@ -61,7 +63,12 @@ function Results({
     [starOnly, setStarOnly] = useState(false);
   const [day, setDay] = useState(localDate()),
     [onlyPacket, setOnlyPacket] = useState("");
-  const [completing, setCompleting] = useState("");
+  const [completing, setCompleting] = useState(new Set<string>());
+  const latestPackets = useRef(packets);
+  latestPackets.current = packets;
+  const mutationLocks = useRef(new Set<string>());
+  const mutationTail = useRef(Promise.resolve());
+  const motionRoot = useCardMotion();
   const completionLock = useRef(new Set<string>());
   const [showHistory, setShowHistory] = useState(false);
   const [limit, setLimit] = useState(60);
@@ -99,20 +106,37 @@ function Results({
     if (editing) document.querySelector("dialog[open]")?.scrollTo({ top: 0 });
   }, [editing]);
   async function update(p: Packet, id: string, changes: Partial<ItemState>) {
+    const leaving = !!changes.deletedAt || changes.status === "done";
+    if (leaving && mutationLocks.current.has(id)) return;
+    if (leaving) mutationLocks.current.add(id);
     try {
-      const index = p.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
-      const doneIds = new Set(p.doneIds);
-      if (changes.status === "done") doneIds.add(index);
-      else if (changes.status) doneIds.delete(index);
-      await save({
-        ...p,
-        doneIds: [...doneIds],
-        itemState: {
-          ...p.itemState,
-          [id]: { ...p.itemState?.[id], ...changes },
-        },
-        updatedAt: new Date().toISOString(),
-      });
+      if (leaving) await leaveCard(id, !!changes.deletedAt);
+      const commit = mutationTail.current
+        .catch(() => {})
+        .then(async () => {
+          p = latestPackets.current.find((packet) => packet.id === p.id) || p;
+          const index = p.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
+          const doneIds = new Set(p.doneIds);
+          if (changes.status === "done") doneIds.add(index);
+          else if (changes.status) doneIds.delete(index);
+          const next = {
+            ...p,
+            doneIds: [...doneIds],
+            itemState: {
+              ...p.itemState,
+              [id]: { ...p.itemState?.[id], ...changes },
+            },
+            updatedAt: new Date().toISOString(),
+          };
+          await save(next);
+          latestPackets.current = latestPackets.current.map((packet) =>
+            packet.id === next.id ? next : packet,
+          );
+        });
+      mutationTail.current = commit;
+      await commit;
+      // A filter switch can keep this same DOM card mounted in its new scope.
+      if (leaving) requestAnimationFrame(() => resetCard(id));
       if (
         "deletedAt" in changes ||
         changes.status === "done" ||
@@ -120,7 +144,10 @@ function Results({
       )
         setSelected("");
     } catch (e) {
+      resetCard(id);
       notify((e as Error).message);
+    } finally {
+      mutationLocks.current.delete(id);
     }
   }
   const automaticGroups = useMemo(() => buildGroups(packets), [packets]);
@@ -206,7 +233,7 @@ function Results({
   filtered.splice(limit);
   const groups = [...new Set(filtered.map((r) => r.meta.group?.trim() || ""))];
   return (
-    <section className="results-workspace">
+    <section className="results-workspace" ref={motionRoot}>
       <div className="world-heading">
         <div>
           <h1>
@@ -369,12 +396,13 @@ function Results({
                     (done ? " is-done" : "")
                   }
                   key={id}
+                  data-motion-id={id}
                 >
                   <div className="card-topline">
                     <button
                       className={
                         "completion-orbit" +
-                        (completing === id ? " is-checking" : "")
+                        (completing.has(id) ? " is-checking" : "")
                       }
                       aria-label={
                         done
@@ -389,15 +417,9 @@ function Results({
                         if (completionLock.current.has(id)) return;
                         completionLock.current.add(id);
                         if (!done) {
-                          setCompleting(id);
+                          setCompleting((current) => new Set(current).add(id));
                           await new Promise((resolve) =>
-                            setTimeout(
-                              resolve,
-                              matchMedia("(prefers-reduced-motion: reduce)")
-                                .matches
-                                ? 0
-                                : 420,
-                            ),
+                            setTimeout(resolve, 230),
                           );
                         }
                         await update(p, id, {
@@ -407,10 +429,14 @@ function Results({
                             : new Date().toISOString(),
                         });
                         completionLock.current.delete(id);
-                        setCompleting("");
+                        setCompleting((current) => {
+                          const next = new Set(current);
+                          next.delete(id);
+                          return next;
+                        });
                       }}
                     >
-                      {(done || completing === id) && <Check size={19} />}
+                      {(done || completing.has(id)) && <Check size={19} />}
                     </button>
                     <span className="card-kind">
                       {categories[item.kind]}
