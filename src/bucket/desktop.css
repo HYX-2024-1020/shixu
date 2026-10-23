@@ -1799,6 +1799,43 @@
   padding: 6px 10px;
   font-weight: 650;
 }
+.detail-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 22px;
+}
+.item-dialog .detail-tabs button[aria-pressed="true"] {
+  background: #ffd43b;
+}
+.item-editor {
+  border: 2px solid #111;
+  padding: 18px;
+  background: #fff4bd;
+  border-radius: 4px;
+}
+.item-editor h3 {
+  margin: 0 0 16px;
+}
+.chat-message {
+  border: 1px solid #c4b789;
+  padding: 12px 15px;
+  border-radius: 5px;
+  margin-bottom: 12px;
+  background: #fffdf5;
+}
+.chat-message p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-assistant {
+  background: #eee9ff;
+  border-color: #9a84d3;
+}
+.item-chat-messages {
+  max-height: 420px;
+  overflow: auto;
+}
 .item-dialog button:disabled {
   cursor: default;
 }

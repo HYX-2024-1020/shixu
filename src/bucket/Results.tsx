@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import ItemDialog from "./ItemDialog";
 import DeliverySources from "./DeliverySources";
-import ItemSupplement from "./ItemSupplement";
+import ItemChat from "./ItemChat";
 import { cardCopy } from "./card-copy";
 import type { Packet, ItemState, BucketKind } from "./types";
 import { localDate } from "../organize";
@@ -35,6 +35,7 @@ function Results({
   onFocusConsumed,
   notify,
   purge,
+  onChat,
 }: {
   packets: Packet[];
   save: (p: Packet) => Promise<void>;
@@ -42,6 +43,11 @@ function Results({
   onFocusConsumed: () => void;
   notify: (s: string) => void;
   purge: (id: string) => Promise<void>;
+  onChat: (
+    packetId: string,
+    itemId: string,
+    text: string,
+  ) => Promise<ItemState>;
 }) {
   const [query, setQuery] = useState(""),
     [scope, setScope] = useState("active"),
@@ -57,6 +63,7 @@ function Results({
   const [limit, setLimit] = useState(60);
   const [grouped, setGrouped] = useState(false);
   const [selected, setSelected] = useState("");
+  const [editing, setEditing] = useState(false);
   const [materials, setMaterials] = useState("");
   const [adopting, setAdopting] = useState("");
   const adoptionLock = useRef(new Set<string>());
@@ -413,7 +420,10 @@ function Results({
                   <button
                     className="card-open"
                     aria-label={"查看 " + item.title}
-                    onClick={() => setSelected(id)}
+                    onClick={() => {
+                      setEditing(false);
+                      setSelected(id);
+                    }}
                   >
                     <h2>{cardCopy(item).title}</h2>
                     {cardCopy(item).summary && <p>{cardCopy(item).summary}</p>}
@@ -471,8 +481,13 @@ function Results({
                         <MoreHorizontal size={23} />
                       </summary>
                       <div>
-                        <button onClick={() => setSelected(id)}>
-                          查看与编辑
+                        <button
+                          onClick={() => {
+                            setEditing(true);
+                            setSelected(id);
+                          }}
+                        >
+                          编辑内容与分组
                         </button>
                         {!deleted && (
                           <>
@@ -514,378 +529,25 @@ function Results({
                           {meta.pinned && <b>置顶</b>}
                           {meta.starred && <b>★</b>}
                         </div>
-                        {item.due && (
-                          <p
-                            className={
-                              item.due.date < day && !done
-                                ? "is-overdue"
-                                : "result-date"
-                            }
+                        <div className="detail-tabs">
+                          <button
+                            aria-pressed={!editing}
+                            onClick={() => setEditing(false)}
                           >
-                            {item.kind === "event" ? "发生时间" : "截止"}：
-                            {item.due.date} {item.due.time}{" "}
-                            {item.due.date < day
-                              ? item.kind === "event"
-                                ? "· 已结束"
-                                : !done
-                                  ? "· 已逾期"
-                                  : ""
-                              : item.due.date === day
-                                ? "· 今天"
-                                : ""}
-                          </p>
-                        )}
-                        <p>{item.summary}</p>
-                        <DeliverySources
-                          packet={p}
-                          save={save}
-                          notify={notify}
-                        />
+                            查看详情
+                          </button>
+                          <button
+                            aria-pressed={editing}
+                            onClick={() => setEditing(true)}
+                          >
+                            就地修改
+                          </button>
+                        </div>
                         {!deleted && (
-                          <ItemSupplement
-                            additions={meta.additions}
-                            notify={notify}
-                            save={async (additions) => {
-                              await save({
-                                ...p,
-                                itemState: {
-                                  ...p.itemState,
-                                  [id]: { ...p.itemState?.[id], additions },
-                                },
-                                updatedAt: new Date().toISOString(),
-                              });
-                            }}
-                          />
-                        )}
-                        {meta.origin && (
-                          <p>此行动由你采纳 AI 建议生成，属于自选行动。</p>
-                        )}
-                        <details className="item-metadata">
-                          <summary>事项信息与修改记录</summary>
-                          <small>
-                            重要程度：
-                            {
-                              ["低", "普通", "高"][
-                                meta.importance ?? item.importance ?? 1
-                              ]
-                            }{" "}
-                            ·{" "}
-                            {meta.importance !== undefined
-                              ? "人工确认"
-                              : item.importanceReason || "AI 未提供明确依据"}
-                          </small>
-                          {meta.corrected && (
-                            <small>已人工修正，重试不会覆盖此结果</small>
-                          )}
-                          {meta.completedAt && (
-                            <p>
-                              <small>
-                                完成 / 归档于{" "}
-                                {new Date(meta.completedAt).toLocaleString()}
-                              </small>
-                            </p>
-                          )}
-                          {!!meta.history?.length && (
-                            <details>
-                              <summary>修改与补充记录</summary>
-                              {meta.history.map((change, i) => (
-                                <div key={i}>
-                                  <p>
-                                    {new Date(change.at).toLocaleString()} ·{" "}
-                                    {change.field} · {change.source}
-                                  </p>
-                                  <p>修改前：{change.before || "未设置"}</p>
-                                  <p>修改后：{change.after || "未设置"}</p>
-                                </div>
-                              ))}
-                            </details>
-                          )}
-                        </details>
-                        {deleted ? (
-                          <div className="result-actions">
-                            <span>
-                              剩余{" "}
-                              {Math.max(
-                                0,
-                                30 -
-                                  Math.floor(
-                                    (Date.now() - Date.parse(deleted)) /
-                                      86400000,
-                                  ),
-                              )}{" "}
-                              天
-                            </span>
-                            <button
-                              onClick={async () => {
-                                if (p.deletedAt) {
-                                  await save({ ...p, deletedAt: undefined });
-                                  notify("已恢复整次投递及其分组");
-                                } else
-                                  await update(p, id, { deletedAt: undefined });
-                              }}
-                            >
-                              恢复{p.deletedAt ? "整次投递" : "事项"}
-                            </button>
-                            {!p.deletedAt && (
-                              <button
-                                onClick={async () => {
-                                  if (
-                                    !confirm(
-                                      "永久删除此事项及打卡记录？原始投递与其他事项仍保留。",
-                                    )
-                                  )
-                                    return;
-                                  const items = [...p.result!.items];
-                                  items[index] = {
-                                    kind: "other",
-                                    title: "已永久删除",
-                                    summary: "",
-                                    facts: [],
-                                    nextSteps: [],
-                                    uncertainties: [],
-                                    evidence: [],
-                                    sourceIds: [],
-                                    due: null,
-                                  };
-                                  await save({
-                                    ...p,
-                                    result: { ...p.result!, items },
-                                    itemState: {
-                                      ...p.itemState,
-                                      [id]: {
-                                        purgedAt: new Date().toISOString(),
-                                      },
-                                    },
-                                  });
-                                }}
-                              >
-                                永久删除此事项
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    "永久删除整次投递及其中所有事项？此操作无法恢复。",
-                                  )
-                                )
-                                  void purge(p.id);
-                              }}
-                            >
-                              永久删除整次投递
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="result-actions">
-                            <button
-                              onClick={() =>
-                                void update(p, id, {
-                                  status: done ? "active" : "done",
-                                  completedAt: done
-                                    ? undefined
-                                    : new Date().toISOString(),
-                                })
-                              }
-                            >
-                              {done
-                                ? "撤销完成 / 归档"
-                                : item.kind === "task"
-                                  ? "完成"
-                                  : "归档"}
-                            </button>
-                            {item.kind === "habit" && (
-                              <span>
-                                累计坚持 {new Set(meta.checkins || []).size} 天
-                              </span>
-                            )}
-                            <details className="detail-action-menu">
-                              <summary>更多操作</summary>
-                              <div>
-                                {!done &&
-                                  ["task", "idea"].includes(item.kind) && (
-                                    <button
-                                      onClick={() =>
-                                        void update(p, id, {
-                                          status:
-                                            meta.status === "progress"
-                                              ? "active"
-                                              : "progress",
-                                        })
-                                      }
-                                    >
-                                      {meta.status === "progress"
-                                        ? "返回待处理"
-                                        : "开始处理"}
-                                    </button>
-                                  )}
-                                <button
-                                  onClick={() =>
-                                    void update(p, id, { pinned: !meta.pinned })
-                                  }
-                                >
-                                  {meta.pinned ? "取消置顶" : "置顶"}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    void update(p, id, {
-                                      deletedAt: new Date().toISOString(),
-                                    })
-                                  }
-                                >
-                                  删除事项
-                                </button>
-                              </div>
-                            </details>
-                          </div>
-                        )}
-                        <section
-                          className="item-requirements"
-                          aria-label="原文要求、建议与来源"
-                        >
-                          <h3>要做什么</h3>
-                          <ul>
-                            {item.facts.map((f, i) => (
-                              <li key={i}>{f}</li>
-                            ))}
-                          </ul>
-                          <h3>原文依据</h3>
-                          {item.evidence.map((e, i) => (
-                            <blockquote key={i}>
-                              <small>
-                                {
-                                  p.sources.find((s) => s.id === e.sourceId)
-                                    ?.name
-                                }
-                                {e.sourceId === "input"
-                                  ? " · 输入原文"
-                                  : p.sources
-                                        .find((s) => s.id === e.sourceId)
-                                        ?.text.startsWith("[图像识别转写") ||
-                                      p.sources
-                                        .find((s) => s.id === e.sourceId)
-                                        ?.originalText?.startsWith(
-                                          "[图像识别转写",
-                                        )
-                                    ? " · 图像识别转写（需对照原图）"
-                                    : " · 文件提取文字"}
-                              </small>
-                              <p>{e.quote}</p>
-                            </blockquote>
-                          ))}
-                          {!!item.nextSteps.length && (
-                            <>
-                              <h3>AI 建议（可选）</h3>
-                              <ul>
-                                {item.nextSteps.map((f, i) => (
-                                  <li key={i}>
-                                    {f}
-                                    {!deleted && (
-                                      <button
-                                        disabled={
-                                          adopting === p.id ||
-                                          Object.values(p.itemState || {}).some(
-                                            (m) =>
-                                              m.origin ===
-                                              `${id}:suggestion:${i}`,
-                                          )
-                                        }
-                                        onClick={async () => {
-                                          const origin = `${id}:suggestion:${i}`;
-                                          if (adoptionLock.current.has(p.id))
-                                            return;
-                                          if (
-                                            Object.values(
-                                              p.itemState || {},
-                                            ).some((m) => m.origin === origin)
-                                          )
-                                            return notify("这条建议已采纳");
-                                          adoptionLock.current.add(p.id);
-                                          setAdopting(p.id);
-                                          setAdoptionError("");
-                                          const nextId = crypto.randomUUID();
-                                          try {
-                                            await save({
-                                              ...p,
-                                              itemIds: [
-                                                ...(p.itemIds ||
-                                                  p.result!.items.map(
-                                                    (_, i) => `${p.id}:${i}`,
-                                                  )),
-                                                nextId,
-                                              ],
-                                              result: {
-                                                ...p.result!,
-                                                items: [
-                                                  ...p.result!.items,
-                                                  {
-                                                    ...item,
-                                                    kind: "task",
-                                                    title: f.slice(0, 150),
-                                                    summary:
-                                                      "你采纳的 AI 建议：" + f,
-                                                    facts: [],
-                                                    nextSteps: [],
-                                                    due: null,
-                                                  },
-                                                ],
-                                              },
-                                              itemState: {
-                                                ...p.itemState,
-                                                [nextId]: {
-                                                  origin,
-                                                  group: meta.group,
-                                                  importance: 1,
-                                                },
-                                              },
-                                            });
-                                            notify("已采纳为自选行动");
-                                          } catch (error) {
-                                            setAdoptionError(
-                                              (error as Error).message,
-                                            );
-                                          } finally {
-                                            adoptionLock.current.delete(p.id);
-                                            setAdopting("");
-                                          }
-                                        }}
-                                      >
-                                        {Object.values(p.itemState || {}).some(
-                                          (m) =>
-                                            m.origin ===
-                                            `${id}:suggestion:${i}`,
-                                        )
-                                          ? "已采纳 ✓"
-                                          : adopting === p.id
-                                            ? "正在添加…"
-                                            : "采纳为行动"}
-                                      </button>
-                                    )}
-                                    {Object.values(p.itemState || {}).some(
-                                      (m) =>
-                                        m.origin === `${id}:suggestion:${i}`,
-                                    ) && (
-                                      <span
-                                        className="adoption-receipt"
-                                        role="status"
-                                      >
-                                        已加入任务卡片
-                                      </span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                              {adoptionError && (
-                                <p role="alert">
-                                  添加失败：{adoptionError}，请重试。
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </section>
-                        {!deleted && (
-                          <details>
-                            <summary>就地修改</summary>
+                          <section className="item-editor" hidden={!editing}>
+                            <h3>编辑内容与分组</h3>
                             <form
+                              key={JSON.stringify([item, meta])}
                               onSubmit={async (e) => {
                                 e.preventDefault();
                                 const data = new FormData(e.currentTarget),
@@ -907,6 +569,10 @@ function Results({
                                 items[index] = {
                                   ...items[index],
                                   summary: String(data.get("summary") || ""),
+                                  facts: String(data.get("facts") || "")
+                                    .split("\n")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean),
                                   uncertainties: String(
                                     data.get("uncertainties") || "",
                                   )
@@ -954,6 +620,7 @@ function Results({
                                   },
                                 });
                                 notify("修改已保存，原始来源保留");
+                                setEditing(false);
                               }}
                             >
                               <label>
@@ -969,13 +636,23 @@ function Results({
                                 总结
                                 <textarea
                                   name="summary"
+                                  aria-label="总结"
                                   defaultValue={item.summary}
+                                />
+                              </label>
+                              <label>
+                                关键要求（每行一项）
+                                <textarea
+                                  name="facts"
+                                  aria-label="关键要求（每行一项）"
+                                  defaultValue={item.facts.join("\n")}
                                 />
                               </label>
                               <label>
                                 备注（每行一项）
                                 <textarea
                                   name="uncertainties"
+                                  aria-label="备注（每行一项）"
                                   defaultValue={item.uncertainties.join("\n")}
                                 />
                               </label>
@@ -1036,8 +713,386 @@ function Results({
                               </label>
                               <button type="submit">保存修改</button>
                             </form>
-                          </details>
+                          </section>
                         )}
+                        <div hidden={editing}>
+                          {item.due && (
+                            <p
+                              className={
+                                item.due.date < day && !done
+                                  ? "is-overdue"
+                                  : "result-date"
+                              }
+                            >
+                              {item.kind === "event" ? "发生时间" : "截止"}：
+                              {item.due.date} {item.due.time}{" "}
+                              {item.due.date < day
+                                ? item.kind === "event"
+                                  ? "· 已结束"
+                                  : !done
+                                    ? "· 已逾期"
+                                    : ""
+                                : item.due.date === day
+                                  ? "· 今天"
+                                  : ""}
+                            </p>
+                          )}
+                          <p>{item.summary}</p>
+                          <DeliverySources
+                            packet={p}
+                            save={save}
+                            notify={notify}
+                          />
+                          {!deleted && (
+                            <ItemChat
+                              meta={meta}
+                              send={async (text) => {
+                                const next = await onChat(p.id, id, text);
+                                setKind("all");
+                                setDateFilter("all");
+                                setStarOnly(false);
+                                setScope(
+                                  next.status === "done" ? "done" : "active",
+                                );
+                              }}
+                            />
+                          )}
+                          {meta.origin && (
+                            <p>此行动由你采纳 AI 建议生成，属于自选行动。</p>
+                          )}
+                          <details className="item-metadata">
+                            <summary>事项信息与修改记录</summary>
+                            <small>
+                              重要程度：
+                              {
+                                ["低", "普通", "高"][
+                                  meta.importance ?? item.importance ?? 1
+                                ]
+                              }{" "}
+                              ·{" "}
+                              {meta.importance !== undefined
+                                ? "人工确认"
+                                : item.importanceReason || "AI 未提供明确依据"}
+                            </small>
+                            {meta.corrected && (
+                              <small>已人工修正，重试不会覆盖此结果</small>
+                            )}
+                            {meta.completedAt && (
+                              <p>
+                                <small>
+                                  完成 / 归档于{" "}
+                                  {new Date(meta.completedAt).toLocaleString()}
+                                </small>
+                              </p>
+                            )}
+                            {!!meta.history?.length && (
+                              <details>
+                                <summary>修改与补充记录</summary>
+                                {meta.history.map((change, i) => (
+                                  <div key={i}>
+                                    <p>
+                                      {new Date(change.at).toLocaleString()} ·{" "}
+                                      {change.field} · {change.source}
+                                    </p>
+                                    <p>修改前：{change.before || "未设置"}</p>
+                                    <p>修改后：{change.after || "未设置"}</p>
+                                  </div>
+                                ))}
+                              </details>
+                            )}
+                          </details>
+                          {deleted ? (
+                            <div className="result-actions">
+                              <span>
+                                剩余{" "}
+                                {Math.max(
+                                  0,
+                                  30 -
+                                    Math.floor(
+                                      (Date.now() - Date.parse(deleted)) /
+                                        86400000,
+                                    ),
+                                )}{" "}
+                                天
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  if (p.deletedAt) {
+                                    await save({ ...p, deletedAt: undefined });
+                                    notify("已恢复整次投递及其分组");
+                                  } else
+                                    await update(p, id, {
+                                      deletedAt: undefined,
+                                    });
+                                }}
+                              >
+                                恢复{p.deletedAt ? "整次投递" : "事项"}
+                              </button>
+                              {!p.deletedAt && (
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        "永久删除此事项及打卡记录？原始投递与其他事项仍保留。",
+                                      )
+                                    )
+                                      return;
+                                    const items = [...p.result!.items];
+                                    items[index] = {
+                                      kind: "other",
+                                      title: "已永久删除",
+                                      summary: "",
+                                      facts: [],
+                                      nextSteps: [],
+                                      uncertainties: [],
+                                      evidence: [],
+                                      sourceIds: [],
+                                      due: null,
+                                    };
+                                    await save({
+                                      ...p,
+                                      result: { ...p.result!, items },
+                                      itemState: {
+                                        ...p.itemState,
+                                        [id]: {
+                                          purgedAt: new Date().toISOString(),
+                                        },
+                                      },
+                                    });
+                                  }}
+                                >
+                                  永久删除此事项
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      "永久删除整次投递及其中所有事项？此操作无法恢复。",
+                                    )
+                                  )
+                                    void purge(p.id);
+                                }}
+                              >
+                                永久删除整次投递
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="result-actions">
+                              <button
+                                onClick={() =>
+                                  void update(p, id, {
+                                    status: done ? "active" : "done",
+                                    completedAt: done
+                                      ? undefined
+                                      : new Date().toISOString(),
+                                  })
+                                }
+                              >
+                                {done
+                                  ? "撤销完成 / 归档"
+                                  : item.kind === "task"
+                                    ? "完成"
+                                    : "归档"}
+                              </button>
+                              {item.kind === "habit" && (
+                                <span>
+                                  累计坚持 {new Set(meta.checkins || []).size}{" "}
+                                  天
+                                </span>
+                              )}
+                              <details className="detail-action-menu">
+                                <summary>更多操作</summary>
+                                <div>
+                                  {!done &&
+                                    ["task", "idea"].includes(item.kind) && (
+                                      <button
+                                        onClick={() =>
+                                          void update(p, id, {
+                                            status:
+                                              meta.status === "progress"
+                                                ? "active"
+                                                : "progress",
+                                          })
+                                        }
+                                      >
+                                        {meta.status === "progress"
+                                          ? "返回待处理"
+                                          : "开始处理"}
+                                      </button>
+                                    )}
+                                  <button
+                                    onClick={() =>
+                                      void update(p, id, {
+                                        pinned: !meta.pinned,
+                                      })
+                                    }
+                                  >
+                                    {meta.pinned ? "取消置顶" : "置顶"}
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      void update(p, id, {
+                                        deletedAt: new Date().toISOString(),
+                                      })
+                                    }
+                                  >
+                                    删除事项
+                                  </button>
+                                </div>
+                              </details>
+                            </div>
+                          )}
+                          <section
+                            className="item-requirements"
+                            aria-label="原文要求、建议与来源"
+                          >
+                            <h3>要做什么</h3>
+                            <ul>
+                              {item.facts.map((f, i) => (
+                                <li key={i}>{f}</li>
+                              ))}
+                            </ul>
+                            <h3>原文依据</h3>
+                            {item.evidence.map((e, i) => (
+                              <blockquote key={i}>
+                                <small>
+                                  {
+                                    p.sources.find((s) => s.id === e.sourceId)
+                                      ?.name
+                                  }
+                                  {e.sourceId === "input"
+                                    ? " · 输入原文"
+                                    : p.sources
+                                          .find((s) => s.id === e.sourceId)
+                                          ?.text.startsWith("[图像识别转写") ||
+                                        p.sources
+                                          .find((s) => s.id === e.sourceId)
+                                          ?.originalText?.startsWith(
+                                            "[图像识别转写",
+                                          )
+                                      ? " · 图像识别转写（需对照原图）"
+                                      : " · 文件提取文字"}
+                                </small>
+                                <p>{e.quote}</p>
+                              </blockquote>
+                            ))}
+                            {!!item.nextSteps.length && (
+                              <>
+                                <h3>AI 建议（可选）</h3>
+                                <ul>
+                                  {item.nextSteps.map((f, i) => (
+                                    <li key={i}>
+                                      {f}
+                                      {!deleted && (
+                                        <button
+                                          disabled={
+                                            adopting === p.id ||
+                                            Object.values(
+                                              p.itemState || {},
+                                            ).some(
+                                              (m) =>
+                                                m.origin ===
+                                                `${id}:suggestion:${i}`,
+                                            )
+                                          }
+                                          onClick={async () => {
+                                            const origin = `${id}:suggestion:${i}`;
+                                            if (adoptionLock.current.has(p.id))
+                                              return;
+                                            if (
+                                              Object.values(
+                                                p.itemState || {},
+                                              ).some((m) => m.origin === origin)
+                                            )
+                                              return notify("这条建议已采纳");
+                                            adoptionLock.current.add(p.id);
+                                            setAdopting(p.id);
+                                            setAdoptionError("");
+                                            const nextId = crypto.randomUUID();
+                                            try {
+                                              await save({
+                                                ...p,
+                                                itemIds: [
+                                                  ...(p.itemIds ||
+                                                    p.result!.items.map(
+                                                      (_, i) => `${p.id}:${i}`,
+                                                    )),
+                                                  nextId,
+                                                ],
+                                                result: {
+                                                  ...p.result!,
+                                                  items: [
+                                                    ...p.result!.items,
+                                                    {
+                                                      ...item,
+                                                      kind: "task",
+                                                      title: f.slice(0, 150),
+                                                      summary:
+                                                        "你采纳的 AI 建议：" +
+                                                        f,
+                                                      facts: [],
+                                                      nextSteps: [],
+                                                      due: null,
+                                                    },
+                                                  ],
+                                                },
+                                                itemState: {
+                                                  ...p.itemState,
+                                                  [nextId]: {
+                                                    origin,
+                                                    group: meta.group,
+                                                    importance: 1,
+                                                  },
+                                                },
+                                              });
+                                              notify("已采纳为自选行动");
+                                            } catch (error) {
+                                              setAdoptionError(
+                                                (error as Error).message,
+                                              );
+                                            } finally {
+                                              adoptionLock.current.delete(p.id);
+                                              setAdopting("");
+                                            }
+                                          }}
+                                        >
+                                          {Object.values(
+                                            p.itemState || {},
+                                          ).some(
+                                            (m) =>
+                                              m.origin ===
+                                              `${id}:suggestion:${i}`,
+                                          )
+                                            ? "已采纳 ✓"
+                                            : adopting === p.id
+                                              ? "正在添加…"
+                                              : "采纳为行动"}
+                                        </button>
+                                      )}
+                                      {Object.values(p.itemState || {}).some(
+                                        (m) =>
+                                          m.origin === `${id}:suggestion:${i}`,
+                                      ) && (
+                                        <span
+                                          className="adoption-receipt"
+                                          role="status"
+                                        >
+                                          已加入任务卡片
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                                {adoptionError && (
+                                  <p role="alert">
+                                    添加失败：{adoptionError}，请重试。
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </section>
+                        </div>
                       </fieldset>
                     </ItemDialog>
                   )}

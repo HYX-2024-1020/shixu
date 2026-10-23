@@ -58,6 +58,17 @@ try {
         },
         doneIds: [],
         itemIds: ["i1", "i2", "i3"],
+        itemState: {
+          i1: {
+            additions: [
+              {
+                id: "old-note",
+                text: "已和同学核对，补充实验数据后提交。",
+                at: new Date().toISOString(),
+              },
+            ],
+          },
+        },
         updatedAt: new Date().toISOString(),
         capturedAt: new Date().toISOString(),
         captureDate: "2026-10-23",
@@ -121,16 +132,6 @@ try {
   const detail = page.getByRole("dialog", { name: "事项详情" });
   assert.equal(await page.getByText(/处待确认/).count(), 0);
   await detail.getByLabel("预览 资料原件.txt", { exact: true }).waitFor();
-  await detail
-    .getByRole("textbox", { name: "补充信息", exact: true })
-    .fill("已和同学核对，补充实验数据后提交。");
-  await detail.getByRole("button", { name: "保存补充", exact: true }).click();
-  await waitForPageState(
-    page,
-    async () =>
-      (await window.desktop.store("packets"))[0].itemState.i1.additions
-        ?.length === 1,
-  );
   await detail.getByText("就地修改", { exact: true }).click();
   await detail.getByLabel("标题", { exact: true }).fill("人工确认后的标题");
   await detail.getByLabel("课程 / 项目", { exact: true }).fill("高等数学");
@@ -184,7 +185,12 @@ try {
       (m) => m.origin === "i1:suggestion:0",
     ),
   );
-  assert.equal(Object.values(adopted[0].itemState).filter(m => m.origin === "i1:suggestion:0").length, 1);
+  assert.equal(
+    Object.values(adopted[0].itemState).filter(
+      (m) => m.origin === "i1:suggestion:0",
+    ).length,
+    1,
+  );
   page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("dialog", { name: "事项详情" })
@@ -240,7 +246,12 @@ try {
   await page
     .getByRole("heading", { name: "一起放进来的", exact: true })
     .waitFor();
-  assert.equal(await page.getByRole("button", { name: "已采纳 ✓", exact: true }).isDisabled(), true);
+  assert.equal(
+    await page
+      .getByRole("button", { name: "已采纳 ✓", exact: true })
+      .isDisabled(),
+    true,
+  );
   await page.screenshot({ path: "release/desktop-detail.png" });
   await page.keyboard.press("Escape");
   assert.equal(await page.getByRole("dialog", { name: "事项详情" }).count(), 0);

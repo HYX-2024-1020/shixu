@@ -47,7 +47,8 @@ import {
 import Connection from "./Connection";
 import InstallGuide from "./InstallGuide";
 import DeliverySources from "./DeliverySources";
-import type { Packet, Attachment } from "./types";
+import type { Packet, Attachment, ItemState } from "./types";
+import { chatWithItem } from "./item-chat";
 import Results, { categories } from "./Results";
 import "./bucket.css";
 import "./desktop.css";
@@ -149,6 +150,128 @@ export default function BucketApp() {
     setPackets(next);
   }, []);
   const save = useCallback((packet: Packet) => saveMany([packet]), [saveMany]);
+  const chatLocks = useRef(new Set<string>());
+  async function editWithAI(
+    packetId: string,
+    itemId: string,
+    instruction: string,
+  ): Promise<ItemState> {
+    if (!apiKey) throw new Error("请先在连接与设置中填写 DeepSeek 密钥");
+    if (chatLocks.current.has(packetId))
+      throw new Error("这张卡片正在处理，请稍后");
+    const current = packetsRef.current.find((p) => p.id === packetId);
+    const index = current?.itemIds?.indexOf(itemId) ?? -1;
+    if (
+      !current?.result ||
+      index < 0 ||
+      current.deletedAt ||
+      current.itemState?.[itemId]?.deletedAt ||
+      current.status !== "ready"
+    )
+      throw new Error("卡片当前不可修改");
+    chatLocks.current.add(packetId);
+    try {
+      const meta = current.itemState?.[itemId] || {};
+      const fingerprint = (p: Packet) =>
+        JSON.stringify([
+          p.result?.items[index],
+          { ...p.itemState?.[itemId], chat: undefined },
+        ]);
+      const before = fingerprint(current);
+      const chat = [...(meta.chat || [])];
+      if (!(chat.at(-1)?.role === "user" && chat.at(-1)?.text === instruction))
+        chat.push({
+          id: crypto.randomUUID(),
+          role: "user",
+          text: instruction,
+          at: new Date().toISOString(),
+        });
+      await save({
+        ...current,
+        itemState: { ...current.itemState, [itemId]: { ...meta, chat } },
+      });
+      const response = await chatWithItem(
+        current.result.items[index],
+        { ...meta, chat },
+        instruction,
+        current.text +
+          "\n" +
+          current.sources.map((s) => s.name + "\n" + s.text).join("\n"),
+        {
+          apiKey,
+          model,
+          captureDate: localDate(),
+          packetId,
+          signal: AbortSignal.timeout(90000),
+          onUsage: recordUsage,
+        },
+      );
+      const latest = packetsRef.current.find((p) => p.id === packetId);
+      if (
+        !latest?.result ||
+        latest.deletedAt ||
+        latest.status !== "ready" ||
+        fingerprint(latest) !== before
+      )
+        throw new Error("卡片刚刚有其他修改，本次回复未覆盖它；请重试");
+      const items = [...latest.result.items];
+      const nextItem = { ...items[index] };
+      const nextMeta: ItemState = { ...latest.itemState?.[itemId] };
+      const edits: NonNullable<ItemState["history"]> = [];
+      for (const [field, value] of Object.entries(response.patch)) {
+        const target = ["title", "summary", "kind", "due", "facts"].includes(field)
+          ? nextItem
+          : nextMeta;
+        const record = target as unknown as Record<string, unknown>;
+        if (JSON.stringify(record[field]) !== JSON.stringify(value))
+          edits.push({
+            at: new Date().toISOString(),
+            field,
+            before: JSON.stringify(record[field]) || "",
+            after: JSON.stringify(value),
+            source: "卡片对话",
+          });
+        record[field] = value;
+      }
+      nextMeta.chat = [
+        ...chat,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: response.reply,
+          at: new Date().toISOString(),
+        },
+      ];
+      if (edits.length) {
+        nextMeta.corrected = true;
+        nextMeta.history = [...(nextMeta.history || []), ...edits];
+      }
+      const doneIds = new Set(latest.doneIds);
+      if (response.patch.status) {
+        if (response.patch.status === "done") {
+          doneIds.add(index);
+          nextMeta.completedAt = new Date().toISOString();
+        } else {
+          doneIds.delete(index);
+          nextMeta.completedAt = undefined;
+        }
+      }
+      items[index] = nextItem;
+      await save({
+        ...latest,
+        result: { ...latest.result, items },
+        itemState: { ...latest.itemState, [itemId]: nextMeta },
+        doneIds: [...doneIds],
+        updatedAt: new Date().toISOString(),
+      });
+      return {
+        ...nextMeta,
+        status: doneIds.has(index) ? "done" : nextMeta.status,
+      };
+    } finally {
+      chatLocks.current.delete(packetId);
+    }
+  }
   const recordUsage = useCallback(async (record: UsageRecord) => {
     await putUsage(record);
     setUsage((rows) => [...rows.filter((r) => r.id !== record.id), record]);
@@ -1429,6 +1552,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "results"}>
           <Results
+            onChat={editWithAI}
             packets={packets}
             save={save}
             focusPacket={focusPacket}

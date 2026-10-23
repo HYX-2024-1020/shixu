@@ -47,6 +47,7 @@ export interface Packet {
   association?: Association;
 }
 export interface ItemState {
+  chat?: { id: string; role: "user" | "assistant"; text: string; at: string }[];
   additions?: { id: string; text: string; at: string }[];
   history?: {
     at: string;
