@@ -167,3 +167,5 @@
 - [x] 安装器 拾序 Setup 0.3.6.exe，144244951 字节；SHA-256：7daf56068db4c16a75289dbb930e7e814f35b0977a300c033a90124642365156。验证报告 release/validation-summary.json、release/motion-validation.json；源码进度已标记。
 
 本轮没有模型调用；QQ/微信/资源管理器实际来源拖拽的历史验收仍未完成，不以 DOM 动画测试替代。
+
+- [x] 本轮源码已推送 origin/main（b41dc03acba7cf4c72a532f63fc3d75b51937361），Windows 0.3.6 安装包、SHA256SUMS、截图和动画验证报告已发布：https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.6。其他并行任务的同步服务/小程序/皮肤文件保持原样，没有纳入此次提交。
