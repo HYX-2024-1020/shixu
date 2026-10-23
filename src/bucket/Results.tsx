@@ -6,11 +6,13 @@ import {
   Pin,
   ArrowUpRight,
   Paperclip,
+  Trash2,
 } from "lucide-react";
 import ItemDialog from "./ItemDialog";
 import DeliverySources from "./DeliverySources";
 import ItemChat from "./ItemChat";
 import { cardCopy } from "./card-copy";
+import LinkText from "./LinkText";
 import type { Packet, ItemState, BucketKind } from "./types";
 import { localDate } from "../organize";
 import { compareItems } from "./management";
@@ -36,7 +38,9 @@ function Results({
   notify,
   purge,
   onChat,
+  onRecords,
 }: {
+  onRecords: () => void;
   packets: Packet[];
   save: (p: Packet) => Promise<void>;
   focusPacket: string;
@@ -57,9 +61,9 @@ function Results({
     [starOnly, setStarOnly] = useState(false);
   const [day, setDay] = useState(localDate()),
     [onlyPacket, setOnlyPacket] = useState("");
-  const [undo, setUndo] = useState<{ packetId: string; id: string } | null>(
-    null,
-  );
+  const [completing, setCompleting] = useState("");
+  const completionLock = useRef(new Set<string>());
+  const [showHistory, setShowHistory] = useState(false);
   const [limit, setLimit] = useState(60);
   const [grouped, setGrouped] = useState(false);
   const [selected, setSelected] = useState("");
@@ -88,6 +92,12 @@ function Results({
       window.removeEventListener("focus", tick);
     };
   }, []);
+  useEffect(() => {
+    setShowHistory(false);
+  }, [selected]);
+  useEffect(() => {
+    if (editing) document.querySelector("dialog[open]")?.scrollTo({ top: 0 });
+  }, [editing]);
   async function update(p: Packet, id: string, changes: Partial<ItemState>) {
     try {
       const index = p.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
@@ -109,10 +119,6 @@ function Results({
         changes.status === "active"
       )
         setSelected("");
-      if (changes.deletedAt) {
-        setUndo({ packetId: p.id, id });
-        notify("事项已进入最近删除，可撤销");
-      }
     } catch (e) {
       notify((e as Error).message);
     }
@@ -211,18 +217,8 @@ function Results({
         </div>
         <img src={import.meta.env.BASE_URL + "mascot.png"} alt="" />
       </div>
-      {undo && (
-        <button
-          onClick={async () => {
-            const p = packets.find((p) => p.id === undo.packetId);
-            if (p) await update(p, undo.id, { deletedAt: undefined });
-            setUndo(null);
-          }}
-        >
-          撤销刚才的删除
-        </button>
-      )}
       <div className="result-controls">
+        <button onClick={onRecords}>整理记录</button>
         <input
           aria-label="搜索整理结果"
           placeholder="搜索标题、原文或文件名"
@@ -376,7 +372,10 @@ function Results({
                 >
                   <div className="card-topline">
                     <button
-                      className="completion-orbit"
+                      className={
+                        "completion-orbit" +
+                        (completing === id ? " is-checking" : "")
+                      }
                       aria-label={
                         done
                           ? "撤销完成 / 归档"
@@ -386,22 +385,51 @@ function Results({
                       }
                       aria-pressed={done}
                       disabled={p.status !== "ready" || !!deleted}
-                      onClick={() =>
-                        void update(p, id, {
+                      onClick={async () => {
+                        if (completionLock.current.has(id)) return;
+                        completionLock.current.add(id);
+                        if (!done) {
+                          setCompleting(id);
+                          await new Promise((resolve) =>
+                            setTimeout(
+                              resolve,
+                              matchMedia("(prefers-reduced-motion: reduce)")
+                                .matches
+                                ? 0
+                                : 420,
+                            ),
+                          );
+                        }
+                        await update(p, id, {
                           status: done ? "active" : "done",
                           completedAt: done
                             ? undefined
                             : new Date().toISOString(),
-                        })
-                      }
+                        });
+                        completionLock.current.delete(id);
+                        setCompleting("");
+                      }}
                     >
-                      {done && <Check size={19} />}
+                      {(done || completing === id) && <Check size={19} />}
                     </button>
                     <span className="card-kind">
                       {categories[item.kind]}
                       {meta.status === "progress" ? " · 正在做" : ""}
                     </span>
                     {meta.pinned && <Pin size={16} aria-label="已置顶" />}
+                    {!deleted && (
+                      <button
+                        className="card-delete"
+                        aria-label="删除事项"
+                        onClick={() =>
+                          void update(p, id, {
+                            deletedAt: new Date().toISOString(),
+                          })
+                        }
+                      >
+                        <Trash2 size={19} />
+                      </button>
+                    )}
                     <button
                       className="card-star"
                       aria-label={meta.starred ? "取消星标" : "星标"}
@@ -417,7 +445,19 @@ function Results({
                       />
                     </button>
                   </div>
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (
+                        e.target === e.currentTarget &&
+                        ["Enter", " "].includes(e.key)
+                      ) {
+                        e.preventDefault();
+                        setEditing(false);
+                        setSelected(id);
+                      }
+                    }}
                     className="card-open"
                     aria-label={"查看 " + item.title}
                     onClick={() => {
@@ -426,8 +466,12 @@ function Results({
                     }}
                   >
                     <h2>{cardCopy(item).title}</h2>
-                    {cardCopy(item).summary && <p>{cardCopy(item).summary}</p>}
-                  </button>
+                    {cardCopy(item).summary && (
+                      <p>
+                        <LinkText text={cardCopy(item).summary} />
+                      </p>
+                    )}
+                  </div>
                   <div className="card-context">
                     {item.due && (
                       <span
@@ -498,15 +542,6 @@ function Results({
                             >
                               {meta.pinned ? "取消置顶" : "置顶"}
                             </button>
-                            <button
-                              onClick={() =>
-                                void update(p, id, {
-                                  deletedAt: new Date().toISOString(),
-                                })
-                              }
-                            >
-                              删除事项
-                            </button>
                           </>
                         )}
                       </div>
@@ -528,20 +563,6 @@ function Results({
                           <h2>{cardCopy(item).title}</h2>
                           {meta.pinned && <b>置顶</b>}
                           {meta.starred && <b>★</b>}
-                        </div>
-                        <div className="detail-tabs">
-                          <button
-                            aria-pressed={!editing}
-                            onClick={() => setEditing(false)}
-                          >
-                            查看详情
-                          </button>
-                          <button
-                            aria-pressed={editing}
-                            onClick={() => setEditing(true)}
-                          >
-                            就地修改
-                          </button>
                         </div>
                         {!deleted && (
                           <section className="item-editor" hidden={!editing}>
@@ -737,7 +758,9 @@ function Results({
                                   : ""}
                             </p>
                           )}
-                          <p>{item.summary}</p>
+                          <p>
+                            <LinkText text={item.summary} />
+                          </p>
                           <DeliverySources
                             packet={p}
                             save={save}
@@ -760,7 +783,11 @@ function Results({
                           {meta.origin && (
                             <p>此行动由你采纳 AI 建议生成，属于自选行动。</p>
                           )}
-                          <details className="item-metadata">
+                          <details
+                            className="item-metadata"
+                            hidden={!showHistory}
+                            open={showHistory}
+                          >
                             <summary>事项信息与修改记录</summary>
                             <small>
                               重要程度：
@@ -877,72 +904,7 @@ function Results({
                                 永久删除整次投递
                               </button>
                             </div>
-                          ) : (
-                            <div className="result-actions">
-                              <button
-                                onClick={() =>
-                                  void update(p, id, {
-                                    status: done ? "active" : "done",
-                                    completedAt: done
-                                      ? undefined
-                                      : new Date().toISOString(),
-                                  })
-                                }
-                              >
-                                {done
-                                  ? "撤销完成 / 归档"
-                                  : item.kind === "task"
-                                    ? "完成"
-                                    : "归档"}
-                              </button>
-                              {item.kind === "habit" && (
-                                <span>
-                                  累计坚持 {new Set(meta.checkins || []).size}{" "}
-                                  天
-                                </span>
-                              )}
-                              <details className="detail-action-menu">
-                                <summary>更多操作</summary>
-                                <div>
-                                  {!done &&
-                                    ["task", "idea"].includes(item.kind) && (
-                                      <button
-                                        onClick={() =>
-                                          void update(p, id, {
-                                            status:
-                                              meta.status === "progress"
-                                                ? "active"
-                                                : "progress",
-                                          })
-                                        }
-                                      >
-                                        {meta.status === "progress"
-                                          ? "返回待处理"
-                                          : "开始处理"}
-                                      </button>
-                                    )}
-                                  <button
-                                    onClick={() =>
-                                      void update(p, id, {
-                                        pinned: !meta.pinned,
-                                      })
-                                    }
-                                  >
-                                    {meta.pinned ? "取消置顶" : "置顶"}
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      void update(p, id, {
-                                        deletedAt: new Date().toISOString(),
-                                      })
-                                    }
-                                  >
-                                    删除事项
-                                  </button>
-                                </div>
-                              </details>
-                            </div>
-                          )}
+                          ) : null}
                           <section
                             className="item-requirements"
                             aria-label="原文要求、建议与来源"
@@ -950,7 +912,9 @@ function Results({
                             <h3>要做什么</h3>
                             <ul>
                               {item.facts.map((f, i) => (
-                                <li key={i}>{f}</li>
+                                <li key={i}>
+                                  <LinkText text={f} />
+                                </li>
                               ))}
                             </ul>
                             <h3>原文依据</h3>
@@ -974,7 +938,9 @@ function Results({
                                       ? " · 图像识别转写（需对照原图）"
                                       : " · 文件提取文字"}
                                 </small>
-                                <p>{e.quote}</p>
+                                <p>
+                                  <LinkText text={e.quote} />
+                                </p>
                               </blockquote>
                             ))}
                             {!!item.nextSteps.length && (
@@ -983,7 +949,7 @@ function Results({
                                 <ul>
                                   {item.nextSteps.map((f, i) => (
                                     <li key={i}>
-                                      {f}
+                                      <LinkText text={f} />
                                       {!deleted && (
                                         <button
                                           disabled={
@@ -1093,6 +1059,65 @@ function Results({
                             )}
                           </section>
                         </div>
+                        {!deleted && (
+                          <div className="dialog-footer">
+                            <details className="detail-action-menu">
+                              <summary aria-label="卡片操作">
+                                <MoreHorizontal size={23} />
+                              </summary>
+                              <div>
+                                <button onClick={() => setEditing((v) => !v)}>
+                                  {editing ? "查看详情" : "编辑内容"}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditing(true);
+                                    requestAnimationFrame(() =>
+                                      document
+                                        .querySelector<HTMLInputElement>(
+                                          "dialog[open] input[name=group]",
+                                        )
+                                        ?.focus(),
+                                    );
+                                  }}
+                                >
+                                  分组
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    void update(p, id, { pinned: !meta.pinned })
+                                  }
+                                >
+                                  {meta.pinned ? "取消置顶" : "置顶"}
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    void update(p, id, {
+                                      status: done ? "active" : "done",
+                                      completedAt: done
+                                        ? undefined
+                                        : new Date().toISOString(),
+                                    })
+                                  }
+                                >
+                                  {done
+                                    ? "撤销完成 / 归档"
+                                    : item.kind === "task"
+                                      ? "完成"
+                                      : "归档"}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowHistory((v) => !v);
+                                    setEditing(false);
+                                  }}
+                                >
+                                  修改记录
+                                </button>
+                              </div>
+                            </details>
+                          </div>
+                        )}
                       </fieldset>
                     </ItemDialog>
                   )}

@@ -47,6 +47,8 @@ import {
 import Connection from "./Connection";
 import InstallGuide from "./InstallGuide";
 import DeliverySources from "./DeliverySources";
+import ItemDialog from "./ItemDialog";
+import { useTransientUI } from "./useTransientUI";
 import type { Packet, Attachment, ItemState } from "./types";
 import { chatWithItem } from "./item-chat";
 import Results, { categories } from "./Results";
@@ -91,13 +93,16 @@ export default function BucketApp() {
   const clearFocus = useCallback(() => setFocusPacket(""), []);
   function goWorkspace(next: string, packetId?: string) {
     scrollPositions.current[workspace] = window.scrollY;
-    if (packetId) setFocusPacket(packetId);
+    if (packetId) {
+      setFocusPacket(packetId);
+      setRecordsOpen(false);
+    }
     setWorkspace(next);
     requestAnimationFrame(() =>
       window.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0),
     );
   }
-  const [undoDelete, setUndoDelete] = useState<Packet | null>(null);
+  const [recordsOpen, setRecordsOpen] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
     [apiKey, setApiKey] = useState(initial.key),
@@ -116,6 +121,7 @@ export default function BucketApp() {
     [health, setHealth] = useState<Health | null>(null),
     [progress, setProgress] = useState(""),
     [workingId, setWorkingId] = useState("");
+  useTransientUI(drag, () => setDrag(false));
   const linkedItems = useMemo(() => itemMap(packets), [packets]);
   const packetsRef = useRef<Packet[]>([]),
     working = useRef(false),
@@ -219,7 +225,9 @@ export default function BucketApp() {
       const nextMeta: ItemState = { ...latest.itemState?.[itemId] };
       const edits: NonNullable<ItemState["history"]> = [];
       for (const [field, value] of Object.entries(response.patch)) {
-        const target = ["title", "summary", "kind", "due", "facts"].includes(field)
+        const target = ["title", "summary", "kind", "due", "facts"].includes(
+          field,
+        )
           ? nextItem
           : nextMeta;
         const record = target as unknown as Record<string, unknown>;
@@ -1016,8 +1024,6 @@ export default function BucketApp() {
             updatedAt: at,
           },
         ]);
-        setUndoDelete(p);
-        notify("投递已进入最近删除，30 天内可恢复");
       }
     } catch (error) {
       notify(message(error));
@@ -1552,6 +1558,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "results"}>
           <Results
+            onRecords={() => setRecordsOpen(true)}
             onChat={editWithAI}
             packets={packets}
             save={save}
@@ -1751,7 +1758,7 @@ export default function BucketApp() {
               )}
             </div>
           )}
-          {receipts}
+
           {!window.desktop && <InstallGuide />}
         </div>
         <footer className="bucket-footer">
@@ -1759,6 +1766,11 @@ export default function BucketApp() {
           <span>脑袋放轻一点。</span>
         </footer>
       </main>
+      {recordsOpen && (
+        <ItemDialog label="整理记录" onClose={() => setRecordsOpen(false)}>
+          {receipts}
+        </ItemDialog>
+      )}
       {settings && (
         <Connection
           apiKey={apiKey}
@@ -1775,17 +1787,6 @@ export default function BucketApp() {
       {toast && (
         <div className="bucket-toast" role="status">
           <span>{toast}</span>
-          {undoDelete && (
-            <button
-              onClick={async () => {
-                await save({ ...undoDelete, deletedAt: undefined });
-                setUndoDelete(null);
-                notify("已恢复投递");
-              }}
-            >
-              撤销删除
-            </button>
-          )}
           <button aria-label="关闭提示" onClick={() => setToast("")}>
             <X size={15} />
           </button>

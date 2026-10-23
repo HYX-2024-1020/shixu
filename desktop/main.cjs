@@ -11,7 +11,9 @@ const {
   ipcMain,
   safeStorage,
   screen,
+  shell,
 } = require("electron");
+const { externalWebUrl } = require("./external.cjs");
 const fs = require("node:fs/promises");
 const { DesktopStore } = require("./storage.cjs");
 const { exportBackup, importBackup } = require("./backup.cjs");
@@ -176,7 +178,11 @@ else {
         },
       });
       Menu.setApplicationMenu(null);
-      mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+      mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        const target = externalWebUrl(url);
+        if (target) void shell.openExternal(target).catch(() => {});
+        return { action: "deny" };
+      });
       mainWindow.webContents.on("will-navigate", (event, url) => {
         const target = new URL(url);
         if (target.protocol !== "shixu:" || target.hostname !== "app")

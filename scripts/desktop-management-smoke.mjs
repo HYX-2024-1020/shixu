@@ -115,7 +115,6 @@ try {
         .length === 0,
   );
   await habit.getByRole("button", { name: "今天打卡", exact: true }).click();
-  await habit.getByLabel("更多事项操作").click();
   await habit.getByRole("button", { name: "删除事项", exact: true }).click();
   await page.getByLabel("结果范围").selectOption("trash");
   await habit
@@ -132,7 +131,8 @@ try {
   const detail = page.getByRole("dialog", { name: "事项详情" });
   assert.equal(await page.getByText(/处待确认/).count(), 0);
   await detail.getByLabel("预览 资料原件.txt", { exact: true }).waitFor();
-  await detail.getByText("就地修改", { exact: true }).click();
+  await detail.getByLabel("卡片操作", { exact: true }).click();
+  await detail.getByRole("button", { name: "编辑内容", exact: true }).click();
   await detail.getByLabel("标题", { exact: true }).fill("人工确认后的标题");
   await detail.getByLabel("课程 / 项目", { exact: true }).fill("高等数学");
   await detail.getByRole("button", { name: "保存修改", exact: true }).click();
@@ -200,6 +200,10 @@ try {
     .getByRole("button", { name: "删除原件 资料原件.txt", exact: true })
     .click();
   await page
+    .getByRole("dialog", { name: "事项详情" })
+    .getByLabel("更多材料操作 资料原件.txt", { exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "恢复附件 资料原件.txt", exact: true })
     .click();
   await waitForPageState(
@@ -233,11 +237,11 @@ try {
     async () =>
       (await window.desktop.store("packets"))[0].itemState.i1.pinned === true,
   );
-  await edited.getByLabel("更多事项操作").click();
   await page.getByRole("button", { name: "按分组查看", exact: true }).click();
   assert.equal(await page.locator(".result-group > details").count(), 0);
   await page.getByRole("button", { name: "卡片", exact: true }).click();
-  await page.getByRole("button", { name: "关闭提示", exact: true }).click();
+  if (await page.getByRole("button", { name: "关闭提示", exact: true }).count())
+    await page.getByRole("button", { name: "关闭提示", exact: true }).click();
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: "release/desktop-results.png" });
   await edited

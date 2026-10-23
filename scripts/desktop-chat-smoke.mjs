@@ -71,7 +71,7 @@ try {
         const patch =
           mode === "invalid"
             ? { delete: true }
-          : input.instruction.includes("不是任务")
+            : input.instruction.includes("不是任务")
               ? { kind: "notice", group: "人工智能" }
               : { title: "课程调课通知", starred: true };
         await route.fulfill({
@@ -154,9 +154,15 @@ try {
     "保留通知原文",
   ]);
   assert.equal(saved.itemState["chat-i"].chat.length, 4);
-  await detail.getByRole("button", { name: "就地修改", exact: true }).click();
-  await expect(detail.getByLabel("标题", { exact: true })).toHaveValue("课程调课通知");
-  await expect(detail.getByLabel("课程 / 项目", { exact: true })).toHaveValue("人工智能");
+  await detail.getByLabel("卡片操作", { exact: true }).click();
+  await detail.getByRole("button", { name: "编辑内容", exact: true }).click();
+  await expect(detail.getByLabel("标题", { exact: true })).toHaveValue(
+    "课程调课通知",
+  );
+  await expect(detail.getByLabel("课程 / 项目", { exact: true })).toHaveValue(
+    "人工智能",
+  );
+  await detail.getByLabel("卡片操作", { exact: true }).click();
   await detail.getByRole("button", { name: "查看详情", exact: true }).click();
   if (!live) {
     assert.equal(calls, 2);

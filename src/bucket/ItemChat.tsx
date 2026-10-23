@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { ItemState } from "./types";
+import LinkText from "./LinkText";
 export default function ItemChat({
   meta,
   send,
@@ -26,7 +27,9 @@ export default function ItemChat({
         {meta.chat?.map((message) => (
           <div key={message.id} className={"chat-message chat-" + message.role}>
             <b>{message.role === "user" ? "你" : "拾序"}</b>
-            <p>{message.text}</p>
+            <p>
+              <LinkText text={message.text} />
+            </p>
           </div>
         ))}
       </div>

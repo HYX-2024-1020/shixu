@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Attachment, Packet } from "./types";
 import { apiUrl } from "./service";
+import LinkText from "./LinkText";
 
 export default function AttachmentPreview({
   attachment,
@@ -195,7 +196,9 @@ export default function AttachmentPreview({
       {!image && !pdf && text && (
         <>
           <span className="preview-format">文字预览</span>
-          <pre>{text}</pre>
+          <pre>
+            <LinkText text={text} />
+          </pre>
         </>
       )}
       {error && <p>{error}</p>}

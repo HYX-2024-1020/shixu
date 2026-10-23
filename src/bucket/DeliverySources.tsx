@@ -10,6 +10,7 @@ import {
 import type { Attachment, Packet } from "./types";
 import { apiUrl } from "./service";
 import AttachmentPreview from "./AttachmentPreview";
+import LinkText from "./LinkText";
 
 function Original({
   attachment: a,
@@ -191,7 +192,9 @@ export default function DeliverySources({
           open={!packet.attachments.length}
         >
           <summary>输入原文</summary>
-          <pre>{packet.text}</pre>
+          <pre>
+            <LinkText text={packet.text} />
+          </pre>
         </details>
       )}
       {!packet.text.trim() && !packet.attachments.length && (

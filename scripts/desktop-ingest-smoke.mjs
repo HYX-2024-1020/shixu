@@ -130,6 +130,8 @@ try {
     buffer: Buffer.from(zip),
   });
   await page.getByRole("button", { name: "丢进去", exact: true }).click();
+  await page.getByRole("button", { name: "整理结果", exact: true }).click();
+  await page.getByRole("button", { name: "整理记录", exact: true }).click();
   await page
     .getByRole("heading", { name: "部分完成 · 有未读内容", exact: true })
     .waitFor();
@@ -204,6 +206,8 @@ try {
         s.originalText,
     );
   });
+  await page.getByRole("button", { name: "关闭整理记录", exact: true }).click();
+  await page.getByRole("button", { name: "投递桶", exact: true }).click();
   blankMode = true;
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
@@ -226,6 +230,8 @@ try {
   );
   const usage = await page.evaluate(() => window.desktop.store("usage"));
   assert.ok(usage.length >= 3);
+  await page.getByRole("button", { name: "整理结果", exact: true }).click();
+  await page.getByRole("button", { name: "整理记录", exact: true }).click();
   await page
     .getByRole("button", { name: "查看这次整理出的内容", exact: true })
     .click();

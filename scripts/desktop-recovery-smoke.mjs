@@ -126,6 +126,8 @@ try {
     Array.from(await readFile("public/desktop-icon.png")),
   );
   await page.reload();
+  await page.getByRole("button", { name: "整理结果", exact: true }).click();
+  await page.getByRole("button", { name: "整理记录", exact: true }).click();
   await page
     .getByRole("button", { name: "重试未读内容（保留已有修正）", exact: true })
     .click();
