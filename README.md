@@ -4,7 +4,35 @@
 
 把老师的通知和附件、几句灵感、想坚持的习惯放进同一个输入框，点“丢进去”。DeepSeek 自动分类、提炼要求、关联原文件，补充可选的下一步建议。无需先选分类、建项目或填写日期表单。
 
-[开始使用](https://hyx-2024-1020.github.io/shixu/) · [看虚构示例](https://hyx-2024-1020.github.io/shixu/?preview=bucket)
+## Windows 桌面版 0.3.3
+
+Windows x64 安装包输出到 `release/拾序 Setup 0.3.3.exe`，已发布版本见 [Releases](https://github.com/HYX-2024-1020/shixu/releases)。安装后双击“拾序”进入独立窗口；关窗进入托盘，托盘可打开或退出。普通使用无需终端、浏览器或开发服务。
+
+0.3.3 支持每事项自由补充信息，概览聚焦简短标题与关键要求，不默认催促“待确认”。点击卡片底部“同行材料”直接预览图片、翻阅 PDF，Office/压缩包展示已提取文字；图片可放大，保存原件位于更多菜单。AI 建议采纳后就地显示“已采纳”，防止连续点击重复创建行动。
+
+两个工作区：“桶”接收并保留文字、图片和附件草稿，点“丢进去”才整理；“世界”默认用卡片展示结果。分组是可选视图，不显示“未分组”。星标在卡片右上角，完成用圆形勾选；置顶、编辑、删除位于卡片菜单。支持搜索、状态、自定义排序、简单习惯打卡、最近删除与恢复。同次投递的文字、图片和文件留在事项详情内，不另列原件仓库。视觉以用户提供前端为基准，使用纸黄、黑色描边、硬阴影和鲸鱼角色。读取覆盖和未读原因留在回执中，补充读取的结果先确认再新增或合并，保护人工修改。
+
+数据默认保存在 `%APPDATA%/ShixuDesktop`，原件按校验值去重保存；记住的密钥使用 Windows 系统加密，不进入备份。设置可导出和恢复包含原件、草稿、结果、最近删除及用量的备份。最近删除保留 30 天；删除事项、原始附件与整次投递的范围分别管理。
+
+支持 DOC/DOCX、XLS/XLSX、PPT/PPTX、PDF、常见图片、代码文本、ZIP/RAR/7z。旧 PPT 可能含母版和历史文本，旧 XLS 最多读取 5000 行；Office/PDF 文本提取不等于已识别全部嵌入图表。图片和扫描页发送到 DeepSeek Flash，沿用同一密钥。真实通知图片、扫描 PDF、公开中文手写、表格/公式及分类日期边界样本已通过；有限样本不代表通用准确率。资源管理器、QQ/微信来源拖拽仍待解锁桌面后实测，详见 [产品清单](docs/desktop-product-plan.md) 和 [实施验证记录](docs/desktop-implementation.md)。
+
+开发命令：
+
+```powershell
+npm ci
+npm run desktop:start
+npm run desktop:pack
+```
+
+验证：`npm test`、`npm run test:desktop`、`npm run test:desktop:ui`。UI 验证使用独立临时 profile 和模拟模型，不会读取个人资料或调用个人密钥；可用 `SHIXU_PACKAGED_EXE` 指向发布构建执行同一套测试。`SHIXU_DATA_DIR` 可指定独立的数据目录，默认不设置。
+
+真实调用验收单独运行：`node scripts/desktop-live-check.mjs` 和 `node scripts/desktop-live-acceptance.mjs`，会使用已保存密钥并产生实际 API 用量，仅提交合成及公开样本。后者的公开手写图片来源及准备方式见 [样本说明](desktop/fixtures/README.md)；报告保存在 `release/live-validation.json` 和 `release/live-acceptance.json`。原生来源拖拽可运行 `node scripts/desktop-native-input-probe.mjs`，只接收隔离草稿，不自动提交或调用模型。
+
+## 网页与个人服务说明
+
+以下保留原有网页/个人服务的使用与部署说明；Windows 桌面版以以上说明及产品清单为准。
+
+[打开网页版](https://hyx-2024-1020.github.io/shixu/) · [看网页虚构示例](https://hyx-2024-1020.github.io/shixu/?preview=bucket)
 
 ## 使用
 

@@ -19,6 +19,11 @@ export interface Association {
   warnings: string[];
 }
 export interface RelationPacket {
+  itemIds?: string[];
+  itemState?: Record<
+    string,
+    { status?: string; deletedAt?: string; purgedAt?: string }
+  >;
   id: string;
   status: string;
   capturedAt: string;
@@ -51,7 +56,7 @@ export interface ItemGroup {
     done: boolean;
   }[];
 }
-export function itemRef(packetId: string, index: number): string;
+export function itemRef(packetId: string, index: number | string): string;
 export function itemMap(packets: RelationPacket[]): Map<string, ItemNode>;
 export function buildGroups(packets: RelationPacket[]): ItemGroup[];
 export function relationContext(

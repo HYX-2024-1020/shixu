@@ -3,6 +3,7 @@ import {
   associatePacket,
   relationContext,
   buildGroups,
+  itemMap,
   filterLiveLinks,
   removeGroupLinks,
   removePacketLinks,
@@ -42,6 +43,15 @@ function packet(
 }
 const first = () => packet("first", "做Python第一课作业");
 const second = () => packet("second", "做Python第二课作业", "2026-10-22");
+it('keeps UUID relation identity across reorder and excludes deleted items',()=>{
+  const p=first(), a=p.result!.items[0],b={...a,title:'第二事项'};
+  p.result!.items=[a,b];p.itemIds=['uuid-a','uuid-b'];p.itemState={'uuid-a':{status:'done'}};
+  expect(itemMap([p]).get('first#uuid-a')?.done).toBe(true);
+  p.result!.items.reverse();p.itemIds.reverse();
+  expect(itemMap([p]).get('first#uuid-a')?.item.title).toBe(a.title);
+  p.itemState['uuid-b']={deletedAt:new Date().toISOString()};
+  expect(itemMap([p]).has('first#uuid-b')).toBe(false);
+});
 function model(relation = "related", title = "Python第一、二课作业") {
   return (async (_url, init) => {
     const payload = JSON.parse(String(init?.body)),

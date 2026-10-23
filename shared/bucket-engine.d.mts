@@ -1,11 +1,22 @@
 import type { UsageRecord } from "./usage.mjs";
-export type BucketKind = "task" | "idea" | "habit" | "note";
+export type BucketKind =
+  | "task"
+  | "idea"
+  | "habit"
+  | "note"
+  | "event"
+  | "notice"
+  | "other";
 export interface Source {
+  originalText?: string;
   id: string;
   name: string;
   text: string;
 }
 export interface BucketItem {
+  importance?: number;
+  importanceReason?: string;
+  group?: string;
   kind: BucketKind;
   title: string;
   summary: string;

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="white"/>
+  <g fill="#182236" font-family="Microsoft YaHei, sans-serif">
+    <text x="70" y="110" font-size="54" font-weight="bold">数据结构课程通知（合成验收样本）</text>
+    <text x="70" y="220" font-size="42">请提交实验报告，截止：2026年10月30日18:00。</text>
+    <text x="70" y="310" font-size="42">提交电子版 PDF，文件名为：学号_姓名_实验报告。</text>
+    <text x="70" y="400" font-size="42">报告需说明算法思路，并分析时间复杂度。</text>
+    <text x="70" y="500" font-size="42">示例公式：T(n) = n log₂ n</text>
+    <text x="90" y="635" font-size="38">内容</text><text x="650" y="635" font-size="38">要求</text>
+    <text x="90" y="730" font-size="38">实验报告</text><text x="650" y="730" font-size="38">电子版 PDF</text>
+  </g>
+  <g fill="none" stroke="#5f6b7b" stroke-width="3"><path d="M70 570h1260v210H70zM70 675h1260M600 570v210"/></g>
+</svg>

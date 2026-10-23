@@ -18,7 +18,9 @@ async function encodeAttachments(
   return Promise.all(
     attachments.map(async ({ blob, ...rest }) => ({
       ...rest,
-      ...(blob ? { bytes: await blob.arrayBuffer() } : {}),
+      ...(blob && !(window.desktop && rest.hash)
+        ? { bytes: await blob.arrayBuffer() }
+        : {}),
     })),
   );
 }
@@ -30,6 +32,43 @@ function decodeAttachments(attachments: StoredAttachment[]): Attachment[] {
 }
 let packetWrites: Promise<void> = Promise.resolve();
 let draftWrites: Promise<void> = Promise.resolve();
+// Upgrade the first desktop shell's own profile only; browser profiles remain untouched.
+export async function upgradeDesktopProfile() {
+  if (!window.desktop || localStorage.getItem("shixu-native-store-v1")) return;
+  const db = await database();
+  const legacy = await new Promise<{
+    packets: any[];
+    usage: UsageRecord[];
+    draft: any;
+  }>((resolve, reject) => {
+    const tx = db.transaction(["packets", "usage", "draft"], "readonly");
+    const packets = tx.objectStore("packets").getAll(),
+      usage = tx.objectStore("usage").getAll(),
+      draft = tx.objectStore("draft").get("current");
+    tx.oncomplete = () =>
+      resolve({
+        packets: packets.result,
+        usage: usage.result,
+        draft: draft.result,
+      });
+    tx.onerror = () => reject(new Error("桌面旧版资料读取失败，原数据已保留"));
+  });
+  const current = await allPackets();
+  const additions = legacy.packets
+    .filter((p) => !current.some((c) => c.id === p.id))
+    .map((p) => ({ ...p, attachments: decodeAttachments(p.attachments) }));
+  if (additions.length) await putPackets(additions);
+  const currentUsage = await allUsage();
+  for (const row of legacy.usage)
+    if (!currentUsage.some((c) => c.id === row.id)) await putUsage(row);
+  const draft = await readDraft();
+  if (legacy.draft && !draft.text && !draft.attachments.length)
+    await writeDraft({
+      ...legacy.draft,
+      attachments: decodeAttachments(legacy.draft.attachments),
+    });
+  localStorage.setItem("shixu-native-store-v1", "complete");
+}
 function database() {
   return (promise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, 3);
@@ -52,6 +91,7 @@ function database() {
   }));
 }
 export async function allUsage(): Promise<UsageRecord[]> {
+  if (window.desktop) return window.desktop.store("usage");
   const db = await database();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("usage", "readonly"),
@@ -61,6 +101,7 @@ export async function allUsage(): Promise<UsageRecord[]> {
   });
 }
 export async function putUsage(record: UsageRecord) {
+  if (window.desktop) return window.desktop.store("saveUsage", record);
   const db = await database();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("usage", "readwrite");
@@ -71,6 +112,13 @@ export async function putUsage(record: UsageRecord) {
   });
 }
 export async function allPackets(): Promise<Packet[]> {
+  if (window.desktop)
+    return (await window.desktop.store("packets")).map(
+      (p: Packet & { attachments: StoredAttachment[] }) => ({
+        ...p,
+        attachments: decodeAttachments(p.attachments),
+      }),
+    );
   const db = await database();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("packets", "readonly"),
@@ -107,6 +155,21 @@ async function savePackets(packets: Packet[]) {
       attachments: await encodeAttachments(p.attachments),
     })),
   );
+  if (window.desktop) {
+    const saved: Packet[] = await window.desktop.store("savePackets", encoded);
+    for (const p of packets) {
+      const canonical = saved.find((s) => s.id === p.id);
+      if (!canonical) continue;
+      const originals = p.attachments;
+      Object.assign(p, canonical, {
+        attachments: canonical.attachments.map((a) => ({
+          ...a,
+          blob: originals.find((b) => b.id === a.id)?.blob,
+        })),
+      });
+    }
+    return;
+  }
   const db = await database();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("packets", "readwrite");
@@ -116,6 +179,7 @@ async function savePackets(packets: Packet[]) {
   });
 }
 export async function removePacket(id: string) {
+  if (window.desktop) return window.desktop.store("removePacket", id);
   const db = await database();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("packets", "readwrite");
@@ -128,6 +192,10 @@ export async function readDraft(): Promise<{
   text: string;
   attachments: Attachment[];
 }> {
+  if (window.desktop) {
+    const draft = await window.desktop.store("draft");
+    return { ...draft, attachments: decodeAttachments(draft.attachments) };
+  }
   const db = await database();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("draft", "readonly"),
@@ -157,6 +225,12 @@ async function saveDraft(value: { text: string; attachments: Attachment[] }) {
     ...value,
     attachments: await encodeAttachments(value.attachments),
   };
+  if (window.desktop) {
+    const saved = await window.desktop.store("saveDraft", encoded);
+    for (const a of value.attachments)
+      a.hash = saved.attachments.find((b: Attachment) => b.id === a.id)?.hash;
+    return;
+  }
   const db = await database();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("draft", "readwrite");

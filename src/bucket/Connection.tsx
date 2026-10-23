@@ -24,7 +24,11 @@ export default function Connection({
   health: Health | null;
   packets: Packet[];
   usage: UsageRecord[];
-  onConnected: (key: string, model: string, remember: boolean) => void;
+  onConnected: (
+    key: string,
+    model: string,
+    remember: boolean,
+  ) => void | Promise<void>;
   onClose: () => void;
   notify: (message: string) => void;
 }) {
@@ -42,6 +46,7 @@ export default function Connection({
     ]),
     [modelsBusy, setModelsBusy] = useState(false);
   const verified = useRef<{ key: string; ids: string[] } | null>(null);
+  const [space, setSpace] = useState("");
   useEffect(() => {
     ref.current?.showModal();
     return () => ref.current?.close();
@@ -79,7 +84,7 @@ export default function Connection({
           setPassword("");
           const next = await serviceRequest("health");
           if (next.modelReady) {
-            onConnected("", next.model, false);
+            await onConnected("", next.model, false);
             onClose();
             return;
           }
@@ -100,7 +105,7 @@ export default function Connection({
             model: selected,
           }),
         });
-        onConnected("", selected, false);
+        await onConnected("", selected, false);
         notify("DeepSeek 已连接，密钥只保存在个人服务");
         onClose();
         return;
@@ -112,7 +117,7 @@ export default function Connection({
           : await readModels();
       if (!available.includes(selected))
         throw new Error("当前模型不可用，请确认新选择后再连接");
-      onConnected(key.trim(), selected, persist);
+      await onConnected(key.trim(), selected, persist);
       notify("已连接。桶里等待整理的内容会自动开始处理。");
       onClose();
     } catch (error) {
@@ -223,7 +228,9 @@ export default function Connection({
               <KeyRound size={14} />
               {health
                 ? "密钥只保存在你的个人服务，不发送给其他设备。"
-                : "输入、文件文字及已有未完成事项的摘要会发送给 DeepSeek，用于整理和关联。默认密钥仅留在当前页面；勾选记住后存入本机浏览器，不进入备份或仓库。"}
+                : window.desktop
+                  ? "文字、文件提取文本、图片及扫描页会发送给 DeepSeek 用于识别、整理和关联。图像识别固定使用 DeepSeek Flash，沿用同一密钥；选择的模型用于文字整理。记住的密钥以 Windows 系统加密保存，不进入备份。"
+                  : "输入、文件文字及已有未完成事项的摘要会发送给 DeepSeek，用于整理和关联。默认密钥仅留在当前页面；勾选记住后存入本机浏览器，不进入备份或仓库。"}
             </p>
           </>
         )}
@@ -249,35 +256,101 @@ export default function Connection({
         />
       )}
       <div className="connection-data">
-        <button
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await exportPackets(packets, usage);
-              notify(
-                "已导出原文、整理结果和附件。备份包含个人内容，请妥善保管。",
-              );
-            } catch (error) {
-              notify(error instanceof Error ? error.message : "备份失败");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <Download size={15} />
-          备份桶里的内容
-        </button>
+        {window.desktop && (
+          <>
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const stats = await window.desktop!.store("cleanup");
+                  setSpace(
+                    `${stats.packets} 次投递 · ${stats.files} 个独立原件 · ${(stats.bytes / 1024 / 1024).toFixed(2)} MB；本次清理 ${stats.removed} 个无引用原件${stats.failures.length ? "；部分文件暂未清理，下次会重试：" + stats.failures.join("，") : ""}`,
+                  );
+                } catch (e) {
+                  notify((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              清理到期内容并查看本机空间
+            </button>
+            {space && <p role="status">{space}</p>}
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await window.flushDesktopDraft?.();
+                  notify(await window.desktop!.backup("export"));
+                } catch (e) {
+                  notify((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              备份全部资料（含草稿、最近删除与原件）
+            </button>
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const result = await window.desktop!.backup("import");
+                  notify(result);
+                  if (result.startsWith("恢复完成")) location.reload();
+                } catch (e) {
+                  notify((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              从备份恢复
+            </button>
+            <p>
+              桌面资料保存在本机；记住的密钥使用 Windows 系统加密，不进入备份。
+            </p>
+          </>
+        )}
+        {!window.desktop && (
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await exportPackets(packets, usage);
+                notify(
+                  "已导出原文、整理结果和附件。备份包含个人内容，请妥善保管。",
+                );
+              } catch (error) {
+                notify(error instanceof Error ? error.message : "备份失败");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Download size={15} />
+            备份桶里的内容
+          </button>
+        )}
         <details>
           <summary>关于这个版本</summary>
           <p>
-            支持 TXT、MD、CSV、DOCX、文字型 PDF。扫描件暂不做
-            OCR，无法读取时会保留原文件并提示。日期不明确时留空并说明，不会擅自猜测。
+            支持文字、代码、DOC/DOCX、XLS/XLSX、PPT/PPTX、PDF、PNG/JPEG/GIF/WebP；桌面版支持
+            ZIP/RAR/7z。扫描页使用图像识别，识别结果需要核对。旧版 PPT
+            的文本流可能包含母版和历史文字，旧版 XLS 最多读取 5000
+            行；读取失败可另存为现代 Office 或 PDF。
+            嵌入图片和复杂图表不会假装已全部识别，读取覆盖情况见每次回执。
           </p>
           <p>
             {health
               ? "此入口已连接个人服务。同一服务地址和访问口令可供多设备使用。"
-              : "当前是浏览器直连版，内容保存在此设备。手机电脑互通需要把仓库中的个人服务部署到带 HTTPS 的托管环境，再用该服务地址访问。无需自建 GPU。"}
+              : window.desktop
+                ? "当前是 Windows 本机版，资料保存在本机独立目录；关闭窗口后继续在托盘运行，托盘菜单可明确退出。最近删除保留 30 天，永久删除投递不删除用量记账。"
+                : "当前是浏览器直连版，内容保存在此设备。手机电脑互通需要把仓库中的个人服务部署到带 HTTPS 的托管环境，再用该服务地址访问。无需自建 GPU。"}
           </p>
           <a
             href="https://github.com/HYX-2024-1020/shixu"
@@ -286,7 +359,11 @@ export default function Connection({
           >
             查看开源项目与部署说明
           </a>
-          <a href={`${import.meta.env.BASE_URL}?legacy=1`}>打开旧版资料空间</a>
+          {!window.desktop && (
+            <a href={`${import.meta.env.BASE_URL}?legacy=1`}>
+              打开旧版资料空间
+            </a>
+          )}
         </details>
       </div>
     </dialog>

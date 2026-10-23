@@ -93,11 +93,11 @@ export default function GroupCard({
             progress=""
             itemIndexes={p.result?.items
               .map((_, i) => i)
-              .filter((i) => group.refs.includes(itemRef(p.id, i)))}
+              .filter((i) => group.refs.includes(itemRef(p.id, p.itemIds?.[i] || i)))}
             onRetry={() => {}}
             onToggle={(i) => {
               const unit = group.units.find((u) =>
-                u.refs.includes(itemRef(p.id, i)),
+                u.refs.includes(itemRef(p.id, p.itemIds?.[i] || i)),
               );
               if (unit) void onToggle(unit.refs, !unit.done);
             }}

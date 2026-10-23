@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUpRight,
-  Check,
-  Leaf,
   LoaderCircle,
   Paperclip,
-  Settings2,
   Sparkles,
   X,
 } from "lucide-react";
@@ -17,7 +14,6 @@ import {
   validateResult,
 } from "../../shared/bucket-engine.mjs";
 import { localDate } from "../organize";
-import { extractFile } from "../files";
 import {
   allPackets,
   putPacket,
@@ -26,18 +22,15 @@ import {
   writeDraft,
   allUsage,
   putUsage,
+  removePacket,
+  upgradeDesktopProfile,
 } from "./store";
-import { usageTotals, money, type UsageRecord } from "../../shared/usage.mjs";
-import { modelLabel } from "./model-api";
+import { type UsageRecord } from "../../shared/usage.mjs";
 import {
   associatePacket,
-  buildGroups,
-  itemMap,
   itemRef,
+  itemMap,
   filterLiveLinks,
-  removeGroupLinks,
-  removePacketLinks,
-  type ItemGroup,
 } from "../../shared/relations.mjs";
 import {
   detectService,
@@ -52,11 +45,13 @@ import {
   SAMPLE_FILE,
 } from "./demo";
 import Connection from "./Connection";
-import PacketCard from "./PacketCard";
-import GroupCard from "./GroupCard";
 import InstallGuide from "./InstallGuide";
+import DeliverySources from "./DeliverySources";
 import type { Packet, Attachment } from "./types";
+import Results, { categories } from "./Results";
 import "./bucket.css";
+import "./desktop.css";
+import { ingestAttachment, supportedFiles, type Coverage } from "./ingest";
 
 const DEMO = new URLSearchParams(location.search).has("preview");
 const CONFIG_KEY = DEMO
@@ -86,6 +81,23 @@ function message(error: unknown) {
 }
 
 export default function BucketApp() {
+  const [workspace, setWorkspace] = useState("capture"),
+    [focusPacket, setFocusPacket] = useState("");
+  const scrollPositions = useRef<Record<string, number>>({
+    capture: 0,
+    results: 0,
+  });
+  const clearFocus = useCallback(() => setFocusPacket(""), []);
+  function goWorkspace(next: string, packetId?: string) {
+    scrollPositions.current[workspace] = window.scrollY;
+    if (packetId) setFocusPacket(packetId);
+    setWorkspace(next);
+    requestAnimationFrame(() =>
+      window.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0),
+    );
+  }
+  const [undoDelete, setUndoDelete] = useState<Packet | null>(null);
+  const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
     [apiKey, setApiKey] = useState(initial.key),
     [model, setModel] = useState(initial.model),
@@ -103,6 +115,7 @@ export default function BucketApp() {
     [health, setHealth] = useState<Health | null>(null),
     [progress, setProgress] = useState(""),
     [workingId, setWorkingId] = useState("");
+  const linkedItems = useMemo(() => itemMap(packets), [packets]);
   const packetsRef = useRef<Packet[]>([]),
     working = useRef(false),
     syncing = useRef(false),
@@ -115,6 +128,16 @@ export default function BucketApp() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
+  const purgePacket = useCallback(
+    async (id: string) => {
+      await removePacket(id);
+      const next = packetsRef.current.filter((p) => p.id !== id);
+      packetsRef.current = next;
+      setPackets(next);
+      notify("已永久删除；无引用原件在下次清理时移除");
+    },
+    [notify],
+  );
   const saveMany = useCallback(async (changes: Packet[]) => {
     await putPackets(changes);
     const map = new Map(packetsRef.current.map((p) => [p.id, p]));
@@ -133,6 +156,25 @@ export default function BucketApp() {
   useEffect(() => {
     let active = true;
     (async () => {
+      if (window.desktop) {
+        await upgradeDesktopProfile();
+        try {
+          if (initial.key && initial.rememberKey) {
+            await window.desktop.key("save", initial.key);
+            localStorage.setItem(
+              CONFIG_KEY,
+              JSON.stringify({ model: initial.model, rememberKey: false }),
+            );
+          }
+          const savedKey = await window.desktop.key("read");
+          if (active && typeof savedKey === "string" && savedKey) {
+            setApiKey(savedKey);
+            setRemember(true);
+          }
+        } catch (e) {
+          notify(message(e));
+        }
+      }
       let stored = await allPackets();
       if (!active) return;
       if (DEMO && !stored.length) {
@@ -145,11 +187,60 @@ export default function BucketApp() {
       }
       for (const p of stored)
         if (p.status === "processing" && !p.remote) {
-          p.status = "pending";
+          p.status = p.result ? "ready" : "error";
+          p.retryUnread = false;
+          p.error =
+            "上次整理被中断，原文和已读取内容已保留。请确认后重试；上次调用的用量可能待核对";
+          if (p.result)
+            p.association = {
+              state: "error",
+              links: p.association?.links || [],
+              warnings: [p.error],
+            };
           await putPacket(p);
+        }
+      for (const p of stored)
+        if (p.status === "ready" && p.association?.state === "pending") {
+          p.association = {
+            ...p.association,
+            state: "error",
+            warnings: ["上次关联未完成，已有事项保持可用，可单独重试关联"],
+          };
+          await putPacket(p);
+        }
+      for (const p of stored)
+        if (p.result && !p.itemIds) {
+          p.itemIds = p.result.items.map(() => crypto.randomUUID());
+          p.organizedSourceIds = p.sources.map((s) => s.id);
+          await putPacket(p);
+        }
+      const refs = new Map(
+        stored.flatMap((p) =>
+          (p.itemIds || []).map(
+            (id, i) => [itemRef(p.id, i), itemRef(p.id, id)] as const,
+          ),
+        ),
+      );
+      for (const p of stored)
+        if (p.association?.links.length) {
+          const original = JSON.stringify(p.association.links);
+          p.association.links = p.association.links.map((link) => ({
+            ...link,
+            from: refs.get(link.from) || link.from,
+            target: refs.get(link.target) || link.target,
+            contextRefs: link.contextRefs?.map((ref) => refs.get(ref) || ref),
+          }));
+          if (original !== JSON.stringify(p.association.links))
+            await putPacket(p);
         }
       const draft = await readDraft();
       const calls = await allUsage();
+      for (const record of calls)
+        if (record.state === "pending") {
+          record.state = "unreported";
+          record.finishedAt = new Date().toISOString();
+          await putUsage(record);
+        }
       if (!active) return;
       packetsRef.current = stored;
       setPackets(stored);
@@ -171,6 +262,33 @@ export default function BucketApp() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [text, attachments, loaded, notify]);
+  useEffect(() => {
+    if (!loaded || !window.desktop) return;
+    const refresh = async () => {
+      if (working.current || submitLock.current) return;
+      try {
+        await window.desktop!.store("cleanup");
+        const stored = await allPackets();
+        if (working.current || submitLock.current) return;
+        packetsRef.current = stored;
+        setPackets(stored);
+      } catch (e) {
+        notify(message(e));
+      }
+    };
+    const timer = setInterval(() => void refresh(), 60 * 60 * 1000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loaded, notify]);
+  useEffect(() => {
+    window.flushDesktopDraft = () => writeDraft({ text, attachments });
+    return () => {
+      delete window.flushDesktopDraft;
+    };
+  }, [text, attachments]);
   useEffect(() => {
     if (DEMO) return;
     let active = true;
@@ -316,36 +434,109 @@ export default function BucketApp() {
         updatedAt: new Date().toISOString(),
       };
       await save(current);
+      async function persistReading(
+        partialSources: typeof current.sources,
+        partialCoverage: Coverage[],
+      ) {
+        const latest = packetsRef.current.find((p) => p.id === current.id);
+        if (!latest || latest.deletedAt)
+          throw new Error("投递已删除，停止读取");
+        current = {
+          ...current,
+          result: latest.result,
+          itemIds: latest.itemIds,
+          itemState: latest.itemState,
+          doneIds: latest.doneIds,
+          sources: partialSources,
+          coverage: partialCoverage,
+          updatedAt: new Date().toISOString(),
+        };
+        await save(current);
+      }
       try {
         if (current.status === "ready" && current.result) {
           await relate(current);
           return;
         }
+        const retainedSources = current.retryUnread ? current.sources : [];
+        const cachedSources = current.sources,
+          cachedCoverage = current.coverage || [];
         const sources = current.text.trim()
           ? [{ id: "input", name: "随手输入", text: current.text.trim() }]
           : [];
+        const coverage: Coverage[] = [];
         for (const a of current.attachments) {
+          if (a.deletedAt) continue;
           setProgress(`正在读 ${a.name}`);
-          const existing = current.sources.find((s) => s.id === a.id);
-          if (existing) {
-            sources.push(existing);
+          const covered = cachedCoverage.filter((c) => c.attachmentId === a.id);
+          if (covered?.length && covered.every((c) => c.state === "read")) {
+            sources.push(
+              ...cachedSources.filter((s) =>
+                covered.some((c) => c.sourceIds.includes(s.id)),
+              ),
+            );
+            coverage.push(...covered);
             continue;
           }
-          if (!a.blob) throw new Error(`原文件 ${a.name} 不在这台设备上`);
-          try {
-            const extracted = await extractFile(
-              new File([a.blob], a.name, { type: a.type }),
-            );
-            sources.push({ id: a.id, name: a.name, text: extracted });
-          } catch (error) {
-            throw new Error(`${a.name}：${message(error)}`);
-          }
+          const beforeSources = [...sources],
+            beforeCoverage = [...coverage];
+          const read = await ingestAttachment(
+            a,
+            {
+              apiKey,
+              model,
+              captureDate: current.captureDate,
+              packetId: current.id,
+              signal: AbortSignal.timeout(240000),
+              onProgress: setProgress,
+              onUsage: recordUsage,
+            },
+            { sources: cachedSources, coverage: cachedCoverage },
+            async (partial) => {
+              const combinedSources = [
+                ...new Map(
+                  [...cachedSources, ...beforeSources, ...partial.sources].map(
+                    (s) => [s.id, s],
+                  ),
+                ).values(),
+              ];
+              const combinedCoverage = [
+                ...new Map(
+                  [
+                    ...cachedCoverage,
+                    ...beforeCoverage,
+                    ...partial.coverage,
+                  ].map((c) => [c.name, c]),
+                ).values(),
+              ];
+              await persistReading(combinedSources, combinedCoverage);
+            },
+          );
+          sources.push(...read.sources.filter((s) => s.text.trim()));
+          coverage.push(...read.coverage);
+          await persistReading([...sources], [...coverage]);
+        }
+        current = { ...current, coverage };
+        const priorIds = new Set(
+          current.organizedSourceIds || retainedSources.map((s) => s.id),
+        );
+        const newlyRead = current.retryUnread
+          ? sources.filter((s) => !priorIds.has(s.id) && s.id !== "input")
+          : sources;
+        if (current.retryUnread && !newlyRead.length) {
+          await save({
+            ...current,
+            status: "ready",
+            retryUnread: false,
+            error: "未读部分仍未能读取，已有结果与人工修正已保留",
+          });
+          return;
         }
         checkSources(sources);
         current = { ...current, sources, updatedAt: new Date().toISOString() };
         if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt)
           return;
-        await save(current);
+        await persistReading(sources, coverage);
         if (health) {
           const remote = await uploadPacket(current);
           if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt) {
@@ -359,21 +550,58 @@ export default function BucketApp() {
           });
           void sync();
         } else {
-          const result = await organizePacket(sources, {
-            apiKey,
-            model,
-            captureDate: current.captureDate,
-            signal: AbortSignal.timeout(240000),
-            onProgress: setProgress,
-            packetId: current.id,
-            onUsage: recordUsage,
-          });
+          const result = await organizePacket(
+            current.retryUnread
+              ? [...sources.filter((s) => s.id === "input"), ...newlyRead]
+              : sources,
+            {
+              apiKey,
+              model,
+              captureDate: current.captureDate,
+              signal: AbortSignal.timeout(240000),
+              onProgress: setProgress,
+              packetId: current.id,
+              onUsage: recordUsage,
+            },
+          );
           if (packetsRef.current.find((p) => p.id === current.id)?.deletedAt)
             return;
+          const latest =
+            packetsRef.current.find((p) => p.id === current.id) || current;
+          const prior = current.retryUnread ? latest.result : null;
           const ready: Packet = {
             ...current,
+            itemState: latest.itemState,
             status: "ready",
-            result,
+            result: prior
+              ? {
+                  summary: prior.summary + "；补充材料已读取，请确认补充结果。",
+                  items: prior.items,
+                  warnings: [...prior.warnings, ...result.warnings],
+                }
+              : result,
+            proposedItems: prior
+              ? [
+                  ...(latest.proposedItems || []),
+                  ...result.items.filter((item) =>
+                    item.sourceIds.some((id) =>
+                      newlyRead.some((s) => s.id === id),
+                    ),
+                  ),
+                ]
+              : undefined,
+            receipt: prior
+              ? latest.receipt
+              : { created: result.items.length, updated: 0, merged: 0 },
+            itemIds: [
+              ...(prior
+                ? latest.itemIds ||
+                  prior.items.map((_, i) => `${current.id}:${i}`)
+                : []),
+              ...(prior ? [] : result.items.map(() => crypto.randomUUID())),
+            ],
+            organizedSourceIds: sources.map((s) => s.id),
+            retryUnread: false,
             error: "",
             association: { state: "pending", links: [], warnings: [] },
             updatedAt: new Date().toISOString(),
@@ -384,9 +612,12 @@ export default function BucketApp() {
       } catch (error) {
         const latest = packetsRef.current.find((p) => p.id === current.id);
         if (latest?.deletedAt) return;
-        if (latest?.result && latest.status === "ready") {
+        if (latest?.result) {
           await save({
             ...latest,
+            status: "ready",
+            retryUnread: false,
+            error: message(error),
             association: {
               state: "error",
               links: [],
@@ -425,23 +656,23 @@ export default function BucketApp() {
   ]);
 
   async function addFiles(files: FileList | File[] | null) {
+    if (!loaded) {
+      notify("正在恢复本机资料，请稍后再投递");
+      return;
+    }
     if (!files) return;
     const next = [...attachments];
     for (const file of Array.from(files)) {
-      if (!/\.(txt|md|csv|docx|pdf)$/i.test(file.name)) {
-        notify(`${file.name}：目前支持 PDF、DOCX、TXT、MD、CSV`);
-        continue;
-      }
-      if (file.size > 15 * 1024 * 1024) {
-        notify(`${file.name} 超过15MB`);
+      if (file.size > 32 * 1024 * 1024) {
+        notify(`${file.name} 超过32MB`);
         continue;
       }
       if (next.length >= 8) {
         notify("一次最多放入8个附件");
         break;
       }
-      if (next.reduce((n, a) => n + a.size, 0) + file.size > 24 * 1024 * 1024) {
-        notify("这一组附件合计不能超过24MB");
+      if (next.reduce((n, a) => n + a.size, 0) + file.size > 96 * 1024 * 1024) {
+        notify("这一组附件合计不能超过96MB");
         break;
       }
       if (file.name.length > 200) {
@@ -455,6 +686,8 @@ export default function BucketApp() {
         type: file.type,
         blob: file,
       });
+      if (!supportedFiles.test(file.name))
+        notify(`${file.name} 已保存为附件；此格式暂不能提取内容`);
     }
     setAttachments(next);
     if (input.current) input.current.value = "";
@@ -462,6 +695,21 @@ export default function BucketApp() {
   }
   async function submit() {
     if (submitLock.current || (!text.trim() && !attachments.length)) return;
+    if (
+      packetsRef.current.some(
+        (p) =>
+          !p.deletedAt &&
+          p.text === text.trim() &&
+          p.attachments.length === attachments.length &&
+          p.attachments.every(
+            (a, i) =>
+              a.name === attachments[i]?.name &&
+              a.size === attachments[i]?.size,
+          ),
+      ) &&
+      !confirm("发现文字和附件清单相同的投递。仍然保留这次重复投递？")
+    )
+      return;
     submitLock.current = true;
     setSubmitting(true);
     try {
@@ -473,6 +721,7 @@ export default function BucketApp() {
           sources: [],
           capturedAt: at,
           captureDate: localDate(),
+          captureTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           status: "pending",
           result: null,
           error: "",
@@ -516,88 +765,117 @@ export default function BucketApp() {
       notify(message(error));
     }
   }
-  async function toggle(p: Packet, index: number) {
-    const latest = packetsRef.current.find((x) => x.id === p.id) || p;
-    await toggleRefs([itemRef(p.id, index)], !latest.doneIds.includes(index));
-  }
-  async function toggleRefs(refs: string[], done: boolean) {
-    try {
-      const nodes = itemMap(packetsRef.current),
-        changes = new Map<string, Packet>();
-      for (const ref of refs) {
-        const n = nodes.get(ref);
-        if (!n || n.item.kind !== "task") continue;
-        const p =
-          changes.get(n.packet.id) ||
-          packetsRef.current.find((x) => x.id === n.packet.id)!;
-        const ids = new Set(p.doneIds);
-        if (done) ids.add(n.index);
-        else ids.delete(n.index);
-        changes.set(p.id, {
-          ...p,
-          doneIds: [...ids],
-          remoteDirty: !!p.remote,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-      await saveMany([...changes.values()]);
-      void sync();
-    } catch (error) {
-      notify(message(error));
+  async function resolveProposal(
+    packet: Packet,
+    index: number,
+    targetId: string,
+    adoptDate: boolean,
+  ) {
+    const p = packetsRef.current.find((p) => p.id === packet.id);
+    const candidate = p?.proposedItems?.[index];
+    if (!p?.result || !candidate) return;
+    const proposedItems = p.proposedItems!.filter((_, i) => i !== index);
+    if (targetId === "discard") {
+      await save({ ...p, proposedItems });
+      notify("已忽略此补充候选，原材料保留");
+      return;
     }
-  }
-  async function retryAssociation(p: Packet) {
-    try {
-      if (p.remote) {
-        const response = await serviceRequest("packets/" + p.id + "/relate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
-        await save({
-          ...response.packet,
-          attachments: p.attachments,
-          remote: true,
-        });
-      } else
-        await save({
-          ...p,
-          association: { state: "pending", links: [], warnings: [] },
-          updatedAt: new Date().toISOString(),
-        });
-      if (!apiKey && !health?.modelReady) setSettings(true);
-    } catch (error) {
-      notify(message(error));
+    const items = [...p.result.items],
+      itemIds = [...(p.itemIds || items.map((_, i) => `${p.id}:${i}`))],
+      itemState = { ...p.itemState };
+    if (targetId === "new") {
+      items.push(candidate);
+      itemIds.push(crypto.randomUUID());
+    } else {
+      const position = itemIds.indexOf(targetId);
+      if (position < 0) return notify("目标事项已不可用，请重新选择");
+      const original = items[position];
+      items[position] = {
+        ...original,
+        summary: original.summary + "\n补充：" + candidate.summary,
+        facts: [...new Set([...original.facts, ...candidate.facts])],
+        nextSteps: [
+          ...new Set([...original.nextSteps, ...candidate.nextSteps]),
+        ],
+        uncertainties: [
+          ...new Set([...original.uncertainties, ...candidate.uncertainties]),
+        ],
+        sourceIds: [
+          ...new Set([...original.sourceIds, ...candidate.sourceIds]),
+        ],
+        evidence: [
+          ...new Map(
+            [...original.evidence, ...candidate.evidence].map((e) => [
+              e.sourceId + e.quote,
+              e,
+            ]),
+          ).values(),
+        ],
+        due: adoptDate && candidate.due ? candidate.due : original.due,
+      };
+      itemState[targetId] = {
+        ...itemState[targetId],
+        corrected: true,
+        history: [
+          ...(itemState[targetId]?.history || []),
+          {
+            at: new Date().toISOString(),
+            field: "补充材料",
+            before: original.summary,
+            after: items[position].summary,
+            source: candidate.sourceIds
+              .map((id) => p.sources.find((s) => s.id === id)?.name || id)
+              .join("、"),
+          },
+          ...(adoptDate && candidate.due
+            ? [
+                {
+                  at: new Date().toISOString(),
+                  field: "日期",
+                  before: original.due?.date || "未设置",
+                  after: candidate.due.date,
+                  source: candidate.due.anchor,
+                },
+              ]
+            : []),
+        ],
+      };
     }
-  }
-  async function splitGroup(group: ItemGroup) {
-    try {
-      if (
-        group.packetIds.some(
-          (id) => packetsRef.current.find((p) => p.id === id)?.remote,
-        )
-      ) {
-        const response = await serviceRequest("associations/split", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refs: group.refs }),
-        });
-        await saveMany(
-          response.packets.map((p: Packet) => ({
-            ...p,
-            attachments:
-              packetsRef.current.find((x) => x.id === p.id)?.attachments ||
-              p.attachments,
-          })),
-        );
-      } else await saveMany(removeGroupLinks(packetsRef.current, group.refs));
-      notify("已拆开，原文、附件和完成状态都保留着");
-    } catch (error) {
-      notify(message(error));
-    }
+    const receipt = p.receipt || {
+      created: p.result.items.length,
+      updated: 0,
+      merged: 0,
+    };
+    await save({
+      ...p,
+      result: { ...p.result, items },
+      itemIds: [...itemIds],
+      itemState,
+      proposedItems,
+      receipt: {
+        ...receipt,
+        created: receipt.created + (targetId === "new" ? 1 : 0),
+        updated: receipt.updated + (targetId === "new" ? 0 : 1),
+        merged: receipt.merged + (targetId === "new" ? 0 : 1),
+        lastAction:
+          targetId === "new"
+            ? "已确认新增事项"
+            : "已确认补充到已有事项，来源与变更依据保留",
+      },
+      updatedAt: new Date().toISOString(),
+    });
+    notify(
+      targetId === "new"
+        ? "已新增确认的事项"
+        : "已补充到指定事项，原来源与人工标题保留",
+    );
   }
   async function erase(p: Packet) {
-    if (!window.confirm("删除这一包原文、附件和整理结果？此操作不能恢复。"))
+    if (
+      !window.confirm(
+        "将这次投递、原文、附件和整理结果移入最近删除？30 天内可恢复。",
+      )
+    )
       return;
     try {
       if (p.remote) {
@@ -612,28 +890,29 @@ export default function BucketApp() {
           {
             ...p,
             deletedAt: at,
-            text: "",
-            sources: [],
-            attachments: [],
-            result: null,
-            status: "ready",
-            error: "",
-            doneIds: [],
-            association: undefined,
             updatedAt: at,
           },
-          ...removePacketLinks(packetsRef.current, p.id),
         ]);
+        setUndoDelete(p);
+        notify("投递已进入最近删除，30 天内可恢复");
       }
     } catch (error) {
       notify(message(error));
     }
   }
-  function connected(key: string, selected: string, persist: boolean) {
+  async function connected(key: string, selected: string, persist: boolean) {
     setApiKey(key);
     setModel(selected);
     setRemember(persist);
     try {
+      if (window.desktop) {
+        await window.desktop.key(persist ? "save" : "remove", key);
+        localStorage.setItem(
+          CONFIG_KEY,
+          JSON.stringify({ model: selected, rememberKey: false }),
+        );
+        return;
+      }
       if (health) void detectService().then(setHealth);
       else
         localStorage.setItem(
@@ -644,7 +923,13 @@ export default function BucketApp() {
             ...(persist ? { key } : {}),
           }),
         );
-    } catch {
+    } catch (error) {
+      if (window.desktop) {
+        setRemember(false);
+        throw new Error(
+          "连接已生效，但密钥或配置未能安全保存：" + message(error),
+        );
+      }
       notify("连接已生效，但浏览器不允许记住配置");
     }
   }
@@ -662,18 +947,421 @@ export default function BucketApp() {
     ]);
     textarea.current?.focus();
   }
-  const cost = usageTotals(usage);
-  const groups = buildGroups(packets);
-  const groupedRefs = new Set(groups.flatMap((g) => g.refs));
   const visible = packets.filter((p) => !p.deletedAt),
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
+  const [mascotHappy, setMascotHappy] = useState(false);
+  const mascotAudio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => mascotAudio.current?.pause(), []);
+  function greetMascot() {
+    if (mascotHappy) {
+      mascotAudio.current?.pause();
+      setMascotHappy(false);
+      return;
+    }
+    const audio =
+      mascotAudio.current || new Audio(import.meta.env.BASE_URL + "laugh.mp3");
+    mascotAudio.current = audio;
+    audio.volume = 0.5;
+    audio.currentTime = 0;
+    audio.onended = () => setMascotHappy(false);
+    void audio
+      .play()
+      .then(() => setMascotHappy(true))
+      .catch(() => setMascotHappy(false));
+  }
+  const receipts = useMemo(
+    () => (
+      <section className="delivery-receipts" aria-label="整理回执">
+        {visible.slice(0, receiptLimit).map((p) => (
+          <article className="delivery-receipt" key={p.id}>
+            <span className="receipt-time">
+              {new Date(p.capturedAt).toLocaleDateString("zh-CN", {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+            <h2>
+              {p.status === "ready"
+                ? p.coverage?.some((c) => c.state === "failed")
+                  ? "部分完成 · 有未读内容"
+                  : "整理完成"
+                : p.status === "error"
+                  ? "整理未完成"
+                  : workingId === p.id
+                    ? progress || "正在整理"
+                    : "已保存，等待连接后整理"}
+            </h2>
+            {!!p.coverage?.length && (
+              <>
+                <p>
+                  读取成功 {p.coverage.filter((c) => c.state === "read").length}{" "}
+                  处 · 未读{" "}
+                  {p.coverage.filter((c) => c.state === "failed").length} 处
+                </p>
+                <details>
+                  <summary>附件与包内文件读取清单</summary>
+                  {p.coverage.map((c, i) => (
+                    <p key={i}>
+                      {c.state === "read" ? "✓" : "未读"} {c.name}：{c.detail}
+                    </p>
+                  ))}
+                </details>
+              </>
+            )}
+            {p.status === "ready" &&
+              (p.coverage?.some((c) => c.state === "failed") ||
+                (p.organizedSourceIds &&
+                  p.sources.some(
+                    (s) => !p.organizedSourceIds!.includes(s.id),
+                  ))) && (
+                <button
+                  onClick={() =>
+                    void save({
+                      ...p,
+                      status: "pending",
+                      retryUnread: true,
+                    })
+                  }
+                >
+                  重试未读内容（保留已有修正）
+                </button>
+              )}
+            <p>
+              {p.result?.summary ||
+                p.error ||
+                p.text.slice(0, 160) ||
+                p.attachments.map((a) => a.name).join("、")}
+            </p>
+            {p.result && (
+              <>
+                {p.receipt && (
+                  <p>
+                    新增 {p.receipt.created} 条事项 · 更新 {p.receipt.updated}{" "}
+                    次 · 合并 {p.receipt.merged} 份补充材料
+                    {p.receipt.lastAction && `；${p.receipt.lastAction}`}
+                  </p>
+                )}
+                <p>
+                  {Object.entries(categories)
+                    .map(([k, label]) => {
+                      const count = p.result!.items.filter(
+                        (i) => i.kind === k,
+                      ).length;
+                      return count ? `${count} 条${label}` : "";
+                    })
+                    .filter(Boolean)
+                    .join(" · ") || "未生成独立事项，原文保留"}
+                </p>
+                <button
+                  onClick={() => {
+                    goWorkspace("results", p.id);
+                  }}
+                >
+                  查看这次整理出的内容
+                </button>
+              </>
+            )}
+            {!!p.proposedItems?.length && (
+              <details open>
+                <summary>补充整理结果 · {p.proposedItems.length} 条</summary>
+                <p>
+                  为避免重复事项，补充读取不会自动新增或覆盖。请选择新增、补充到已有事项，或忽略。
+                </p>
+                {p.proposedItems.map((item, i) => (
+                  <form
+                    className="proposal-form"
+                    key={i}
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const data = new FormData(e.currentTarget);
+                      await resolveProposal(
+                        p,
+                        i,
+                        String(data.get("target")),
+                        data.get("date") === "on",
+                      );
+                    }}
+                  >
+                    <fieldset
+                      className="result-body"
+                      disabled={p.status !== "ready"}
+                    >
+                      <h3>{item.title}</h3>
+                      <p>{item.summary}</p>
+                      <p>
+                        来源：
+                        {item.sourceIds
+                          .map(
+                            (id) =>
+                              p.sources.find((s) => s.id === id)?.name || id,
+                          )
+                          .join("、")}
+                      </p>
+                      {item.due && (
+                        <p>
+                          补充材料日期：{item.due.date} {item.due.time} ·{" "}
+                          {item.due.anchor}
+                        </p>
+                      )}
+                      <label>
+                        处理方式
+                        <select name="target" required>
+                          <option value="">选择如何处理</option>
+                          <option value="new">新增一个独立事项</option>
+                          {p.result?.items.map((existing, index) => (
+                            <option
+                              key={p.itemIds?.[index] || index}
+                              value={p.itemIds?.[index] || `${p.id}:${index}`}
+                            >
+                              补充到：{existing.title}
+                            </option>
+                          ))}
+                          <option value="discard">忽略此候选，保留材料</option>
+                        </select>
+                      </label>
+                      {item.due && (
+                        <label>
+                          <input name="date" type="checkbox" />
+                          补充到已有事项时，采用本次材料中的日期
+                        </label>
+                      )}
+                      <button type="submit">确认处理</button>
+                    </fieldset>
+                  </form>
+                ))}
+              </details>
+            )}
+            {p.result && (
+              <details>
+                <summary>本次事项与关键要求</summary>
+                <p>
+                  本次共 {p.result.items.length} 条事项；人工修正保持有效。
+                  {p.error}
+                </p>
+                {p.result.items.map((item, i) => (
+                  <div className="receipt-item" key={p.itemIds?.[i] || i}>
+                    <h3>
+                      {categories[item.kind]} · {item.title}
+                    </h3>
+                    <p>{item.summary}</p>
+                    {!!item.facts.length && (
+                      <p>原文要求：{item.facts.join("；")}</p>
+                    )}
+                    {item.due && (
+                      <p>
+                        日期：{item.due.date} {item.due.time} · 依据：
+                        {item.due.anchor}
+                      </p>
+                    )}
+                    <p>
+                      重要程度初判：
+                      {["低", "普通", "高"][item.importance ?? 1]} ·{" "}
+                      {item.importanceReason || "暂无明确依据"}
+                    </p>
+                  </div>
+                ))}
+              </details>
+            )}
+            {!!p.sources.filter((s) => s.id !== "input").length && (
+              <details>
+                <summary>核对 / 修正提取与识别文字</summary>
+                <p>
+                  以下为提取文字或识别转写。原件保持不变；已有事项需要你在整理结果中纠正，也可按修正材料另存一次投递重新整理。
+                </p>
+                {p.sources
+                  .filter((s) => s.id !== "input")
+                  .map((s) => (
+                    <details key={s.id}>
+                      <summary>{s.name}</summary>
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const data = new FormData(e.currentTarget);
+                          await save({
+                            ...p,
+                            sources: p.sources.map((source) =>
+                              source.id === s.id
+                                ? {
+                                    ...source,
+                                    originalText:
+                                      source.originalText || source.text,
+                                    text: String(data.get("transcript") || ""),
+                                  }
+                                : source,
+                            ),
+                          });
+                          notify("修正文字已保存；原件和首次转写保留");
+                        }}
+                      >
+                        <textarea
+                          name="transcript"
+                          disabled={
+                            p.status === "processing" || p.status === "pending"
+                          }
+                          aria-label={`修正 ${s.name}`}
+                          defaultValue={s.text}
+                          required
+                          maxLength={120000}
+                          style={{ width: "100%", minHeight: 180 }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={
+                            p.status === "processing" || p.status === "pending"
+                          }
+                        >
+                          保存转写修正
+                        </button>
+                      </form>
+                      {s.originalText && (
+                        <details>
+                          <summary>首次提取 / 识别版本</summary>
+                          <pre>{s.originalText}</pre>
+                        </details>
+                      )}
+                    </details>
+                  ))}
+                <button
+                  disabled={p.status === "processing"}
+                  onClick={async () => {
+                    const next = {
+                      ...p,
+                      id: crypto.randomUUID(),
+                      result: null,
+                      proposedItems: undefined,
+                      itemIds: undefined,
+                      itemState: undefined,
+                      doneIds: [],
+                      association: undefined,
+                      organizedSourceIds: undefined,
+                      retryUnread: false,
+                      status: "pending" as const,
+                      deletedAt: undefined,
+                      updatedAt: new Date().toISOString(),
+                      capturedAt: new Date().toISOString(),
+                    };
+                    await save(next);
+                    notify(
+                      "已另存一次投递，将按原投递日期理解相对时间；原有事项保留",
+                    );
+                  }}
+                >
+                  按修正材料另存一次投递并整理
+                </button>
+              </details>
+            )}
+            {p.association?.links.length ? (
+              <p>
+                关联到已有事项 {p.association.links.length} 处。
+                <button
+                  onClick={() =>
+                    void save({
+                      ...p,
+                      association: {
+                        state: "ready",
+                        links: [],
+                        warnings: ["用户撤销了本次自动关联"],
+                      },
+                    })
+                  }
+                >
+                  撤销本次关联
+                </button>
+              </p>
+            ) : null}
+            {!!p.association?.links.length && (
+              <details>
+                <summary>关联去向与变更依据</summary>
+                {p.association.links.map((link) => {
+                  const target = linkedItems.get(link.target),
+                    from = linkedItems.get(link.from);
+                  return (
+                    <div key={link.id}>
+                      <p>
+                        {from?.item.title || "本次事项"} →{" "}
+                        {target?.item.title || "目标已删除或暂不可用"} ·{" "}
+                        {link.relation === "same"
+                          ? "同一事项的补充材料"
+                          : "相关事项"}
+                      </p>
+                      <p>
+                        {link.title}
+                        ；原始日期和来源分别保留，人工修正不会被自动覆盖。
+                      </p>
+                      {target && (
+                        <button
+                          onClick={() =>
+                            goWorkspace("results", target.packet.id)
+                          }
+                        >
+                          查看关联去向
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+            {p.association?.state === "error" && (
+              <p>
+                跨次关联尚未完成：{p.association.warnings.join("；")}
+                <button
+                  onClick={() =>
+                    void save({
+                      ...p,
+                      association: { ...p.association!, state: "pending" },
+                    })
+                  }
+                >
+                  仅重试关联
+                </button>
+              </p>
+            )}
+            <details>
+              <summary>原文、遗漏与操作</summary>
+              <DeliverySources packet={p} save={save} notify={notify} />
+              <p>
+                已提取来源 {p.sources.filter((s) => s.id !== "input").length}{" "}
+                个；
+                {p.error ||
+                  p.result?.warnings.join("；") ||
+                  "请核对原文与日期，模型可能有遗漏。"}
+              </p>
+              {p.status === "error" && (
+                <button onClick={() => void retry(p)}>重试整理</button>
+              )}
+              <button onClick={() => void erase(p)}>删除整次投递</button>
+            </details>
+          </article>
+        ))}
+        {visible.length > receiptLimit && (
+          <button onClick={() => setReceiptLimit((n) => n + 20)}>
+            再显示 20 次投递（共 {visible.length} 次）
+          </button>
+        )}
+      </section>
+    ),
+    [
+      packets,
+      progress,
+      workingId,
+      workspace,
+      receiptLimit,
+      save,
+      notify,
+      health,
+      apiKey,
+      model,
+    ],
+  );
+
   return (
     <div
       className="bucket-app"
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (e.dataTransfer.types.length) {
           e.preventDefault();
           setDrag(true);
         }
@@ -681,249 +1369,270 @@ export default function BucketApp() {
       onDrop={(e) => {
         e.preventDefault();
         setDrag(false);
+        if (!loaded) {
+          notify("正在恢复本机资料，请稍后再投递");
+          return;
+        }
         void addFiles(e.dataTransfer.files);
+        const dropped =
+          e.dataTransfer.getData("text/plain") ||
+          e.dataTransfer.getData("text/uri-list");
+        if (dropped) setText((t) => t + (t ? "\n" : "") + dropped);
+        if (!e.dataTransfer.files.length && !dropped)
+          notify(
+            "来源应用没有提供可读取内容；请粘贴文字/截图，或保存文件后拖入",
+          );
       }}
     >
       <header className="bucket-header">
         <a href={import.meta.env.BASE_URL} className="bucket-brand">
-          <span>
-            <Leaf size={21} />
-          </span>
-          拾序<small>一个，什么都能放的桶。</small>
+          <span>拾</span>
+          拾序<small>SHIXU</small>
         </a>
         <button
           className="bucket-settings"
           aria-label="连接与设置"
           onClick={() => setSettings(true)}
         >
-          <Settings2 size={20} />
+          <i className={apiKey || health?.modelReady ? "status-live" : ""} />
+          <span>
+            {new Date()
+              .toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+              .replace("/", "·")}{" "}
+            {new Date()
+              .toLocaleDateString("en-US", { weekday: "short" })
+              .toUpperCase()}{" "}
+            · {apiKey || health?.modelReady ? "AI ON" : "AI OFF"}
+          </span>
         </button>
+        <nav className="workspace-nav" aria-label="主工作区">
+          <button
+            aria-label="投递桶"
+            aria-pressed={workspace === "capture"}
+            onClick={() => goWorkspace("capture")}
+          >
+            <span>桶</span>
+            <span className="nav-count">{visible.length}</span>
+          </button>
+          <button
+            aria-label="整理结果"
+            aria-pressed={workspace === "results"}
+            onClick={() => {
+              goWorkspace("results");
+            }}
+          >
+            <span>世界</span>
+            <span className="nav-count">✦</span>
+          </button>
+        </nav>
       </header>
       <main className="bucket-main">
-        {DEMO && (
-          <div className="bucket-demo-note">
-            <span>示例空间 · 虚构内容，与个人资料隔离</span>
-            <a href={location.pathname}>
-              回到我的桶
-              <ArrowUpRight size={12} />
-            </a>
-          </div>
-        )}
-        <section className="bucket-intro">
-          <div className="bucket-drawing" aria-hidden="true">
-            <svg viewBox="0 0 88 82">
-              <path d="m20 28 7 43c1 4 5 6 17 6s16-2 17-6l7-43" />
-              <ellipse cx="44" cy="27" rx="24" ry="7" />
-              <path d="M31 18v-6h16l7 7v4M50 8l5-5 11 11-5 5M34 43l7 6 14-15" />
-              <path
-                className="bucket-spark"
-                d="M13 11v8M9 15h8M74 42v6M71 45h6"
-              />
-            </svg>
-          </div>
-          <h1>
-            先丢进来，
-            <br className="bucket-mobile-break" />
-            剩下的交给我。
-          </h1>
-          <p>一件待办、一份文件、一个灵感，或者想坚持的小事。</p>
-        </section>
-        <section
-          className={`bucket-composer ${drag ? "is-dragging" : ""}`}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node))
-              setDrag(false);
-          }}
-        >
-          {drag && (
-            <div
-              className="bucket-drop-hint"
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDrag(false);
-                void addFiles(e.dataTransfer.files);
-              }}
-            >
-              <ArrowDown size={25} />
-              <span>松手，放进桶里。</span>
-            </div>
-          )}
-          <textarea
-            ref={textarea}
-            autoFocus={matchMedia("(hover: hover) and (pointer: fine)").matches}
-            aria-label="往桶里放入内容"
-            placeholder={
-              "想到什么就写什么，也可以直接粘贴一大段。\n文件和相关的通知，一起放进来就好。"
-            }
-            value={text}
-            maxLength={60000}
-            disabled={!loaded}
-            onChange={(e) => setText(e.target.value)}
-            onPaste={(e) => {
-              if (e.clipboardData.files.length) {
-                e.preventDefault();
-                void addFiles(e.clipboardData.files);
-              }
-            }}
-            onKeyDown={(e) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                e.preventDefault();
-                void submit();
-              }
-            }}
+        <div hidden={workspace !== "results"}>
+          <Results
+            packets={packets}
+            save={save}
+            focusPacket={focusPacket}
+            onFocusConsumed={clearFocus}
+            notify={notify}
+            purge={purgePacket}
           />
-          {!!attachments.length && (
-            <div className="bucket-attachments">
-              {attachments.map((a) => (
-                <span className="attachment-chip" key={a.id}>
-                  <Paperclip size={12} />
-                  <span>{a.name}</span>
-                  <button
-                    aria-label={`移除 ${a.name}`}
-                    onClick={() =>
-                      setAttachments(
-                        attachments.filter((item) => item.id !== a.id),
-                      )
-                    }
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
+        </div>
+        <div hidden={workspace !== "capture"}>
+          {DEMO && (
+            <div className="bucket-demo-note">
+              <span>示例空间 · 虚构内容，与个人资料隔离</span>
+              <a href={location.pathname}>
+                回到我的桶
+                <ArrowUpRight size={12} />
+              </a>
             </div>
           )}
-          <div className="bucket-composer-bottom">
-            <button
-              className="bucket-attach"
-              onClick={() => input.current?.click()}
-              disabled={!loaded}
-              aria-label="添加文件"
-            >
-              <Paperclip size={18} />
-              <span>放个文件</span>
-            </button>
-            <input
-              type="file"
-              multiple
-              accept=".txt,.md,.csv,.docx,.pdf"
-              hidden
-              ref={input}
-              onChange={(e) => void addFiles(e.target.files)}
-            />
-            <button
-              className="bucket-primary bucket-send"
-              disabled={
-                !loaded || submitting || (!text.trim() && !attachments.length)
-              }
-              onClick={() => void submit()}
-            >
-              {submitting ? (
-                <LoaderCircle size={17} className="bucket-spin" />
-              ) : (
-                <ArrowDown size={17} />
-              )}
-              丢进去
-            </button>
-          </div>
-        </section>
-        <div className="bucket-under-composer">
-          <span
-            className={`model-status ${apiKey || health?.modelReady ? "is-connected" : ""}`}
-          >
-            <i />
-            {!online
-              ? "离线 · 先接住，联网再整理"
-              : health
-                ? health.authenticated
-                  ? health.modelReady
-                    ? "个人服务已连接"
-                    : "个人服务待连接 DeepSeek"
-                  : "个人服务待解锁"
-                : apiKey
-                  ? "DeepSeek 已连接"
-                  : "连接 DeepSeek 后，自动整理"}
-            {waiting > 0 && online ? ` · ${waiting} 包等待处理` : ""}
-          </span>
-          <button
-            className="bucket-model-cost"
-            onClick={() => setSettings(true)}
-            aria-label="选择模型与查看费用"
-          >
-            {modelLabel(model)} ·{" "}
-            {cost.calls
-              ? cost.unpriced === cost.calls
-                ? "费用待核对"
-                : `累计约 ¥${money(cost.min)}–${money(cost.max)}${cost.unpriced ? " + 待核对" : ""}`
-              : "尚无用量记录"}
-          </button>
-        </div>
-        {!visible.length && (
-          <div className="bucket-empty">
-            <span className="bucket-quiet-line" />
-            <p>
-              不用选分类，不用填表。
+          <section className="bucket-intro">
+            <h1>
+              什么都行，
               <br />
-              先把脑袋里的零零碎碎放下来。
-            </p>
-            <button onClick={useSample}>
-              拿一份通知和附件试试
-              <ArrowUpRight size={13} />
-            </button>
-            <a href={`${location.pathname}?preview=bucket`}>看看整理后的样子</a>
-          </div>
-        )}
-        {!!visible.length && (
-          <section className="bucket-collection">
-            <div className="bucket-collection-heading">
-              <h2>
-                都在这里了<span>{visible.length} 次投递</span>
-              </h2>
-              <p>你只管放下，我来理清楚。</p>
-            </div>
-            {groups.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                packets={packets}
-                usage={usage}
-                onToggle={toggleRefs}
-                onSplit={() => void splitGroup(group)}
-                onDelete={erase}
-                notify={notify}
+              <span className="hero-highlight">喂给它。</span>
+            </h1>
+            <button
+              type="button"
+              className={"bucket-drawing" + (mascotHappy ? " laughing" : "")}
+              aria-label={mascotHappy ? "停止鲸鱼笑声" : "和小鲸鱼打个招呼"}
+              onClick={greetMascot}
+            >
+              <span className="mascot-bubble">扔给我，什么都吃！</span>
+              <img
+                src={import.meta.env.BASE_URL + "mascot.png"}
+                alt="拾序小鲸鱼"
+                draggable={false}
               />
-            ))}
-            {visible
-              .filter(
-                (p) =>
-                  p.status !== "ready" ||
-                  !p.result?.items.length ||
-                  p.result.items.some(
-                    (_, i) => !groupedRefs.has(itemRef(p.id, i)),
-                  ),
-              )
-              .map((p) => (
-                <PacketCard
-                  key={p.id}
-                  packet={p}
-                  usage={usage.filter((r) => r.packetId === p.id)}
-                  itemIndexes={p.result?.items
-                    .map((_, i) => i)
-                    .filter((i) => !groupedRefs.has(itemRef(p.id, i)))}
-                  progress={workingId === p.id ? progress : ""}
-                  onRetry={() => void retry(p)}
-                  onToggle={(i) => void toggle(p, i)}
-                  onDelete={() => void erase(p)}
-                  onRelate={() => void retryAssociation(p)}
-                  notify={notify}
-                />
-              ))}
+            </button>
+            <p className="count-line">
+              它已经吃掉了 <b>{visible.length}</b> 件
+            </p>
           </section>
-        )}
-        <InstallGuide />
+          <section
+            className={`bucket-composer ${drag ? "is-dragging" : ""}`}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node))
+                setDrag(false);
+            }}
+          >
+            {drag && (
+              <div
+                className="bucket-drop-hint"
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDrag(false);
+                  if (!loaded) {
+                    notify("正在恢复本机资料，请稍后再投递");
+                    return;
+                  }
+                  void addFiles(e.dataTransfer.files);
+                  const dropped =
+                    e.dataTransfer.getData("text/plain") ||
+                    e.dataTransfer.getData("text/uri-list");
+                  if (dropped) setText((t) => t + (t ? "\n" : "") + dropped);
+                  if (!e.dataTransfer.files.length && !dropped)
+                    notify("未接收到可读取内容，请粘贴或保存后拖入");
+                }}
+              >
+                <ArrowDown size={25} />
+                <span>松手，放进桶里。</span>
+              </div>
+            )}
+            <textarea
+              ref={textarea}
+              autoFocus={
+                matchMedia("(hover: hover) and (pointer: fine)").matches
+              }
+              aria-label="往桶里放入内容"
+              placeholder={"一句话、一个文件、一个念头…"}
+              value={text}
+              maxLength={60000}
+              disabled={!loaded}
+              onChange={(e) => setText(e.target.value)}
+              onPaste={(e) => {
+                if (e.clipboardData.files.length) {
+                  e.preventDefault();
+                  void addFiles(e.clipboardData.files);
+                  const pasted = e.clipboardData.getData("text/plain");
+                  if (pasted) setText((t) => t + (t ? "\n" : "") + pasted);
+                }
+              }}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+            />
+            {!!attachments.length && (
+              <div className="bucket-attachments">
+                {attachments.map((a) => (
+                  <span className="attachment-chip" key={a.id}>
+                    <AttachmentPreview attachment={a} />
+                    <Paperclip size={12} />
+                    <span>{a.name}</span>
+                    <button
+                      aria-label={`移除 ${a.name}`}
+                      onClick={() =>
+                        setAttachments(
+                          attachments.filter((item) => item.id !== a.id),
+                        )
+                      }
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="bucket-composer-bottom">
+              <button
+                className="bucket-attach"
+                onClick={() => input.current?.click()}
+                disabled={!loaded}
+                aria-label="添加文件"
+              >
+                <Paperclip size={18} />
+                <span>放个文件</span>
+              </button>
+              <input
+                type="file"
+                multiple
+                hidden
+                ref={input}
+                onChange={(e) => void addFiles(e.target.files)}
+              />
+              <button
+                className="bucket-primary bucket-send"
+                aria-label="丢进去"
+                disabled={
+                  !loaded || submitting || (!text.trim() && !attachments.length)
+                }
+                onClick={() => void submit()}
+              >
+                {submitting ? (
+                  <LoaderCircle size={17} className="bucket-spin" />
+                ) : (
+                  <ArrowDown size={17} />
+                )}
+                喂！
+              </button>
+            </div>
+          </section>
+          <div className="bucket-under-composer">
+            <span
+              className={`model-status ${apiKey || health?.modelReady ? "is-connected" : ""}`}
+            >
+              <i />
+              {!online
+                ? "离线 · 先接住，联网再整理"
+                : health
+                  ? health.authenticated
+                    ? health.modelReady
+                      ? "个人服务已连接"
+                      : "个人服务待连接 DeepSeek"
+                    : "个人服务待解锁"
+                  : apiKey
+                    ? "DeepSeek 已连接"
+                    : "连接 DeepSeek 后，自动整理"}
+              {waiting > 0 && online ? ` · ${waiting} 包等待处理` : ""}
+            </span>
+            <button
+              className="bucket-model-cost"
+              onClick={() => setSettings(true)}
+              aria-label="选择模型与查看费用"
+            >
+              连接设置
+            </button>
+          </div>
+          {!visible.length && (
+            <div className="bucket-empty">
+              <span className="bucket-quiet-line" />
+              <p>
+                不用选分类，不用填表。
+                <br />
+                先把脑袋里的零零碎碎放下来。
+              </p>
+              <button onClick={useSample}>
+                拿一份通知和附件试试
+                <ArrowUpRight size={13} />
+              </button>
+              {!window.desktop && (
+                <a href={`${location.pathname}?preview=bucket`}>
+                  看看整理后的样子
+                </a>
+              )}
+            </div>
+          )}
+          {receipts}
+          {!window.desktop && <InstallGuide />}
+        </div>
         <footer className="bucket-footer">
           <Sparkles size={12} />
-          <span>留住原文，分清事实与建议。拿不准的事，不乱替你决定。</span>
+          <span>脑袋放轻一点。</span>
         </footer>
       </main>
       {settings && (
@@ -942,6 +1651,17 @@ export default function BucketApp() {
       {toast && (
         <div className="bucket-toast" role="status">
           <span>{toast}</span>
+          {undoDelete && (
+            <button
+              onClick={async () => {
+                await save({ ...undoDelete, deletedAt: undefined });
+                setUndoDelete(null);
+                notify("已恢复投递");
+              }}
+            >
+              撤销删除
+            </button>
+          )}
           <button aria-label="关闭提示" onClick={() => setToast("")}>
             <X size={15} />
           </button>
@@ -949,4 +1669,21 @@ export default function BucketApp() {
       )}
     </div>
   );
+}
+function AttachmentPreview({ attachment }: { attachment: Attachment }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    if (!attachment.blob || !/\.(png|jpe?g|gif|webp)$/i.test(attachment.name))
+      return;
+    const next = URL.createObjectURL(attachment.blob);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [attachment]);
+  return url ? (
+    <img
+      src={url}
+      alt={`已接收 ${attachment.name}`}
+      style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }}
+    />
+  ) : null;
 }

@@ -11,15 +11,19 @@ export function itemMap(packets) {
   for (const packet of packets) {
     if (packet.deletedAt || packet.status !== "ready" || !packet.result)
       continue;
-    packet.result.items.forEach((item, index) =>
-      map.set(itemRef(packet.id, index), {
-        ref: itemRef(packet.id, index),
+    packet.result.items.forEach((item, index) => {
+      const meta =
+        packet.itemState?.[packet.itemIds?.[index] || `${packet.id}:${index}`];
+      if (meta?.deletedAt || meta?.purgedAt) return;
+      const ref = itemRef(packet.id, packet.itemIds?.[index] || index);
+      map.set(ref, {
+        ref,
         packet,
         index,
         item,
-        done: packet.doneIds.includes(index),
-      }),
-    );
+        done: meta?.status === "done" || packet.doneIds.includes(index),
+      });
+    });
   }
   return map;
 }

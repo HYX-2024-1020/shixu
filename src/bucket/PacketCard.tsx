@@ -11,11 +11,28 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Packet, BucketItem } from "./types";
-import { apiUrl } from "./service";
+import ItemDialog from "./ItemDialog";
+import AttachmentPreview from "./AttachmentPreview";
 import { usageTotals, money, type UsageRecord } from "../../shared/usage.mjs";
 import { modelLabel } from "./model-api";
-const LABELS = { task: "待办", idea: "灵感", habit: "习惯", note: "资料" };
-const ICONS = { task: Check, idea: Lightbulb, habit: Sprout, note: FileText };
+const LABELS = {
+  task: "待办",
+  idea: "灵感",
+  habit: "习惯",
+  note: "资料",
+  event: "日程",
+  notice: "通知",
+  other: "其他",
+};
+const ICONS = {
+  task: Check,
+  idea: Lightbulb,
+  habit: Sprout,
+  note: FileText,
+  event: FileText,
+  notice: FileText,
+  other: FileText,
+};
 export default function PacketCard({
   packet,
   usage,
@@ -40,22 +57,9 @@ export default function PacketCard({
   const [open, setOpen] = useState(false),
     [expanded, setExpanded] = useState<number | null>(null);
   const total = usageTotals(usage);
+  const [previewId, setPreviewId] = useState("");
   function download(id: string) {
-    const a = packet.attachments.find((a) => a.id === id);
-    if (!a) return;
-    if (a.blob) {
-      const url = URL.createObjectURL(a.blob),
-        link = document.createElement("a");
-      link.href = url;
-      link.download = a.name;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } else if (packet.remote) {
-      const link = document.createElement("a");
-      link.href = apiUrl("attachments/" + encodeURIComponent(a.id));
-      link.download = a.name;
-      link.click();
-    } else notify("原文件不在此设备上");
+    setPreviewId(id);
   }
   const at = new Date(packet.capturedAt),
     when = at.toLocaleString("zh-CN", {
@@ -185,13 +189,6 @@ export default function PacketCard({
                         <ArrowDown size={11} />
                       </button>
                     ))}
-                  {item.uncertainties.length > 0 && (
-                    <div className="item-uncertain">
-                      {item.uncertainties.map((line, i) => (
-                        <p key={i}>{line}</p>
-                      ))}
-                    </div>
-                  )}
                   {expanded === index && (
                     <ItemDetails
                       item={item}
@@ -292,6 +289,15 @@ export default function PacketCard({
             删除这一包
           </button>
         </div>
+      )}
+      {previewId && packet.attachments.find((a) => a.id === previewId) && (
+        <ItemDialog label="同行材料" onClose={() => setPreviewId("")}>
+          <AttachmentPreview
+            key={previewId}
+            attachment={packet.attachments.find((a) => a.id === previewId)!}
+            packet={packet}
+          />
+        </ItemDialog>
       )}
     </article>
   );
