@@ -185,3 +185,5 @@
 - [x] 安装器 拾序 Setup 0.3.7.exe，144248293 字节，SHA-256：e96870bb8bc3ac2f96f80131f222e62e0d3093959cbc0e2d803ba73af40d3d2c。验证报告 release/validation-summary.json、release/spatial-validation.json。
 
 开发隔离目录保留为 C:/Users/No Choice/Documents/vibecoding/forgettable_TOOL/shixu-card-motion；主工作区并行皮肤/同步/小程序改动须保留，不能用本轮快照覆盖。外部 QQ/微信/资源管理器实际载荷验收仍是历史待验，内部卡片拖动回归不替代它。
+
+- GitHub main 已要求 PR、squash、线性历史和 GitHub Actions 的 `Required checks`；不要再次直接 push main，也不要改保护规则绕过检查。本轮 PR：https://github.com/HYX-2024-1020/shixu/pull/4 。CI 原验证任务改用规则要求的显示名，全部原构建/测试步骤保留。

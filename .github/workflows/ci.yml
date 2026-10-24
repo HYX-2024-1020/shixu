@@ -4,6 +4,7 @@ permissions:
   contents: read
 jobs:
   check:
+    name: Required checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
