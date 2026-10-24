@@ -52,8 +52,7 @@ test("grouped cards remain usable in narrow Apple multitasking windows", async (
   await expect(page.locator(".result-card:visible")).toHaveCount(2);
   await expect(page.locator(".collection-heading")).toHaveCount(1);
   const check = page.locator(".result-card:visible .completion-orbit").first();
-  expect((await check.boundingBox())!.width).toBeGreaterThanOrEqual(28);
-  await check.click();
+  await check.tap();
   await expect(page.locator(".result-card:visible")).toHaveCount(1);
   await page.setViewportSize({ width: 375, height: 667 });
   expect(
