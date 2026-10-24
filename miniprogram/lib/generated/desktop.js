@@ -263,8 +263,15 @@ function groundedDate(anchor, today) {
 var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
 function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
-  return text.replace(relative, (token) => {
-    const date = groundedDate(token, day);
+  let previousWeek = "", previousEnd = 0;
+  return text.replace(relative, (token, offset) => {
+    const scoped = token.match(/^(上上|上|下下|下|本|这)(?:周|星期|礼拜)/);
+    const isWeek = /(?:周|星期|礼拜)/.test(token);
+    const coordinated = isWeek && !scoped && previousWeek && /^[、和及与或\s]+$/.test(text.slice(previousEnd, offset));
+    const anchor = coordinated ? previousWeek + token : token;
+    previousWeek = isWeek ? (scoped == null ? void 0 : scoped[1]) || (coordinated ? previousWeek : "") : "";
+    previousEnd = offset + token.length;
+    const date = groundedDate(anchor, day);
     return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") : token;
   });
 }

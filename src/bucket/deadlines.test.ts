@@ -25,6 +25,9 @@ it("anchors dates to capture day across month, year, leap day and later viewing"
   expect(absoluteText("昨天交，上周五发通知", "2026-11-01")).toBe(
     "2026年10月31日交，2026年10月23日发通知",
   );
+  expect(absoluteText("下周一和周二停课，周三交报告", "2026-10-26")).toBe(
+    "2026年11月02日和2026年11月03日停课，2026年10月28日交报告",
+  );
   expect(() => parseDeadline("尽快", "2026-10-28")).toThrow();
   expect(() => parseDeadline("2026-02-30", "2026-10-28")).toThrow();
   expect(() => parseDeadline("2026-10-29", "2026-10-28", "25:00")).toThrow();
