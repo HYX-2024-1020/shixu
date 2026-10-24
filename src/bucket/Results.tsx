@@ -18,6 +18,8 @@ import { useCardMotion } from "./useCardMotion";
 import { useCardDrag } from "./useCardDrag";
 import { mergeCardOrder } from "./card-order";
 import type { Packet, ItemState, BucketKind } from "./types";
+import SkinArt from "./SkinArt";
+import type { Skin } from "./skins";
 import { localDate } from "../organize";
 import { compareItems } from "./management";
 import {
@@ -35,6 +37,7 @@ export const categories: Record<BucketKind, string> = {
   other: "其他",
 };
 function Results({
+  skin,
   compact = false,
   reorder,
   packets,
@@ -46,6 +49,7 @@ function Results({
   onChat,
   onRecords,
 }: {
+  skin: Skin;
   compact?: boolean;
   reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
@@ -297,7 +301,9 @@ function Results({
                 这是你的<span>世界。</span>
               </h1>
             </div>
-            <img src={import.meta.env.BASE_URL + "mascot.png"} alt="" />
+            <span className="world-skin-art">
+              <SkinArt skin={skin} />
+            </span>
           </div>
           <div className="result-controls">
             <button onClick={onRecords}>整理记录</button>

@@ -470,6 +470,12 @@
 .completion-orbit[aria-pressed="true"] {
   background: #ffd43b;
 }
+@media (hover: none) and (pointer: coarse) {
+  .result-card .completion-orbit {
+    width: 44px;
+    height: 44px;
+  }
+}
 .result-card .card-star {
   padding: 0;
   margin-left: auto;

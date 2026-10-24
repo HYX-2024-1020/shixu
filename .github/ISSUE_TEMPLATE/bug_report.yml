@@ -1,0 +1,32 @@
+name: 缺陷报告
+description: 描述可以复现的问题（请使用合成材料）
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: 不要上传密钥、个人通知、原始资料、数据库或备份。安全漏洞请使用 SECURITY.md 中的私密报告入口。
+  - type: input
+    id: environment
+    attributes:
+      label: 版本与环境
+      description: 应用版本、系统、桌面版或浏览器版本
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 提供最小步骤及不含个人信息的合成示例
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 补充信息
+      description: 可提供已脱敏的截图或错误信息

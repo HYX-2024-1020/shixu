@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   LoaderCircle,
   Paperclip,
+  Palette,
   Sparkles,
   X,
 } from "lucide-react";
@@ -53,8 +54,18 @@ import { useTransientUI } from "./useTransientUI";
 import type { Packet, Attachment, ItemState } from "./types";
 import { chatWithItem } from "./item-chat";
 import Results, { categories } from "./Results";
+import SkinMarket from "./SkinMarket";
+import SkinMascot from "./SkinMascot";
+import {
+  BUILTIN_SKINS,
+  loadSkinCollection,
+  saveSkinCollection,
+  skinStorageKey,
+  type SkinCollection,
+} from "./skins";
 import "./bucket.css";
 import "./desktop.css";
+import "./skins.css";
 import { ingestAttachment, supportedFiles, type Coverage } from "./ingest";
 
 const DEMO = new URLSearchParams(location.search).has("preview");
@@ -85,6 +96,19 @@ function message(error: unknown) {
 }
 
 export default function BucketApp() {
+  const [skinMarket, setSkinMarket] = useState(false);
+  const [feedSignal, setFeedSignal] = useState(0);
+  const [skinCollection, setSkinCollection] = useState(() =>
+    loadSkinCollection(skinStorageKey(DEMO)),
+  );
+  const activeSkin =
+    [...BUILTIN_SKINS, ...skinCollection.custom].find(
+      (skin) => skin.id === skinCollection.selected,
+    ) || BUILTIN_SKINS[0];
+  function changeSkins(next: SkinCollection) {
+    saveSkinCollection(skinStorageKey(DEMO), next);
+    setSkinCollection(next);
+  }
   const [workspace, setWorkspace] = useState("capture"),
     [focusPacket, setFocusPacket] = useState("");
   const scrollPositions = useRef<Record<string, number>>({
@@ -920,6 +944,7 @@ export default function BucketApp() {
           updatedAt: at,
         };
       await save(packet);
+      setFeedSignal((n) => n + 1);
       setCurrentCaptureId(packet.id);
       setText("");
       setAttachments([]);
@@ -1142,26 +1167,6 @@ export default function BucketApp() {
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
   const currentCapture = visible.find((p) => p.id === currentCaptureId);
-  const [mascotHappy, setMascotHappy] = useState(false);
-  const mascotAudio = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => () => mascotAudio.current?.pause(), []);
-  function greetMascot() {
-    if (mascotHappy) {
-      mascotAudio.current?.pause();
-      setMascotHappy(false);
-      return;
-    }
-    const audio =
-      mascotAudio.current || new Audio(import.meta.env.BASE_URL + "laugh.mp3");
-    mascotAudio.current = audio;
-    audio.volume = 0.5;
-    audio.currentTime = 0;
-    audio.onended = () => setMascotHappy(false);
-    void audio
-      .play()
-      .then(() => setMascotHappy(true))
-      .catch(() => setMascotHappy(false));
-  }
   const receipts = useMemo(
     () => (
       <section className="delivery-receipts" aria-label="整理回执">
@@ -1552,6 +1557,7 @@ export default function BucketApp() {
     <div
       className="bucket-app"
       onDragOver={(e) => {
+        if (skinMarket) return;
         if (e.dataTransfer.types.length) {
           e.preventDefault();
           setDrag(true);
@@ -1559,6 +1565,7 @@ export default function BucketApp() {
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (skinMarket) return;
         setDrag(false);
         if (!loaded) {
           notify("正在恢复本机资料，请稍后再投递");
@@ -1580,6 +1587,14 @@ export default function BucketApp() {
           <span>拾</span>
           拾序<small>SHIXU</small>
         </a>
+        <button
+          className="skin-market-entry"
+          onClick={() => setSkinMarket(true)}
+          aria-label="打开皮肤市场"
+        >
+          <Palette size={16} />
+          <span>皮肤市场</span>
+        </button>
         <button
           className="bucket-settings"
           aria-label="连接与设置"
@@ -1620,6 +1635,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "results"}>
           <Results
+            skin={activeSkin}
             reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
             onChat={editWithAI}
@@ -1647,18 +1663,21 @@ export default function BucketApp() {
               <br />
               <span className="hero-highlight">喂给它。</span>
             </h1>
+            <SkinMascot
+              key={activeSkin.id}
+              skin={activeSkin}
+              state={
+                drag ? "drag" : submitting || workingId ? "feeding" : "idle"
+              }
+              suspended={skinMarket || settings || workspace !== "capture"}
+              feedSignal={feedSignal}
+            />
             <button
-              type="button"
-              className={"bucket-drawing" + (mascotHappy ? " laughing" : "")}
-              aria-label={mascotHappy ? "停止鲸鱼笑声" : "和小鲸鱼打个招呼"}
-              onClick={greetMascot}
+              className="skin-home-change"
+              onClick={() => setSkinMarket(true)}
             >
-              <span className="mascot-bubble">扔给我，什么都吃！</span>
-              <img
-                src={import.meta.env.BASE_URL + "mascot.png"}
-                alt="拾序小鲸鱼"
-                draggable={false}
-              />
+              <Palette size={12} />
+              {activeSkin.name} · 换个伙伴
             </button>
             <p className="count-line">
               它已经吃掉了 <b>{visible.length}</b> 件
@@ -1843,6 +1862,7 @@ export default function BucketApp() {
               {currentCapture.result &&
                 (currentCapture.result.items.length ? (
                   <Results
+                    skin={activeSkin}
                     key={currentCapture.id}
                     compact
                     reorder={reorderCards}
@@ -1906,6 +1926,13 @@ export default function BucketApp() {
           onConnected={connected}
           onClose={() => setSettings(false)}
           notify={notify}
+        />
+      )}
+      {skinMarket && (
+        <SkinMarket
+          collection={skinCollection}
+          onChange={changeSkins}
+          onClose={() => setSkinMarket(false)}
         />
       )}
       {toast && (

@@ -18,3 +18,6 @@ backups/
 data/
 .DS_Store
 Thumbs.db
+
+!.env.sync.example
+project.private.config.json

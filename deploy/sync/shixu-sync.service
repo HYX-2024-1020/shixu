@@ -1,0 +1,35 @@
+[Unit]
+Description=Shixu private synchronization staging service
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=shixu-sync
+Group=shixu-sync
+WorkingDirectory=/opt/shixu-sync/current
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env node --preserve-symlinks-main --max-old-space-size=256 --env-file=/etc/shixu-sync/service.env server/sync-server.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=25
+UMask=0077
+StateDirectory=shixu-sync
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/shixu-sync
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=4096
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=shixu-sync
+
+[Install]
+WantedBy=multi-user.target
