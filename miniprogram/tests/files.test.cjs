@@ -271,6 +271,58 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
     f.page._localWorkspace().records()[0].data.attachments.length,
     1,
   );
+  const second = fixture({ request: f.wx.request });
+  second.page.setData({
+    serverUrl: base,
+    password: "synthetic-file-ui-passphrase",
+  });
+  await second.page.connect();
+  await second.page.openAttachment({
+    currentTarget: {
+      dataset: { id: record.data.attachments[0].id, packet: id },
+    },
+  });
+  assert.equal(second.page.data.error, "");
+  assert.equal(second.page.data.originalPreview.text, "合成原件");
+  let received, release;
+  const arrival = new Promise((resolve) => (received = resolve)),
+    gate = new Promise((resolve) => (release = resolve));
+  const third = fixture({
+    request: (options) =>
+      f.wx.request(
+        options.url.includes("/attachments/") && options.method === "GET"
+          ? {
+              ...options,
+              success: async (response) => {
+                received();
+                await gate;
+                options.success(response);
+              },
+            }
+          : options,
+      ),
+  });
+  third.page.setData({
+    serverUrl: base,
+    password: "synthetic-file-ui-passphrase",
+  });
+  await third.page.connect();
+  const inflight = third.page.openAttachment({
+    currentTarget: {
+      dataset: { id: record.data.attachments[0].id, packet: id },
+    },
+  });
+  await arrival;
+  third.page._client.remove(id);
+  third.page._refresh();
+  release();
+  await inflight;
+  assert.match(third.page.data.error, /状态已变化/);
+  assert.equal(
+    third.page._library().entries(id, base).length,
+    0,
+    "a deleted packet cannot cache a late download",
+  );
 });
 
 test("text original preview reads its saved bytes and never changes the original", async () => {

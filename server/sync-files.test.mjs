@@ -85,10 +85,13 @@ async function fixture(t, { limits = {}, ai = null } = {}) {
         body: bytes,
       },
     );
-  const get = (packetId, id, token = device.token) =>
-    fetch(`${base}/api/v2/attachments/${packetId}/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+  const get = (packetId, id, token = device.token, epoch = device.epoch) =>
+    fetch(
+      `${base}/api/v2/attachments/${packetId}/${id}?epoch=${encodeURIComponent(epoch)}`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      },
+    );
   const packet = async (id) =>
     apply(id, "put", {
       text: "合成投递",
@@ -163,6 +166,10 @@ test("an original survives upload retry, restart, soft delete and restore byte-f
   assert.deepEqual(
     Buffer.from(await (await f.get("p", "a")).arrayBuffer()),
     bytes,
+  );
+  assert.equal(
+    (await f.get("p", "a", f.device.token, "old-workspace")).status,
+    409,
   );
   await f.apply("p", "delete");
   assert.equal((await f.get("p", "a")).status, 409);

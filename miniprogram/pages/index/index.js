@@ -191,6 +191,7 @@ Page({
       request: transport,
     });
     this._connection = connection;
+    this._epoch = connection.epoch || null;
     this._transport = transport;
     this._client = client;
     const jobs = wx.getStorageSync(jobsKey(base));
@@ -440,10 +441,21 @@ Page({
         }
       }
       if (!path) {
+        if (!this._epoch) await this.sync();
+        if (!this._epoch) throw new Error("请先完成同步并核对服务资料版本");
         const bytes = await createFileTransport(
           this._connection.base,
           () => this._connection.token,
-        ).download(packet, id);
+        ).download(packet, id, this._epoch);
+        const latest = this._record(packet);
+        if (
+          !latest ||
+          latest.deletedAt ||
+          !(latest.data.attachments || []).some(
+            (f) => f.id === id && !f.deletedAt,
+          )
+        )
+          throw new Error("投递状态已变化，未保存下载的原件");
         path = library.cache(file, packet, space, bytes);
       }
       const ext = extension(file.name);
@@ -650,6 +662,7 @@ Page({
       });
       const connection = {
         base,
+        epoch: device.epoch,
         token: device.token,
         deviceId: device.deviceId,
         expiresAt: device.expiresAt,
@@ -670,6 +683,7 @@ Page({
     this.setData({ syncing: true });
     try {
       const result = await this._client.sync();
+      this._epoch = result.epoch;
       this.setData({ capabilities: result.capabilities || {} });
       await this._uploadFiles(result.epoch);
       await this._pollJobs();

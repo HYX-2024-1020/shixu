@@ -169,6 +169,12 @@ export function createSyncService({
           return;
         }
         if (req.method === "GET") {
+          if (url.searchParams.get("epoch") !== store.epoch)
+            throw new SyncError(
+              409,
+              "RESET_REQUIRED",
+              "服务资料版本已变化，未下载原件，请先核对同步状态",
+            );
           const file = files.get(packetId, id);
           res.writeHead(200, {
             "Content-Type": "application/octet-stream",

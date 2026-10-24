@@ -246,8 +246,11 @@ function createFileTransport(base, getToken, runtime = wx) {
           "X-Shixu-File-Type": entry.type,
         },
       ),
-    download: (packetId, id) =>
-      request("GET", `/api/v2/attachments/${packetId}/${id}`),
+    download: (packetId, id, epoch) =>
+      request(
+        "GET",
+        `/api/v2/attachments/${packetId}/${id}?epoch=${encodeURIComponent(epoch)}`,
+      ),
   };
 }
 module.exports = {
