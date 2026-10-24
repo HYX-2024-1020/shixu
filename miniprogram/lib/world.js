@@ -1,6 +1,7 @@
 const {
   compareItems,
   absoluteItem,
+  itemDeadlineTime,
   cardCopy,
   buildGroups,
   itemRef,
@@ -29,15 +30,17 @@ function itemsFor(records) {
     const p = record.data;
     return (p.result && Array.isArray(p.result.items) ? p.result.items : [])
       .map((rawItem, index) => {
-        const item = absoluteItem(rawItem, p.captureDate);
         const id = (p.itemIds || [])[index] || `${p.id}:${index}`;
         const meta = (p.itemState || {})[id] || {};
+        const item = absoluteItem(rawItem, p.captureDate, p.sources, meta.chat);
         const copy = cardCopy({
           title: item.title || "",
           summary: item.summary || "",
           facts: item.facts || [],
         });
+        const clockInfo = itemDeadlineTime(item, p.sources, meta.chat);
         return {
+          clockInfo,
           id,
           packetId: p.id,
           index,
@@ -66,7 +69,7 @@ function itemsFor(records) {
                 ).title ||
                 "",
           date: (item.due || {}).date || "",
-          time: (item.due || {}).time || "",
+          time: clockInfo.time,
           importance:
             meta.importance !== undefined
               ? meta.importance

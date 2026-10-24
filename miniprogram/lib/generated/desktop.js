@@ -30,6 +30,7 @@ __export(stdin_exports, {
   compareItems: () => compareItems,
   deadlineSections: () => deadlineSections,
   isSkinImage: () => isSkinImage,
+  itemDeadlineTime: () => itemDeadlineTime,
   itemRef: () => itemRef,
   mergeCardOrder: () => mergeCardOrder,
   parseDeadline: () => parseDeadline,
@@ -168,6 +169,240 @@ function parseSkinCollection(raw) {
   }
 }
 
+// shared/deadline-time.mjs
+var digits = {
+  零: 0,
+  "〇": 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+};
+function numeral(value) {
+  if (value.includes("十")) {
+    const [a, b] = value.split("十");
+    return (a ? digits[a] : 1) * 10 + (b ? digits[b] : 0);
+  }
+  return value.length > 1 ? Number([...value].map((c) => digits[c]).join("")) : digits[value];
+}
+var normalize = (text) => String(text || "").normalize("NFKC").replace(
+  /[零〇一二两三四五六七八九十]{1,3}(?=\s*[点时分])/g,
+  (m) => String(numeral(m))
+).replace(
+  /([点时])\s*([零〇一二两三四五六七八九十]{1,3})(?=分|[^零〇一二两三四五六七八九十刻]|$)/g,
+  (_, unit, value) => unit + numeral(value)
+);
+var validTime = (time) => typeof time === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time);
+var format = (hour, minute) => `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+function clock(text, guess = false) {
+  text = normalize(text);
+  const ampm = text.match(
+    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*([ap])\.?m\.?\b/i
+  );
+  if (ampm)
+    return {
+      time: format(
+        Number(ampm[1]) % 12 + (ampm[3].toLowerCase() === "p" ? 12 : 0),
+        Number(ampm[2] || 0)
+      )
+    };
+  const match = text.match(
+    /(凌晨|午夜|清晨|早晨|早上|上午|中午|下午|午后|傍晚|晚上|夜晚|晚间|夜里|今晚|明晚|今早|明早|晚|早|夜)?\s*(\d{1,2})\s*(?:(:)(\d{1,2})(?::\d{2})?|[点时](?:钟)?\s*(三刻|一刻|半|\d{1,2}分?)?)/
+  );
+  if (!match) return null;
+  let hour = Number(match[2]);
+  const tail = match[5] || "";
+  const minute = match[3] ? Number(match[4]) : tail === "半" ? 30 : tail === "一刻" ? 15 : tail === "三刻" ? 45 : parseInt(tail || "0");
+  if (hour > 24 || minute > 59 || hour === 24 && minute !== 0) return null;
+  let nextDay = hour === 24;
+  if (nextDay) hour = 0;
+  const ambiguous = !match[1] && !match[3] && Number(match[2]) < 12;
+  if (ambiguous && !guess) return null;
+  if (ambiguous && hour >= 1 && hour <= 6) hour += 12;
+  if (/下午|午后|傍晚|晚上|夜晚|晚间|夜里|今晚|明晚|^晚$|^夜$/.test(
+    match[1] || ""
+  ) && hour < 12)
+    hour += 12;
+  if (/晚上|夜晚|晚间|夜里|今晚|明晚|^晚$|^夜$/.test(match[1] || "") && hour === 12) {
+    hour = 0;
+    nextDay = true;
+  }
+  if (match[1] === "中午" && hour < 11) hour += 12;
+  if (/凌晨|午夜/.test(match[1] || "") && hour === 12) hour = 0;
+  return {
+    time: format(hour, minute),
+    ...nextDay ? { nextDay: true } : {},
+    ...ambiguous ? {
+      timeInferred: true,
+      timeReason: `未注明上午或下午，按 ${format(hour, minute)} 安排，可手动修改`
+    } : {}
+  };
+}
+function applyClock(due, parsed) {
+  const { nextDay, ...result } = parsed;
+  const date = /* @__PURE__ */ new Date(due.date + "T12:00:00Z");
+  if (nextDay && due.time !== result.time && !Number.isNaN(date.valueOf())) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    return { ...due, ...result, date: date.toISOString().slice(0, 10) };
+  }
+  return { ...due, ...result };
+}
+function groundedTime(text) {
+  var _a;
+  return ((_a = clock(text)) == null ? void 0 : _a.time) || "";
+}
+function inferred(time, reason) {
+  return { time, timeInferred: true, timeReason: reason };
+}
+function anchorContext(text, anchor) {
+  const compact2 = (t) => normalize(t).replace(/\s+/g, "");
+  const pieces = String(text || "").split(/[。；;\n！？]/);
+  for (const piece of pieces) {
+    const at = compact2(piece).indexOf(compact2(anchor));
+    if (!anchor || at < 0) continue;
+    const value = compact2(piece), key = compact2(anchor);
+    const left = Math.max(
+      value.lastIndexOf("，", at),
+      value.lastIndexOf(",", at)
+    );
+    const rightMatch = value.slice(at + key.length).search(/[，,]/);
+    const right = rightMatch < 0 ? value.length : at + key.length + rightMatch;
+    let context = value.slice(left + 1, right);
+    if (!clock(context, true) && right < value.length) {
+      const adjacent = value.slice(right + 1).split(/[，,]/)[0];
+      if (!/(?:今天|明天|后天|前天|昨天|[上下本这]?周[一二三四五六日天]|\d+[年月日号])/.test(
+        adjacent
+      ))
+        context += "，" + adjacent;
+    }
+    return context;
+  }
+  return "";
+}
+function resolveDeadlineTime(due, evidence = [], sources = []) {
+  if (validTime(due == null ? void 0 : due.time) && (!due.timeInferred || due.sourceId === "manual" || due.anchor === "人工确认")) {
+    const anchorClock = clock(due.anchor || "");
+    if (due.sourceId !== "manual" && due.anchor !== "人工确认" && anchorClock && anchorClock.time !== due.time)
+      return applyClock(due, anchorClock);
+    return due;
+  }
+  const anchor = (due == null ? void 0 : due.anchor) || "";
+  const contexts = [];
+  if (anchor !== "人工确认") {
+    for (const e of evidence.filter(
+      (e2) => !due.sourceId || e2.sourceId === due.sourceId
+    )) {
+      for (const source of sources.filter((s) => s.id === due.sourceId)) {
+        const full = normalize(source.text).replace(/[^\S\n]+/g, "");
+        const quote = normalize(e.quote).replace(/\s+/g, "");
+        const at = quote ? full.indexOf(quote) : -1;
+        if (at >= 0) {
+          const bound = anchorContext(full.slice(at), anchor);
+          if (bound) contexts.push(bound);
+        }
+      }
+      const scoped = anchorContext(e.quote, anchor);
+      if (scoped) contexts.push(scoped);
+      else if ((normalize(e.quote).match(/\d{1,2}\s*(?:[:点时])/g) || []).length === 1)
+        contexts.push(e.quote);
+    }
+    for (const source of sources.filter((s) => s.id === due.sourceId)) {
+      const scoped = anchorContext(source.text, anchor);
+      if (scoped) contexts.push(scoped);
+    }
+  }
+  contexts.push(anchor);
+  for (const text of contexts) {
+    const exact = clock(text);
+    if (exact) {
+      const { timeInferred, timeReason, ...rest } = due;
+      return applyClock(rest, exact);
+    }
+  }
+  for (const source of sources.filter((s) => s.id === due.sourceId)) {
+    const text = normalize(source.text);
+    const clocks = text.match(/\b\d{1,2}(?::\d{2})?\s*[ap]m\b|\d{1,2}\s*(?:[:点时])/gi) || [];
+    const dates = text.match(
+      /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g
+    ) || [];
+    const parsed = clock(text);
+    if (anchor !== "人工确认" && clocks.length === 1 && dates.length <= 1 && parsed && text.replace(/\s+/g, "").includes(normalize(anchor).replace(/\s+/g, ""))) {
+      return {
+        ...applyClock(due, parsed),
+        timeInferred: true,
+        timeReason: `从同一来源的时刻推定为 ${parsed.time}，可手动修改`
+      };
+    }
+  }
+  if (validTime(due == null ? void 0 : due.time)) return due;
+  for (const text of contexts) {
+    const guessed = clock(text, true);
+    if (guessed) return applyClock(due, guessed);
+  }
+  for (const text of contexts) {
+    const part = String(text).match(
+      /凌晨|午夜|清晨|早晨|早上|上午|中午|下午|午后|傍晚|晚上|夜晚|晚间|夜里|今晚|明晚|今早|明早/
+    );
+    if (part) {
+      const time = /凌晨|午夜/.test(part[0]) ? "00:00" : /中午/.test(part[0]) ? "12:00" : /下午|午后/.test(part[0]) ? "15:00" : /傍晚/.test(part[0]) ? "18:00" : /晚|夜/.test(part[0]) ? "20:00" : "09:00";
+      return {
+        ...due,
+        ...inferred(
+          time,
+          `原文只写了“${part[0]}”，按 ${time} 安排，可手动修改`
+        )
+      };
+    }
+  }
+  return {
+    ...due,
+    ...inferred("23:59", "未指定时刻，按截止日 23:59 安排，可手动修改")
+  };
+}
+function itemDeadlineTime(item, sources = [], chat = []) {
+  const recoverCardClock = (due) => {
+    if (!due.timeInferred) return due;
+    const times = [item.title, item.summary, ...item.facts || []].flatMap((text) => String(text || "").split(/[。；;\n，,！？]/)).map((text) => clock(text, true)).filter(Boolean);
+    const unique = [...new Set(times.map((value) => value.time))];
+    if (unique.length !== 1) return due;
+    const { timeInferred, timeReason, ...base } = due;
+    return applyClock(base, times[0]);
+  };
+  const context = [
+    ...sources,
+    ...chat.filter((e) => e.role === "user").slice().reverse().map((e) => ({ id: "item-chat", name: "事项对话", text: e.text }))
+  ];
+  if (item.due)
+    return recoverCardClock(
+      resolveDeadlineTime(item.due, item.evidence || [], context)
+    );
+  const ids = [
+    .../* @__PURE__ */ new Set([
+      ...item.sourceIds || [],
+      ...(item.evidence || []).map((e) => e.sourceId),
+      ...chat.length ? ["item-chat"] : []
+    ])
+  ];
+  const candidates = (ids.length ? ids : [""]).map(
+    (sourceId) => resolveDeadlineTime(
+      { date: "", time: "", anchor: "", sourceId },
+      item.evidence || [],
+      context
+    )
+  );
+  const rank = (d) => {
+    var _a;
+    return !d.timeInferred ? 0 : ((_a = d.timeReason) == null ? void 0 : _a.startsWith("未指定时刻")) ? 2 : 1;
+  };
+  return recoverCardClock(candidates.sort((a, b) => rank(a) - rank(b))[0]);
+}
+
 // shared/bucket-engine.mjs
 var compact = (value) => String(value).replace(/\s+/g, "").normalize("NFKC");
 function validDate(value) {
@@ -177,44 +412,6 @@ function shiftDate(today, days) {
   const date = /* @__PURE__ */ new Date(today + "T12:00:00Z");
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
-}
-function groundedTime(text) {
-  const digits = {
-    零: 0,
-    "〇": 0,
-    一: 1,
-    二: 2,
-    两: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8,
-    九: 9
-  };
-  const numeral = (value) => {
-    if (value === "十") return 10;
-    if (value.includes("十")) {
-      const [a, b] = value.split("十");
-      return (a ? digits[a] : 1) * 10 + (b ? digits[b] : 0);
-    }
-    return digits[value];
-  };
-  const normalized = text.replace(
-    /[零〇一二两三四五六七八九十]{1,3}(?=\s*[点时])/g,
-    (m) => String(numeral(m))
-  );
-  const match = normalized.match(
-    /(凌晨|早上|上午|中午|下午|晚上|晚间)?\s*(\d{1,2})\s*(?:[:：]\s*(\d{2})|[点时]\s*(半|\d{1,2}分?)?)/
-  );
-  if (!match) return "";
-  let hour = Number(match[2]), minute = match[3] ? Number(match[3]) : match[4] === "半" ? 30 : parseInt(match[4] || "0");
-  if (!match[1] && !match[3] && hour < 12) return "";
-  if (/下午|晚上|晚间/.test(match[1] || "") && hour < 12) hour += 12;
-  if (match[1] === "中午" && hour < 11) hour += 12;
-  if (match[1] === "凌晨" && hour === 12) hour = 0;
-  return hour < 24 && minute < 60 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
 }
 function groundedDate(anchor, today) {
   if (!validDate(today)) return "";
@@ -226,7 +423,7 @@ function groundedDate(anchor, today) {
     return validDate(date) ? date : "";
   }
   const relative2 = anchor.match(
-    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日/
+    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚/
   );
   if (relative2)
     return shiftDate(
@@ -240,7 +437,13 @@ function groundedDate(anchor, today) {
         后天: 2,
         明天: 1,
         今天: 0,
-        今日: 0
+        今日: 0,
+        明早: 1,
+        明晚: 1,
+        今早: 0,
+        今晚: 0,
+        昨早: -1,
+        昨晚: -1
       }[relative2[0]]
     );
   const week = anchor.match(
@@ -260,7 +463,7 @@ function groundedDate(anchor, today) {
 }
 
 // shared/deadlines.mjs
-var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
+var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
 function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "", previousEnd = 0;
@@ -272,16 +475,26 @@ function absoluteText(text, day) {
     previousWeek = isWeek ? (scoped == null ? void 0 : scoped[1]) || (coordinated ? previousWeek : "") : "";
     previousEnd = offset + token.length;
     const date = groundedDate(anchor, day);
-    return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") : token;
+    return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") + (/晚$/.test(token) ? "晚上" : /早$/.test(token) ? "早上" : "") : token;
   });
 }
-function absoluteItem(item, day) {
+function absoluteItem(item, day, sources = [], chat = []) {
+  const context = [
+    ...sources,
+    ...chat.filter((e) => e.role === "user").slice().reverse().map((e) => ({ id: "item-chat", name: "事项对话", text: e.text }))
+  ];
   return {
     ...item,
+    due: item.due ? itemDeadlineTime(item, context) : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),
-    nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day))
+    nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day)),
+    uncertainties: (item.uncertainties || []).filter(
+      (text) => text.includes("日期") || !/(?:时刻|几点|具体时间).*(?:未知|不明|未明确|未指定|未给出|需核对)|(?:没有|未指定|未给出|未明确|缺少|未自动填入).*(?:时刻|几点|具体时间)/.test(
+        text
+      )
+    )
   };
 }
 function parseDeadline(text, day, time = "") {
@@ -290,12 +503,12 @@ function parseDeadline(text, day, time = "") {
   if (!date) throw new Error("请输入明确日期，例如 2026-10-29 或明天下午三点");
   if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))
     throw new Error("时刻格式应为 HH:mm");
-  return {
+  return resolveDeadlineTime({
     date,
-    time: time || groundedTime(text),
+    time,
     anchor: [text, time].filter(Boolean).join(" "),
     sourceId: "manual"
-  };
+  });
 }
 function setDeadline(item, due, captureDay) {
   const result = absoluteItem(item, captureDay);
@@ -316,7 +529,7 @@ function setDeadline(item, due, captureDay) {
     result.facts = result.facts.map(replace);
     result.nextSteps = result.nextSteps.map(replace);
   }
-  return { ...result, due };
+  return { ...result, due: due ? resolveDeadlineTime(due) : null };
 }
 function deadlineSections(rows, day, nowTime, days = 7) {
   var _a;
@@ -376,11 +589,11 @@ function clean(value) {
 }
 function cardCopy(item) {
   const title = clean(item.title);
-  const normalize = (value) => clean(value).replace(/[\s，。；：、,.!！?？]/g, "");
-  const titleKey = normalize(title);
+  const normalize2 = (value) => clean(value).replace(/[\s，。；：、,.!！?？]/g, "");
+  const titleKey = normalize2(title);
   const candidates = [item.summary, ...item.facts].map(clean).filter(Boolean);
   const summary = candidates.find(
-    (value) => normalize(value) !== titleKey && !titleKey.startsWith(normalize(value))
+    (value) => normalize2(value) !== titleKey && !titleKey.startsWith(normalize2(value))
   ) || "";
   const clauses = summary.split(/(?<=[。；;])/).filter(
     (clause) => !/^(?:原文(?:另)?(?:注明|标注|明确|把它列为)|具体日期(?:没有|尚未)|[^，。；]{0,8}(?:尚未确定|未指定具体时刻))/.test(

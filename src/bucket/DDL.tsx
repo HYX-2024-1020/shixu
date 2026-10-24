@@ -1,3 +1,4 @@
+import { itemDeadlineTime } from "../../shared/deadline-time.mjs";
 import { useEffect, useRef, useState } from "react";
 import {
   absoluteItem,
@@ -49,8 +50,10 @@ export default function DDL({
     (p.result?.items || []).map((raw, index) => {
       const id = p.itemIds?.[index] || `${p.id}:${index}`;
       const meta = p.itemState?.[id] || {};
-      const item = absoluteItem(raw, p.captureDate);
+      const item = absoluteItem(raw, p.captureDate, p.sources, meta.chat);
+      const clockInfo = itemDeadlineTime(item, p.sources, meta.chat);
       return {
+        clockInfo,
         id,
         index,
         p,
@@ -58,7 +61,7 @@ export default function DDL({
         meta,
         kind: item.kind,
         date: item.due?.date || "",
-        time: item.due?.time || "",
+        time: clockInfo.time,
         done: meta.status === "done" || p.doneIds.includes(index),
         deleted: p.deletedAt || meta.deletedAt,
       };
@@ -140,7 +143,7 @@ export default function DDL({
           onClick={() => setOpen(open === id ? "" : id)}
         >
           <span>{row.date || "日期待确认"}</span>
-          <b>{row.time || "具体时刻未知"}</b>
+          <b>{row.time || "23:59"}</b>
           <small>核对时间 ↗</small>
         </button>
         <div className="ddl-body">
@@ -182,6 +185,11 @@ export default function DDL({
           {open === id && (
             <div className="ddl-panel">
               <h4>完整要求 · 时间依据</h4>
+              {row.clockInfo.timeInferred && (
+                <p className="ddl-time-inference">
+                  安排时刻：{row.clockInfo.timeReason}
+                </p>
+              )}
               {item.facts.map((fact, i) => (
                 <p key={i}>{fact}</p>
               ))}
@@ -222,7 +230,7 @@ export default function DDL({
                   />
                 </label>
                 <label>
-                  时刻（留空为未知）
+                  时刻（留空按 23:59 安排）
                   <input
                     type="time"
                     name="time"
@@ -259,7 +267,7 @@ export default function DDL({
             <br />
             一眼<span>看清。</span>
           </h1>
-          <p>截止时间从原文提取，点一下时间就能核对依据、手动修正。</p>
+          <p>优先采用原文时刻；未写时刻也会安排，点一下可核对、修改。</p>
         </div>
       </header>
       <div className="ddl-stats">
@@ -414,7 +422,7 @@ export default function DDL({
             />
           </label>
           <label>
-            截止时刻（可留空）
+            截止时刻（留空自动安排）
             <input name="time" type="time" />
           </label>
           <label>

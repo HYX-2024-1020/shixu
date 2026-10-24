@@ -12,6 +12,7 @@ const outputs = new Map();
 const bundled = await build({
   stdin: {
     contents: `export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
+    export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
     export { compareItems } from './src/bucket/management';
     export { cardCopy } from './src/bucket/card-copy';

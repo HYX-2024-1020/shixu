@@ -188,9 +188,14 @@ function Results({
   const searchTerm = query.toLowerCase();
   const rows = packets.flatMap((p) =>
     (p.result?.items || []).map((rawItem, index) => {
-      const item = absoluteItem(rawItem, p.captureDate);
       const id = p.itemIds?.[index] || `${p.id}:${index}`,
         storedMeta = p.itemState?.[id] || {};
+      const item = absoluteItem(
+        rawItem,
+        p.captureDate,
+        p.sources,
+        storedMeta.chat,
+      );
       const meta = {
         ...storedMeta,
         group:

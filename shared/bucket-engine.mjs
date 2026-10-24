@@ -1,5 +1,7 @@
 // Shared by the browser and personal server. No credentials or user content is logged.
 import { absoluteItem, absoluteText } from "./deadlines.mjs";
+import { groundedTime, resolveDeadlineTime } from "./deadline-time.mjs";
+export { groundedTime };
 import { normalizeUsage, estimateCost } from "./usage.mjs";
 export const DEEPSEEK_ORIGIN = "https://api.deepseek.com";
 export const DEFAULT_MODEL = "deepseek-flash";
@@ -55,52 +57,6 @@ function shiftDate(today, days) {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
-export function groundedTime(text) {
-  const digits = {
-    零: 0,
-    〇: 0,
-    一: 1,
-    二: 2,
-    两: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8,
-    九: 9,
-  };
-  const numeral = (value) => {
-    if (value === "十") return 10;
-    if (value.includes("十")) {
-      const [a, b] = value.split("十");
-      return (a ? digits[a] : 1) * 10 + (b ? digits[b] : 0);
-    }
-    return digits[value];
-  };
-  const normalized = text.replace(
-    /[零〇一二两三四五六七八九十]{1,3}(?=\s*[点时])/g,
-    (m) => String(numeral(m)),
-  );
-  const match = normalized.match(
-    /(凌晨|早上|上午|中午|下午|晚上|晚间)?\s*(\d{1,2})\s*(?:[:：]\s*(\d{2})|[点时]\s*(半|\d{1,2}分?)?)/,
-  );
-  if (!match) return "";
-  let hour = Number(match[2]),
-    minute = match[3]
-      ? Number(match[3])
-      : match[4] === "半"
-        ? 30
-        : parseInt(match[4] || "0");
-  // “三点” does not tell us whether it is 03:00 or 15:00.
-  if (!match[1] && !match[3] && hour < 12) return "";
-  if (/下午|晚上|晚间/.test(match[1] || "") && hour < 12) hour += 12;
-  if (match[1] === "中午" && hour < 11) hour += 12;
-  if (match[1] === "凌晨" && hour === 12) hour = 0;
-  return hour < 24 && minute < 60
-    ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
-    : "";
-}
 export function groundedDate(anchor, today) {
   if (!validDate(today)) return "";
   anchor = compact(anchor);
@@ -111,7 +67,7 @@ export function groundedDate(anchor, today) {
     return validDate(date) ? date : "";
   }
   const relative = anchor.match(
-    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日/,
+    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚/,
   );
   if (relative)
     return shiftDate(
@@ -126,6 +82,12 @@ export function groundedDate(anchor, today) {
         明天: 1,
         今天: 0,
         今日: 0,
+        明早: 1,
+        明晚: 1,
+        今早: 0,
+        今晚: 0,
+        昨早: -1,
+        昨晚: -1,
       }[relative[0]],
     );
   const week = anchor.match(
@@ -184,10 +146,11 @@ export function validateResult(value, sources, today) {
         compact(source.text).includes(compact(anchor));
       const definite = belongs ? groundedDate(anchor, today) : "";
       if (definite) {
-        const time = groundedTime(anchor);
-        due = { date: definite, time, anchor, sourceId: source.id };
-        if (item.due.time && !time)
-          uncertainties.push("原文时刻需核对，未自动填入具体时间");
+        due = resolveDeadlineTime(
+          { date: definite, time: "", anchor, sourceId: source.id },
+          evidence,
+          sources,
+        );
       } else if (anchor) {
         uncertainties.push(`日期还不明确：${anchor}`);
       } else if (item.due.date) {
@@ -212,6 +175,7 @@ export function validateResult(value, sources, today) {
         group: clean(item.group, 80),
       },
       today,
+      sources,
     );
   });
   // Exact duplicates can occur where chunks overlap. Retain distinct items sharing a file.
@@ -244,7 +208,7 @@ const SYSTEM = `你是一个只服务一位大学生的“收纳桶”。用户�
 拆分边界：task必须有独立的实际行动要求；event记录会议/活动本身，不把参加活动额外复制成相同任务；habit须来自想长期重复坚持的意愿，不把一次作业变成习惯；notice保留必要的通知背景，只在与实际行动信息有区别时另列，和任务共享来源即可；note承载可回看的资料，不能把每个附件文件名机械生成一条。无法判断归other并说明。相同标题不代表同一任务，只有同一行动与原文依据一致才去重；同一课程的不同作业只是相关，不能互相覆盖。
 链接只作为用户提供的链接文字处理；当前没有抓取网页，不得假装读过 URL 指向的正文。
 灵感可以丰满：把推测、可尝试方向和小步验证放到nextSteps，绝不能把你补充的建议当成原文事实。习惯同理：没有明确频率时可以建议一个轻量起点，但不得编造用户已承诺的频率。facts只收录原文事实。
-日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天/昨天/前天、明确周几（包括上周/下周）才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。
+日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天/昨天/前天、明确周几（包括上周/下周）才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
 每一条必须至少有一个evidence，quote必须是该来源的连续原文摘录，不得自己概括。涉及附件要求的任务必须引用附件的相应原文，必要时同时引用输入文字。若依据不足，少输出，不胡编。
 卡片文案：title用简短的动作与对象抓住核心，通常12至24个汉字，不加“待办”“需要确认”“根据原文”等前缀；summary用一至两句概括最重要的要求或信息，通常24至50个汉字，不重复标题，不堆文件名，不罗列缺失信息，不催促用户补充。完整的格式、材料、地点、评分要求仍必须保留在facts中，不能为了缩短卡片删掉事实。缺少信息只在uncertainties中客观记录，不凭空新增核对任务。
 只返回JSON对象，不使用Markdown围栏。输出示例结构：
