@@ -187,3 +187,5 @@
 开发隔离目录保留为 C:/Users/No Choice/Documents/vibecoding/forgettable_TOOL/shixu-card-motion；主工作区并行皮肤/同步/小程序改动须保留，不能用本轮快照覆盖。外部 QQ/微信/资源管理器实际载荷验收仍是历史待验，内部卡片拖动回归不替代它。
 
 - GitHub main 已要求 PR、squash、线性历史和 GitHub Actions 的 `Required checks`；不要再次直接 push main，也不要改保护规则绕过检查。本轮 PR：https://github.com/HYX-2024-1020/shixu/pull/4 。CI 原验证任务改用规则要求的显示名，全部原构建/测试步骤保留。
+
+- PR 必需检查发现早期网页用例仍依赖已移除的 packet/group 回执布局；已改成当前卡片、按需整理记录和直接预览入口，保留混合输入、备份/密钥隔离、用量/余额、离线恢复、损坏文件原件、示例隔离、删除竞态、跨日关联/重复/拆组等验证，不跳过失败用例。桌面浏览器九项已通过，其余尺寸/WebKit 和云端继续验证。
