@@ -31,11 +31,11 @@ test("Apple touch layout, install guidance and original files survive restart", 
   await expect(
     d.getByLabel("预览 老师通知.txt", { exact: true }),
   ).toContainText("周五提交，附上源代码。");
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
   await d.getByLabel("关闭整理记录", { exact: true }).click();
   await expect(d).toHaveCount(0);
   await page.getByRole("button", { name: "连接与设置" }).click();
@@ -55,11 +55,11 @@ test("grouped cards remain usable in narrow Apple multitasking windows", async (
   await check.tap();
   await expect(page.locator(".result-card:visible")).toHaveCount(1);
   await page.setViewportSize({ width: 375, height: 667 });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
   await page.reload();
   await world(page);
   await page.getByLabel("结果范围").selectOption("done");
