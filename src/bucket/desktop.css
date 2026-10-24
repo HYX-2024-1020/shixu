@@ -455,7 +455,8 @@
   font-weight: 750;
   color: #615741;
 }
-.result-card .completion-orbit {
+.result-card .completion-orbit,
+.ddl-item .completion-orbit {
   width: 25px;
   height: 25px;
   display: grid;
@@ -471,7 +472,8 @@
   background: #ffd43b;
 }
 @media (hover: none) and (pointer: coarse) {
-  .result-card .completion-orbit {
+  .result-card .completion-orbit,
+  .ddl-item .completion-orbit {
     width: 44px;
     height: 44px;
   }

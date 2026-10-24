@@ -1,4 +1,5 @@
 import { itemDeadlineTime } from "../../shared/deadline-time.mjs";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   absoluteItem,
@@ -149,7 +150,8 @@ export default function DDL({
         <div className="ddl-body">
           <div className="ddl-row">
             <button
-              className="ddl-check"
+              className="completion-orbit"
+              aria-pressed={row.done}
               disabled={busy}
               aria-label={`${row.done ? "撤销完成" : "标记完成"}：${item.title}`}
               onClick={() =>
@@ -159,7 +161,7 @@ export default function DDL({
                 })
               }
             >
-              {row.done ? "✓" : "○"}
+              {row.done && <Check size={19} />}
             </button>
             <button
               className="ddl-copy"

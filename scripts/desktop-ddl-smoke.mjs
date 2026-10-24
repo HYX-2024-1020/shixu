@@ -40,6 +40,14 @@ try {
     .waitFor();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
   await page.getByText(/已完成 · 1 项/).click();
+  const completed = page.getByRole("button", { name: /撤销完成/ });
+  assert.equal(await completed.getAttribute("class"), "completion-orbit");
+  assert.equal(await completed.getAttribute("aria-pressed"), "true");
+  await completed.locator("svg").waitFor();
+  assert.equal(
+    await completed.evaluate((node) => getComputedStyle(node).borderRadius),
+    "50%",
+  );
   await page.getByRole("button", { name: /撤销完成/ }).click();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await page
