@@ -171,15 +171,6 @@
   gap: 14px;
   align-items: flex-start;
 }
-.ddl-check {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: 3px solid #111;
-  border-radius: 4px;
-  font-size: 20px;
-  padding: 0;
-}
 .ddl-copy {
   flex: 1;
   min-width: 0;

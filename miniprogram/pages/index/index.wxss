@@ -928,12 +928,7 @@ input {
   padding: 22rpx;
   gap: 20rpx;
 }
-.ddl-check {
-  width: 48rpx;
-  height: 48rpx;
-  line-height: 39rpx;
-  border: 4rpx solid #111;
-  padding: 0;
+.ddl-row .done-button {
   flex: none;
   margin: 0;
 }

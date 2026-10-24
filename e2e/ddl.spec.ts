@@ -116,6 +116,11 @@ test("DDL manual input resolves once, shares world state, edits and survives res
   );
   await card.getByRole("button", { name: /标记完成/ }).click();
   await ddl.getByText(/已完成 · 1 项/).click();
+  const completed = ddl.getByRole("button", { name: /撤销完成/ });
+  await expect(completed).toHaveAttribute("aria-pressed", "true");
+  await expect(completed).toHaveClass("completion-orbit");
+  await expect(completed.locator("svg")).toBeVisible();
+  await expect(completed).toHaveCSS("border-radius", "50%");
   await ddl.getByRole("button", { name: /撤销完成/ }).click();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(
