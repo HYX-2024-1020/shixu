@@ -17,6 +17,8 @@ export interface Attachment {
   blob?: Blob;
 }
 export interface Packet {
+  syncVersion?: number;
+  syncAutoOrganize?: boolean;
   receipt?: {
     created: number;
     updated: number;

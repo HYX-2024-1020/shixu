@@ -1,6 +1,15 @@
 interface Window {
   flushDesktopDraft?: () => Promise<void>;
   desktop?: {
+    cloud(
+      action: string,
+      value?: unknown,
+    ): Promise<{
+      base: string;
+      pending: number;
+      conflicts: { id: string; text: string }[];
+      error: string;
+    }>;
     store(method: string, value?: unknown): Promise<any>;
     key(
       action: "read" | "save" | "remove",

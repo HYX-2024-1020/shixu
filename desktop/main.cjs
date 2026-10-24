@@ -15,6 +15,7 @@ const {
 } = require("electron");
 const { externalWebUrl } = require("./external.cjs");
 const fs = require("node:fs/promises");
+const { CloudWorkspace } = require("./cloud.cjs");
 const { DesktopStore } = require("./storage.cjs");
 const { exportBackup, importBackup } = require("./backup.cjs");
 const { readArchive } = require("./archive.cjs");
@@ -75,6 +76,14 @@ else {
       const store = new DesktopStore(
         path.join(app.getPath("userData"), "workspace"),
       );
+      const cloud = new CloudWorkspace({
+        root: path.join(app.getPath("userData"), "cloud"),
+        local: store,
+        seal: (value) => safeStorage.encryptStringAsync(value),
+        unseal: async (bytes) =>
+          (await safeStorage.decryptStringAsync(bytes)).result,
+      });
+      await cloud.init();
       await store.cleanup();
       const cleanupTimer = setInterval(
         () => store.cleanup().catch(() => {}),
@@ -88,11 +97,17 @@ else {
         )
           throw new Error("来源无效");
       };
-      ipcMain.handle("store", async (event, method, value) => {
+      ipcMain.handle("workspace", (event) => {
         validSender(event);
-        return method === "cleanup"
-          ? store.cleanup()
-          : store.call(method, value);
+        return cloud.config.active;
+      });
+      ipcMain.handle("cloud", async (event, action, value) => {
+        validSender(event);
+        return cloud.action(action, value);
+      });
+      ipcMain.handle("store", async (event, method, value, lease) => {
+        validSender(event);
+        return cloud.serial(() => cloud.call(method, value, lease));
       });
       ipcMain.handle("archive", async (event, bytes, extension) => {
         validSender(event);
@@ -128,6 +143,10 @@ else {
       });
       ipcMain.handle("backup", async (event, action) => {
         validSender(event);
+        if (cloud.config.active)
+          throw new Error(
+            "请先切回本机资料再使用本机备份；云端队列与缓存仍保留在独立空间",
+          );
         if (action === "export") {
           const result = await dialog.showSaveDialog(mainWindow, {
             title: "备份拾序资料",

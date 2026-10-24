@@ -54,6 +54,10 @@ outputs.set(
       ai.outputFiles[0].text,
   ),
 );
+outputs.set(
+  "desktop/generated/sync-client.cjs",
+  await readFile(path.join(root, "miniprogram/lib/sync-client.js")),
+);
 const renderer = await build({
   stdin: {
     contents: `import React from 'react'; import { renderToStaticMarkup } from 'react-dom/server';
