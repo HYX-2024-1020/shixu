@@ -1,5 +1,16 @@
 {
   "name": "shixu",
+  "license": "MIT",
+  "engines": {
+    "node": "24.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HYX-2024-1020/shixu.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HYX-2024-1020/shixu/issues"
+  },
   "private": true,
   "version": "0.3.6",
   "type": "module",

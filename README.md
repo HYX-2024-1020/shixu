@@ -1,8 +1,15 @@
 # 拾序 Shixu
 
+[![Verify](https://github.com/HYX-2024-1020/shixu/actions/workflows/ci.yml/badge.svg)](https://github.com/HYX-2024-1020/shixu/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **一个，什么都能放的桶。**
 
 把老师的通知和附件、几句灵感、想坚持的习惯放进同一个输入框，点“丢进去”。DeepSeek 自动分类、提炼要求、关联原文件，补充可选的下一步建议。无需先选分类、建项目或填写日期表单。
+
+[下载安装包](https://github.com/HYX-2024-1020/shixu/releases) · [报告问题](https://github.com/HYX-2024-1020/shixu/issues/new/choose) · [参与贡献](CONTRIBUTING.md) · [安全报告](SECURITY.md#报告安全问题) · [第三方许可与来源](THIRD_PARTY_NOTICES.md)
+
+本项目采用 **Issue → 任务分支 → 验证 → PR → squash merge** 的开发流程。仓库修改须遵守 [贡献规范](CONTRIBUTING.md)，AI 开发代理须遵守 [AGENTS.md](AGENTS.md)；GitHub 规则配置与验证方法见 [仓库治理说明](docs/repository-governance.md)。
 
 ## Windows 桌面版 0.3.6
 
