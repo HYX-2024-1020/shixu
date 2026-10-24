@@ -10,13 +10,14 @@ const { createSyncClient } = createRequire(import.meta.url)(
 );
 const passphrase = "fixture-sync-only-passphrase";
 
-async function fixture(t) {
+async function fixture(t, ai = null) {
   const directory = mkdtempSync(join(tmpdir(), "shixu-sync-test-"));
   let service, base;
   const start = async () => {
     service = createSyncService({
       database: join(directory, "sync.sqlite"),
       password: passphrase,
+      ai,
     });
     await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
     base = `http://127.0.0.1:${service.server.address().port}`;
@@ -234,7 +235,13 @@ test("deletion and permanent deletion block stale writes, restore, and replay di
   const { epoch } = await f.request(a.token, "GET", "/api/v2/status");
   const creation = {
     epoch,
-    operation: { id: "delete-a", opId: "create-op", type: "put", baseVersion: 0, data: packet("delete-a") },
+    operation: {
+      id: "delete-a",
+      opId: "create-op",
+      type: "put",
+      baseVersion: 0,
+      data: packet("delete-a"),
+    },
   };
   await f.request(a.token, "POST", "/api/v2/operations", creation);
   await first.sync();
@@ -269,7 +276,12 @@ test("deletion and permanent deletion block stale writes, restore, and replay di
   );
   await second.sync();
   assert.equal(second.conflicts()[0].local.data.text, "旧设备保存");
-  const replay = await f.request(a.token, "POST", "/api/v2/operations", creation);
+  const replay = await f.request(
+    a.token,
+    "POST",
+    "/api/v2/operations",
+    creation,
+  );
   assert.equal(replay.replayed, true);
   assert.equal(replay.record.data, null);
 });
@@ -397,4 +409,238 @@ test("repeated bad passwords are rate limited and service requires a nonempty st
       (e) => e.code === "BAD_PASSWORD",
     );
   await assert.rejects(f.device("too many"), (e) => e.code === "LOGIN_LIMIT");
+});
+
+const syntheticResult = {
+  summary: "合成测试",
+  warnings: [],
+  items: [
+    {
+      kind: "task",
+      title: "合成事项",
+      summary: "报告",
+      facts: ["原文"],
+      nextSteps: [],
+      uncertainties: [],
+      evidence: [],
+      sourceIds: ["input"],
+      due: null,
+    },
+  ],
+};
+async function waitJob(
+  f,
+  token,
+  id,
+  states = ["done", "error", "conflict", "interrupted"],
+) {
+  for (let i = 0; i < 200; i++) {
+    const job = await f.request(token, "GET", `/api/v2/jobs/${id}`);
+    if (states.includes(job.state)) return job;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail("job did not settle");
+}
+async function prepareJob(f, token, id = "job-source") {
+  const client = f.client(token).instance,
+    p = packet(id);
+  p.result = null;
+  p.status = "pending";
+  p.itemState = {};
+  p.itemIds = [];
+  client.put(id, p);
+  await client.sync();
+  const record = client.records()[0],
+    status = await f.request(null, "GET", "/api/v2/status");
+  return {
+    client,
+    request: {
+      id: "organize-1",
+      packetId: id,
+      kind: "organize",
+      baseVersion: record.version,
+      epoch: status.epoch,
+    },
+  };
+}
+test("AI requires explicit server configuration, authentication and compatible epoch", async (t) => {
+  const f = await fixture(t),
+    device = await f.device("mini");
+  await assert.rejects(
+    f.request(null, "POST", "/api/v2/jobs", {}),
+    (e) => e.status === 401,
+  );
+  await assert.rejects(
+    f.request(device.token, "POST", "/api/v2/jobs", {}),
+    (e) => e.code === "AI_NOT_READY",
+  );
+  assert.equal(
+    (await f.request(null, "GET", "/api/v2/status")).capabilities.aiOrganize,
+    false,
+  );
+});
+test("durable AI jobs deduplicate lost acknowledgements and sync real results to both clients", async (t) => {
+  let calls = 0;
+  const f = await fixture(t, {
+      organize: async () => {
+        calls++;
+        return { result: structuredClone(syntheticResult) };
+      },
+    }),
+    device = await f.device("mini"),
+    other = await f.device("desktop fixture");
+  const { client, request } = await prepareJob(f, device.token);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  assert.equal((await waitJob(f, device.token, request.id)).state, "done");
+  assert.equal(calls, 1);
+  await f.restart();
+  assert.equal(
+    (await f.request(device.token, "POST", "/api/v2/jobs", request)).state,
+    "done",
+  );
+  assert.equal(calls, 1);
+  await client.sync();
+  const second = f.client(other.token).instance;
+  await second.sync();
+  assert.equal(second.records()[0].data.result.items[0].title, "合成事项");
+  assert.equal(client.records()[0].data.status, "ready");
+  await assert.rejects(
+    f.request(device.token, "POST", "/api/v2/jobs", {
+      ...request,
+      packetId: "other",
+    }),
+    (e) => e.code === "JOB_ID_REUSED",
+  );
+});
+test("a paid result cannot overwrite edits made while the model runs", async (t) => {
+  let release;
+  const ready = new Promise((resolve) => (release = resolve));
+  const f = await fixture(t, {
+      organize: async () => {
+        await ready;
+        return { result: structuredClone(syntheticResult) };
+      },
+    }),
+    device = await f.device("mini");
+  const { client, request } = await prepareJob(f, device.token);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  await waitJob(f, device.token, request.id, ["running"]);
+  client.put("job-source", { text: "编辑后的原文" });
+  await client.sync();
+  release();
+  const job = await waitJob(f, device.token, request.id);
+  assert.equal(job.state, "conflict");
+  assert.equal(job.output.result.items[0].title, "合成事项");
+  await client.sync();
+  assert.equal(client.records()[0].data.text, "编辑后的原文");
+  assert.equal(client.records()[0].data.result, null);
+});
+test("item AI chat preserves evidence, sibling items, manual notes and conversation", async (t) => {
+  const f = await fixture(t, {
+      chat: async () => ({
+        reply: "已改为进行中",
+        patch: { status: "progress", title: "新的标题" },
+      }),
+    }),
+    device = await f.device("mini"),
+    c = f.client(device.token).instance;
+  c.put("packet-a", packet("packet-a"));
+  await c.sync();
+  const before = c.records()[0];
+  const status = await f.request(null, "GET", "/api/v2/status");
+  const request = {
+    id: "chat-1",
+    kind: "chat",
+    packetId: before.id,
+    itemId: "task-1",
+    instruction: "改为进行中并改标题",
+    baseVersion: before.version,
+    epoch: status.epoch,
+  };
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  assert.equal((await waitJob(f, device.token, "chat-1")).state, "done");
+  await c.sync();
+  const data = c.records()[0].data;
+  assert.equal(data.result.items[0].title, "新的标题");
+  assert.equal(data.itemState["task-1"].status, "progress");
+  assert.equal(data.itemState["task-1"].chat.length, 3);
+  assert.equal(data.futureField.preserved, true);
+});
+test("permanent deletion redacts job content even while the model is running", async (t) => {
+  let release;
+  const ready = new Promise((resolve) => (release = resolve));
+  const f = await fixture(t, {
+      organize: async () => {
+        await ready;
+        return { result: structuredClone(syntheticResult) };
+      },
+    }),
+    device = await f.device("mini"),
+    { client, request } = await prepareJob(f, device.token);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  await waitJob(f, device.token, request.id, ["running"]);
+  client.remove("job-source");
+  client.purge("job-source");
+  await client.sync();
+  release();
+  await assert.rejects(
+    f.request(device.token, "GET", `/api/v2/jobs/${request.id}`),
+    (e) => e.status === 404,
+  );
+  await client.sync();
+  assert.equal(client.records()[0].data, null);
+  await f.restart();
+  await assert.rejects(
+    f.request(device.token, "GET", `/api/v2/jobs/${request.id}`),
+    (e) => e.status === 404,
+  );
+});
+test("restarting an in-flight AI job never repeats a possibly billed call", async (t) => {
+  let calls = 0;
+  const f = await fixture(t, {
+      organize: async (_p, signal) => {
+        calls++;
+        return new Promise((_resolve, reject) =>
+          signal.addEventListener("abort", () => reject(Error("aborted")), {
+            once: true,
+          }),
+        );
+      },
+    }),
+    device = await f.device("mini"),
+    { request } = await prepareJob(f, device.token);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  await waitJob(f, device.token, request.id, ["running"]);
+  await f.restart();
+  assert.equal(
+    (await waitJob(f, device.token, request.id)).state,
+    "interrupted",
+  );
+  assert.equal(calls, 1);
+});
+
+test("a late provider rejection after purge does not crash the queue", async (t) => {
+  let rejectModel;
+  const waiting = new Promise((_resolve, reject) => {
+    rejectModel = reject;
+  });
+  const f = await fixture(t, { organize: async () => waiting }),
+    device = await f.device("mini");
+  const { client, request } = await prepareJob(f, device.token);
+  await f.request(device.token, "POST", "/api/v2/jobs", request);
+  await waitJob(f, device.token, request.id, ["running"]);
+  client.remove(request.packetId);
+  client.purge(request.packetId);
+  await client.sync();
+  rejectModel(Error("provider failed after deletion"));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(
+    (await f.request(null, "GET", "/api/v2/status")).application,
+    "shixu-sync",
+  );
+  await assert.rejects(
+    f.request(device.token, "GET", `/api/v2/jobs/${request.id}`),
+    (e) => e.status === 404,
+  );
 });

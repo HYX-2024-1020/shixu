@@ -1,0 +1,15 @@
+{
+  "source": "desktop/shared",
+  "files": {
+    "miniprogram/lib/generated/desktop.js": "c99f0373bcf9e441e517cc48561cc54e4b9f9395f20432d3469a3bb204dc678e",
+    "server/generated/ai-core.mjs": "d9a4904887c54b0c51074f952381ff399795d7234d17b3f8bd3da19bfd84f2d3",
+    "miniprogram/assets/skins/cat.png": "2c0492a3f4213ff42771384ea33b9c6b66b6031df7a0c47450e348905158dd7f",
+    "miniprogram/assets/skins/sprout.png": "b8dbf7a674bd5d9799e403d07c456c3f9254c41aee2f0a50954462716f87d423",
+    "miniprogram/assets/skins/robot.png": "7b5eb703951740d8e0c6a3cff472f6e141a9622f587e2065b94c130cccc0ce3c",
+    "miniprogram/assets/skins/ghost.png": "da074e8efaf2b03265338a59a46d6c0acd06cc5ef17b74e626867f275647f33d",
+    "miniprogram/assets/skins/rabbit.png": "19a5f2b2d0307c3bad0b83f44e55503c9676d286bbd831210b032a852d2bba28",
+    "miniprogram/assets/skins/planet.png": "f4e7859dad4dcec6cd52dcc06d89e7d33a283d0ceb2446a702c5335a84b1c9d0",
+    "miniprogram/assets/skins/pudding.png": "7c04ddea96a2c736befdde74abf08b997a8417e7c6efa1f3514a16c4ea0e5464",
+    "miniprogram/assets/mascot.png": "5eef9de3fbe25cc7e69e14a8953b0c301032e7fc9e2fb5fdaae56df99456fa51"
+  }
+}

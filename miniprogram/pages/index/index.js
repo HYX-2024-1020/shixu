@@ -1,5 +1,26 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
+const {
+  createLocalWorkspace,
+  KEY: LOCAL,
+} = require("../../lib/local-workspace");
+const {
+  KINDS,
+  localDay,
+  itemsFor,
+  worldView,
+  statePatch,
+} = require("../../lib/world");
+const {
+  BUILTIN_SKINS,
+  SKIN_MOTIONS,
+  parseSkinCollection,
+  MAX_CUSTOM_SKINS,
+  mergeCardOrder,
+} = require("../../lib/generated/desktop");
+const SKINS = "shixu:mini:skins:v1";
+const FILTERS = "shixu:mini:filters:v1";
+const jobsKey = (base) => `shixu:mini:jobs:v1:${base}`;
 const DRAFT = "shixu:mini:draft:v1";
 const CONNECTION = "shixu:mini:connection:v1";
 const stateKey = (base) => `shixu:mini:workspace:v1:${base}`;
@@ -17,6 +38,8 @@ Page({
     tab: "capture",
     draft: "",
     rows: [],
+    recordPage: 0,
+    recordTotal: 0,
     count: 0,
     pending: 0,
     conflicts: 0,
@@ -30,9 +53,90 @@ Page({
     showDeleted: false,
     expandedId: "",
     updateReady: false,
+    scope: "active",
+    query: "",
+    kind: "all",
+    sort: "priority",
+    dateFilter: "all",
+    starOnly: false,
+    grouped: false,
+    group: "",
+    items: [],
+    sections: [],
+    matched: 0,
+    itemCount: 0,
+    activeCount: 0,
+    doneCount: 0,
+    groups: [],
+    limit: 60,
+    kinds: ["全部类型", ...Object.values(KINDS)],
+    kindKeys: ["all", ...Object.keys(KINDS)],
+    kindIndex: 0,
+    editKinds: Object.values(KINDS),
+    sorts: ["优先处理", "日期", "重要程度", "最新创建", "手动排序"],
+    sortKeys: ["priority", "date", "importance", "created", "custom"],
+    sortIndex: 0,
+    dates: ["全部日期", "今天", "已逾期", "未来七天"],
+    dateKeys: ["all", "today", "overdue", "week"],
+    dateIndex: 0,
+    selected: null,
+    editing: false,
+    editTitle: "",
+    editSummary: "",
+    editGroup: "",
+    editDate: "",
+    editKind: 0,
+    addition: "",
+    manualTitle: "",
+    manualKind: 0,
+    recordsOpen: false,
+    currentCaptureId: "",
+    currentRows: [],
+    localMode: true,
+    localCount: 0,
+    skinOpen: false,
+    skins: [],
+    activeSkin: BUILTIN_SKINS[0],
+    previewSkin: BUILTIN_SKINS[0],
+    skinMessage: BUILTIN_SKINS[0].hello,
+    skinAnimating: false,
+    skinEditor: false,
+    skinForm: {},
+    motionLabels: Object.values(SKIN_MOTIONS),
+    motionKeys: Object.keys(SKIN_MOTIONS),
+    motionIndex: 0,
+    capabilities: {
+      textSync: false,
+      aiOrganize: false,
+      attachments: false,
+      wechatLogin: false,
+    },
+    jobs: [],
+    chatInput: "",
+    jobBusy: false,
+    jobLabels: {
+      submitting: "正在提交",
+      queued: "等待整理",
+      running: "正在整理",
+      applying: "正在保存结果",
+      done: "已完成",
+      error: "未完成",
+      conflict: "有新修改，请核对结果",
+      interrupted: "已中断，请核对后重试",
+    },
   },
   onLoad() {
     try {
+      this._skinCollection = parseSkinCollection(
+        wx.getStorageSync(SKINS) || null,
+      );
+      this._loadSkins();
+      const filters = wx.getStorageSync(FILTERS);
+      if (filters && this.data.sortKeys.includes(filters.sort))
+        this.setData({
+          sort: filters.sort,
+          sortIndex: this.data.sortKeys.indexOf(filters.sort),
+        });
       const savedDraft = wx.getStorageSync(DRAFT);
       this._draftId =
         savedDraft && typeof savedDraft === "object" ? savedDraft.id : null;
@@ -45,6 +149,7 @@ Page({
       const connection = wx.getStorageSync(CONNECTION);
       if (connection && connection.base && connection.token)
         this._activate(connection);
+      else this._activateLocal();
     } catch (error) {
       this._error(error);
     }
@@ -78,32 +183,167 @@ Page({
     this._connection = connection;
     this._transport = transport;
     this._client = client;
-    this.setData({ connected: true, serverUrl: base });
+    const jobs = wx.getStorageSync(jobsKey(base));
+    if (jobs && !Array.isArray(jobs))
+      throw new Error("任务记录无法读取，请保留资料联系开发者");
+    this._jobs = jobs || [];
+    this.setData({
+      connected: true,
+      serverUrl: base,
+      localMode: false,
+      jobs: this._jobViews(this._jobs),
+    });
     this._refresh();
   },
   _refresh() {
     if (!this._client) return;
     const all = this._client.records().filter((row) => !row.purged && row.data);
-    const rows = all
-      .filter((row) => !!row.deletedAt === this.data.showDeleted)
+    const recordRows = all.filter(
+      (row) => !!row.deletedAt === this.data.showDeleted,
+    );
+    const rows = recordRows
       .sort((a, b) =>
         (b.data.capturedAt || "").localeCompare(a.data.capturedAt || ""),
       )
+      .slice(this.data.recordPage * 30, (this.data.recordPage + 1) * 30)
       .map((row) => ({
         id: row.id,
-        text: row.data.text,
-        title: (row.data.text.split("\n")[0] || "文字投递").slice(0, 32),
+        text: (row.data.text || "").slice(0, 600),
+        title: ((row.data.text || "").split("\n")[0] || "文字投递").slice(
+          0,
+          32,
+        ),
         date: row.data.captureDate || "",
         deleted: !!row.deletedAt,
         conflict: !!row.conflict,
         state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
+        hasResult: !!row.data.result,
       }));
+    const view = worldView(this._client.records(), this.data);
+    const selected =
+      this.data.selected &&
+      this._presentDetail(this._detail(this.data.selected.id));
     this.setData({
       rows,
+      recordTotal: recordRows.length,
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
+      items: view.items.map(this._cardView),
+      sections: view.sections.map((s) => ({
+        ...s,
+        items: s.items.map(this._cardView),
+      })),
+      matched: view.matched,
+      itemCount: view.total,
+      activeCount: view.active,
+      doneCount: view.done,
+      groups: view.groups,
+      selected: selected || null,
+      currentRows: all
+        .filter((r) => r.id === this.data.currentCaptureId)
+        .map((r) => ({
+          id: r.id,
+          text: r.data.text,
+          status: r.data.status,
+          error: r.data.error || "",
+          summary: (r.data.result && r.data.result.summary) || "",
+          items: itemsFor([r]).slice(0, 60).map(this._cardView),
+        })),
+      localCount: this._localWorkspace()
+        .records()
+        .filter((r) => !r.purged && !r.deletedAt).length,
     });
+  },
+  _localWorkspace() {
+    return createLocalWorkspace(
+      () => wx.getStorageSync(LOCAL),
+      (value) => wx.setStorageSync(LOCAL, value),
+    );
+  },
+  _cardView(row) {
+    const { item, meta, search, ...view } = row;
+    return {
+      ...view,
+      title: row.title.slice(0, 150),
+      summary: row.summary.slice(0, 220),
+    };
+  },
+  _presentDetail(row) {
+    if (!row) return null;
+    const { meta, search, ...view } = row;
+    return {
+      ...view,
+      sourceText: row.sourceText.slice(0, 20000),
+      sources: row.sources
+        .slice(0, 10)
+        .map((s) => ({ ...s, text: (s.text || "").slice(0, 2000) })),
+      additions: row.additions
+        .slice(-20)
+        .map((a) => ({ ...a, text: a.text.slice(0, 2000) })),
+      chat: row.chat.slice(-16),
+      history: row.history
+        .slice(-20)
+        .map((h) => ({
+          ...h,
+          before: String(h.before || "").slice(0, 1000),
+          after: String(h.after || "").slice(0, 1000),
+        })),
+    };
+  },
+  _activateLocal() {
+    this._client = this._localWorkspace();
+    this._connection = null;
+    this._transport = null;
+    this._jobs = [];
+    this.setData({
+      localMode: true,
+      connected: false,
+      jobs: [],
+      capabilities: {},
+    });
+    this._refresh();
+  },
+  useLocal() {
+    if (this.data.syncing || this.data.connecting || this.data.jobBusy) return;
+    // Remote outbox remains durable under its original service URL.
+    try {
+      wx.setStorageSync(CONNECTION, null);
+      this._activateLocal();
+      this.setData({
+        tab: "capture",
+        notice: "已切换到本机资料，服务端资料及未同步操作仍保留",
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  async importLocal() {
+    if (this.data.localMode || this.data.syncing) return;
+    try {
+      await this.sync();
+      if (this.data.error) return;
+      const local = this._localWorkspace()
+        .records()
+        .filter((r) => !r.purged && !r.deletedAt);
+      const remote = this._client.records();
+      for (const row of local) {
+        const existing = remote.find((r) => r.id === row.id);
+        if (
+          existing &&
+          JSON.stringify(existing.data) !== JSON.stringify(row.data)
+        )
+          throw new Error(
+            "服务中已有不同的同名投递，本机原件仍保留，请核对后再导入",
+          );
+        if (!existing) this._client.put(row.id, row.data);
+      }
+      await this.sync();
+      this.setData({ notice: "导入操作已保存，本机原件保留；以同步状态为准" });
+    } catch (error) {
+      this._error(error);
+    }
+    this._refresh();
   },
   _error(error) {
     this.setData({ error: error.message || "操作未完成，请稍后重试" });
@@ -130,7 +370,7 @@ Page({
     this._refresh();
   },
   toggleDeleted() {
-    this.setData({ showDeleted: !this.data.showDeleted });
+    this.setData({ showDeleted: !this.data.showDeleted, recordPage: 0 });
     this._refresh();
   },
   expand(event) {
@@ -138,7 +378,7 @@ Page({
     this.setData({ expandedId: this.data.expandedId === id ? "" : id });
   },
   async connect() {
-    if (this.data.connecting || this.data.syncing) return;
+    if (this.data.connecting || this.data.syncing || this.data.jobBusy) return;
     this.setData({ connecting: true, error: "", notice: "" });
     try {
       const base = normalizeServiceURL(
@@ -168,6 +408,7 @@ Page({
         deviceId: device.deviceId,
         expiresAt: device.expiresAt,
       };
+      this.setData({ capabilities: status.capabilities || {} });
       this._activate(connection);
       wx.setStorageSync(CONNECTION, connection);
       this.setData({ password: "", notice: "已连接，正在核对资料" });
@@ -179,10 +420,12 @@ Page({
     }
   },
   async sync() {
-    if (!this._client || this.data.syncing) return;
+    if (!this._client || this.data.localMode || this.data.syncing) return;
     this.setData({ syncing: true });
     try {
       const result = await this._client.sync();
+      this.setData({ capabilities: result.capabilities || {} });
+      await this._pollJobs();
       this.setData({
         error: "",
         notice: result.conflicts ? "有修改冲突，本机副本已保留" : "资料已同步",
@@ -195,7 +438,7 @@ Page({
     }
   },
   syncQuietly() {
-    if (this._client) return this.sync();
+    if (this._client && !this.data.localMode) return this.sync();
   },
   submit() {
     if (!this.data.draft.trim()) return;
@@ -226,13 +469,797 @@ Page({
       this._draftId = null;
       this.setData({
         draft: "",
-        notice: "文字已保存；当前预览尚未接入 AI 整理",
+        currentCaptureId: id,
+        notice: this.data.localMode
+          ? "已保存在本机；可手动记成事项，连接后再同步和整理"
+          : "文字已保存，等待整理",
+        skinMessage: this.data.activeSkin.feeding,
+        skinAnimating: true,
       });
       this._refresh();
       this.syncQuietly();
     } catch (error) {
       this._error(error);
     }
+  },
+  _record(id) {
+    return this._client.records().find((r) => r.id === id && !r.purged);
+  },
+  _detail(id) {
+    const row = itemsFor(this._client.records()).find((r) => r.id === id);
+    if (!row) return null;
+    const record = this._record(row.packetId),
+      p = record.data;
+    return {
+      ...row,
+      sourceText: p.text || "",
+      sources: p.sources || [],
+      attachments: p.attachments || [],
+      evidence: (row.item.evidence || []).map((e) => ({
+        ...e,
+        name:
+          ((p.sources || []).find((s) => s.id === e.sourceId) || {}).name ||
+          e.sourceId,
+      })),
+      facts: row.item.facts || [],
+      nextSteps: row.item.nextSteps || [],
+      uncertainties: row.item.uncertainties || [],
+      additions: row.meta.additions || [],
+      history: row.meta.history || [],
+      chat: row.meta.chat || [],
+      checked: (row.meta.checkins || []).includes(localDay()),
+    };
+  },
+  openItem(event) {
+    this.setData({
+      selected: this._presentDetail(
+        this._detail(event.currentTarget.dataset.id),
+      ),
+      editing: false,
+      addition: "",
+      error: "",
+    });
+  },
+  closeItem() {
+    this.setData({ selected: null, editing: false });
+  },
+  stopTap() {},
+  onQuery(event) {
+    this.setData({ query: event.detail.value, limit: 60 });
+    this._refresh();
+  },
+  setScope(event) {
+    const scope = event.currentTarget.dataset.scope;
+    this.setData({ scope, showDeleted: scope === "trash", limit: 60 });
+    this._refresh();
+  },
+  setKind(event) {
+    const i = Number(event.detail.value);
+    this.setData({ kindIndex: i, kind: this.data.kindKeys[i], limit: 60 });
+    this._refresh();
+  },
+  setSort(event) {
+    const i = Number(event.detail.value),
+      sort = this.data.sortKeys[i];
+    try {
+      wx.setStorageSync(FILTERS, { sort });
+      this.setData({ sortIndex: i, sort });
+      this._refresh();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  setDate(event) {
+    const i = Number(event.detail.value);
+    this.setData({
+      dateIndex: i,
+      dateFilter: this.data.dateKeys[i],
+      limit: 60,
+    });
+    this._refresh();
+  },
+  toggleStarFilter() {
+    this.setData({ starOnly: !this.data.starOnly, limit: 60 });
+    this._refresh();
+  },
+  toggleGrouped() {
+    this.setData({ grouped: !this.data.grouped });
+  },
+  setGroup(event) {
+    this.setData({ group: event.currentTarget.dataset.group, limit: 60 });
+    this._refresh();
+  },
+  loadMore() {
+    this.setData({ limit: this.data.limit + 60 });
+    this._refresh();
+  },
+  toggleRecords() {
+    this.setData({ recordsOpen: !this.data.recordsOpen });
+  },
+  recordPage(event) {
+    const next =
+      this.data.recordPage + Number(event.currentTarget.dataset.step);
+    if (next < 0 || next * 30 >= this.data.recordTotal) return;
+    this.setData({ recordPage: next });
+    this._refresh();
+  },
+  _changeItem(id, changes) {
+    const row = itemsFor(this._client.records()).find((r) => r.id === id);
+    if (!row || row.packetDeleted) throw new Error("请先恢复整次投递");
+    const patch = statePatch(this._record(row.packetId).data, row, changes);
+    this._client.put(row.packetId, patch);
+    if (
+      this.data.selected &&
+      this.data.selected.id === id &&
+      patch.itemIds[row.index] !== id
+    )
+      this.setData({
+        selected: { ...this.data.selected, id: patch.itemIds[row.index] },
+      });
+    this._refresh();
+    this.syncQuietly();
+  },
+  toggleDone(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id);
+      this._changeItem(row.id, {
+        status: row.done ? "active" : "done",
+        completedAt: row.done ? "" : new Date().toISOString(),
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  toggleStar(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id);
+      this._changeItem(row.id, { starred: !row.starred });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  togglePin(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id);
+      this._changeItem(row.id, { pinned: !row.pinned });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  progressItem(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id);
+      this._changeItem(row.id, {
+        status: row.progress ? "active" : "progress",
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  removeItem(event) {
+    try {
+      this._changeItem(event.currentTarget.dataset.id, {
+        deletedAt: new Date().toISOString(),
+      });
+      this.closeItem();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  restoreItem(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id);
+      if (row.packetDeleted) this._client.restore(row.packetId);
+      else this._changeItem(row.id, { deletedAt: "" });
+      this._refresh();
+      this.syncQuietly();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  checkin(event) {
+    try {
+      const row = this._detail(event.currentTarget.dataset.id),
+        day = localDay(),
+        old = row.meta.checkins || [];
+      this._changeItem(row.id, {
+        checkins: old.includes(day)
+          ? old.filter((d) => d !== day)
+          : [...old, day],
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  purgeItem(event) {
+    const id = event.currentTarget.dataset.id,
+      row = this._detail(id);
+    if (!row || !row.deleted) return;
+    wx.showModal({
+      title: "永久删除这张事项卡片？",
+      content:
+        "无法撤销。整次投递的原文和其他事项仍保留；删除整次投递请在投递记录中操作。",
+      success: (answer) => {
+        if (!answer.confirm) return;
+        try {
+          if (row.packetDeleted)
+            throw new Error("请在投递记录中恢复整次投递后单独删除卡片");
+          this._changeItem(id, { purgedAt: new Date().toISOString() });
+          this.closeItem();
+        } catch (error) {
+          this._error(error);
+        }
+      },
+    });
+  },
+  purgePacket(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showModal({
+      title: "永久删除整次投递？",
+      content: "此投递的原文、事项和补充都将被删除，无法撤销。",
+      success: (answer) => {
+        if (!answer.confirm) return;
+        try {
+          this._client.purge(id);
+          this._refresh();
+          this.syncQuietly();
+        } catch (error) {
+          this._error(error);
+        }
+      },
+    });
+  },
+  beginEdit() {
+    const row = this.data.selected;
+    if (!row || row.deleted) return;
+    this.setData({
+      editing: true,
+      editTitle: row.item.title,
+      editSummary: row.item.summary || "",
+      editGroup: row.group,
+      editDate: row.date,
+      editKind: Object.keys(KINDS).indexOf(row.kind),
+    });
+  },
+  onEdit(event) {
+    const field = event.currentTarget.dataset.field;
+    if (
+      [
+        "editTitle",
+        "editSummary",
+        "editGroup",
+        "editDate",
+        "addition",
+        "manualTitle",
+        "chatInput",
+      ].includes(field)
+    )
+      this.setData({ [field]: event.detail.value });
+  },
+  onEditKind(event) {
+    this.setData({ editKind: Number(event.detail.value) });
+  },
+  cancelEdit() {
+    this.setData({ editing: false });
+  },
+  saveEdit() {
+    try {
+      const row = this._detail(this.data.selected.id),
+        record = this._record(row.packetId),
+        title = this.data.editTitle.trim();
+      if (!title || title.length > 150) throw new Error("标题应为 1 至 150 字");
+      const date = this.data.editDate;
+      if (
+        date &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          Number.isNaN(Date.parse(date)) ||
+          new Date(date).toISOString().slice(0, 10) !== date)
+      )
+        throw new Error("请输入有效日期，格式为 YYYY-MM-DD");
+      const previous = record.data.result.items[row.index];
+      const next = {
+        ...previous,
+        title,
+        summary: this.data.editSummary.trim(),
+        kind: Object.keys(KINDS)[this.data.editKind],
+        due: date
+          ? {
+              ...previous.due,
+              date,
+              time: row.time || "",
+              anchor: date,
+              sourceId: "manual",
+            }
+          : null,
+      };
+      const history = [
+        ...(row.meta.history || []),
+        ...["title", "summary", "kind", "due"]
+          .filter(
+            (field) =>
+              JSON.stringify(next[field]) !== JSON.stringify(previous[field]),
+          )
+          .map((field) => ({
+            at: new Date().toISOString(),
+            field,
+            before: JSON.stringify(previous[field]),
+            after: JSON.stringify(next[field]),
+            source: "手动编辑",
+          })),
+      ];
+      const result = {
+        ...record.data.result,
+        items: record.data.result.items.map((item, i) =>
+          i === row.index ? next : item,
+        ),
+      };
+      const patch = statePatch(record.data, row, {
+        group: this.data.editGroup.trim(),
+        history,
+        corrected: true,
+      });
+      this._client.put(row.packetId, { ...patch, result });
+      this.setData({ editing: false });
+      this._refresh();
+      this.syncQuietly();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  addNote() {
+    try {
+      const row = this._detail(this.data.selected.id),
+        text = this.data.addition.trim();
+      if (!text) return;
+      this._changeItem(row.id, {
+        additions: [
+          ...(row.meta.additions || []),
+          { id: makeId(), text, at: new Date().toISOString() },
+        ],
+      });
+      this.setData({ addition: "" });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  moveItem(event) {
+    try {
+      const id = event.currentTarget.dataset.id,
+        direction = Number(event.currentTarget.dataset.direction);
+      const full = worldView(this._client.records(), {
+        scope: this.data.scope,
+        sort: "custom",
+        limit: Number.MAX_SAFE_INTEGER,
+      }).items;
+      const visible = worldView(this._client.records(), {
+        ...this.data,
+        sort: "custom",
+        limit: Number.MAX_SAFE_INTEGER,
+      }).items;
+      const row = visible.find((r) => r.id === id),
+        siblings = this.data.grouped
+          ? visible.filter((r) => r.group === row.group)
+          : visible;
+      const index = siblings.findIndex((r) => r.id === id),
+        target = index + direction;
+      if (target < 0 || target >= siblings.length) return;
+      [siblings[index], siblings[target]] = [siblings[target], siblings[index]];
+      // mergeCardOrder needs the original visible slots, independent of the reordered copy.
+      const reordered = mergeCardOrder(
+        full.map((r) => r.id),
+        full
+          .filter((r) => siblings.some((s) => s.id === r.id))
+          .map((r) => r.id),
+        siblings.map((r) => r.id),
+      );
+      const packetPatches = new Map();
+      reordered.forEach((itemId, order) => {
+        const moved = full.find((r) => r.id === itemId),
+          previous = packetPatches.get(moved.packetId) || {},
+          packet = this._record(moved.packetId).data;
+        const patch = statePatch(
+          {
+            ...packet,
+            ...previous,
+            itemState: { ...packet.itemState, ...previous.itemState },
+          },
+          moved,
+          { order },
+        );
+        packetPatches.set(moved.packetId, {
+          ...patch,
+          itemState: { ...previous.itemState, ...patch.itemState },
+        });
+      });
+      for (const [packetId, patch] of packetPatches)
+        this._client.put(packetId, patch);
+      this.setData({ sort: "custom", sortIndex: 4 });
+      wx.setStorageSync(FILTERS, { sort: "custom" });
+      this._refresh();
+      this.syncQuietly();
+    } catch (error) {
+      this._refresh();
+      this._error(error);
+    }
+  },
+  createManual(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showModal({
+      title: "手动记成事项",
+      editable: true,
+      placeholderText: "输入事项标题",
+      success: (answer) => {
+        if (!answer.confirm || !answer.content || !answer.content.trim())
+          return;
+        try {
+          const row = this._record(id);
+          if (!row || row.deletedAt) throw new Error("请先恢复投递");
+          const item = {
+            kind: "task",
+            title: answer.content.trim().slice(0, 150),
+            summary: row.data.text,
+            facts: [],
+            nextSteps: [],
+            uncertainties: [],
+            evidence: [],
+            sourceIds: ["input"],
+            due: null,
+          };
+          const result = row.data.result || {
+              summary: "手动记录",
+              items: [],
+              warnings: [],
+            },
+            itemId = makeId();
+          this._client.put(id, {
+            result: { ...result, items: [...result.items, item] },
+            itemIds: [
+              ...(row.data.itemIds ||
+                result.items.map((_, i) => `${id}_item_${i}`)),
+              itemId,
+            ],
+            itemState: { [itemId]: { origin: "manual" } },
+            status: "ready",
+            updatedAt: new Date().toISOString(),
+          });
+          this._refresh();
+          this.syncQuietly();
+        } catch (error) {
+          this._error(error);
+        }
+      },
+    });
+  },
+  copySource() {
+    if (this.data.selected)
+      wx.setClipboardData({
+        data: this._record(this.data.selected.packetId).data.text,
+      });
+  },
+  copyRecord(event) {
+    const row = this._record(event.currentTarget.dataset.id);
+    if (row) wx.setClipboardData({ data: row.data.text || "" });
+  },
+  _jobViews(jobs) {
+    return jobs.map(({ id, state, error, output }) => ({
+      id,
+      state,
+      error,
+      hasOutput: !!output,
+    }));
+  },
+  _saveJobs(jobs) {
+    wx.setStorageSync(jobsKey(this._connection.base), jobs);
+    this._jobs = jobs;
+    this.setData({ jobs: this._jobViews(jobs) });
+  },
+  async _pollJobs() {
+    if (this._pollingJobs || !this._connection || !this._jobs) return;
+    this._pollingJobs = true;
+    try {
+      const records = this._client.records();
+      for (const saved of this._jobs.slice()) {
+        const record = records.find((r) => r.id === saved.request.packetId);
+        if (record && record.purged) {
+          this._saveJobs(this._jobs.filter((j) => j.id !== saved.id));
+          continue;
+        }
+        if (
+          !["submitting", "queued", "running", "applying"].includes(saved.state)
+        )
+          continue;
+        let job;
+        try {
+          job =
+            saved.state === "submitting"
+              ? await this._transport("POST", "/api/v2/jobs", saved.request)
+              : await this._transport("GET", `/api/v2/jobs/${saved.id}`);
+        } catch (error) {
+          if ([400, 403, 404, 409, 422, 503].includes(error.status)) {
+            this._saveJobs(
+              this._jobs.map((j) =>
+                j.id === saved.id
+                  ? { ...j, state: "error", error: error.message }
+                  : j,
+              ),
+            );
+            continue;
+          }
+          throw error;
+        }
+        this._saveJobs(
+          this._jobs.map((j) => (j.id === saved.id ? { ...j, ...job } : j)),
+        );
+        if (job.state === "done") await this._client.sync();
+      }
+    } finally {
+      this._pollingJobs = false;
+    }
+  },
+  async _startJob(kind, packetId, itemId, instruction) {
+    if (this.data.jobBusy) return;
+    if (this.data.localMode) {
+      this._error(
+        new Error("请先连接配置了 AI 的同步服务，并导入这次本机投递"),
+      );
+      return;
+    }
+    this.setData({ jobBusy: true, error: "" });
+    try {
+      await this.sync();
+      if (this.data.error || this._client.pendingCount())
+        throw new Error(this.data.error || "请先完成未同步操作");
+      if (
+        !(kind === "chat"
+          ? this.data.capabilities.itemChat
+          : this.data.capabilities.aiOrganize)
+      )
+        throw new Error("服务器尚未启用此 AI 能力，原文和事项已保留");
+      const record = this._record(packetId);
+      if (!record || record.deletedAt || record.conflict)
+        throw new Error("请先恢复投递并解决同步冲突");
+      const status = await this._transport("GET", "/api/v2/status");
+      const request = {
+        id: makeId(),
+        kind,
+        packetId,
+        baseVersion: record.version,
+        epoch: status.epoch,
+        ...(kind === "chat" ? { itemId, instruction } : {}),
+      };
+      const entry = { id: request.id, request, state: "submitting", error: "" };
+      // Do not evict active requests; they may already have incurred a model charge.
+      const jobs = this._jobs || [],
+        active = jobs.filter((j) =>
+          ["submitting", "queued", "running", "applying"].includes(j.state),
+        );
+      if (active.length >= 20) throw new Error("任务较多，请等待已有任务完成");
+      this._saveJobs([
+        ...jobs.filter((j) => !active.includes(j)).slice(-19),
+        ...active,
+        entry,
+      ]);
+      await this._pollJobs();
+      this.setData({
+        notice: "模型任务已保存；可继续操作，结果就绪后自动同步",
+        chatInput: "",
+      });
+    } catch (error) {
+      this._error(error);
+    } finally {
+      this.setData({ jobBusy: false });
+      this._refresh();
+    }
+  },
+  organizeRecord(event) {
+    return this._startJob("organize", event.currentTarget.dataset.id);
+  },
+  chatWithItem() {
+    const row = this.data.selected,
+      text = this.data.chatInput.trim();
+    if (row && text) return this._startJob("chat", row.packetId, row.id, text);
+  },
+  copyJobResult(event) {
+    const job = (this._jobs || []).find(
+      (j) => j.id === event.currentTarget.dataset.id,
+    );
+    if (job && job.output)
+      wx.setClipboardData({ data: JSON.stringify(job.output, null, 2) });
+  },
+  _loadSkins() {
+    const collection = this._skinCollection || {
+      selected: "whale",
+      custom: [],
+    };
+    const skins = [...BUILTIN_SKINS, ...collection.custom].map((s) => ({
+      ...s,
+      image:
+        s.art === "custom"
+          ? this._skinPath(s)
+          : s.art === "whale"
+            ? "/assets/mascot.png"
+            : `/assets/skins/${s.id}.png`,
+    }));
+    const activeSkin =
+      skins.find((s) => s.id === collection.selected) || skins[0];
+    this.setData({
+      skins,
+      activeSkin,
+      previewSkin: activeSkin,
+      skinMessage: activeSkin.hello,
+    });
+  },
+  _skinPath(skin) {
+    if (!wx.env || !wx.getFileSystemManager) return skin.image;
+    const match = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(skin.image);
+    const file = `${wx.env.USER_DATA_PATH}/shixu-${skin.id}.${match[1]}`;
+    // Local files keep eight custom images from overflowing WeChat's setData limit.
+    wx.getFileSystemManager().writeFileSync(file, match[2], "base64");
+    return file;
+  },
+  openSkins() {
+    this.setData({
+      skinOpen: true,
+      previewSkin: this.data.activeSkin,
+      skinMessage: this.data.activeSkin.hello,
+      skinEditor: false,
+    });
+  },
+  closeSkins() {
+    this.setData({
+      skinOpen: false,
+      skinEditor: false,
+      skinMessage: this.data.activeSkin.hello,
+      skinAnimating: false,
+    });
+  },
+  previewSkin(event) {
+    const s = this.data.skins.find(
+      (s) => s.id === event.currentTarget.dataset.id,
+    );
+    if (s)
+      this.setData({
+        previewSkin: s,
+        skinMessage: s.hello,
+        skinAnimating: false,
+      });
+  },
+  interactSkin() {
+    const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
+    this.setData({
+      skinMessage: s.greeting,
+      skinAnimating: !this.data.skinAnimating,
+    });
+  },
+  feedSkin() {
+    const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
+    this.setData({
+      skinMessage: s.feeding,
+      skinAnimating: !this.data.skinAnimating,
+    });
+  },
+  _saveSkins(collection) {
+    const raw = JSON.stringify(collection);
+    if (raw.length > 2000000) throw new Error("皮肤收藏空间已满");
+    wx.setStorageSync(SKINS, raw);
+    this._skinCollection = collection;
+    this._loadSkins();
+  },
+  applySkin() {
+    try {
+      this._saveSkins({
+        ...this._skinCollection,
+        selected: this.data.previewSkin.id,
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  editSkin(event) {
+    const id = event.currentTarget.dataset.id,
+      old = (this._skinCollection.custom || []).find((s) => s.id === id);
+    const skin = old || {
+      id: `custom-${makeId()}`,
+      name: "我的伙伴",
+      description: "自己做的好朋友",
+      art: "custom",
+      color: "#ffe2b5",
+      motion: "bounce",
+      hello: "先放进来，慢慢理清楚。",
+      greeting: "今天也陪着你！",
+      feeding: "收到啦！",
+      image: "",
+    };
+    this.setData({
+      skinEditor: true,
+      skinForm: skin,
+      motionIndex: Object.keys(SKIN_MOTIONS).indexOf(skin.motion),
+    });
+  },
+  onSkinField(event) {
+    const field = event.currentTarget.dataset.field;
+    if (["name", "description", "hello", "greeting", "feeding"].includes(field))
+      this.setData({
+        skinForm: { ...this.data.skinForm, [field]: event.detail.value },
+      });
+  },
+  onMotion(event) {
+    const i = Number(event.detail.value);
+    this.setData({
+      motionIndex: i,
+      skinForm: { ...this.data.skinForm, motion: this.data.motionKeys[i] },
+    });
+  },
+  chooseSkinImage() {
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ["image"],
+      sourceType: ["album", "camera"],
+      success: (answer) => {
+        const file = answer.tempFiles[0];
+        if (file.size > 250000) {
+          this._error(new Error("请选择小于 250 KB 的 PNG、JPG 或 WebP 图片"));
+          return;
+        }
+        wx.getFileSystemManager().readFile({
+          filePath: file.tempFilePath,
+          encoding: "base64",
+          success: (result) => {
+            const type = /\.png$/i.test(file.tempFilePath)
+              ? "png"
+              : /\.webp$/i.test(file.tempFilePath)
+                ? "webp"
+                : "jpeg";
+            this.setData({
+              skinForm: {
+                ...this.data.skinForm,
+                image: `data:image/${type};base64,${result.data}`,
+              },
+            });
+          },
+          fail: () => this._error(new Error("图片读取失败")),
+        });
+      },
+    });
+  },
+  saveCustomSkin() {
+    try {
+      const skin = this.data.skinForm,
+        custom = (this._skinCollection.custom || []).filter(
+          (s) => s.id !== skin.id,
+        );
+      if (custom.length >= MAX_CUSTOM_SKINS)
+        throw new Error("最多收藏 8 款自定义皮肤");
+      const candidate = { selected: skin.id, custom: [...custom, skin] },
+        parsed = parseSkinCollection(JSON.stringify(candidate));
+      if (!parsed.custom.some((s) => s.id === skin.id))
+        throw new Error("请添加图片，名称不超过 20 字，台词应为 1 至 40 字");
+      this._saveSkins(candidate);
+      this.setData({ skinEditor: false });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  deleteCustomSkin(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showModal({
+      title: "删除这款自定义皮肤？",
+      content: "不会删除投递或事项。",
+      success: (answer) => {
+        if (!answer.confirm) return;
+        try {
+          this._saveSkins({
+            selected:
+              this._skinCollection.selected === id
+                ? "whale"
+                : this._skinCollection.selected,
+            custom: this._skinCollection.custom.filter((s) => s.id !== id),
+          });
+        } catch (error) {
+          this._error(error);
+        }
+      },
+    });
   },
   remove(event) {
     try {

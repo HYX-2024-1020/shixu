@@ -3,6 +3,12 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { SyncStore, SyncError } from "./sync-store.mjs";
+import { createJobQueue } from "./sync-jobs.mjs";
+import {
+  organizePacket,
+  chatWithItem,
+  DEFAULT_MODEL,
+} from "./generated/ai-core.mjs";
 
 function json(res, status, value) {
   res.writeHead(status, {
@@ -40,6 +46,7 @@ export function createSyncService({
   password,
   origin = "http://127.0.0.1:8788",
   appId = "wx03d8b4c63a26177c",
+  ai = null,
 }) {
   if (typeof password !== "string" || password.length < 12)
     throw new Error("独立同步服务需要至少 12 位的 SYNC_PASSWORD");
@@ -50,6 +57,7 @@ export function createSyncService({
   )
     throw new Error("SYNC_ORIGIN 必须是无路径的 HTTP 或 HTTPS 来源");
   const store = new SyncStore(database);
+  const jobs = createJobQueue(store, ai);
   const failures = new Map();
   const passwordHash = digest(password);
   const server = http.createServer(async (req, res) => {
@@ -69,7 +77,8 @@ export function createSyncService({
           epoch: store.epoch,
           capabilities: {
             textSync: true,
-            aiOrganize: false,
+            aiOrganize: !!ai?.organize,
+            itemChat: !!ai?.chat,
             attachments: false,
             wechatLogin: false,
           },
@@ -107,6 +116,16 @@ export function createSyncService({
           "UNAUTHORIZED",
           "设备授权已失效，请重新连接，未同步内容仍保存在本机",
         );
+      if (url.pathname === "/api/v2/jobs" && req.method === "POST") {
+        json(res, 202, jobs.enqueue(device.id, await readJSON(req)));
+        return;
+      }
+      if (url.pathname.startsWith("/api/v2/jobs/") && req.method === "GET") {
+        const job = jobs.get(url.pathname.slice("/api/v2/jobs/".length));
+        if (!job) throw new SyncError(404, "NOT_FOUND", "任务不存在");
+        json(res, 200, job);
+        return;
+      }
       if (url.pathname === "/api/v2/changes" && req.method === "GET") {
         const cursor = url.searchParams.get("cursor");
         if (cursor !== null && !/^\d+$/.test(cursor))
@@ -126,7 +145,9 @@ export function createSyncService({
       }
       if (url.pathname === "/api/v2/operations" && req.method === "POST") {
         const { epoch, operation } = await readJSON(req);
-        json(res, 200, store.apply(device.id, operation, epoch));
+        const result = store.apply(device.id, operation, epoch);
+        if (result.record.purged) jobs.redact(result.record.id);
+        json(res, 200, result);
         return;
       }
       if (url.pathname === "/api/v2/device" && req.method === "DELETE") {
@@ -151,8 +172,12 @@ export function createSyncService({
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  server.on("close", () => store.close());
-  return { server, store };
+  server.on("listening", () => jobs.start());
+  server.on("close", () => {
+    jobs.stop();
+    store.close();
+  });
+  return { server, store, jobs };
 }
 
 if (
@@ -176,6 +201,45 @@ if (
     password: process.env.SYNC_PASSWORD,
     origin,
     appId: process.env.WECHAT_APP_ID || "wx03d8b4c63a26177c",
+    ai:
+      process.env.SYNC_AI_ENABLED === "true" && process.env.DEEPSEEK_API_KEY
+        ? {
+            async organize(packet, signal) {
+              return {
+                result: await organizePacket(packet.sources, {
+                  apiKey: process.env.DEEPSEEK_API_KEY,
+                  model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+                  captureDate: packet.captureDate,
+                  packetId: packet.id,
+                  signal,
+                }),
+              };
+            },
+            async chat(packet, itemId, instruction, signal) {
+              const index = packet.itemIds.indexOf(itemId);
+              return chatWithItem(
+                packet.result.items[index],
+                packet.itemState?.[itemId] || {},
+                instruction,
+                (packet.sources || [])
+                  .map((s) => s.name + "\n" + s.text)
+                  .join("\n"),
+                {
+                  apiKey: process.env.DEEPSEEK_API_KEY,
+                  model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+                  captureDate: new Intl.DateTimeFormat("en-CA", {
+                    timeZone: packet.captureTimezone || "Asia/Shanghai",
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                  }).format(new Date()),
+                  packetId: packet.id,
+                  signal,
+                },
+              );
+            },
+          }
+        : null,
   });
   server.listen(port, host, () =>
     console.log(`拾序独立同步服务已启动：${origin}`),

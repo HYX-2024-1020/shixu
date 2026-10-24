@@ -1,5 +1,5 @@
 App({
-  globalData: { version: "0.1.0", updateReady: false },
+  globalData: { version: "0.2.0", updateReady: false },
   onLaunch() {
     if (typeof wx.getUpdateManager !== "function") return;
     this.updateManager = wx.getUpdateManager();

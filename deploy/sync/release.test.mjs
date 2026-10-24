@@ -25,7 +25,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["generated", "sync-jobs.mjs", "sync-server.mjs", "sync-store.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";
