@@ -27,13 +27,7 @@
 
 运行 `npm test`、`npm run build`、`npx playwright test e2e/skins.spec.ts --project=desktop --project=mobile`。桌面版使用构建后运行 `node scripts/desktop-smoke.mjs` 验证兼容性。
 
-验证备注（2026-10-24）：原有 `e2e/bucket.spec.ts` 与 `e2e/relations.spec.ts` 仍引用旧的 `.bucket-item`、`.packet-ready` 等界面元素，尚未适配现有「桶 / 世界」布局；完整网页套件不能作为通过记录。这些选择器在本次修改前的 HEAD 中也已不存在。本次新功能用例独立验证，当前桌面烟测另覆盖草稿恢复、分类、编辑、完成、星标和删除恢复。
-
-本次通过：55 项单元测试、8 项桌面/手机皮肤流程、正式构建，以及 `desktop-smoke.mjs` 和 `desktop-management-smoke.mjs`。皮肤流程包括 320 像素窄屏、全部预设、减少动态效果与真实本机投递反馈。全量旧网页套件另有 18 项用例因上述界面适配问题失败，未修改这些旧用例。
-
-## 整合后验证（2026-10-24）
-
-上文关于旧网页选择器的失败记录属于早期工作区快照。当前整合保留已发布 0.3.7 的浏览器回归，并新增皮肤用例；最新验证以整合 PR 和 [当前基线](current-baseline.md) 为准。
+当前验证：57 项单元测试、32 项 Chromium/WebKit 浏览器回归、十二套实际 Windows 桌面回归；皮肤专项覆盖本机进程重启、自定义图片、草稿保护与删除恢复。实际结果见 [0.3.8 发布说明](releases/windows-0.3.8.md)和对应 PR/Release 报告。
 
 ## Windows 0.3.8
 
