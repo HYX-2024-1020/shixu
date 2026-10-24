@@ -27,7 +27,47 @@ try {
   await mkdir("release", { recursive: true });
   app = await launch();
   let page = await pageForApp();
+  // Use the actual bundled MP3 and Chromium media pipeline. A greeting must
+  // restart on every click and continue beyond the previous 3.2s cutoff.
+  await page.evaluate(() => {
+    window.__mediaPlays = 0;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      window.__greetingAudio = this;
+      window.__mediaPlays++;
+      return play.call(this);
+    };
+  });
+  const whale = page.locator(".bucket-drawing.skin-mascot");
+  await whale.click();
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+    .toBeGreaterThan(0.15);
+  for (let i = 0; i < 3; i++) await whale.click();
+  assert.equal(await page.evaluate(() => window.__mediaPlays), 4);
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+    .toBeGreaterThan(3.3);
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), false);
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.ended), {
+      timeout: 20000,
+    })
+    .toBe(true);
   const version = await app.evaluate(({ app }) => app.getVersion());
+  const settingsPoint = await page.locator(".bucket-settings").boundingBox();
+  await page.locator(".bucket-settings").click();
+  await expect(
+    page.getByRole("button", { name: "关闭设置", exact: true }),
+  ).toBeVisible();
+  await page.mouse.click(
+    settingsPoint.x + settingsPoint.width / 2,
+    settingsPoint.y + settingsPoint.height / 2,
+  );
+  await expect(page.locator("dialog.bucket-dialog")).toHaveCount(0);
+  await page.locator(".bucket-settings").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog.bucket-dialog")).toHaveCount(0);
   await page
     .getByLabel("往桶里放入内容", { exact: true })
     .fill("皮肤升级验证草稿，仅合成资料");
@@ -112,6 +152,8 @@ try {
     packaged: !!process.env.SHIXU_PACKAGED_EXE,
     checks: [
       "eight presets and feed preview",
+      "settings dismisses on the second header-position click and Escape",
+      "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",

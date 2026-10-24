@@ -29,9 +29,16 @@ export default function SkinMascot({
   }, [feedSignal]);
   useEffect(() => {
     setHappy(false);
+    if (skin.art === "whale") {
+      const sound = new Audio(import.meta.env.BASE_URL + "laugh.mp3");
+      sound.preload = "auto";
+      sound.volume = 0.5;
+      audio.current = sound;
+    }
     return () => {
       clearTimeout(timer.current);
       audio.current?.pause();
+      audio.current = null;
     };
   }, [skin.id]);
   useEffect(() => {
@@ -42,30 +49,19 @@ export default function SkinMascot({
     }
   }, [state, suspended]);
   function greet() {
-    if (happy) {
-      clearTimeout(timer.current);
-      audio.current?.pause();
-      setHappy(false);
-      return;
-    }
     setHappy(true);
     clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      setHappy(false);
-      audio.current?.pause();
-    }, 3200);
-    if (skin.art === "whale") {
-      const sound =
-        audio.current || new Audio(import.meta.env.BASE_URL + "laugh.mp3");
-      audio.current = sound;
-      sound.volume = 0.5;
+    if (skin.art === "whale" && audio.current) {
+      const sound = audio.current;
       sound.currentTime = 0;
       sound.onended = () => {
-        clearTimeout(timer.current);
         setHappy(false);
       };
-      void sound.play().catch(() => {});
-    }
+      sound.onerror = () => setHappy(false);
+      void sound.play().catch(() => {
+        if (sound.paused) setHappy(false);
+      });
+    } else timer.current = window.setTimeout(() => setHappy(false), 3200);
   }
   const feeding = state === "feeding" || eating;
   const bubble =
@@ -82,14 +78,7 @@ export default function SkinMascot({
       className={`skin-mascot ${compact ? "is-compact" : "bucket-drawing"}`}
       data-motion={!suspended && (happy || feeding) ? skin.motion : "idle"}
       data-skin={skin.id}
-      aria-label={
-        happy
-          ? skin.art === "whale"
-            ? "停止鲸鱼笑声"
-            : `停止${skin.name}互动`
-          : `和${skin.name}打个招呼`
-      }
-      aria-pressed={happy}
+      aria-label={`和${skin.name}打个招呼`}
       onClick={greet}
     >
       <span className="skin-bubble" aria-live="polite">

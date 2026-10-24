@@ -35,6 +35,8 @@ vm.runInNewContext(readFileSync(pageFile, "utf8"), {
   getApp: () => ({ globalData: { updateReady: false } }),
   setInterval,
   clearInterval,
+  setTimeout,
+  clearTimeout,
   wx: {
     getStorageSync: (key) => store.get(key),
     setStorageSync: (key, value) => store.set(key, structuredClone(value)),
@@ -93,6 +95,21 @@ assert.ok(
   "edit form rendered",
 );
 page.closeItem();
+page.openAiSettings();
+assert.ok(
+  view().some((node) => node.attr?.bindtap === "toggleAiGuide"),
+  "AI setup guide rendered",
+);
+assert.ok(
+  view().some((node) => node.attr?.bindtap === "closeSettings"),
+  "explicit return control rendered",
+);
+page.switchTab({ currentTarget: { dataset: { tab: "settings" } } });
+assert.equal(
+  page.data.tab,
+  "world",
+  "second settings tap returns to originating world",
+);
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,

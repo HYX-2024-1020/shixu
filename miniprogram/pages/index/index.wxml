@@ -65,13 +65,14 @@
 <view class="page">
   <view class="heading">
     <view class="brand"><text class="brand-mark">拾</text><text>拾序</text><text class="brand-en">SHIXU</text></view>
-    <view class="header-actions"><button class="small-button market-button" bindtap="openSkins">皮肤市场</button><button class="small-button" data-tab="settings" bindtap="switchTab">连接设置</button></view>
+    <view class="header-actions"><button class="small-button market-button" bindtap="openSkins">皮肤市场</button><button class="small-button" data-tab="settings" bindtap="switchTab">{{tab === 'settings' ? '关闭设置' : '连接设置'}}</button></view>
   </view>
   <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate"
     >新版本已就绪，保存后更新 →</view
   ><view wx:if="{{error}}" class="error" selectable>{{error}}</view
   ><view wx:if="{{notice}}" class="notice">{{notice}}</view>
   <view wx:if="{{tab === 'capture'}}" class="capture">
+    <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
       <view class="bucket-drawing"><image class="mascot motion-{{activeSkin.motion}} {{skinAnimating ? 'animate' : ''}}" src="{{activeSkin.image}}" mode="aspectFit" bindtap="interactSkin"/><text class="skin-bubble">{{skinMessage}}</text></view>
@@ -249,12 +250,18 @@
   </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
-    ><text class="section-title">连接与设置</text
-    ><view class="card-paper"
+    ><view class="section-top"><text class="section-title">连接与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="card-paper ai-connection"
+      ><text class="subheading">AI 连接 · 服务端配置</text>
+      <text class="settings-copy">{{!connected ? '请先填写下方服务地址和访问口令。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
+      <text class="settings-copy">AI 密钥由服务器统一保管，无需在手机重复填写。Windows 本机设置中的密钥不会自动上传到服务器。</text>
+      <view class="button-row"><button class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '如何接入 API'}}</button><button wx:if="{{connected}}" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
+      <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">1. 由服务维护者在服务器配置 DeepSeek 密钥并启用 AI，手机不填写模型密钥。</text><text class="settings-copy">2. 手机与 Windows 云同步版填写同一服务地址和访问口令，连接后刷新 AI 状态。</text><text class="settings-copy">3. 本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取；当前服务端只支持文字和 UTF-8 原件，图片、PDF 等暂可手动记事项。</text></view>
+      <view class="capability"><text>事项 AI 对话</text><text>{{!connected ? '未连接' : capabilities.itemChat ? '已可用' : '服务端未启用'}}</text></view>
+      </view><view class="card-paper"
       ><text class="subheading">个人同步服务</text
       ><text class="settings-copy"
-        >本机资料单独保留，连接后可导入。当前 Windows
-        发行版尚未接入此同步协议。</text
+        >本机资料单独保留，连接后可导入。使用同一服务的 Windows 云同步版与手机共用资料；已发行的 0.3.8 仍需升级。</text
       ><view class="field-label">服务地址</view
       ><input
         value="{{serverUrl}}"
@@ -302,7 +309,7 @@
       ><view class="capability"
         ><text>AI 整理</text
         ><text
-          >{{capabilities.aiOrganize ? '服务支持' : '服务尚未接入'}}</text
+          >{{!connected ? '未连接' : capabilities.aiOrganize ? '已可用' : '服务端未启用'}}</text
         ></view
       ><view class="capability"
         ><text>原件同步</text

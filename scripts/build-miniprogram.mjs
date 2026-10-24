@@ -88,6 +88,10 @@ outputs.set(
   "miniprogram/assets/mascot.png",
   await readFile(path.join(root, "public/mascot.png")),
 );
+outputs.set(
+  "miniprogram/assets/laugh.mp3",
+  await readFile(path.join(root, "public/laugh.mp3")),
+);
 const hashes = Object.fromEntries(
   [...outputs].map(([name, bytes]) => [
     name,

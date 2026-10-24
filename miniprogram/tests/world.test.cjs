@@ -12,6 +12,7 @@ function fixture({
   store = new Map(),
   failWrite = () => false,
   modal = { confirm: true, content: "手动事项" },
+  audio = null,
 } = {}) {
   let definition;
   const context = {
@@ -22,7 +23,10 @@ function fixture({
     require: createRequire(resolve(__dirname, "../pages/index/index.js")),
     setInterval,
     clearInterval,
+    setTimeout,
+    clearTimeout,
     wx: {
+      ...(audio ? { createInnerAudioContext: () => audio } : {}),
       getStorageSync: (key) => store.get(key),
       setStorageSync: (key, value) => {
         if (failWrite(key, value)) throw Error("disk full");
@@ -50,6 +54,100 @@ function fixture({
   return { page, store };
 }
 const event = (id) => ({ currentTarget: { dataset: { id } } });
+const tabEvent = (tab) => ({ currentTarget: { dataset: { tab } } });
+
+test("settings toggles back to its originating workspace and preserves drafts and filters", () => {
+  const { page } = fixture();
+  page.onDraft({ detail: { value: "不要丢失的合成草稿" } });
+  for (const origin of ["capture", "world"]) {
+    page.switchTab(tabEvent(origin));
+    page.setData({ query: "筛选内容" });
+    page.switchTab(tabEvent("settings"));
+    assert.equal(page.data.tab, "settings");
+    page.switchTab(tabEvent("settings"));
+    assert.equal(page.data.tab, origin);
+    assert.equal(page.data.query, "筛选内容");
+    assert.equal(page.data.draft, "不要丢失的合成草稿");
+    page.switchTab(tabEvent("settings"));
+    page.closeSettings();
+    assert.equal(page.data.tab, origin);
+  }
+});
+
+test("AI entry explains server configuration and refreshes capability without model calls", async () => {
+  const { page, store } = fixture();
+  page.openAiSettings();
+  assert.equal(page.data.tab, "settings");
+  assert.equal(page.data.showAiGuide, true);
+  assert.equal(page.data.connected, false);
+  page.setData({ connected: true });
+  let available = false;
+  const calls = [];
+  page._transport = async (method, route) => {
+    calls.push([method, route]);
+    return {
+      application: "shixu-sync",
+      protocolVersion: 2,
+      capabilities: { aiOrganize: available, itemChat: available },
+    };
+  };
+  await page.refreshAiStatus();
+  assert.equal(page.data.capabilities.aiOrganize, false);
+  available = true;
+  await page.refreshAiStatus();
+  assert.equal(page.data.capabilities.aiOrganize, true);
+  assert.equal(page.data.capabilities.itemChat, true);
+  assert.equal(page.data.aiChecking, false);
+  assert.deepEqual(calls, [
+    ["GET", "/api/v2/status"],
+    ["GET", "/api/v2/status"],
+  ]);
+  assert.ok([...store.keys()].every((key) => !/api.?key/i.test(key)));
+  page._transport = async () => {
+    throw Error("offline");
+  };
+  await page.refreshAiStatus();
+  assert.match(page.data.error, /offline/);
+  assert.equal(page.data.aiChecking, false);
+});
+
+test("whale taps restart sound every time, do not time-limit it, and stop on hide/unload", () => {
+  const calls = [];
+  let ended;
+  const audio = {
+    onEnded(fn) {
+      ended = fn;
+    },
+    onError() {},
+    play() {
+      calls.push("play");
+    },
+    stop() {
+      calls.push("stop");
+    },
+    destroy() {
+      calls.push("destroy");
+    },
+  };
+  const { page } = fixture({ audio });
+  assert.equal(audio.src, "/assets/laugh.mp3");
+  for (let i = 0; i < 4; i++) page.interactSkin();
+  assert.equal(calls.filter((c) => c === "play").length, 4);
+  assert.equal(
+    page._skinTimer,
+    undefined,
+    "audio completion controls whale interaction",
+  );
+  assert.equal(page.data.skinAnimating, true);
+  ended();
+  assert.equal(page.data.skinAnimating, false);
+  page.interactSkin();
+  page.onHide();
+  assert.equal(calls.at(-1), "stop");
+  assert.equal(page.data.skinAnimating, false);
+  page.onUnload();
+  assert.equal(calls.at(-1), "destroy");
+});
 function packet(id = "p") {
   return {
     id,

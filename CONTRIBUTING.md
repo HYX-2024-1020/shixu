@@ -57,6 +57,8 @@ npm run test:e2e
 
 ## 提交前检查
 
+产品源码变动还须通过 `node --test scripts/check-client-parity.test.mjs`。PR policy 对真实 PR 比较执行 `scripts/check-client-parity.mjs`，拒绝没有更新双端能力表的产品变更；该检查不能代替两端功能实现、交互验收和人工审查。角色音频与原画均从桌面资源生成，不在手机侧另存不同版本。
+
 产品更新须同时评估 Windows 与微信小程序，维护 [双端能力表](docs/client-parity.md)。卡片文案/排序、皮肤预设/原画、整理/事项对话规则修改后运行 `npm run mini:build`，提交生成结果；CI 的 `npm run mini:check` 拒绝过期副本。`npm run test:sync` 包含小程序页面生命周期和本机 API 回归，不代表微信编译或手机测试。新增功能未实现的另一端须关联明确 Issue 与适配计划；不能只勾选模板宣称覆盖。
 
 - 差异只包含本任务；没有 `.env`、个人文件、备份、数据库、构建产物或真实 API 凭据。

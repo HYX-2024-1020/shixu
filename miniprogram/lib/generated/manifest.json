@@ -11,6 +11,7 @@
     "miniprogram/assets/skins/rabbit.png": "19a5f2b2d0307c3bad0b83f44e55503c9676d286bbd831210b032a852d2bba28",
     "miniprogram/assets/skins/planet.png": "f4e7859dad4dcec6cd52dcc06d89e7d33a283d0ceb2446a702c5335a84b1c9d0",
     "miniprogram/assets/skins/pudding.png": "7c04ddea96a2c736befdde74abf08b997a8417e7c6efa1f3514a16c4ea0e5464",
-    "miniprogram/assets/mascot.png": "5eef9de3fbe25cc7e69e14a8953b0c301032e7fc9e2fb5fdaae56df99456fa51"
+    "miniprogram/assets/mascot.png": "5eef9de3fbe25cc7e69e14a8953b0c301032e7fc9e2fb5fdaae56df99456fa51",
+    "miniprogram/assets/laugh.mp3": "fdf73c75837977281a61c5b3aa24e581391e186ce42fe63e0030ea3ecc1a013b"
   }
 }

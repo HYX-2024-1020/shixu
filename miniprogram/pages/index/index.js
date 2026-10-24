@@ -42,6 +42,7 @@ function dateInfo() {
 Page({
   data: {
     tab: "capture",
+    settingsReturnTab: "capture",
     draft: "",
     draftFiles: [],
     originalPreview: null,
@@ -58,6 +59,8 @@ Page({
     connected: false,
     connecting: false,
     syncing: false,
+    aiChecking: false,
+    showAiGuide: false,
     error: "",
     notice: "",
     showDeleted: false,
@@ -136,6 +139,13 @@ Page({
     },
   },
   onLoad() {
+    if (wx.createInnerAudioContext) {
+      this._skinAudio = wx.createInnerAudioContext();
+      this._skinAudio.src = "/assets/laugh.mp3";
+      this._skinAudio.volume = 0.5;
+      this._skinAudio.onEnded(() => this.setData({ skinAnimating: false }));
+      this._skinAudio.onError(() => this.setData({ skinAnimating: false }));
+    }
     try {
       this._skinCollection = parseSkinCollection(
         wx.getStorageSync(SKINS) || null,
@@ -176,9 +186,12 @@ Page({
   },
   onHide() {
     clearInterval(this._timer);
+    this._stopSkinInteraction();
   },
   onUnload() {
     clearInterval(this._timer);
+    this._stopSkinInteraction();
+    if (this._skinAudio) this._skinAudio.destroy();
     if (this._network) wx.offNetworkStatusChange(this._network);
   },
   _activate(connection) {
@@ -618,8 +631,44 @@ Page({
     this.setData({ password: event.detail.value });
   },
   switchTab(event) {
-    this.setData({ tab: event.currentTarget.dataset.tab, notice: "" });
+    const target = event.currentTarget.dataset.tab;
+    if (target === "settings") {
+      if (this.data.tab === "settings") return this.closeSettings();
+      this.setData({ settingsReturnTab: this.data.tab });
+    }
+    this._stopSkinInteraction();
+    this.setData({ tab: target, notice: "" });
     this._refresh();
+  },
+  closeSettings() {
+    this.setData({
+      tab: this.data.settingsReturnTab === "world" ? "world" : "capture",
+    });
+    this._refresh();
+  },
+  openAiSettings() {
+    if (this.data.tab !== "settings")
+      this.setData({ settingsReturnTab: this.data.tab });
+    this._stopSkinInteraction();
+    this.setData({ tab: "settings", showAiGuide: true, selected: null });
+    if (this.data.connected) return this.refreshAiStatus();
+  },
+  toggleAiGuide() {
+    this.setData({ showAiGuide: !this.data.showAiGuide });
+  },
+  async refreshAiStatus() {
+    if (!this._transport || this.data.aiChecking) return;
+    this.setData({ aiChecking: true, error: "" });
+    try {
+      const status = await this._transport("GET", "/api/v2/status");
+      if (status.application !== "shixu-sync" || status.protocolVersion !== 2)
+        throw new Error("该地址不是兼容的拾序同步服务");
+      this.setData({ capabilities: status.capabilities || {} });
+    } catch (error) {
+      this._error(error);
+    } finally {
+      this.setData({ aiChecking: false });
+    }
   },
   toggleDeleted() {
     this.setData({ showDeleted: !this.data.showDeleted, recordPage: 0 });
@@ -1286,6 +1335,7 @@ Page({
   async _startJob(kind, packetId, itemId, instruction) {
     if (this.data.jobBusy) return;
     if (this.data.localMode) {
+      this.openAiSettings();
       this._error(
         new Error("请先连接配置了 AI 的同步服务，并导入这次本机投递"),
       );
@@ -1304,8 +1354,10 @@ Page({
         !(kind === "chat"
           ? this.data.capabilities.itemChat
           : this.data.capabilities.aiOrganize)
-      )
+      ) {
+        this.openAiSettings();
         throw new Error("服务器尚未启用此 AI 能力，原文和事项已保留");
+      }
       const record = this._record(packetId);
       if (!record || record.deletedAt || record.conflict)
         throw new Error("请先恢复投递并解决同步冲突");
@@ -1392,6 +1444,7 @@ Page({
     return file;
   },
   openSkins() {
+    this._stopSkinInteraction();
     this.setData({
       skinOpen: true,
       previewSkin: this.data.activeSkin,
@@ -1400,6 +1453,7 @@ Page({
     });
   },
   closeSkins() {
+    this._stopSkinInteraction();
     this.setData({
       skinOpen: false,
       skinEditor: false,
@@ -1408,6 +1462,7 @@ Page({
     });
   },
   previewSkin(event) {
+    this._stopSkinInteraction();
     const s = this.data.skins.find(
       (s) => s.id === event.currentTarget.dataset.id,
     );
@@ -1420,12 +1475,25 @@ Page({
   },
   interactSkin() {
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
+    this._stopSkinInteraction();
     this.setData({
       skinMessage: s.greeting,
-      skinAnimating: !this.data.skinAnimating,
+      skinAnimating: true,
     });
+    if (s.art === "whale" && this._skinAudio) this._skinAudio.play();
+    else
+      this._skinTimer = setTimeout(
+        () => this.setData({ skinAnimating: false }),
+        3200,
+      );
+  },
+  _stopSkinInteraction() {
+    clearTimeout(this._skinTimer);
+    if (this._skinAudio) this._skinAudio.stop();
+    this.setData({ skinAnimating: false });
   },
   feedSkin() {
+    this._stopSkinInteraction();
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
     this.setData({
       skinMessage: s.feeding,
@@ -1440,6 +1508,7 @@ Page({
     this._loadSkins();
   },
   applySkin() {
+    this._stopSkinInteraction();
     try {
       this._saveSkins({
         ...this._skinCollection,

@@ -806,3 +806,21 @@ input {
   width: auto;
   min-width: 0;
 }
+.ai-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 12rpx 0;
+  font-size: 24rpx;
+}
+.ai-entry text {
+  flex: 1;
+}
+.ai-entry button {
+  flex-shrink: 0;
+}
+.ai-guide {
+  border-top: 2rpx solid #211f20;
+  margin-top: 20rpx;
+}

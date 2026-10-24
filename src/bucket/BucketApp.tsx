@@ -1636,7 +1636,8 @@ export default function BucketApp() {
         <button
           className="bucket-settings"
           aria-label="连接与设置"
-          onClick={() => setSettings(true)}
+          aria-expanded={settings}
+          onClick={() => setSettings((open) => !open)}
         >
           <i className={apiKey || health?.modelReady ? "status-live" : ""} />
           <span>
@@ -1855,6 +1856,7 @@ export default function BucketApp() {
               className="bucket-model-cost"
               onClick={() => setSettings(true)}
               aria-label="选择模型与查看费用"
+              aria-expanded={settings}
             >
               连接设置
             </button>

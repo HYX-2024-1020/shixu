@@ -33,6 +33,10 @@ npm run sync:start
 
 ## 验证与边界
 
+发布前开发分支在首页增加“AI 连接”，在设置中区分未连接、服务端 AI 未启用和已可用；可展开接入说明、刷新整理与事项对话能力。手机不填写 API 密钥，维护者在服务器的独立配置中设置 `SYNC_AI_ENABLED=true`、`DEEPSEEK_API_KEY` 和可选 `DEEPSEEK_MODEL`，按部署流程重启并核对能力。Windows 本机密钥不会自动上传，完整两端共用服务端队列仍待适配。当前云端 AI 保持关闭，本轮没有读取个人密钥或产生真实模型调用。
+
+连接设置可再次点击关闭，返回原来的桶/世界；鲸鱼每次点击重播同源完整音频。详见 [双端验收记录](../docs/release-acceptance-2026-10-24.md)。
+
 ```powershell
 npm run test:sync
 npm run mini:check

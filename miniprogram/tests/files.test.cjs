@@ -86,6 +86,8 @@ function fixture({
       wx,
       setInterval,
       clearInterval,
+      setTimeout,
+      clearTimeout,
     },
   );
   const page = {
