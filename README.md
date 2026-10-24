@@ -95,7 +95,7 @@ GitHub Pages 只托管程序，当前入口的个人内容保存在各设备浏�
 
 ## 本机运行
 
-需要 Node.js 24 或以上。
+开发和 CI 使用 Node.js 24。
 
 ```bash
 npm ci
