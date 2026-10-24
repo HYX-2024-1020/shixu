@@ -1,7 +1,7 @@
 {
   "name": "shixu",
   "private": true,
-  "version": "0.3.6",
+  "version": "0.3.7",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -16,7 +16,7 @@
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",
     "test:desktop": "node --test desktop/*.test.cjs",
-    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs"
+    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs && node scripts/desktop-spatial-smoke.mjs"
   },
   "dependencies": {
     "7zip-bin-full": "^26.4.1",

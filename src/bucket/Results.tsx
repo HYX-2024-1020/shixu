@@ -15,6 +15,8 @@ import { cardCopy } from "./card-copy";
 import LinkText from "./LinkText";
 import { leaveCard, resetCard } from "./motion";
 import { useCardMotion } from "./useCardMotion";
+import { useCardDrag } from "./useCardDrag";
+import { mergeCardOrder } from "./card-order";
 import type { Packet, ItemState, BucketKind } from "./types";
 import { localDate } from "../organize";
 import { compareItems } from "./management";
@@ -33,6 +35,8 @@ export const categories: Record<BucketKind, string> = {
   other: "其他",
 };
 function Results({
+  compact = false,
+  reorder,
   packets,
   save,
   focusPacket,
@@ -42,6 +46,8 @@ function Results({
   onChat,
   onRecords,
 }: {
+  compact?: boolean;
+  reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
   packets: Packet[];
   save: (p: Packet) => Promise<void>;
@@ -58,7 +64,9 @@ function Results({
   const [query, setQuery] = useState(""),
     [scope, setScope] = useState("active"),
     [kind, setKind] = useState("all");
-  const [sort, setSort] = useState("priority"),
+  const [sort, setSort] = useState(
+      () => localStorage.getItem("shixu.card-sort") || "priority",
+    ),
     [dateFilter, setDateFilter] = useState("all"),
     [starOnly, setStarOnly] = useState(false);
   const [day, setDay] = useState(localDate()),
@@ -76,9 +84,14 @@ function Results({
   const [selected, setSelected] = useState("");
   const [editing, setEditing] = useState(false);
   const [materials, setMaterials] = useState("");
+  const materialOrigin = useRef("");
   const [adopting, setAdopting] = useState("");
   const adoptionLock = useRef(new Set<string>());
   const [adoptionError, setAdoptionError] = useState("");
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!compact) localStorage.setItem("shixu.card-sort", sort);
+  }, [sort, compact]);
   useEffect(() => setLimit(60), [query, scope, kind, onlyPacket, dateFilter]);
   useEffect(() => {
     if (!focusPacket) return;
@@ -200,6 +213,18 @@ function Results({
         : !r.deleted && (scope === "done" ? r.done : !r.done)),
   );
   const kinds = [...new Set(scoped.map((r) => r.item.kind))];
+  const rankRows = (a: (typeof rows)[number], b: (typeof rows)[number]) => {
+    const rank = (r: typeof a) => ({
+      id: r.id,
+      date: r.item.due?.date,
+      importance: r.meta.importance ?? r.item.importance ?? 1,
+      pinned: !!r.meta.pinned,
+      createdAt: r.p.capturedAt,
+      order: r.meta.order ?? r.index,
+    });
+    return compareItems(rank(a), rank(b), sort, day);
+  };
+  scoped.sort(rankRows);
   const filtered = scoped.filter(
     (r) =>
       (kind === "all" || r.item.kind === kind) &&
@@ -218,126 +243,165 @@ function Results({
               : r.item.due.date >= day &&
                 Date.parse(r.item.due.date) - Date.parse(day) < 7 * 86400000))),
   );
-  filtered.sort((a, b) => {
-    const rank = (r: typeof a) => ({
-      id: r.id,
-      date: r.item.due?.date,
-      importance: r.meta.importance ?? r.item.importance ?? 1,
-      pinned: !!r.meta.pinned,
-      createdAt: r.p.capturedAt,
-      order: r.meta.order ?? r.index,
-    });
-    return compareItems(rank(a), rank(b), sort, day);
-  });
+  if (dragOrder) {
+    const positions = new Map(dragOrder.map((id, index) => [id, index]));
+    filtered.sort(
+      (a, b) => (positions.get(a.id) ?? 1e9) - (positions.get(b.id) ?? 1e9),
+    );
+  }
   const matchCount = filtered.length;
   filtered.splice(limit);
   const groups = [...new Set(filtered.map((r) => r.meta.group?.trim() || ""))];
+  const drag = useCardDrag(motionRoot, {
+    ids: filtered.map((r) => r.id),
+    enabled:
+      !compact &&
+      !selected &&
+      !materials &&
+      scope !== "trash" &&
+      !completing.size,
+    groups: grouped
+      ? new Map(filtered.map((r) => [r.id, r.meta.group?.trim() || ""]))
+      : undefined,
+    onPreview: setDragOrder,
+    onCommit: async (ids) => {
+      const full = mergeCardOrder(
+        scoped.map((r) => r.id),
+        filtered.map((r) => r.id),
+        ids,
+      );
+      const commit = mutationTail.current
+        .catch(() => {})
+        .then(() => reorder(full));
+      mutationTail.current = commit;
+      await commit;
+      setSort("custom");
+    },
+    onError: notify,
+  });
   return (
-    <section className="results-workspace" ref={motionRoot}>
-      <div className="world-heading">
-        <div>
-          <h1>
-            消化完了，
-            <br />
-            这是你的<span>世界。</span>
-          </h1>
-        </div>
-        <img src={import.meta.env.BASE_URL + "mascot.png"} alt="" />
-      </div>
-      <div className="result-controls">
-        <button onClick={onRecords}>整理记录</button>
-        <input
-          aria-label="搜索整理结果"
-          placeholder="搜索标题、原文或文件名"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <select
-          aria-label="结果范围"
-          value={scope}
-          onChange={(e) => {
-            setScope(e.target.value);
-            setKind("all");
-          }}
-        >
-          <option value="active">待处理</option>
-          <option value="done">完成 / 归档</option>
-          <option value="trash">最近删除（30 天）</option>
-        </select>
-        <details className="result-filter-menu">
-          <summary>筛选与排序</summary>
-          <div>
-            <select
-              aria-label="排序"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-            >
-              <option value="priority">默认顺序</option>
-              <option value="due">截止时间</option>
-              <option value="importance">重要程度</option>
-              <option value="created">创建时间</option>
-              <option value="custom">自定义顺序</option>
-            </select>
-            <select
-              aria-label="日期筛选"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            >
-              <option value="all">全部日期</option>
-              <option value="today">今日</option>
-              <option value="soon">未来 7 天</option>
-              <option value="overdue">逾期</option>
-            </select>
-            <label>
-              <input
-                type="checkbox"
-                checked={starOnly}
-                onChange={(e) => setStarOnly(e.target.checked)}
-              />
-              仅星标
-            </label>
+    <section
+      className={"results-workspace" + (compact ? " current-results" : "")}
+      ref={motionRoot}
+    >
+      <span className="drag-announcement" role="status" aria-live="polite">
+        {drag.announcement}
+      </span>
+      {!compact && (
+        <>
+          <div className="world-heading">
+            <div>
+              <h1>
+                消化完了，
+                <br />
+                这是你的<span>世界。</span>
+              </h1>
+            </div>
+            <img src={import.meta.env.BASE_URL + "mascot.png"} alt="" />
           </div>
-        </details>
-      </div>
-      {onlyPacket && (
-        <button onClick={() => setOnlyPacket("")}>
-          正在查看本次投递 · 显示全部
-        </button>
-      )}
-      <div className="world-browsebar">
-        <nav className="category-nav" aria-label="内容分类">
-          <button aria-pressed={kind === "all"} onClick={() => setKind("all")}>
-            全部 {scoped.length}
-          </button>
-          {kinds.map((k) => (
-            <button
-              key={k}
-              aria-pressed={kind === k}
-              onClick={() => setKind(k)}
+          <div className="result-controls">
+            <button onClick={onRecords}>整理记录</button>
+            <input
+              aria-label="搜索整理结果"
+              placeholder="搜索标题、原文或文件名"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <select
+              aria-label="结果范围"
+              value={scope}
+              onChange={(e) => {
+                setScope(e.target.value);
+                setKind("all");
+              }}
             >
-              {categories[k]} {scoped.filter((r) => r.item.kind === k).length}
+              <option value="active">待处理</option>
+              <option value="done">完成 / 归档</option>
+              <option value="trash">最近删除（30 天）</option>
+            </select>
+            <details className="result-filter-menu">
+              <summary>筛选与排序</summary>
+              <div>
+                <select
+                  aria-label="排序"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  <option value="priority">默认顺序</option>
+                  <option value="due">截止时间</option>
+                  <option value="importance">重要程度</option>
+                  <option value="created">创建时间</option>
+                  <option value="custom">自定义顺序</option>
+                </select>
+                <select
+                  aria-label="日期筛选"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                >
+                  <option value="all">全部日期</option>
+                  <option value="today">今日</option>
+                  <option value="soon">未来 7 天</option>
+                  <option value="overdue">逾期</option>
+                </select>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={starOnly}
+                    onChange={(e) => setStarOnly(e.target.checked)}
+                  />
+                  仅星标
+                </label>
+              </div>
+            </details>
+          </div>
+          {onlyPacket && (
+            <button onClick={() => setOnlyPacket("")}>
+              正在查看本次投递 · 显示全部
             </button>
-          ))}
-        </nav>
-        <div className="view-switch">
-          <button aria-pressed={!grouped} onClick={() => setGrouped(false)}>
-            卡片
-          </button>
-          <button aria-pressed={grouped} onClick={() => setGrouped(true)}>
-            按分组查看
-          </button>
-        </div>
-      </div>
+          )}
+          <div className="world-browsebar">
+            <nav className="category-nav" aria-label="内容分类">
+              <button
+                aria-pressed={kind === "all"}
+                onClick={() => setKind("all")}
+              >
+                全部 {scoped.length}
+              </button>
+              {kinds.map((k) => (
+                <button
+                  key={k}
+                  aria-pressed={kind === k}
+                  onClick={() => setKind(k)}
+                >
+                  {categories[k]}{" "}
+                  {scoped.filter((r) => r.item.kind === k).length}
+                </button>
+              ))}
+            </nav>
+            <div className="view-switch">
+              <button aria-pressed={!grouped} onClick={() => setGrouped(false)}>
+                卡片
+              </button>
+              <button aria-pressed={grouped} onClick={() => setGrouped(true)}>
+                按分组查看
+              </button>
+            </div>
+          </div>
 
-      {scope === "trash" && (
-        <p>
-          删除事项会保留整次投递的原文；原始附件可单独管理。 删除的内容保留 30
-          天。永久删除整次投递会同时移除其中事项；共享原件只在没有有效引用时清理。用量记录继续保留。
-        </p>
+          {scope === "trash" && (
+            <p>
+              删除事项会保留整次投递的原文；原始附件可单独管理。 删除的内容保留
+              30
+              天。永久删除整次投递会同时移除其中事项；共享原件只在没有有效引用时清理。用量记录继续保留。
+            </p>
+          )}
+        </>
       )}
       {!filtered.length && (
         <div className="result-empty">
-          这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。
+          {compact
+            ? "这次的事情都处理好了。"
+            : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
         </div>
       )}
       {(grouped ? groups : [""]).map((group) => (
@@ -397,6 +461,8 @@ function Results({
                   }
                   key={id}
                   data-motion-id={id}
+                  onPointerDown={drag.onPointerDown}
+                  onDragStart={(event) => event.preventDefault()}
                 >
                   <div className="card-topline">
                     <button
@@ -521,7 +587,10 @@ function Results({
                   <div className="card-bottom">
                     <button
                       className="card-source-link"
-                      onClick={() => setMaterials(p.id)}
+                      onClick={() => {
+                        materialOrigin.current = id;
+                        setMaterials(p.id);
+                      }}
                     >
                       <Paperclip size={16} />
                       {p.attachments.length
@@ -1158,7 +1227,11 @@ function Results({
         ))}
       </datalist>
       {materials && packets.find((p) => p.id === materials) && (
-        <ItemDialog label="同行材料" onClose={() => setMaterials("")}>
+        <ItemDialog
+          label="同行材料"
+          originId={materialOrigin.current}
+          onClose={() => setMaterials("")}
+        >
           <DeliverySources
             packet={packets.find((p) => p.id === materials)!}
             save={save}

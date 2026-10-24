@@ -24,7 +24,7 @@ export function useCardMotion() {
       });
     for (const { card, id, x, y, left, top } of reads) {
       next.set(id, { left, top });
-      if (card.dataset.departing) continue;
+      if (card.dataset.departing || card.dataset.dragging) continue;
       const prior = positions.current.get(id);
       if (prior && Math.abs(prior.left - left) + Math.abs(prior.top - top) < 1)
         continue;
