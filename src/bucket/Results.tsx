@@ -1,3 +1,4 @@
+import { absoluteItem, setDeadline } from "../../shared/deadlines.mjs";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Star,
@@ -186,7 +187,8 @@ function Results({
   );
   const searchTerm = query.toLowerCase();
   const rows = packets.flatMap((p) =>
-    (p.result?.items || []).map((item, index) => {
+    (p.result?.items || []).map((rawItem, index) => {
+      const item = absoluteItem(rawItem, p.captureDate);
       const id = p.itemIds?.[index] || `${p.id}:${index}`,
         storedMeta = p.itemState?.[id] || {};
       const meta = {
@@ -701,6 +703,14 @@ function Results({
                                     .split("\n")
                                     .filter(Boolean),
                                 };
+                                items[index] = setDeadline(
+                                  {
+                                    ...absoluteItem(items[index], localDate()),
+                                    due: item.due,
+                                  },
+                                  items[index].due,
+                                  p.captureDate,
+                                );
                                 const edits = [
                                   ["标题", item.title, items[index].title],
                                   ["分类", item.kind, items[index].kind],

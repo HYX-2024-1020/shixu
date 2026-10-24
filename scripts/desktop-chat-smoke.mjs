@@ -1,3 +1,4 @@
+import { absoluteText } from "../shared/deadlines.mjs";
 import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, copyFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -150,7 +151,7 @@ try {
   assert.equal(saved.result.items.length, 1);
   assert.equal(saved.text, source);
   assert.deepEqual(saved.result.items[0].facts, [
-    "下周一和周二停课",
+    absoluteText("下周一和周二停课", saved.captureDate),
     "保留通知原文",
   ]);
   assert.equal(saved.itemState["chat-i"].chat.length, 4);

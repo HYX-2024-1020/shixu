@@ -1,3 +1,9 @@
+<template name="ddlCard">
+  <view class="ddl-item">
+    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '具体时刻未知'}}</text><text>核对时间 ↗</text></view>
+    <view class="ddl-row"><button class="ddl-check" data-id="{{row.id}}" catchtap="toggleDone">{{row.done ? '✓' : '○'}}</button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
+  </view>
+</template>
 <template name="itemCard">
   <view
     class="item-card kind-{{row.kind}} {{row.done ? 'done-card' : ''}}"
@@ -248,9 +254,23 @@
       再看一些 · {{matched - items.length}} 张
     </button>
   </view>
+  <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
+    <view class="ddl-head"><image src="/assets/mascot.png" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">点一下时间，核对依据、手动修正。</text></view></view>
+    <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
+    <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><slider min="0" max="4" step="1" value="{{ddlIndex}}" activeColor="#7048e8" block-color="#ffd43b" bindchange="setDdlWindow"/><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this">{{item}} 天</text></view></view>
+    <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
+    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block>
+    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></view>
+    <view wx:if="{{!ddlSections.length}}" class="ddl-empty">{{ddlCount ? '这个时间窗里没有待交事项。' : ddlDone.length ? '全都完成了，轻松一下。' : '还没有截止事项，把通知丢进桶里，或在下方补充。'}}</view>
+    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
+    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
+    <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
+    <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
+    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="明天下午三点 / YYYY-MM-DD"/><text class="field-label">截止时刻（可留空）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
+  </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
-    ><view class="section-top"><text class="section-title">连接与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="section-top"><text class="section-title">连接与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
     ><view class="card-paper ai-connection"
       ><text class="subheading">AI 连接 · 服务端配置</text>
       <text class="settings-copy">{{!connected ? '请先填写下方服务地址和访问口令。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
@@ -334,7 +354,7 @@
       bindtap="switchTab"
     >
       世界 <text class="nav-badge">✦</text>
-    </button></view
+    </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab">DDL <text class="nav-badge">{{ddlCount}}</text></button></view
   >
 </view>
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
@@ -450,13 +470,13 @@
           data-field="editGroup"
           bindinput="onEdit"
           maxlength="150"
-        /><view class="field-label">日期（留空清除）</view
+        /><view wx:if="{{selected.evidence.length}}" class="detail-section"><text class="subheading">时间依据 · 原文</text><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"><text class="quiet">{{item.name}}</text><text class="detail-line" selectable>{{item.quote}}</text></view></view><view class="field-label">日期（留空清除）</view
         ><input
           value="{{editDate}}"
           data-field="editDate"
           bindinput="onEdit"
-          placeholder="YYYY-MM-DD"
-        /><view class="button-row"
+          placeholder="明天下午三点 / YYYY-MM-DD"
+        /><view class="field-label">时刻（留空为未知）</view><input value="{{editTime}}" data-field="editTime" bindinput="onEdit" placeholder="HH:mm"/><view class="button-row"
           ><button class="primary" bindtap="saveEdit">保存修改</button
           ><button class="small-button" bindtap="cancelEdit">取消</button></view
         ></block

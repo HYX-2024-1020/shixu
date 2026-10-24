@@ -1,5 +1,6 @@
 const {
   compareItems,
+  absoluteItem,
   cardCopy,
   buildGroups,
   itemRef,
@@ -27,7 +28,8 @@ function itemsFor(records) {
     if (!record.data || record.purged) return [];
     const p = record.data;
     return (p.result && Array.isArray(p.result.items) ? p.result.items : [])
-      .map((item, index) => {
+      .map((rawItem, index) => {
+        const item = absoluteItem(rawItem, p.captureDate);
         const id = (p.itemIds || [])[index] || `${p.id}:${index}`;
         const meta = (p.itemState || {})[id] || {};
         const copy = cardCopy({

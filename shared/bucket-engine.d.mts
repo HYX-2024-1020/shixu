@@ -49,6 +49,7 @@ export function buildMessages(
 ): { role: string; content: string }[];
 export function splitSources(sources: Source[], limit?: number): Source[][];
 export interface RequestOptions {
+  itemCaptureDate?: string;
   apiKey: string;
   model?: string;
   captureDate: string;

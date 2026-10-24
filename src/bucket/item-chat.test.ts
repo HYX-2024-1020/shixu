@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateChat } from "./item-chat";
+import { validateChat, chatWithItem } from "./item-chat";
 describe("card conversation operations", () => {
   it("supports reclassification and independent grouping without changing source content", () => {
     expect(
@@ -58,4 +58,61 @@ describe("card conversation operations", () => {
       ).patch,
     ).toEqual({ due: null, group: "" });
   });
+});
+
+it("keeps old card dates anchored to capture day while a new chat deadline uses the instruction day", async () => {
+  const source = "明天下午三点交报告";
+  let current = { summary: "" };
+  const response = await chatWithItem(
+    {
+      kind: "task",
+      title: "交报告",
+      summary: source,
+      facts: [source],
+      nextSteps: [],
+      uncertainties: [],
+      sourceIds: ["input"],
+      evidence: [{ sourceId: "input", quote: source }],
+      due: {
+        date: "2026-10-29",
+        time: "15:00",
+        anchor: "明天下午三点",
+        sourceId: "input",
+      },
+    },
+    {},
+    "改到明天下午四点",
+    source,
+    {
+      apiKey: "fixture",
+      captureDate: "2026-11-02",
+      itemCaptureDate: "2026-10-28",
+      fetcher: async (_url, init) => {
+        current = JSON.parse(
+          JSON.parse(String(init?.body)).messages[1].content,
+        ).currentItem;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: "stop",
+                message: {
+                  content: JSON.stringify({
+                    reply: "已改",
+                    patch: { due: { anchor: "明天下午四点" } },
+                  }),
+                },
+              },
+            ],
+          }),
+        );
+      },
+    },
+  );
+  expect(current.summary).toContain("2026年10月29日");
+  expect(response.patch.due).toMatchObject({
+    date: "2026-11-03",
+    time: "16:00",
+  });
+  expect(response.patch.summary).toBe("2026年11月03日16:00交报告");
 });

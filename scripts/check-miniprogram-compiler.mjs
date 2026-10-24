@@ -110,6 +110,17 @@ assert.equal(
   "world",
   "second settings tap returns to originating world",
 );
+page.switchTab({ currentTarget: { dataset: { tab: "ddl" } } });
+page.setData({ ddlTitle: "DDL 编译验收", ddlDate: "明天下午三点" });
+page.addDdl();
+assert.ok(
+  view().some((node) => node.attr?.class?.includes("ddl-item")),
+  "DDL compiled cards render",
+);
+assert.ok(
+  view().some((node) => node.attr?.bindtap === "verifyDdl"),
+  "DDL verification action compiled",
+);
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,

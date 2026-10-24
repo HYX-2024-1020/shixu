@@ -1,4 +1,9 @@
 import {
+  absoluteItem,
+  absoluteText,
+  setDeadline,
+} from "../../shared/deadlines.mjs";
+import {
   groundedDate,
   groundedTime,
   requestJSON,
@@ -85,6 +90,11 @@ export function validateChat(
       };
     } else throw new Error("这项操作暂不支持，卡片未改动");
   }
+  for (const field of ["title", "summary"] as const)
+    if (typeof output[field] === "string")
+      output[field] = absoluteText(output[field] as string, today);
+  if (Array.isArray(output.facts))
+    output.facts = output.facts.map((t) => absoluteText(t as string, today));
   return { reply: reply.trim().slice(0, 3000), patch: output as ItemPatch };
 }
 export async function chatWithItem(
@@ -94,6 +104,7 @@ export async function chatWithItem(
   sources: string,
   options: RequestOptions,
 ) {
+  item = absoluteItem(item, options.itemCaptureDate || options.captureDate);
   const response = await requestJSON(
     [
       {
@@ -121,5 +132,17 @@ export async function chatWithItem(
     ],
     options,
   );
-  return validateChat(response, instruction, options.captureDate);
+  const validated = validateChat(response, instruction, options.captureDate);
+  if ("due" in validated.patch) {
+    const next = setDeadline(
+      { ...item, ...validated.patch, due: item.due },
+      validated.patch.due ?? null,
+      options.captureDate,
+    );
+    for (const key of ["title", "summary", "facts"] as const) {
+      if (JSON.stringify(next[key]) !== JSON.stringify(item[key]))
+        Object.assign(validated.patch, { [key]: next[key] });
+    }
+  }
+  return validated;
 }

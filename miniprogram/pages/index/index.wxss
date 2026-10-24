@@ -824,3 +824,155 @@ input {
   border-top: 2rpx solid #211f20;
   margin-top: 20rpx;
 }
+
+.ddl-workspace {
+  padding-top: 30rpx;
+}
+.ddl-head {
+  display: flex;
+  gap: 24rpx;
+  align-items: center;
+  margin-bottom: 30rpx;
+}
+.ddl-head image {
+  width: 130rpx;
+  height: 140rpx;
+  flex-shrink: 0;
+}
+.ddl-head .world-title {
+  font-size: 44rpx;
+}
+.ddl-head .quiet {
+  display: block;
+  margin-top: 18rpx;
+}
+.ddl-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+  margin: 30rpx 0;
+}
+.ddl-stats text {
+  background: #fff;
+  border: 4rpx solid #111;
+  padding: 12rpx;
+  font-size: 23rpx;
+  box-shadow: 6rpx 6rpx #ffd43b;
+}
+.ddl-stats text:nth-child(2) {
+  box-shadow: 6rpx 6rpx #7048e8;
+}
+.ddl-timeline {
+  background: white;
+  border: 5rpx solid #111;
+  box-shadow: 8rpx 8rpx #7048e8;
+  padding: 24rpx;
+  margin: 30rpx 0;
+}
+.ddl-timeline .subheading {
+  font-size: 27rpx;
+}
+.ddl-stops {
+  display: flex;
+  justify-content: space-between;
+  font-size: 22rpx;
+}
+.ddl-subbar {
+  border: 5rpx solid #111;
+  background: #fff;
+  padding: 22rpx;
+  font-weight: 800;
+  margin: 30rpx 0;
+  font-size: 28rpx;
+}
+.ddl-subbar.overdue {
+  background: #ffe5ee;
+}
+.ddl-section-title {
+  font-size: 31rpx;
+  font-weight: 900;
+  border-bottom: 4rpx solid #111;
+  padding: 18rpx 0;
+  margin-top: 30rpx;
+}
+.ddl-item {
+  border: 5rpx solid #111;
+  background: #fff;
+  box-shadow: 7rpx 7rpx #111;
+  margin: 26rpx 0;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+.ddl-time {
+  background: #fff9e6;
+  border-bottom: 5rpx solid #111;
+  padding: 18rpx;
+  display: flex;
+  gap: 18rpx;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 23rpx;
+}
+.ddl-time text:last-child {
+  color: #7048e8;
+  margin-left: auto;
+  font-size: 21rpx;
+}
+.ddl-clock {
+  font-weight: 900;
+  font-size: 31rpx;
+}
+.ddl-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 22rpx;
+  gap: 20rpx;
+}
+.ddl-check {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 39rpx;
+  border: 4rpx solid #111;
+  padding: 0;
+  flex: none;
+  margin: 0;
+}
+.ddl-copy {
+  flex: 1;
+  min-width: 0;
+}
+.ddl-copy .item-title {
+  font-size: 29rpx;
+}
+.ddl-copy .quiet {
+  font-size: 22rpx;
+}
+.ddl-course {
+  background: #eee8ff;
+  border: 3rpx solid #111;
+  font-size: 22rpx;
+  padding: 3rpx 10rpx;
+  display: inline-block;
+  margin: 12rpx 0;
+}
+.ddl-empty {
+  padding: 40rpx;
+  text-align: center;
+  color: #777;
+  border: 3rpx dashed #999;
+  margin: 30rpx 0;
+}
+.ddl-add {
+  padding: 24rpx;
+  border: 4rpx solid #111;
+  background: #fff;
+}
+.ddl-add textarea {
+  width: 100%;
+  height: 150rpx;
+}
+.nav-button {
+  min-width: 0;
+  padding-left: 20rpx;
+  padding-right: 20rpx;
+}
