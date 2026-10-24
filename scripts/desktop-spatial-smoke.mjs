@@ -16,6 +16,10 @@ const app = await electron.launch({
 const report = { checks: [], frameSamples: [] };
 try {
   const page = await app.firstWindow();
+  // CI desktops can have a smaller work area than the developer's monitor.
+  // Keep the precision reorder test away from the auto-scroll edge; the final
+  // scenario below exercises edge scrolling separately at this same viewport.
+  await page.setViewportSize({ width: 1180, height: 820 });
   page.setDefaultTimeout(15000);
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
@@ -294,6 +298,11 @@ try {
   const destination = await page
     .locator('[data-motion-id="drag-4"]')
     .boundingBox();
+  const dropY = destination.y + destination.height / 2;
+  assert(
+    dropY > 72 && dropY < 820 - 72,
+    "precision drop stays outside the auto-scroll edges",
+  );
   await page.mouse.move(start.x + 80, start.y + 25);
   await page.mouse.down();
   await page.waitForTimeout(330);
