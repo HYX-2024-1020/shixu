@@ -388,7 +388,7 @@ test("authorization, origin, invalid input, epoch changes, and operation reuse a
         data: { text: "file", attachments: [{ name: "missing.pdf" }] },
       },
     }),
-    (e) => e.code === "ATTACHMENTS_NOT_READY",
+    (e) => e.code === "INVALID_ATTACHMENT",
   );
   await f.request(device.token, "DELETE", "/api/v2/device");
   await assert.rejects(

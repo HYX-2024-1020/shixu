@@ -1,6 +1,26 @@
 .page {
   padding: 36rpx 30rpx calc(180rpx + env(safe-area-inset-bottom));
 }
+.draft-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  padding: 18rpx;
+  margin: 16rpx 0;
+  border: 2rpx dashed #bbaa7b;
+  border-radius: 14rpx;
+  background: #fffdf5;
+  font-size: 25rpx;
+  word-break: break-all;
+}
+.draft-file text {
+  max-width: 100%;
+}
+.original-scrim {
+  z-index: 40;
+}
 .heading,
 .section-top,
 .card-top,

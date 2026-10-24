@@ -244,6 +244,7 @@ function createSyncClient({ read, write, request, makeId = uid }) {
       pending: state.outbox.length,
       conflicts: state.conflicts.length,
       capabilities: status.capabilities || {},
+      epoch: status.epoch,
     };
   }
   return {

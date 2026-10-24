@@ -5,6 +5,43 @@ const validId = (v) =>
   typeof v === "string" &&
   /^[a-zA-Z0-9_-]{1,120}$/.test(v) &&
   !["__proto__", "constructor", "prototype"].includes(v);
+function withFileSources(store, packet) {
+  if (store.files?.unlinked(packet.id))
+    throw new SyncError(
+      409,
+      "ATTACHMENTS_PENDING",
+      "原件尚未完成关联，请先完成原件同步再整理",
+    );
+  const attachments = (packet.attachments || []).filter((f) => !f.deletedAt);
+  if (!attachments.length) return packet;
+  const reading = attachments.map((file) => ({
+    file,
+    ...store.files.readText(packet.id, file.id),
+  }));
+  if (reading.some((r) => r.state !== "read"))
+    throw new SyncError(
+      422,
+      "ATTACHMENT_READING_NOT_READY",
+      "部分原件尚未支持读取，已完整保存；请先手动记录事项，避免 AI 忽略附件内容",
+    );
+  const ids = new Set(attachments.map((f) => f.id));
+  return {
+    ...packet,
+    sources: [
+      ...(packet.sources || []).filter(
+        (s) => !ids.has(s.id) && typeof s.text === "string" && s.text.trim(),
+      ),
+      ...reading.map((r) => r.source),
+    ],
+    coverage: reading.map((r) => ({
+      attachmentId: r.file.id,
+      name: r.file.name,
+      state: "read",
+      detail: "已从服务端 UTF-8 原件读取",
+      sourceIds: [r.source.id],
+    })),
+  };
+}
 export function createJobQueue(store, ai) {
   const db = store.db;
   db.exec(`CREATE TABLE IF NOT EXISTS sync_jobs(
@@ -90,7 +127,7 @@ export function createJobQueue(store, ai) {
         }
         update(job.id, "running");
         try {
-          const packet = record.data,
+          const packet = withFileSources(store, record.data),
             signal = AbortSignal.any([
               controller.signal,
               AbortSignal.timeout(240000),
@@ -129,6 +166,8 @@ export function createJobQueue(store, ai) {
               status: "ready",
               error: "",
               organizedSourceIds: (packet.sources || []).map((s) => s.id),
+              sources: packet.sources,
+              ...(packet.coverage ? { coverage: packet.coverage } : {}),
               updatedAt: new Date().toISOString(),
             };
           } else {
@@ -304,6 +343,7 @@ export function createJobQueue(store, ai) {
           "REVISION_CONFLICT",
           "投递已更新，请同步后重试",
         );
+      withFileSources(store, record.data); // Reject unsupported originals before scheduling a paid call.
       if (
         request.kind === "organize" &&
         (record.data.result?.items?.length ||

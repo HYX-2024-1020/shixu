@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { SyncStore, SyncError } from "./sync-store.mjs";
 import { createJobQueue } from "./sync-jobs.mjs";
+import { createAttachmentStore } from "./sync-files.mjs";
 import {
   organizePacket,
   chatWithItem,
@@ -47,6 +48,7 @@ export function createSyncService({
   origin = "http://127.0.0.1:8788",
   appId = "wx03d8b4c63a26177c",
   ai = null,
+  fileLimits = {},
 }) {
   if (typeof password !== "string" || password.length < 12)
     throw new Error("独立同步服务需要至少 12 位的 SYNC_PASSWORD");
@@ -57,6 +59,7 @@ export function createSyncService({
   )
     throw new Error("SYNC_ORIGIN 必须是无路径的 HTTP 或 HTTPS 来源");
   const store = new SyncStore(database);
+  const files = createAttachmentStore(store, fileLimits);
   const jobs = createJobQueue(store, ai);
   const failures = new Map();
   const passwordHash = digest(password);
@@ -70,7 +73,7 @@ export function createSyncService({
       if (url.pathname === "/api/v2/status" && req.method === "GET") {
         json(res, 200, {
           application: "shixu-sync",
-          version: "0.1.0",
+          version: "0.2.0",
           protocolVersion: 2,
           schemaVersion: 1,
           appId,
@@ -79,7 +82,15 @@ export function createSyncService({
             textSync: true,
             aiOrganize: !!ai?.organize,
             itemChat: !!ai?.chat,
-            attachments: false,
+            attachments: true,
+            attachmentReading: {
+              text: true,
+              images: false,
+              office: false,
+              pdf: false,
+              archives: false,
+            },
+            attachmentLimits: files.limits,
             wechatLogin: false,
           },
         });
@@ -116,6 +127,61 @@ export function createSyncService({
           "UNAUTHORIZED",
           "设备授权已失效，请重新连接，未同步内容仍保存在本机",
         );
+      if (url.pathname.startsWith("/api/v2/attachments/")) {
+        const parts = url.pathname
+          .slice("/api/v2/attachments/".length)
+          .split("/");
+        if (parts.length !== 2)
+          throw new SyncError(400, "INVALID_ATTACHMENT", "附件路径无效");
+        const [packetId, id] = parts;
+        if (req.method === "PUT") {
+          if (req.headers["content-type"] !== "application/octet-stream")
+            throw new SyncError(415, "BINARY_REQUIRED", "请上传原始文件字节");
+          const chunks = [];
+          let size = 0;
+          for await (const chunk of req) {
+            size += chunk.length;
+            if (size > files.limits.maxFileBytes)
+              throw new SyncError(
+                413,
+                "FILE_TOO_LARGE",
+                "原件超过单文件容量限制",
+              );
+            chunks.push(chunk);
+          }
+          let name;
+          try {
+            name = decodeURIComponent(
+              String(req.headers["x-shixu-file-name"] || ""),
+            );
+          } catch {
+            throw new SyncError(400, "INVALID_ATTACHMENT", "附件名称编码无效");
+          }
+          const file = files.put(packetId, id, {
+            name,
+            type: String(
+              req.headers["x-shixu-file-type"] || "application/octet-stream",
+            ),
+            body: Buffer.concat(chunks),
+            epoch: url.searchParams.get("epoch"),
+          });
+          json(res, 201, { file, reading: files.readText(packetId, id) });
+          return;
+        }
+        if (req.method === "GET") {
+          const file = files.get(packetId, id);
+          res.writeHead(200, {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": file.body.length,
+            "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Shixu-Sha256": file.hash,
+          });
+          res.end(file.body);
+          return;
+        }
+      }
       if (url.pathname === "/api/v2/jobs" && req.method === "POST") {
         json(res, 202, jobs.enqueue(device.id, await readJSON(req)));
         return;
@@ -177,7 +243,7 @@ export function createSyncService({
     jobs.stop();
     store.close();
   });
-  return { server, store, jobs };
+  return { server, store, jobs, files };
 }
 
 if (

@@ -109,10 +109,10 @@
         ><text>草稿自动保存</text><text>{{draft.length}} / 60000</text></view
       ></view
     >
-    <view class="capture-toolbar"
+    <view class="button-row"><button class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信文件</button><button class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view><view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
       ><text class="quiet"
         >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
-      ><button class="primary" bindtap="submit" disabled="{{!draft.length}}">
+      ><button class="primary" bindtap="submit" disabled="{{filesBusy || (!draft.length && !draftFiles.length)}}">
         丢进去 ↗
       </button></view
     >
@@ -132,7 +132,7 @@
         ><text class="badge"
           >{{item.status === 'ready' ? '已记录' : '原文已保存'}}</text
         ><text class="source-preview" selectable>{{item.text}}</text
-        ><text class="item-summary">{{item.summary}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy}}">查看原件</button></view><text class="item-summary">{{item.summary}}</text
         ><text wx:if="{{item.error}}" class="error">{{item.error}}</text
         ><view class="button-row"
           ><button
@@ -324,7 +324,7 @@
           >{{capabilities.aiOrganize ? '服务支持' : '服务尚未接入'}}</text
         ></view
       ><view class="capability"
-        ><text>附件同步</text
+        ><text>原件同步</text
         ><text
           >{{capabilities.attachments ? '服务支持' : '服务尚未接入'}}</text
         ></view
@@ -333,7 +333,7 @@
       ></view
     ><text class="about">拾序小程序 · 开发版 0.2.0 · 桌面基线 0.3.8</text></view
   >
-  <view class="bottom-nav"
+  <view wx:if="{{filesBusy || pendingFiles}}" class="notice">{{filesBusy ? "正在保存或传输原件，请稍候" : pendingFiles + " 份原件保留在本机，等待上传"}}</view><view class="bottom-nav"
     ><button
       class="nav-button {{tab === 'capture' ? 'active' : ''}}"
       data-tab="capture"
@@ -378,7 +378,7 @@
             >{{localMode ? '本机保存' : item.state}}</text
           ></view
         ><text class="source-preview" selectable>{{item.text}}</text
-        ><text class="quiet">{{item.date}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy || item.deleted}}">查看原件</button></view><text class="quiet">{{item.date}}</text
         ><view class="button-row"
           ><button
             wx:if="{{item.conflict}}"
@@ -539,7 +539,7 @@
             ><button class="text-button" bindtap="copySource">
               复制原文
             </button></view
-          ><text class="detail-line" selectable>{{selected.sourceText}}</text
+          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">查看原件</button></view><text class="detail-line" selectable>{{selected.sourceText}}</text
           ><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
@@ -731,3 +731,5 @@
     ></view
   ></view
 >
+
+<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal">×</button></view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>

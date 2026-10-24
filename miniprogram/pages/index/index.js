@@ -1,6 +1,12 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const {
+  KEY: FILES,
+  createFileLibrary,
+  createFileTransport,
+  extension,
+} = require("../../lib/files");
+const {
   createLocalWorkspace,
   KEY: LOCAL,
 } = require("../../lib/local-workspace");
@@ -37,6 +43,10 @@ Page({
   data: {
     tab: "capture",
     draft: "",
+    draftFiles: [],
+    originalPreview: null,
+    filesBusy: false,
+    pendingFiles: 0,
     rows: [],
     recordPage: 0,
     recordTotal: 0,
@@ -197,6 +207,21 @@ Page({
   },
   _refresh() {
     if (!this._client) return;
+    try {
+      const library = this._library();
+      if (library)
+        for (const row of this._client
+          .records()
+          .filter((r) => r.purged && !r.pending))
+          library.forgetPacket(
+            row.id,
+            this.data.localMode ? "local" : this._connection.base,
+          );
+    } catch (error) {
+      this._error(
+        new Error("投递已永久删除，本机原件缓存清理尚未完成，请保留资料后重试"),
+      );
+    }
     const all = this._client.records().filter((row) => !row.purged && row.data);
     const recordRows = all.filter(
       (row) => !!row.deletedAt === this.data.showDeleted,
@@ -209,15 +234,17 @@ Page({
       .map((row) => ({
         id: row.id,
         text: (row.data.text || "").slice(0, 600),
-        title: ((row.data.text || "").split("\n")[0] || "文字投递").slice(
-          0,
-          32,
-        ),
+        title: (
+          (row.data.text || "").split("\n")[0] ||
+          (row.data.attachments || [])[0]?.name ||
+          "文字投递"
+        ).slice(0, 32),
         date: row.data.captureDate || "",
         deleted: !!row.deletedAt,
         conflict: !!row.conflict,
         state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
         hasResult: !!row.data.result,
+        attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
       }));
     const view = worldView(this._client.records(), this.data);
     const selected =
@@ -225,6 +252,20 @@ Page({
       this._presentDetail(this._detail(this.data.selected.id));
     this.setData({
       rows,
+      draftFiles: this._fileEntries(this._draftId).map((e) =>
+        this._library().metadata(e),
+      ),
+      pendingFiles:
+        this._library() && !this.data.localMode
+          ? this._library()
+              .entries(null, this._connection.base)
+              .filter(
+                (e) =>
+                  !e.remote &&
+                  this._record(e.packetId) &&
+                  !this._record(e.packetId).deletedAt,
+              ).length
+          : 0,
       recordTotal: recordRows.length,
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
@@ -249,6 +290,7 @@ Page({
           error: r.data.error || "",
           summary: (r.data.result && r.data.result.summary) || "",
           items: itemsFor([r]).slice(0, 60).map(this._cardView),
+          attachments: (r.data.attachments || []).filter((f) => !f.deletedAt),
         })),
       localCount: this._localWorkspace()
         .records()
@@ -260,6 +302,196 @@ Page({
       () => wx.getStorageSync(LOCAL),
       (value) => wx.setStorageSync(LOCAL, value),
     );
+  },
+  _library() {
+    if (!wx.env || !wx.getFileSystemManager) return null;
+    if (!this._files)
+      this._files = createFileLibrary({
+        read: () => wx.getStorageSync(FILES),
+        write: (value) => wx.setStorageSync(FILES, value),
+        fs: wx.getFileSystemManager(),
+        root: `${wx.env.USER_DATA_PATH}/shixu-originals`,
+      });
+    return this._files;
+  },
+  _fileEntries(packetId, space) {
+    if (!packetId || !this._library()) return [];
+    const entries = this._library().entries(packetId, space);
+    // A retained local copy and its remote import may share one original.
+    return entries.filter(
+      (e, i) => entries.findIndex((f) => f.id === e.id) === i,
+    );
+  },
+  chooseFiles() {
+    if (this.data.filesBusy) return;
+    this.setData({ filesBusy: true });
+    wx.chooseMessageFile({
+      count: 20,
+      type: "all",
+      success: (answer) => this._collectFiles(answer.tempFiles),
+      fail: () => this.setData({ notice: "未选择文件，现有草稿已保留" }),
+      complete: () => this.setData({ filesBusy: false }),
+    });
+  },
+  chooseImages() {
+    if (this.data.filesBusy) return;
+    this.setData({ filesBusy: true });
+    wx.chooseMedia({
+      count: 9,
+      mediaType: ["image"],
+      sourceType: ["album", "camera"],
+      success: (answer) => this._collectFiles(answer.tempFiles),
+      fail: () => this.setData({ notice: "未选择图片，现有草稿已保留" }),
+      complete: () => this.setData({ filesBusy: false }),
+    });
+  },
+  _collectFiles(files) {
+    try {
+      if (!this._draftId) this._draftId = makeId();
+      // Persist the owner ID before copying a temporary file to durable storage.
+      wx.setStorageSync(DRAFT, { id: this._draftId, text: this.data.draft });
+      const library = this._library();
+      if (!library) throw new Error("当前环境暂不支持原件保存");
+      for (const file of files) {
+        if (this._fileEntries(this._draftId).length >= 20)
+          throw new Error("一次投递最多 20 份原件");
+        library.add(file, this._draftId);
+      }
+      this.setData({
+        error: "",
+        notice: "原件已保存在本机；丢进去后与文字一起投递",
+      });
+    } catch (error) {
+      this._error(error);
+    }
+    this._refresh();
+  },
+  removeDraftFile(event) {
+    try {
+      this._library().removeDraft(
+        event.currentTarget.dataset.id,
+        this._draftId,
+      );
+      this._refresh();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  async _uploadFiles(epoch) {
+    const library = this._library();
+    if (!library || this.data.filesBusy || !this.data.capabilities.attachments)
+      return;
+    const base = this._connection.base,
+      transport = createFileTransport(base, () => this._connection.token);
+    this.setData({ filesBusy: true });
+    try {
+      let changed = false;
+      for (const entry of library
+        .entries(null, base)
+        .filter((e) => !e.remote)) {
+        const row = this._record(entry.packetId);
+        if (!row || row.deletedAt || row.conflict) continue;
+        const result = await transport.upload(
+          entry,
+          library.bytes(entry),
+          epoch,
+        );
+        const confirmed = library.confirmation(entry, result.file);
+        // Queue the reference durably before marking the transfer acknowledged.
+        const latest = this._record(entry.packetId);
+        if (!latest || latest.deletedAt || latest.conflict)
+          throw new Error("投递状态已变化，原件上传结果保留，恢复或核对后重试");
+        this._client.put(entry.packetId, {
+          attachments: [
+            ...(latest.data.attachments || []).filter((f) => f.id !== entry.id),
+            confirmed,
+          ],
+        });
+        library.markUploaded(entry, confirmed);
+        changed = true;
+      }
+      if (changed) await this._client.sync();
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  async openAttachment(event) {
+    if (this.data.filesBusy) return;
+    this.setData({ filesBusy: true });
+    try {
+      const { id, packet } = event.currentTarget.dataset,
+        row = this._record(packet);
+      if (!row || row.deletedAt) throw new Error("请先恢复整次投递");
+      const file = (row.data.attachments || []).find(
+        (f) => f.id === id && !f.deletedAt,
+      );
+      if (!file) throw new Error("附件不存在");
+      const library = this._library();
+      if (!library) throw new Error("当前环境不支持原件预览");
+      const space = this.data.localMode ? "local" : this._connection.base;
+      let entry = library.entries(packet, space).find((e) => e.id === id),
+        path;
+      if (entry) {
+        try {
+          path = library.path(entry);
+        } catch {
+          if (this.data.localMode)
+            throw new Error("本机原件缺失，请保留资料后核对");
+        }
+      }
+      if (!path) {
+        const bytes = await createFileTransport(
+          this._connection.base,
+          () => this._connection.token,
+        ).download(packet, id);
+        path = library.cache(file, packet, space, bytes);
+      }
+      const ext = extension(file.name);
+      if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext))
+        wx.previewImage({
+          urls: [path],
+          current: path,
+          fail: () => this._error(new Error("图片预览失败，原件仍保留")),
+        });
+      else if (
+        ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf"].includes(ext)
+      )
+        wx.openDocument({
+          filePath: path,
+          fileType: ext,
+          showMenu: true,
+          fail: () =>
+            this._error(new Error("微信暂时无法打开这份原件，文件已保留")),
+        });
+      else if (
+        /\.(txt|md|csv|tsv|json|ya?ml|xml|html?|css|js|mjs|cjs|ts|tsx|jsx|py|java|c|cpp|h|rs|go|sql|log)$/i.test(
+          file.name,
+        )
+      ) {
+        if (file.size > 400000)
+          throw new Error("原件已保存；文字超过预览上限，请使用原文件查看");
+        const text = wx.getFileSystemManager().readFileSync(path, "utf8");
+        if (typeof text !== "string")
+          throw new Error("当前环境无法解码这份文字，原件已保留");
+        this.setData({
+          originalPreview: {
+            name: file.name,
+            text: text.slice(0, 60000),
+            truncated: text.length > 60000,
+          },
+        });
+      } else
+        this.setData({
+          notice: "原件已完整保存在本机；此格式暂不支持微信内预览",
+        });
+    } catch (error) {
+      this._error(error);
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  closeOriginal() {
+    this.setData({ originalPreview: null });
   },
   _cardView(row) {
     const { item, meta, search, ...view } = row;
@@ -282,13 +514,11 @@ Page({
         .slice(-20)
         .map((a) => ({ ...a, text: a.text.slice(0, 2000) })),
       chat: row.chat.slice(-16),
-      history: row.history
-        .slice(-20)
-        .map((h) => ({
-          ...h,
-          before: String(h.before || "").slice(0, 1000),
-          after: String(h.after || "").slice(0, 1000),
-        })),
+      history: row.history.slice(-20).map((h) => ({
+        ...h,
+        before: String(h.before || "").slice(0, 1000),
+        after: String(h.after || "").slice(0, 1000),
+      })),
     };
   },
   _activateLocal() {
@@ -305,7 +535,13 @@ Page({
     this._refresh();
   },
   useLocal() {
-    if (this.data.syncing || this.data.connecting || this.data.jobBusy) return;
+    if (
+      this.data.syncing ||
+      this.data.connecting ||
+      this.data.jobBusy ||
+      this.data.filesBusy
+    )
+      return;
     // Remote outbox remains durable under its original service URL.
     try {
       wx.setStorageSync(CONNECTION, null);
@@ -331,12 +567,16 @@ Page({
         const existing = remote.find((r) => r.id === row.id);
         if (
           existing &&
-          JSON.stringify(existing.data) !== JSON.stringify(row.data)
+          JSON.stringify({ ...existing.data, attachments: [] }) !==
+            JSON.stringify({ ...row.data, attachments: [] })
         )
           throw new Error(
             "服务中已有不同的同名投递，本机原件仍保留，请核对后再导入",
           );
-        if (!existing) this._client.put(row.id, row.data);
+        if (!existing)
+          this._client.put(row.id, { ...row.data, attachments: [] });
+        if (this._library())
+          this._library().copySpace(row.id, "local", this._connection.base);
       }
       await this.sync();
       this.setData({ notice: "导入操作已保存，本机原件保留；以同步状态为准" });
@@ -378,7 +618,13 @@ Page({
     this.setData({ expandedId: this.data.expandedId === id ? "" : id });
   },
   async connect() {
-    if (this.data.connecting || this.data.syncing || this.data.jobBusy) return;
+    if (
+      this.data.connecting ||
+      this.data.syncing ||
+      this.data.jobBusy ||
+      this.data.filesBusy
+    )
+      return;
     this.setData({ connecting: true, error: "", notice: "" });
     try {
       const base = normalizeServiceURL(
@@ -425,10 +671,25 @@ Page({
     try {
       const result = await this._client.sync();
       this.setData({ capabilities: result.capabilities || {} });
+      await this._uploadFiles(result.epoch);
       await this._pollJobs();
+      const pendingFiles = this._library()
+        ? this._library()
+            .entries(null, this._connection.base)
+            .filter(
+              (e) =>
+                !e.remote &&
+                this._record(e.packetId) &&
+                !this._record(e.packetId).deletedAt,
+            ).length
+        : 0;
       this.setData({
         error: "",
-        notice: result.conflicts ? "有修改冲突，本机副本已保留" : "资料已同步",
+        notice: result.conflicts
+          ? "有修改冲突，本机副本已保留"
+          : pendingFiles
+            ? `还有 ${pendingFiles} 份原件保存在本机，尚未完成上传`
+            : "资料已同步",
       });
     } catch (error) {
       this._error(error);
@@ -441,7 +702,11 @@ Page({
     if (this._client && !this.data.localMode) return this.sync();
   },
   submit() {
-    if (!this.data.draft.trim()) return;
+    if (
+      this.data.filesBusy ||
+      (!this.data.draft.trim() && !this.data.draftFiles.length)
+    )
+      return;
     if (!this._client) {
       this.setData({
         tab: "settings",
@@ -453,12 +718,20 @@ Page({
       const text = this.data.draft;
       const id = this._draftId || this._client.newId();
       this._draftId = id;
+      const originals = this._fileEntries(id);
+      if (this._library())
+        this._library().assign(
+          id,
+          this.data.localMode ? "local" : this._connection.base,
+        );
       this._client.put(id, {
         id,
         text,
         ...dateInfo(),
-        sources: [{ id: "input", name: "随手输入", text }],
-        attachments: [],
+        sources: text.trim() ? [{ id: "input", name: "随手输入", text }] : [],
+        attachments: this.data.localMode
+          ? originals.map((e) => this._library().metadata(e))
+          : [],
         status: "pending",
         result: null,
         error: "",
@@ -902,7 +1175,7 @@ Page({
             nextSteps: [],
             uncertainties: [],
             evidence: [],
-            sourceIds: ["input"],
+            sourceIds: (row.data.sources || []).map((s) => s.id),
             due: null,
           };
           const result = row.data.result || {
@@ -1007,7 +1280,11 @@ Page({
     this.setData({ jobBusy: true, error: "" });
     try {
       await this.sync();
-      if (this.data.error || this._client.pendingCount())
+      if (
+        this.data.error ||
+        this._client.pendingCount() ||
+        this.data.pendingFiles
+      )
         throw new Error(this.data.error || "请先完成未同步操作");
       if (
         !(kind === "chat"
@@ -1040,6 +1317,9 @@ Page({
         entry,
       ]);
       await this._pollJobs();
+      const submitted = this._jobs.find((j) => j.id === entry.id);
+      if (submitted?.state === "error")
+        throw new Error(submitted.error || "模型任务未创建，请核对后重试");
       this.setData({
         notice: "模型任务已保存；可继续操作，结果就绪后自动同步",
         chatInput: "",
@@ -1311,7 +1591,7 @@ Page({
     });
   },
   applyUpdate() {
-    if (this.data.syncing || this.data.connecting) {
+    if (this.data.syncing || this.data.connecting || this.data.filesBusy) {
       wx.showToast({ title: "正在同步，稍后再更新", icon: "none" });
       return;
     }
@@ -1331,7 +1611,7 @@ Page({
         : "草稿已保存，重启后使用新版本。",
       success: (result) => {
         if (!result.confirm || !getApp().updateManager) return;
-        if (this.data.syncing || this.data.connecting) {
+        if (this.data.syncing || this.data.connecting || this.data.filesBusy) {
           wx.showToast({ title: "正在同步，稍后再更新", icon: "none" });
           return;
         }

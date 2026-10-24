@@ -55,15 +55,8 @@ function validateData(data, id) {
         "INVALID_DATA",
         "本地状态或删除状态不能作为投递字段上传",
       );
-  if (
-    "attachments" in data &&
-    (!Array.isArray(data.attachments) || data.attachments.length)
-  )
-    throw new SyncError(
-      422,
-      "ATTACHMENTS_NOT_READY",
-      "此阶段尚未接入附件上传，请保留原件",
-    );
+  if ("attachments" in data && !Array.isArray(data.attachments))
+    throw new SyncError(422, "INVALID_ATTACHMENT", "附件信息必须是列表");
   if (
     "itemState" in data &&
     (!data.itemState ||
@@ -296,6 +289,17 @@ export class SyncStore {
         type === "put" ? mergeData(current?.data, data, id) : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      if (type === "put") {
+        if (this.files)
+          this.files.validateReferences(id, nextData.attachments || []);
+        else if (nextData.attachments?.length)
+          throw new SyncError(
+            422,
+            "ATTACHMENTS_NOT_READY",
+            "此服务尚未接入原件存储，请保留原件",
+          );
+      }
+      if (type === "purge") this.files?.purge(id);
       const deletedAt =
         type === "delete"
           ? new Date().toISOString()
