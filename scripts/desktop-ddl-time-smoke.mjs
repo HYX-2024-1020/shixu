@@ -75,11 +75,39 @@ try {
       due: null,
     });
     packet.itemIds.push("clock-pending");
+    packet.result.items.push({
+      kind: "event",
+      title: "合成讲座明天早上八点",
+      summary: "参加讲座",
+      facts: [],
+      nextSteps: [],
+      uncertainties: [],
+      sourceIds: [],
+      evidence: [],
+      due: {
+        date: "2026-10-29",
+        time: "",
+        anchor: "人工确认",
+        sourceId: "manual",
+      },
+    });
+    packet.itemIds.push("clock-card-copy");
     await window.desktop.store("savePackets", [packet]);
   });
   await page.reload();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
   const ddl = page.getByRole("region", { name: "DDL 截止事项" });
+  await expect(
+    ddl
+      .locator(".ddl-item")
+      .filter({
+        has: page.getByRole("heading", {
+          name: "合成讲座2026年10月29日早上八点",
+          exact: true,
+        }),
+      })
+      .locator(".time-rail"),
+  ).toContainText("08:00");
   await expect(
     ddl
       .locator(".ddl-item")

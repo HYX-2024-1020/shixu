@@ -257,6 +257,19 @@ export function resolveDeadlineTime(due, evidence = [], sources = []) {
 // An undated card can still carry a clearly stated clock. Keep the date pending
 // while showing that clock; do not replace an explicit 15:10 with a generic default.
 export function itemDeadlineTime(item, sources = [], chat = []) {
+  const recoverCardClock = (due) => {
+    if (!due.timeInferred) return due;
+    // Legacy/manual date-only cards may keep their only clock in their own copy.
+    // Ignore suggestions and refuse to choose between different stated clocks.
+    const times = [item.title, item.summary, ...(item.facts || [])]
+      .flatMap((text) => String(text || "").split(/[。；;\n，,！？]/))
+      .map((text) => clock(text, true))
+      .filter(Boolean);
+    const unique = [...new Set(times.map((value) => value.time))];
+    if (unique.length !== 1) return due;
+    const { timeInferred, timeReason, ...base } = due;
+    return applyClock(base, times[0]);
+  };
   const context = [
     ...sources,
     ...chat
@@ -266,7 +279,9 @@ export function itemDeadlineTime(item, sources = [], chat = []) {
       .map((e) => ({ id: "item-chat", name: "事项对话", text: e.text })),
   ];
   if (item.due)
-    return resolveDeadlineTime(item.due, item.evidence || [], context);
+    return recoverCardClock(
+      resolveDeadlineTime(item.due, item.evidence || [], context),
+    );
   const ids = [
     ...new Set([
       ...(item.sourceIds || []),
@@ -283,5 +298,5 @@ export function itemDeadlineTime(item, sources = [], chat = []) {
   );
   const rank = (d) =>
     !d.timeInferred ? 0 : d.timeReason?.startsWith("未指定时刻") ? 2 : 1;
-  return candidates.sort((a, b) => rank(a) - rank(b))[0];
+  return recoverCardClock(candidates.sort((a, b) => rank(a) - rank(b))[0]);
 }

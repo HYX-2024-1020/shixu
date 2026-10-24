@@ -265,3 +265,29 @@ it("keeps a stated clock even when the deadline date itself is still pending", (
   expect(itemDeadlineTime(item)).toMatchObject({ date: "", time: "15:10" });
   expect(item.due).toBeNull();
 });
+
+it("recovers a card's own stated clock when a legacy manual date has no clock", () => {
+  const item: BucketItem = {
+    kind: "event",
+    title: "明天早上八点参加合成讲座",
+    summary: "按通知参加讲座",
+    facts: [],
+    nextSteps: [],
+    uncertainties: [],
+    sourceIds: [],
+    evidence: [],
+    due: {
+      date: "2026-10-29",
+      time: "",
+      anchor: "人工确认",
+      sourceId: "manual",
+    },
+  };
+  expect(absoluteItem(item, "2026-10-28").due).toMatchObject({ time: "08:00" });
+  expect(
+    itemDeadlineTime({ ...item, due: { ...item.due!, time: "18:30" } }),
+  ).toMatchObject({ time: "18:30" });
+  expect(
+    itemDeadlineTime({ ...item, summary: "明天下午三点还有另一场活动" }),
+  ).toMatchObject({ time: "23:59", timeInferred: true });
+});

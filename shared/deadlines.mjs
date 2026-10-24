@@ -1,5 +1,9 @@
 import { groundedDate } from "./bucket-engine.mjs";
-import { groundedTime, resolveDeadlineTime } from "./deadline-time.mjs";
+import {
+  groundedTime,
+  itemDeadlineTime,
+  resolveDeadlineTime,
+} from "./deadline-time.mjs";
 
 // Resolve against the saved local capture day, never the day a card is viewed.
 const relative =
@@ -39,9 +43,7 @@ export function absoluteItem(item, day, sources = [], chat = []) {
   ];
   return {
     ...item,
-    due: item.due
-      ? resolveDeadlineTime(item.due, item.evidence, context)
-      : null,
+    due: item.due ? itemDeadlineTime(item, context) : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),

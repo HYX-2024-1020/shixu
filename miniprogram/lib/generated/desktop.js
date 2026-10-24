@@ -366,12 +366,22 @@ function resolveDeadlineTime(due, evidence = [], sources = []) {
   };
 }
 function itemDeadlineTime(item, sources = [], chat = []) {
+  const recoverCardClock = (due) => {
+    if (!due.timeInferred) return due;
+    const times = [item.title, item.summary, ...item.facts || []].flatMap((text) => String(text || "").split(/[。；;\n，,！？]/)).map((text) => clock(text, true)).filter(Boolean);
+    const unique = [...new Set(times.map((value) => value.time))];
+    if (unique.length !== 1) return due;
+    const { timeInferred, timeReason, ...base } = due;
+    return applyClock(base, times[0]);
+  };
   const context = [
     ...sources,
     ...chat.filter((e) => e.role === "user").slice().reverse().map((e) => ({ id: "item-chat", name: "事项对话", text: e.text }))
   ];
   if (item.due)
-    return resolveDeadlineTime(item.due, item.evidence || [], context);
+    return recoverCardClock(
+      resolveDeadlineTime(item.due, item.evidence || [], context)
+    );
   const ids = [
     .../* @__PURE__ */ new Set([
       ...item.sourceIds || [],
@@ -390,7 +400,7 @@ function itemDeadlineTime(item, sources = [], chat = []) {
     var _a;
     return !d.timeInferred ? 0 : ((_a = d.timeReason) == null ? void 0 : _a.startsWith("未指定时刻")) ? 2 : 1;
   };
-  return candidates.sort((a, b) => rank(a) - rank(b))[0];
+  return recoverCardClock(candidates.sort((a, b) => rank(a) - rank(b))[0]);
 }
 
 // shared/bucket-engine.mjs
@@ -475,7 +485,7 @@ function absoluteItem(item, day, sources = [], chat = []) {
   ];
   return {
     ...item,
-    due: item.due ? resolveDeadlineTime(item.due, item.evidence, context) : null,
+    due: item.due ? itemDeadlineTime(item, context) : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),

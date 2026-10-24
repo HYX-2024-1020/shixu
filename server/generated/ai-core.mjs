@@ -194,6 +194,40 @@ function resolveDeadlineTime(due, evidence = [], sources = []) {
     ...inferred("23:59", "未指定时刻，按截止日 23:59 安排，可手动修改")
   };
 }
+function itemDeadlineTime(item, sources = [], chat = []) {
+  const recoverCardClock = (due) => {
+    if (!due.timeInferred) return due;
+    const times = [item.title, item.summary, ...item.facts || []].flatMap((text) => String(text || "").split(/[。；;\n，,！？]/)).map((text) => clock(text, true)).filter(Boolean);
+    const unique = [...new Set(times.map((value) => value.time))];
+    if (unique.length !== 1) return due;
+    const { timeInferred, timeReason, ...base } = due;
+    return applyClock(base, times[0]);
+  };
+  const context = [
+    ...sources,
+    ...chat.filter((e) => e.role === "user").slice().reverse().map((e) => ({ id: "item-chat", name: "事项对话", text: e.text }))
+  ];
+  if (item.due)
+    return recoverCardClock(
+      resolveDeadlineTime(item.due, item.evidence || [], context)
+    );
+  const ids = [
+    .../* @__PURE__ */ new Set([
+      ...item.sourceIds || [],
+      ...(item.evidence || []).map((e) => e.sourceId),
+      ...chat.length ? ["item-chat"] : []
+    ])
+  ];
+  const candidates = (ids.length ? ids : [""]).map(
+    (sourceId) => resolveDeadlineTime(
+      { date: "", time: "", anchor: "", sourceId },
+      item.evidence || [],
+      context
+    )
+  );
+  const rank = (d) => !d.timeInferred ? 0 : d.timeReason?.startsWith("未指定时刻") ? 2 : 1;
+  return recoverCardClock(candidates.sort((a, b) => rank(a) - rank(b))[0]);
+}
 
 // shared/deadlines.mjs
 var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
@@ -218,7 +252,7 @@ function absoluteItem(item, day, sources = [], chat = []) {
   ];
   return {
     ...item,
-    due: item.due ? resolveDeadlineTime(item.due, item.evidence, context) : null,
+    due: item.due ? itemDeadlineTime(item, context) : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),
