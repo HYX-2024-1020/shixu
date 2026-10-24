@@ -1,3 +1,12 @@
+import {
+  capture,
+  waitReady,
+  snapshot,
+  openResults,
+  openRecords,
+  closeDialog,
+  deleteReceipt,
+} from "./helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 const KEY = "fixture-relations-key-not-real";
@@ -108,22 +117,8 @@ async function setup(page: Page) {
   await expect(page.getByRole("dialog")).not.toBeVisible();
   return { calls, control };
 }
-async function capture(
-  page: Page,
-  text: string,
-  file?: { name: string; text: string },
-) {
-  await page.getByLabel("往桶里放入内容").fill(text);
-  if (file)
-    await page.locator("input[type=file]").setInputFiles({
-      name: file.name,
-      mimeType: "text/plain",
-      buffer: Buffer.from(file.text),
-    });
-  await page.getByRole("button", { name: "丢进去", exact: true }).click();
-  await expect(page.locator(".packet-processing")).toHaveCount(0);
-}
-test("across-day lessons form one group; duplicate requirements, files and completion survive reload and splitting", async ({
+
+test("across-day grouping preserves dates, duplicate evidence, files and completion when split", async ({
   page,
 }) => {
   await page.clock.setFixedTime(new Date("2026-10-21T10:00:00+08:00"));
@@ -132,27 +127,23 @@ test("across-day lessons form one group; duplicate requirements, files and compl
     name: "第一课.txt",
     text: "第一课提交 Python 源文件",
   });
-  await expect(
-    page.locator('.packet-ready[data-association-state="ready"]'),
-  ).toHaveCount(1);
+  await waitReady(page, 1);
   await page.clock.setFixedTime(new Date("2026-10-22T10:00:00+08:00"));
   await capture(page, "做python第二课作业，2026年10月25日23:59前交", {
     name: "第二课.txt",
     text: "第二课附上运行截图",
   });
-  const group = page.locator(".bucket-group");
-  await expect(group).toHaveCount(1);
-  await expect(group.locator(".group-unit")).toHaveCount(2);
-  await expect(group.locator("h3").first()).toHaveText("Python第一、二课作业");
-  await expect(group.locator(".group-unit-due").first()).toContainText(
-    "10月23日",
-  );
-  await expect(group.locator(".group-unit-due").last()).toContainText(
-    "10月25日",
-  );
+  await waitReady(page, 2);
+  await expect.poll(async () => (await snapshot(page)).groups.length).toBe(1);
+  const packets = (await snapshot(page)).packets;
   expect(
-    calls.find((c) => c.kind === "relation")?.payload.openItems[0].title,
-  ).toContain("第一课");
+    packets.find((p: any) => p.text.includes("第一课"))?.result.items[0].due
+      .date,
+  ).toBe("2026-10-23");
+  expect(
+    packets.find((p: any) => p.text.includes("第二课"))?.result.items[0].due
+      .date,
+  ).toBe("2026-10-25");
   expect(
     calls
       .filter((c) => c.kind === "organize")
@@ -162,89 +153,111 @@ test("across-day lessons form one group; duplicate requirements, files and compl
     name: "补充.txt",
     text: "第一课增加一份说明文档",
   });
-  await expect(group.locator(".group-repeat")).toContainText("2 次补充");
-  await expect(group.locator(".group-unit")).toHaveCount(2);
-  await expect(group.locator(".group-unit").first()).toContainText(
-    "第一课增加一份说明文档",
-  );
-  await group
-    .getByRole("button", { name: "完成：做 Python 第一课作业", exact: true })
-    .click();
-  await expect(group.locator(".unit-done")).toHaveCount(1);
-  await page.reload();
-  await expect(group.locator(".unit-done")).toHaveCount(1);
-  await group.locator(".group-details > summary").click();
-  const original = group.locator(".bucket-packet").first();
-  await original.getByRole("button", { name: "原文与附件" }).click();
+  await waitReady(page, 3);
+  expect((await snapshot(page)).groups[0].units).toHaveLength(2);
+  await openResults(page);
+  await page.getByRole("button", { name: "按分组查看", exact: true }).click();
+  await expect(page.locator(".collection-heading")).toHaveCount(1);
+  const first = page
+    .locator(".result-card")
+    .filter({
+      has: page.getByRole("button", {
+        name: "查看 做 Python 第一课作业",
+        exact: true,
+      }),
+    })
+    .first();
+  await first.getByRole("button", { name: /同行材料/ }).click();
+  const materials = page.getByRole("dialog", { name: "同行材料" });
+  await expect(
+    materials.getByRole("button", { name: "第一课.txt", exact: true }),
+  ).toBeVisible();
+  await materials.getByLabel("更多材料操作 第一课.txt").click();
   const promise = page.waitForEvent("download");
-  await original
-    .locator(".packet-source")
-    .getByRole("button", { name: "第一课.txt", exact: true })
+  await materials
+    .getByRole("link", { name: "保存 第一课.txt", exact: true })
     .click();
-  const file = await promise;
-  expect((await readFile((await file.path())!)).toString()).toBe(
+  expect((await readFile((await (await promise).path())!)).toString()).toBe(
     "第一课提交 Python 源文件",
   );
-  await group.getByRole("button", { name: "拆开这一组" }).click();
-  await expect(group).toHaveCount(0);
-  await expect(page.locator(".bucket-packet")).toHaveCount(3);
-  await expect(page.locator(".item-done")).toHaveCount(2);
+  await closeDialog(page);
+  await first.getByRole("button", { name: "完成", exact: true }).click();
+  await page.getByLabel("结果范围", { exact: true }).selectOption("done");
+  await expect(page.locator(".result-card.is-done")).toHaveCount(1);
   await page.reload();
-  await expect(group).toHaveCount(0);
-  await expect(page.locator(".item-done")).toHaveCount(2);
-  expect(JSON.stringify(calls)).not.toContain(KEY);
+  await openResults(page);
+  await page.getByLabel("结果范围", { exact: true }).selectOption("done");
+  await expect(page.locator(".result-card.is-done")).toHaveCount(1);
+  await page.getByLabel("结果范围", { exact: true }).selectOption("active");
+  await page.getByRole("button", { name: "按分组查看", exact: true }).click();
+  await page.getByRole("button", { name: "拆开此分组", exact: true }).click();
+  await expect(page.locator(".collection-heading")).toHaveCount(0);
+  const after = await snapshot(page);
+  expect(after.packets).toHaveLength(3);
+  expect(after.packets.flatMap((p: any) => p.attachments)).toHaveLength(3);
+  expect(after.packets.flatMap((p: any) => p.doneIds)).toHaveLength(1);
+  expect(JSON.stringify(after.packets)).toContain("第一课增加一份说明文档");
 });
-test("unrelated courses and completed work remain independent", async ({
+
+test("completed work and unrelated courses do not become association targets", async ({
   page,
 }) => {
   const { calls } = await setup(page);
   await capture(page, "做python第一课作业");
-  await expect(
-    page.locator('.packet-ready[data-association-state="ready"]'),
-  ).toHaveCount(1);
+  await waitReady(page, 1);
+  await openResults(page);
   await page
-    .getByRole("button", { name: "完成：做 Python 第一课作业" })
+    .locator(".result-card")
+    .getByRole("button", { name: "完成", exact: true })
     .click();
+  await expect(page.locator(".result-card")).toHaveCount(0);
   await capture(page, "做python第二课作业");
-  await expect(
-    page.locator('.packet-ready[data-association-state="ready"]'),
-  ).toHaveCount(2);
+  await waitReady(page, 2);
   expect(calls.filter((c) => c.kind === "relation")).toHaveLength(0);
   await capture(page, "做数学第一课作业");
-  await expect(
-    page.locator('.packet-ready[data-association-state="ready"]'),
-  ).toHaveCount(3);
-  await expect(page.locator(".bucket-group")).toHaveCount(0);
-  await expect(page.locator(".item-done")).toHaveCount(1);
+  await waitReady(page, 3);
+  expect((await snapshot(page)).groups).toHaveLength(0);
+  await openResults(page);
+  await expect(page.locator(".result-card")).toHaveCount(2);
+  await page.getByLabel("结果范围", { exact: true }).selectOption("done");
+  await expect(page.locator(".result-card.is-done")).toHaveCount(1);
 });
-test("failed associations keep the good extraction; retry only repeats association, and deletion removes its references", async ({
+
+test("association retries preserve extraction and deleted targets stay removed", async ({
   page,
 }) => {
   const { calls, control } = await setup(page);
   await capture(page, "做python第一课作业");
-  await expect(
-    page.locator('.packet-ready[data-association-state="ready"]'),
-  ).toHaveCount(1);
+  await waitReady(page, 1);
   control.invalid = true;
   await capture(page, "做python第二课作业");
-  await expect(page.locator(".association-warning")).toContainText(
-    "关联依据不可靠",
-  );
-  await expect(page.locator(".packet-ready")).toHaveCount(2);
-  await expect(page.locator(".bucket-group")).toHaveCount(0);
+  await expect
+    .poll(
+      async () =>
+        (await snapshot(page)).packets.filter(
+          (p: any) => p.association?.state === "error",
+        ).length,
+    )
+    .toBe(1);
+  const records = await openRecords(page);
+  await expect(records).toContainText("关联依据不可靠");
   control.invalid = false;
-  await page.getByRole("button", { name: "仅重试关联" }).click();
-  await expect(page.locator(".bucket-group")).toHaveCount(1);
+  await records
+    .getByRole("button", { name: "仅重试关联", exact: true })
+    .click();
+  await waitReady(page, 2);
+  expect((await snapshot(page)).groups).toHaveLength(1);
   expect(calls.filter((c) => c.kind === "organize")).toHaveLength(2);
   expect(calls.filter((c) => c.kind === "relation")).toHaveLength(2);
-  await page.locator(".group-details > summary").click();
-  const first = page.locator(".bucket-group .bucket-packet").first();
-  await first.getByRole("button", { name: "原文与附件" }).click();
-  page.once("dialog", (d) => d.accept());
-  await first.getByRole("button", { name: "删除这一包" }).click();
-  await expect(page.locator(".bucket-group")).toHaveCount(0);
-  await expect(page.locator(".packet-ready")).toHaveCount(1);
+  await closeDialog(page);
+  await deleteReceipt(page, "做python第一课作业");
   await page.reload();
-  await expect(page.locator(".packet-ready")).toHaveCount(1);
-  await expect(page.locator("body")).not.toContainText("做 Python 第一课作业");
+  expect((await snapshot(page)).groups).toHaveLength(0);
+  const visible = (await snapshot(page)).packets.filter(
+    (p: any) => !p.deletedAt,
+  );
+  expect(visible).toHaveLength(1);
+  expect(visible[0].text).toBe("做python第二课作业");
+  await openResults(page);
+  await expect(page.locator(".result-card")).toHaveCount(1);
 });
