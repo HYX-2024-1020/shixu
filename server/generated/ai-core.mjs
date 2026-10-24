@@ -1,4 +1,44 @@
 // Generated from the same desktop organizer/chat code.
+// shared/deadlines.mjs
+var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
+function absoluteText(text, day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
+  return text.replace(relative, (token) => {
+    const date = groundedDate(token, day);
+    return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") : token;
+  });
+}
+function absoluteItem(item, day) {
+  return {
+    ...item,
+    title: absoluteText(item.title, day),
+    summary: absoluteText(item.summary, day),
+    facts: (item.facts || []).map((t) => absoluteText(t, day)),
+    nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day))
+  };
+}
+function setDeadline(item, due, captureDay) {
+  const result = absoluteItem(item, captureDay);
+  if (item.due && due) {
+    const label = (date) => date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日");
+    const replace = (text) => {
+      text = text.split(label(item.due.date)).join(label(due.date)).split(item.due.date).join(due.date);
+      if (item.due.time) {
+        text = text.replace(
+          /(?:凌晨|早上|上午|中午|下午|晚上|晚间)?\s*(?:\d{1,2}[:：]\d{2}|[\d零〇一二两三四五六七八九十]{1,3}[点时](?:半|\d{1,2}分?)?)/g,
+          (token) => groundedTime(token) === item.due.time ? due.time : token
+        );
+      }
+      return text;
+    };
+    result.title = replace(result.title);
+    result.summary = replace(result.summary);
+    result.facts = result.facts.map(replace);
+    result.nextSteps = result.nextSteps.map(replace);
+  }
+  return { ...result, due };
+}
+
 // shared/usage.mjs
 var PRICE_DATE = "2026-10-22";
 function rateFor(model) {
@@ -119,6 +159,7 @@ function groundedTime(text) {
   return hour < 24 && minute < 60 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
 }
 function groundedDate(anchor, today) {
+  if (!validDate(today)) return "";
   anchor = compact(anchor);
   if (/(?:至|到|~|～|—|–)/.test(anchor)) return "";
   const absolute = anchor.match(/(20\d{2})[年\-/](\d{1,2})[月\-/](\d{1,2})/);
@@ -126,19 +167,33 @@ function groundedDate(anchor, today) {
     const date = `${absolute[1]}-${absolute[2].padStart(2, "0")}-${absolute[3].padStart(2, "0")}`;
     return validDate(date) ? date : "";
   }
-  const relative = anchor.match(/大后天|后天|明天|今天|今日/);
-  if (relative)
+  const relative2 = anchor.match(
+    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日/
+  );
+  if (relative2)
     return shiftDate(
       today,
-      { 大后天: 3, 后天: 2, 明天: 1, 今天: 0, 今日: 0 }[relative[0]]
+      {
+        大前天: -3,
+        前天: -2,
+        昨天: -1,
+        昨日: -1,
+        大后天: 3,
+        后天: 2,
+        明天: 1,
+        今天: 0,
+        今日: 0
+      }[relative2[0]]
     );
   const week = anchor.match(
-    /(下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/
+    /(上上|上|下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/
   );
   if (week) {
     const target = "一二三四五六日".indexOf(week[2] === "天" ? "日" : week[2]), current = ((/* @__PURE__ */ new Date(today + "T12:00:00Z")).getUTCDay() + 6) % 7;
     let offset = target - current;
-    if (week[1] === "下") offset += 7;
+    if (week[1] === "上") offset -= 7;
+    else if (week[1] === "上上") offset -= 14;
+    else if (week[1] === "下") offset += 7;
     else if (week[1] === "下下") offset += 14;
     else if (!week[1] && offset < 0) offset += 7;
     return shiftDate(today, offset);
@@ -180,20 +235,23 @@ function validateResult(value, sources, today) {
         uncertainties.push("没有找到可靠的日期依据，未自动设置截止日");
       }
     }
-    return {
-      kind: item.kind,
-      title: clean(item.title, 150),
-      summary: clean(item.summary, 2e3),
-      facts: list(item.facts, 12),
-      nextSteps: list(item.nextSteps, 8),
-      uncertainties: [...new Set(uncertainties)],
-      evidence,
-      sourceIds,
-      due,
-      importance: [0, 1, 2].includes(item.importance) ? item.importance : 1,
-      importanceReason: clean(item.importanceReason, 250) || "暂无明确重要程度依据，按普通处理",
-      group: clean(item.group, 80)
-    };
+    return absoluteItem(
+      {
+        kind: item.kind,
+        title: clean(item.title, 150),
+        summary: clean(item.summary, 2e3),
+        facts: list(item.facts, 12),
+        nextSteps: list(item.nextSteps, 8),
+        uncertainties: [...new Set(uncertainties)],
+        evidence,
+        sourceIds,
+        due,
+        importance: [0, 1, 2].includes(item.importance) ? item.importance : 1,
+        importanceReason: clean(item.importanceReason, 250) || "暂无明确重要程度依据，按普通处理",
+        group: clean(item.group, 80)
+      },
+      today
+    );
   });
   const seen = /* @__PURE__ */ new Set();
   const distinct = items.filter((item) => {
@@ -203,7 +261,7 @@ function validateResult(value, sources, today) {
     return true;
   });
   return {
-    summary: clean(value.summary, 1600),
+    summary: absoluteText(clean(value.summary, 1600), today),
     items: distinct,
     warnings: list(value.warnings, 8)
   };
@@ -215,7 +273,7 @@ var SYSTEM = `你是一个只服务一位大学生的“收纳桶”。用户只
 拆分边界：task必须有独立的实际行动要求；event记录会议/活动本身，不把参加活动额外复制成相同任务；habit须来自想长期重复坚持的意愿，不把一次作业变成习惯；notice保留必要的通知背景，只在与实际行动信息有区别时另列，和任务共享来源即可；note承载可回看的资料，不能把每个附件文件名机械生成一条。无法判断归other并说明。相同标题不代表同一任务，只有同一行动与原文依据一致才去重；同一课程的不同作业只是相关，不能互相覆盖。
 链接只作为用户提供的链接文字处理；当前没有抓取网页，不得假装读过 URL 指向的正文。
 灵感可以丰满：把推测、可尝试方向和小步验证放到nextSteps，绝不能把你补充的建议当成原文事实。习惯同理：没有明确频率时可以建议一个轻量起点，但不得编造用户已承诺的频率。facts只收录原文事实。
-日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天、明确周几才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。
+日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天/昨天/前天、明确周几（包括上周/下周）才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。
 每一条必须至少有一个evidence，quote必须是该来源的连续原文摘录，不得自己概括。涉及附件要求的任务必须引用附件的相应原文，必要时同时引用输入文字。若依据不足，少输出，不胡编。
 卡片文案：title用简短的动作与对象抓住核心，通常12至24个汉字，不加“待办”“需要确认”“根据原文”等前缀；summary用一至两句概括最重要的要求或信息，通常24至50个汉字，不重复标题，不堆文件名，不罗列缺失信息，不催促用户补充。完整的格式、材料、地点、评分要求仍必须保留在facts中，不能为了缩短卡片删掉事实。缺少信息只在uncertainties中客观记录，不凭空新增核对任务。
 只返回JSON对象，不使用Markdown围栏。输出示例结构：
@@ -437,9 +495,15 @@ function validateChat(value, instruction, today) {
       };
     } else throw new Error("这项操作暂不支持，卡片未改动");
   }
+  for (const field of ["title", "summary"])
+    if (typeof output[field] === "string")
+      output[field] = absoluteText(output[field], today);
+  if (Array.isArray(output.facts))
+    output.facts = output.facts.map((t) => absoluteText(t, today));
   return { reply: reply.trim().slice(0, 3e3), patch: output };
 }
 async function chatWithItem(item, meta, instruction, sources, options) {
+  item = absoluteItem(item, options.itemCaptureDate || options.captureDate);
   const response = await ask(
     [
       {
@@ -467,7 +531,19 @@ async function chatWithItem(item, meta, instruction, sources, options) {
     ],
     options
   );
-  return validateChat(response, instruction, options.captureDate);
+  const validated = validateChat(response, instruction, options.captureDate);
+  if ("due" in validated.patch) {
+    const next = setDeadline(
+      { ...item, ...validated.patch, due: item.due },
+      validated.patch.due ?? null,
+      options.captureDate
+    );
+    for (const key of ["title", "summary", "facts"]) {
+      if (JSON.stringify(next[key]) !== JSON.stringify(item[key]))
+        Object.assign(validated.patch, { [key]: next[key] });
+    }
+  }
+  return validated;
 }
 export {
   DEFAULT_MODEL,

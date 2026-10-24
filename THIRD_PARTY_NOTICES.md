@@ -17,3 +17,5 @@
 文档截图位于 docs/assets/，来自实际应用在隔离 profile 中的自动化测试，仅含合成资料。截图中的既有角色素材仍适用上表授权待补记录。
 
 小程序 `assets/skins/` 的 7 张 PNG 由本项目 `src/bucket/SkinArt.tsx` 中的 SVG 原画在构建时生成，预设与台词来自 `src/bucket/skins.ts`，不引入新外部角色素材。既有 `mascot.png` 仍适用上表的授权待补记录。生成工具 esbuild（MIT）和 resvg-js（MIT）精确版本见 lockfile；后端同源业务模块由 esbuild 生成，不包含新增第三方运行库。
+
+DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 React 与原生小程序界面；不引入参考页的外部 Google Fonts 请求或演示数据，字体及角色继续使用项目现有资源。参考稿未附单独的原作者或许可说明，沿用上表用户提供视觉参考的来源记录。

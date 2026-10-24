@@ -53,6 +53,7 @@ import ItemDialog from "./ItemDialog";
 import { useTransientUI } from "./useTransientUI";
 import type { Packet, Attachment, ItemState } from "./types";
 import { chatWithItem } from "./item-chat";
+import DDL from "./DDL";
 import Results, { categories } from "./Results";
 import SkinMarket from "./SkinMarket";
 import SkinMascot from "./SkinMascot";
@@ -321,6 +322,7 @@ export default function BucketApp() {
           apiKey,
           model,
           captureDate: localDate(),
+          itemCaptureDate: current.captureDate,
           packetId,
           signal: AbortSignal.timeout(90000),
           onUsage: recordUsage,
@@ -1669,9 +1671,25 @@ export default function BucketApp() {
             <span>世界</span>
             <span className="nav-count">✦</span>
           </button>
+          <button
+            aria-label="DDL"
+            aria-pressed={workspace === "ddl"}
+            onClick={() => goWorkspace("ddl")}
+          >
+            <span>DDL</span>
+            <span className="nav-count">◷</span>
+          </button>
         </nav>
       </header>
       <main className="bucket-main">
+        <div hidden={workspace !== "ddl"}>
+          <DDL
+            active={workspace === "ddl"}
+            packets={packets}
+            save={save}
+            notify={notify}
+          />
+        </div>
         <div hidden={workspace !== "results"}>
           <Results
             skin={activeSkin}

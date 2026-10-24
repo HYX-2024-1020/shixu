@@ -299,6 +299,7 @@ if (
                 {
                   apiKey: process.env.DEEPSEEK_API_KEY,
                   model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+                  itemCaptureDate: packet.captureDate,
                   captureDate: new Intl.DateTimeFormat("en-CA", {
                     timeZone: packet.captureTimezone || "Asia/Shanghai",
                     year: "numeric",

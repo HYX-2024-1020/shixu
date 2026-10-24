@@ -23,13 +23,18 @@ __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
   SKIN_MOTIONS: () => SKIN_MOTIONS,
+  absoluteItem: () => absoluteItem,
+  absoluteText: () => absoluteText,
   buildGroups: () => buildGroups,
   cardCopy: () => cardCopy,
   compareItems: () => compareItems,
+  deadlineSections: () => deadlineSections,
   isSkinImage: () => isSkinImage,
   itemRef: () => itemRef,
   mergeCardOrder: () => mergeCardOrder,
-  parseSkinCollection: () => parseSkinCollection
+  parseDeadline: () => parseDeadline,
+  parseSkinCollection: () => parseSkinCollection,
+  setDeadline: () => setDeadline
 });
 module.exports = __toCommonJS(stdin_exports);
 
@@ -163,6 +168,184 @@ function parseSkinCollection(raw) {
   }
 }
 
+// shared/bucket-engine.mjs
+var compact = (value) => String(value).replace(/\s+/g, "").normalize("NFKC");
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + "T12:00:00Z")) && (/* @__PURE__ */ new Date(value + "T12:00:00Z")).toISOString().slice(0, 10) === value;
+}
+function shiftDate(today, days) {
+  const date = /* @__PURE__ */ new Date(today + "T12:00:00Z");
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+function groundedTime(text) {
+  const digits = {
+    零: 0,
+    "〇": 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9
+  };
+  const numeral = (value) => {
+    if (value === "十") return 10;
+    if (value.includes("十")) {
+      const [a, b] = value.split("十");
+      return (a ? digits[a] : 1) * 10 + (b ? digits[b] : 0);
+    }
+    return digits[value];
+  };
+  const normalized = text.replace(
+    /[零〇一二两三四五六七八九十]{1,3}(?=\s*[点时])/g,
+    (m) => String(numeral(m))
+  );
+  const match = normalized.match(
+    /(凌晨|早上|上午|中午|下午|晚上|晚间)?\s*(\d{1,2})\s*(?:[:：]\s*(\d{2})|[点时]\s*(半|\d{1,2}分?)?)/
+  );
+  if (!match) return "";
+  let hour = Number(match[2]), minute = match[3] ? Number(match[3]) : match[4] === "半" ? 30 : parseInt(match[4] || "0");
+  if (!match[1] && !match[3] && hour < 12) return "";
+  if (/下午|晚上|晚间/.test(match[1] || "") && hour < 12) hour += 12;
+  if (match[1] === "中午" && hour < 11) hour += 12;
+  if (match[1] === "凌晨" && hour === 12) hour = 0;
+  return hour < 24 && minute < 60 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
+}
+function groundedDate(anchor, today) {
+  if (!validDate(today)) return "";
+  anchor = compact(anchor);
+  if (/(?:至|到|~|～|—|–)/.test(anchor)) return "";
+  const absolute = anchor.match(/(20\d{2})[年\-/](\d{1,2})[月\-/](\d{1,2})/);
+  if (absolute) {
+    const date = `${absolute[1]}-${absolute[2].padStart(2, "0")}-${absolute[3].padStart(2, "0")}`;
+    return validDate(date) ? date : "";
+  }
+  const relative2 = anchor.match(
+    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日/
+  );
+  if (relative2)
+    return shiftDate(
+      today,
+      {
+        大前天: -3,
+        前天: -2,
+        昨天: -1,
+        昨日: -1,
+        大后天: 3,
+        后天: 2,
+        明天: 1,
+        今天: 0,
+        今日: 0
+      }[relative2[0]]
+    );
+  const week = anchor.match(
+    /(上上|上|下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/
+  );
+  if (week) {
+    const target = "一二三四五六日".indexOf(week[2] === "天" ? "日" : week[2]), current = ((/* @__PURE__ */ new Date(today + "T12:00:00Z")).getUTCDay() + 6) % 7;
+    let offset = target - current;
+    if (week[1] === "上") offset -= 7;
+    else if (week[1] === "上上") offset -= 14;
+    else if (week[1] === "下") offset += 7;
+    else if (week[1] === "下下") offset += 14;
+    else if (!week[1] && offset < 0) offset += 7;
+    return shiftDate(today, offset);
+  }
+  return "";
+}
+
+// shared/deadlines.mjs
+var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
+function absoluteText(text, day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
+  return text.replace(relative, (token) => {
+    const date = groundedDate(token, day);
+    return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") : token;
+  });
+}
+function absoluteItem(item, day) {
+  return {
+    ...item,
+    title: absoluteText(item.title, day),
+    summary: absoluteText(item.summary, day),
+    facts: (item.facts || []).map((t) => absoluteText(t, day)),
+    nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day))
+  };
+}
+function parseDeadline(text, day, time = "") {
+  text = text.trim();
+  const date = groundedDate(text, day);
+  if (!date) throw new Error("请输入明确日期，例如 2026-10-29 或明天下午三点");
+  if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))
+    throw new Error("时刻格式应为 HH:mm");
+  return {
+    date,
+    time: time || groundedTime(text),
+    anchor: [text, time].filter(Boolean).join(" "),
+    sourceId: "manual"
+  };
+}
+function setDeadline(item, due, captureDay) {
+  const result = absoluteItem(item, captureDay);
+  if (item.due && due) {
+    const label = (date) => date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日");
+    const replace = (text) => {
+      text = text.split(label(item.due.date)).join(label(due.date)).split(item.due.date).join(due.date);
+      if (item.due.time) {
+        text = text.replace(
+          /(?:凌晨|早上|上午|中午|下午|晚上|晚间)?\s*(?:\d{1,2}[:：]\d{2}|[\d零〇一二两三四五六七八九十]{1,3}[点时](?:半|\d{1,2}分?)?)/g,
+          (token) => groundedTime(token) === item.due.time ? due.time : token
+        );
+      }
+      return text;
+    };
+    result.title = replace(result.title);
+    result.summary = replace(result.summary);
+    result.facts = result.facts.map(replace);
+    result.nextSteps = result.nextSteps.map(replace);
+  }
+  return { ...result, due };
+}
+function deadlineSections(rows, day, nowTime, days = 7) {
+  var _a;
+  const sections = {
+    overdue: [],
+    today: [],
+    soon: [],
+    later: [],
+    unsure: [],
+    done: []
+  };
+  const end = /* @__PURE__ */ new Date(day + "T12:00:00Z");
+  end.setUTCDate(end.getUTCDate() + days);
+  const last = end.toISOString().slice(0, 10);
+  for (const row of rows) {
+    if (row.deleted || ((_a = row.meta) == null ? void 0 : _a.purgedAt)) continue;
+    if (row.done) {
+      if (row.date || ["task", "event", "notice"].includes(row.kind))
+        sections.done.push(row);
+      continue;
+    }
+    if (!row.date) {
+      if (["task", "event", "notice"].includes(row.kind))
+        sections.unsure.push(row);
+      continue;
+    }
+    const section = row.date < day || row.date === day && row.time && row.time < nowTime ? "overdue" : row.date === day ? "today" : row.date <= last ? "soon" : "later";
+    sections[section].push(row);
+  }
+  for (const values of Object.values(sections))
+    values.sort(
+      (a, b) => (a.date || "9999").localeCompare(b.date || "9999") || (a.time || "99:99").localeCompare(b.time || "99:99") || a.id.localeCompare(b.id)
+    );
+  return sections;
+}
+
 // src/bucket/management.ts
 function compareItems(a, b, sort, day) {
   if (sort === "custom") return a.order - b.order || a.id.localeCompare(b.id);
@@ -197,8 +380,8 @@ function cardCopy(item) {
       clause.trim()
     )
   );
-  const compact = clauses.slice(0, 2).join("").trim();
-  return { title, summary: compact };
+  const compact2 = clauses.slice(0, 2).join("").trim();
+  return { title, summary: compact2 };
 }
 
 // src/bucket/card-order.ts

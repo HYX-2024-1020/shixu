@@ -23,6 +23,10 @@ const {
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
   mergeCardOrder,
+  deadlineSections,
+  parseDeadline,
+  absoluteItem,
+  setDeadline,
 } = require("../../lib/generated/desktop");
 const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
@@ -42,6 +46,25 @@ function dateInfo() {
 Page({
   data: {
     tab: "capture",
+    ddlDays: [1, 3, 7, 14, 30],
+    ddlIndex: 2,
+    ddlLimit: 60,
+    ddlHasMore: false,
+    ddlOverdue: [],
+    ddlSections: [],
+    ddlUnsure: [],
+    ddlDone: [],
+    ddlCount: 0,
+    ddlToday: 0,
+    ddlShowOverdue: false,
+    ddlShowUnsure: false,
+    ddlShowDone: false,
+    ddlAddOpen: false,
+    ddlTitle: "",
+    ddlDate: "",
+    ddlTime: "",
+    ddlRequirements: "",
+    editTime: "",
     settingsReturnTab: "capture",
     draft: "",
     draftFiles: [],
@@ -174,9 +197,13 @@ Page({
   },
   onShow() {
     this.setData({ updateReady: getApp().globalData.updateReady });
+    this._refresh();
     this.syncQuietly();
     clearInterval(this._timer);
-    this._timer = setInterval(() => this.syncQuietly(), 8000);
+    this._timer = setInterval(() => {
+      this._refresh();
+      this.syncQuietly();
+    }, 8000);
   },
   onHide() {
     clearInterval(this._timer);
@@ -255,6 +282,13 @@ Page({
         attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
       }));
     const view = worldView(this._client.records(), this.data);
+    const clock = new Date();
+    const ddl = deadlineSections(
+      itemsFor(this._client.records()),
+      localDay(),
+      `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`,
+      this.data.ddlDays[this.data.ddlIndex],
+    );
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
@@ -274,6 +308,36 @@ Page({
                   !this._record(e.packetId).deletedAt,
               ).length
           : 0,
+      ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(this._cardView),
+      ddlUnsure: ddl.unsure.slice(0, this.data.ddlLimit).map(this._cardView),
+      ddlDone: ddl.done.slice(0, this.data.ddlLimit).map(this._cardView),
+      ddlSections: [
+        {
+          title: "今天截止",
+          rows: ddl.today.slice(0, this.data.ddlLimit).map(this._cardView),
+        },
+        {
+          title: `未来 ${this.data.ddlDays[this.data.ddlIndex]} 天`,
+          rows: ddl.soon.slice(0, this.data.ddlLimit).map(this._cardView),
+        },
+        {
+          title: `${this.data.ddlDays[this.data.ddlIndex]} 天之后`,
+          rows: ddl.later.slice(0, this.data.ddlLimit).map(this._cardView),
+        },
+      ].filter((s) => s.rows.length),
+      ddlCount:
+        ddl.overdue.length +
+        ddl.today.length +
+        ddl.soon.length +
+        ddl.later.length +
+        ddl.unsure.length,
+      ddlToday: ddl.today.length,
+      ddlHasMore: Object.values(ddl).some(
+        (rows) => rows.length > this.data.ddlLimit,
+      ),
+      ddlOverdueTotal: ddl.overdue.length,
+      ddlUnsureTotal: ddl.unsure.length,
+      ddlDoneTotal: ddl.done.length,
       recordTotal: recordRows.length,
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
@@ -636,7 +700,9 @@ Page({
   },
   closeSettings() {
     this.setData({
-      tab: this.data.settingsReturnTab === "world" ? "world" : "capture",
+      tab: ["world", "ddl"].includes(this.data.settingsReturnTab)
+        ? this.data.settingsReturnTab
+        : "capture",
     });
     this._refresh();
   },
@@ -850,6 +916,87 @@ Page({
       error: "",
     });
   },
+  loadMoreDdl() {
+    this.setData({ ddlLimit: this.data.ddlLimit + 60 });
+    this._refresh();
+  },
+  setDdlWindow(event) {
+    this.setData({
+      ddlIndex: Math.max(0, Math.min(4, Number(event.detail.value))),
+    });
+    this._refresh();
+  },
+  toggleDdl(event) {
+    const field = event.currentTarget.dataset.field;
+    if (
+      ["ddlShowOverdue", "ddlShowUnsure", "ddlShowDone", "ddlAddOpen"].includes(
+        field,
+      )
+    )
+      this.setData({ [field]: !this.data[field] });
+  },
+  onDdlField(event) {
+    const field = event.currentTarget.dataset.field;
+    if (["ddlTitle", "ddlDate", "ddlTime", "ddlRequirements"].includes(field))
+      this.setData({ [field]: event.detail.value });
+  },
+  verifyDdl(event) {
+    this.openItem(event);
+    this.beginEdit();
+  },
+  addDdl() {
+    try {
+      const title = this.data.ddlTitle.trim();
+      if (!title) throw new Error("请填写事项标题");
+      const due = parseDeadline(
+        this.data.ddlDate,
+        localDay(),
+        this.data.ddlTime.trim(),
+      );
+      const id = makeId(),
+        itemId = makeId(),
+        text = `${title}；截止 ${this.data.ddlDate} ${this.data.ddlTime}；${this.data.ddlRequirements}`;
+      const item = absoluteItem(
+        {
+          kind: "task",
+          title,
+          summary: this.data.ddlRequirements.trim(),
+          facts: [],
+          nextSteps: [],
+          uncertainties: [],
+          due,
+          evidence: [{ sourceId: "manual", quote: text }],
+          sourceIds: ["manual"],
+        },
+        localDay(),
+      );
+      this._client.put(id, {
+        id,
+        text,
+        sources: [{ id: "manual", name: "我的补充", text }],
+        attachments: [],
+        ...dateInfo(),
+
+        status: "ready",
+        result: { summary: "手动补充 DDL", items: [item], warnings: [] },
+        itemIds: [itemId],
+        itemState: { [itemId]: { origin: "manual", corrected: true } },
+        doneIds: [],
+        error: "",
+      });
+      this.setData({
+        ddlTitle: "",
+        ddlDate: "",
+        ddlTime: "",
+        ddlRequirements: "",
+        notice: "DDL 已补充",
+      });
+      this._refresh();
+      this.syncQuietly();
+    } catch (error) {
+      this._error(error);
+    }
+  },
   closeItem() {
     this.setData({ selected: null, editing: false });
   },
@@ -1048,6 +1195,7 @@ Page({
       editSummary: row.item.summary || "",
       editGroup: row.group,
       editDate: row.date,
+      editTime: row.time,
       editKind: Object.keys(KINDS).indexOf(row.kind),
     });
   },
@@ -1059,6 +1207,7 @@ Page({
         "editSummary",
         "editGroup",
         "editDate",
+        "editTime",
         "addition",
         "manualTitle",
         "chatInput",
@@ -1078,30 +1227,30 @@ Page({
         record = this._record(row.packetId),
         title = this.data.editTitle.trim();
       if (!title || title.length > 150) throw new Error("标题应为 1 至 150 字");
-      const date = this.data.editDate;
-      if (
-        date &&
-        (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-          Number.isNaN(Date.parse(date)) ||
-          new Date(date).toISOString().slice(0, 10) !== date)
-      )
-        throw new Error("请输入有效日期，格式为 YYYY-MM-DD");
+      const due = this.data.editDate.trim()
+        ? parseDeadline(
+            this.data.editDate,
+            localDay(),
+            this.data.editTime.trim(),
+          )
+        : null;
       const previous = record.data.result.items[row.index];
-      const next = {
-        ...previous,
-        title,
-        summary: this.data.editSummary.trim(),
-        kind: Object.keys(KINDS)[this.data.editKind],
-        due: date
-          ? {
-              ...previous.due,
-              date,
-              time: row.time || "",
-              anchor: date,
-              sourceId: "manual",
-            }
-          : null,
-      };
+      const next = setDeadline(
+        {
+          ...previous,
+          title: absoluteItem(
+            { ...previous, title, summary: this.data.editSummary.trim() },
+            localDay(),
+          ).title,
+          summary: absoluteItem(
+            { ...previous, title, summary: this.data.editSummary.trim() },
+            localDay(),
+          ).summary,
+          kind: Object.keys(KINDS)[this.data.editKind],
+        },
+        due,
+        record.data.captureDate,
+      );
       const history = [
         ...(row.meta.history || []),
         ...["title", "summary", "kind", "due"]

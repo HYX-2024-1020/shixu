@@ -536,3 +536,41 @@ test("large source histories stay out of card payloads and records paginate with
   assert.equal(f.page.data.rows.length, 15);
   assert.equal(f.page._client.records()[0].data.text.length, 48000);
 });
+
+test("DDL creates grounded dates, edits unknown clocks, shares completion, and reopens without drift", () => {
+  const { page, store } = fixture();
+  page.setData({
+    ddlTitle: "明天交报告",
+    ddlDate: "明天下午三点",
+    ddlRequirements: "提交 PDF",
+  });
+  page.addDdl();
+  assert.equal(page.data.ddlCount, 1);
+  const row = itemsFor(page._client.records())[0];
+  assert.equal(row.time, "15:00");
+  assert.doesNotMatch(row.title, /明天/);
+  assert.match(row.item.evidence[0].quote, /明天/);
+  page.verifyDdl(event(row.id));
+  assert.equal(page.data.editing, true);
+  page.setData({ editDate: "2026-12-31", editTime: "" });
+  page.saveEdit();
+  assert.equal(itemsFor(page._client.records())[0].time, "");
+  page.toggleDone(event(row.id));
+  assert.equal(page.data.ddlDone.length, 1);
+  assert.equal(page.data.ddlCount, 0);
+  page.toggleDone(event(row.id));
+  const reopened = fixture({ store }).page;
+  const saved = itemsFor(reopened._client.records())[0];
+  assert.equal(saved.date, "2026-12-31");
+  assert.equal(saved.time, "");
+  assert.equal(saved.done, false);
+  assert.equal(saved.item.evidence[0].quote, row.item.evidence[0].quote);
+  reopened.switchTab(tabEvent("ddl"));
+  reopened.switchTab(tabEvent("settings"));
+  reopened.closeSettings();
+  assert.equal(reopened.data.tab, "ddl");
+  reopened.setData({ ddlDate: "尽快", ddlTitle: "模糊时间" });
+  reopened.addDdl();
+  assert.equal(reopened.data.ddlCount, 1);
+  assert.match(reopened.data.error, /明确日期/);
+});
