@@ -22,7 +22,7 @@ export function validatePullRequest(pr) {
     errors.push("PR title must use Conventional Commits: type(scope): summary");
   }
   const body = (pr.body ?? "").replace(/<!--[\s\S]*?-->/g, "");
-  for (const heading of ["变更内容", "验证结果", "风险与回滚"]) {
+  for (const heading of ["变更内容", "验证结果", "风险与回滚", "双端影响"]) {
     const section = body.match(
       new RegExp(
         `^## ${heading}\\s*\\r?\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`,

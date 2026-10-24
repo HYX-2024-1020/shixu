@@ -28,7 +28,7 @@ npm run desktop:start
    已有未提交工作时使用独立 worktree，不覆盖、不混入。允许 `feat/`、`fix/`、`docs/`、`refactor/`、`test/`、`chore/`、`ci/`、`perf/` 前缀，后面用小写英文及连字符。
 
 3. 完成实现和适用验证。提交前审查差异、敏感信息及第三方许可，显式选择要暂存的文件。
-4. 提交使用 `type: 简述` 或 `type(scope): 简述`；PR 标题遵守同样格式。正文保留“变更内容”“验证结果”“风险与回滚”三节，填写实际结果，关联 Issue（例如 `Closes #123`）。未完成工作开 Draft PR。
+4. 提交使用 `type: 简述` 或 `type(scope): 简述`；PR 标题遵守同样格式。正文保留“变更内容”“验证结果”“风险与回滚”“双端影响”四节，填写实际结果，关联 Issue（例如 `Closes #123`）。未完成工作开 Draft PR。
 5. 推送任务分支并创建 PR，等待 `Required checks` 成功、处理 review。由维护者审阅并 squash merge，GitHub 自动删除已合并远端分支。不要绕过保护或直接推送 `main`。
 
 单维护者阶段不要求额外一名审批人，因为作者不能批准自己的 PR；PR、CI 和讨论解决仍强制执行。引入第二位维护者后，可以把 required approvals 提升为 1。AI 代理还须遵守 [AGENTS.md](AGENTS.md)。
@@ -56,6 +56,8 @@ npm run test:e2e
 `desktop-live-*.mjs` 使用已保存的真实密钥并产生费用，不属于默认测试；只有获得用户授权后才运行。Windows 安装包与 GitHub Releases 需要另外完成发布验收，不以源码测试成功代替。
 
 ## 提交前检查
+
+产品更新须同时评估 Windows 与微信小程序，维护 [双端能力表](docs/client-parity.md)。卡片文案/排序、皮肤预设/原画、整理/事项对话规则修改后运行 `npm run mini:build`，提交生成结果；CI 的 `npm run mini:check` 拒绝过期副本。`npm run test:sync` 包含小程序页面生命周期和本机 API 回归，不代表微信编译或手机测试。新增功能未实现的另一端须关联明确 Issue 与适配计划；不能只勾选模板宣称覆盖。
 
 - 差异只包含本任务；没有 `.env`、个人文件、备份、数据库、构建产物或真实 API 凭据。
 - 用户能观察到的行为变化已更新说明；缺陷有适当回归验证。

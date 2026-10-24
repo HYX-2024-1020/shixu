@@ -7,7 +7,7 @@ const valid = () => ({
   base: { ref: "main" },
   title: "chore: establish public contributor workflow",
   user: { login: "contributor" },
-  body: "## 变更内容\n为公开仓库增加贡献约定和自动检查。\n## 验证结果\n已运行核心验证及规范门禁，结果通过。\n## 风险与回滚\n不修改个人数据，必要时撤回本次提交。",
+  body: "## 变更内容\n为公开仓库增加贡献约定和自动检查。\n## 验证结果\n已运行核心验证及规范门禁，结果通过。\n## 风险与回滚\n不修改个人数据，必要时撤回本次提交。\n## 双端影响\n桌面和小程序均不改变资料行为，仅增加贡献流程。",
 });
 
 test("accepts a complete contributor PR, including CRLF", () => {
@@ -26,13 +26,13 @@ test("rejects direct/default or malformed branches and nonconventional titles", 
 test("template comments and checkboxes do not count as validation evidence", () => {
   const pr = valid();
   pr.body =
-    "## 变更内容\n<!-- 填写变更内容的详细说明 -->\n## 验证结果\n- [x] 已执行适用验证并如实记录结果\n## 风险与回滚\nTODO";
-  assert.equal(validatePullRequest(pr).length, 3);
+    "## 变更内容\n<!-- 填写变更内容的详细说明 -->\n## 验证结果\n- [x] 已执行适用验证并如实记录结果\n## 风险与回滚\nTODO\n## 双端影响\n<!-- 尚未填写实际影响 -->";
+  assert.equal(validatePullRequest(pr).length, 4);
 });
 test("requires every section and rejects an empty payload", () => {
   const pr = valid();
   pr.body = "A description without the required sections";
-  assert.equal(validatePullRequest(pr).length, 3);
+  assert.equal(validatePullRequest(pr).length, 4);
   assert.equal(validatePullRequest(null).length, 1);
 });
 test("only the authenticated Dependabot creator has a metadata exemption", () => {
@@ -45,4 +45,16 @@ test("only the authenticated Dependabot creator has a metadata exemption", () =>
   assert.deepEqual(validatePullRequest(pr), []);
   pr.base.ref = "other";
   assert.equal(validatePullRequest(pr).length, 1);
+});
+
+test("requires concrete dual-client impact instead of an empty checklist", () => {
+  const pr = valid();
+  pr.body = pr.body.split("## 双端影响")[0];
+  assert.ok(
+    validatePullRequest(pr).some((error) => error.includes("双端影响")),
+  );
+  pr.body += "## 双端影响\n- [x] 已评估两端\n<!-- TODO -->";
+  assert.ok(
+    validatePullRequest(pr).some((error) => error.includes("双端影响")),
+  );
 });

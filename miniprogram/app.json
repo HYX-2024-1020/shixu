@@ -2,9 +2,9 @@
   "pages": ["pages/index/index"],
   "window": {
     "navigationBarTitleText": "拾序",
-    "navigationBarBackgroundColor": "#f8f3e3",
+    "navigationBarBackgroundColor": "#fff9e6",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f8f3e3"
+    "backgroundColor": "#fff9e6"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
