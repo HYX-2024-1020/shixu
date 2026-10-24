@@ -26,6 +26,8 @@ function pageFixture({
     require: createRequire(resolve(__dirname, "../pages/index/index.js")),
     setInterval,
     clearInterval,
+    setTimeout,
+    clearTimeout,
     wx: {
       getStorageSync: (key) => store.get(key),
       setStorageSync: (key, value) => {

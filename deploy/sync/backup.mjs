@@ -24,7 +24,7 @@ export async function backupDatabase(source, destination) {
       await writeFile(join(directory, "backup.json"), JSON.stringify({
         createdAt: new Date().toISOString(), schema: meta.schema,
         epoch: meta.epoch, sequence: meta.sequence, integrity: check,
-        scope: "sync-v2-text-database-only",
+        scope: restored.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_blobs'").get() ? "sync-v2-database-including-originals" : "sync-v2-text-database-only",
       }, null, 2) + "\n", { mode: 0o600, flag: "wx" });
     } finally {
       restored.close();

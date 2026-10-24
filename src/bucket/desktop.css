@@ -2206,6 +2206,7 @@ body.is-card-dragging * {
 }
 .card-open {
   cursor: grab;
+  user-select: none;
 }
 .current-delivery {
   max-width: 1180px;

@@ -27,10 +27,14 @@
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",
     "test:desktop": "node --test desktop/*.test.cjs",
-    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs && node scripts/desktop-spatial-smoke.mjs && node scripts/desktop-skins-smoke.mjs",
+    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs && node scripts/desktop-spatial-smoke.mjs && node scripts/desktop-skins-smoke.mjs && node scripts/desktop-cloud-smoke.mjs",
     "sync:start": "node --env-file-if-exists=.env.sync server/sync-server.mjs",
-    "test:sync": "node --test server/sync.test.mjs miniprogram/tests/*.test.cjs",
-    "test:sync:release": "node --test deploy/sync/release.test.mjs"
+    "test:sync": "node --test server/sync.test.mjs server/sync-files.test.mjs miniprogram/tests/*.test.cjs",
+    "test:sync:release": "node --test deploy/sync/release.test.mjs",
+    "mini:build": "node scripts/build-miniprogram.mjs",
+    "mini:check": "node scripts/build-miniprogram.mjs --check",
+    "mini:compile": "node scripts/check-miniprogram-compiler.mjs",
+    "test:mini": "node --test miniprogram/tests/*.test.cjs"
   },
   "dependencies": {
     "7zip-bin-full": "^26.4.1",
@@ -50,6 +54,7 @@
     "@vitejs/plugin-react": "^4.4.0",
     "electron": "^45.0.0",
     "electron-builder": "^26.15.3",
+    "esbuild": "0.25.12",
     "prettier": "^3.6.2",
     "typescript": "~5.8.3",
     "vite": "^6.3.0",

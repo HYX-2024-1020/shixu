@@ -35,6 +35,7 @@ let draftWrites: Promise<void> = Promise.resolve();
 // Upgrade the first desktop shell's own profile only; browser profiles remain untouched.
 export async function upgradeDesktopProfile() {
   if (!window.desktop || localStorage.getItem("shixu-native-store-v1")) return;
+  if ((await window.desktop.cloud("status")).base) return;
   const db = await database();
   const legacy = await new Promise<{
     packets: any[];

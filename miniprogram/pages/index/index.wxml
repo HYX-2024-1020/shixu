@@ -1,40 +1,723 @@
+<template name="itemCard">
+  <view
+    class="item-card kind-{{row.kind}} {{row.done ? 'done-card' : ''}}"
+    data-id="{{row.id}}"
+    bindtap="openItem"
+  >
+    <view class="card-top"
+      ><text class="kind-label"
+        >{{row.kindLabel}} {{row.pinned ? '· 置顶' : ''}}</text
+      ><button
+        class="icon-button {{row.starred ? 'starred' : ''}}"
+        data-id="{{row.id}}"
+        catchtap="toggleStar"
+      >
+        {{row.starred ? '★' : '☆'}}
+      </button></view
+    >
+    <text class="item-title">{{row.title}}</text
+    ><text class="item-summary">{{row.summary}}</text
+    ><view class="card-meta"
+      ><text>{{row.date}} {{row.time}}</text
+      ><text wx:if="{{row.group}}"># {{row.group}}</text
+      ><text wx:if="{{row.progress}}">进行中</text
+      ><text wx:if="{{row.conflict}}">需处理冲突</text></view
+    >
+    <view class="card-foot"
+      ><text
+        >{{row.done ? '已完成' : row.importance === 2 ? '重要' : '慢慢来，一件件完成'}}</text
+      ><view class="card-actions"
+        ><button
+          wx:if="{{sort === 'custom' && !row.deleted}}"
+          class="icon-button"
+          data-id="{{row.id}}"
+          data-direction="-1"
+          catchtap="moveItem"
+        >
+          ↑</button
+        ><button
+          wx:if="{{sort === 'custom' && !row.deleted}}"
+          class="icon-button"
+          data-id="{{row.id}}"
+          data-direction="1"
+          catchtap="moveItem"
+        >
+          ↓</button
+        ><button
+          wx:if="{{row.deleted}}"
+          class="text-button"
+          data-id="{{row.id}}"
+          catchtap="restoreItem"
+        >
+          恢复</button
+        ><button
+          wx:else
+          class="done-button {{row.done ? 'checked' : ''}}"
+          data-id="{{row.id}}"
+          catchtap="toggleDone"
+        >
+          {{row.done ? '✓' : ''}}
+        </button></view
+      ></view
+    >
+  </view>
+</template>
 <view class="page">
   <view class="heading">
-    <view><text class="brand">拾序</text><text class="tagline">一个，什么都能放的桶。</text></view>
-    <button class="settings-button" data-tab="settings" bindtap="switchTab">连接</button>
+    <view class="brand"><text class="brand-mark">拾</text><text>拾序</text><text class="brand-en">SHIXU</text></view>
+    <view class="header-actions"><button class="small-button market-button" bindtap="openSkins">皮肤市场</button><button class="small-button" data-tab="settings" bindtap="switchTab">{{tab === 'settings' ? '关闭设置' : '连接设置'}}</button></view>
   </view>
-  <view class="preview-note">开发预览 · 已接入文字收集与同步，AI 整理尚未接入</view>
-  <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate">新版本已就绪，保存后更新 →</view>
-  <view wx:if="{{error}}" class="error" selectable>{{error}}</view>
+  <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate"
+    >新版本已就绪，保存后更新 →</view
+  ><view wx:if="{{error}}" class="error" selectable>{{error}}</view
+  ><view wx:if="{{notice}}" class="notice">{{notice}}</view>
   <view wx:if="{{tab === 'capture'}}" class="capture">
-    <view class="hero"><image class="mascot" src="/assets/mascot.png" mode="aspectFit"/><view class="speech">先放进来，<text class="line-break">慢慢理清楚。</text></view></view>
-    <view class="editor">
-      <textarea value="{{draft}}" bindinput="onDraft" maxlength="60000" placeholder="一段通知、几句灵感……先放在这里。" cursor-spacing="24" adjust-position auto-height/>
-      <view class="editor-foot"><text>文字草稿自动保存在本机</text><text>{{draft.length}} 字</text></view>
+    <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button class="text-button" bindtap="openAiSettings">AI 连接</button></view>
+    <view class="hero">
+      <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
+      <view class="bucket-drawing"><image class="mascot motion-{{activeSkin.motion}} {{skinAnimating ? 'animate' : ''}}" src="{{activeSkin.image}}" mode="aspectFit" bindtap="interactSkin"/><text class="skin-bubble">{{skinMessage}}</text></view>
+      <button class="skin-home-change" bindtap="openSkins">{{activeSkin.name}} · 换个伙伴</button>
+      <view class="count-line">它已经吃掉了 <text class="count-badge">{{count}}</text> 件</view>
     </view>
-    <button class="primary" bindtap="submit" disabled="{{!draft.length}}">丢进去 →</button>
-    <view wx:if="{{notice}}" class="notice">{{notice}}</view>
-    <button class="text-button" data-tab="world" bindtap="switchTab">看看已经放下的 {{count}} 次投递 →</button>
+    <view class="editor">
+      <textarea
+        value="{{draft}}"
+        bindinput="onDraft"
+        maxlength="60000"
+        placeholder="一句话、一个文件、一个念头…"
+        cursor-spacing="30"
+        adjust-position
+        auto-height
+      /><view class="editor-foot"
+        ><text>草稿自动保存</text><text>{{draft.length}} / 60000</text></view
+      ></view
+    >
+    <view class="button-row"><button class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信文件</button><button class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view><view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
+      ><text class="quiet"
+        >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
+      ><button class="primary" bindtap="submit" disabled="{{filesBusy || (!draft.length && !draftFiles.length)}}">
+        喂！
+      </button></view
+    >
+    <view class="section-top delivery-heading"
+      ><text class="section-title"
+        >{{currentCaptureId ? '本次投喂' : '给想法一个落脚处'}}</text
+      ><button class="text-button" bindtap="toggleRecords">
+        投递记录 · {{count}}
+      </button></view
+    >
+    <view wx:if="{{!currentCaptureId}}" class="empty card-paper"
+      ><text class="empty-title">现在乱一点，也没关系。</text
+      ><text>先留住原文，再把事情一件件理清。</text></view
+    >
+    <view wx:for="{{currentRows}}" wx:key="id" class="current-delivery"
+      ><view class="card-paper"
+        ><text class="badge"
+          >{{item.status === 'ready' ? '已记录' : '原文已保存'}}</text
+        ><text class="source-preview" selectable>{{item.text}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy}}">查看原件</button></view><text class="item-summary">{{item.summary}}</text
+        ><text wx:if="{{item.error}}" class="error">{{item.error}}</text
+        ><view class="button-row"
+          ><button
+            wx:if="{{!item.summary}}"
+            class="small-button"
+            data-id="{{item.id}}"
+            bindtap="organizeRecord"
+            disabled="{{jobBusy}}"
+          >
+            AI 整理</button
+          ><button
+            class="text-button"
+            data-id="{{item.id}}"
+            bindtap="createManual"
+          >
+            ＋ 手动记成事项
+          </button></view
+        ></view
+      ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
+        ><template is="itemCard" data="{{row, sort}}" /></block
+    ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
-    <view class="section-top"><text class="section-title">{{showDeleted ? '最近删除' : '我的世界'}}</text><button class="text-button" bindtap="toggleDeleted">{{showDeleted ? '返回' : '最近删除'}}</button></view>
-    <view class="sync-line"><text>{{syncing ? '正在同步…' : pending ? pending + ' 个操作待同步' : connected ? '已连接个人服务' : '尚未连接个人服务'}}</text><button wx:if="{{connected}}" class="text-button" bindtap="sync" disabled="{{syncing}}">同步</button></view>
-    <view wx:if="{{!rows.length}}" class="empty">{{showDeleted ? '这里还没有删除的投递。' : '你的文字和想法，会慢慢在这里积累。'}}</view>
-    <view wx:for="{{rows}}" wx:key="id" class="card {{item.conflict ? 'conflict-card' : ''}}">
-      <view class="card-top"><text class="card-title" data-id="{{item.id}}" bindtap="expand">{{item.title}}</text><text class="badge">{{item.state}}</text></view>
-      <view class="card-text {{expandedId === item.id ? 'expanded' : ''}}" data-id="{{item.id}}" bindtap="expand" selectable>{{item.text}}</view>
-      <view class="card-foot"><text>{{item.date}}</text><button wx:if="{{item.conflict}}" class="text-button" data-id="{{item.id}}" bindtap="resolveConflict">处理冲突</button><button wx:elif="{{item.deleted}}" class="text-button" data-id="{{item.id}}" bindtap="restore">恢复</button><button wx:else class="text-button" data-id="{{item.id}}" bindtap="remove">移入最近删除</button></view>
-    </view>
+    <view class="world-heading"
+      ><view
+        ><text class="world-title">这是你的<text class="hero-highlight">世界。</text></text
+        ><text class="quiet"
+          >{{activeCount}} 件待办，{{doneCount}} 件已经完成。</text
+        ></view
+      ><image
+        class="world-mascot"
+        src="{{activeSkin.image}}"
+        mode="aspectFit"
+        bindtap="openSkins"
+    /></view>
+    <view class="search-box"
+      ><text>⌕</text
+      ><input
+        value="{{query}}"
+        bindinput="onQuery"
+        placeholder="搜索事项、原文和补充"
+    /></view>
+    <view class="scope-tabs"
+      ><button
+        class="chip {{scope === 'active' ? 'selected' : ''}}"
+        data-scope="active"
+        bindtap="setScope"
+      >
+        待处理</button
+      ><button
+        class="chip {{scope === 'done' ? 'selected' : ''}}"
+        data-scope="done"
+        bindtap="setScope"
+      >
+        已完成</button
+      ><button
+        class="chip {{scope === 'trash' ? 'selected' : ''}}"
+        data-scope="trash"
+        bindtap="setScope"
+      >
+        最近删除</button
+      ><button
+        class="chip {{starOnly ? 'selected' : ''}}"
+        bindtap="toggleStarFilter"
+      >
+        ★ 星标
+      </button></view
+    >
+    <view class="filter-bar"
+      ><picker range="{{kinds}}" value="{{kindIndex}}" bindchange="setKind"
+        ><view class="filter">{{kinds[kindIndex]}} ▾</view></picker
+      ><picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"
+        ><view class="filter">{{dates[dateIndex]}} ▾</view></picker
+      ><picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"
+        ><view class="filter">{{sorts[sortIndex]}} ▾</view></picker
+      ><button
+        class="filter {{grouped ? 'selected' : ''}}"
+        bindtap="toggleGrouped"
+      >
+        分组
+      </button></view
+    >
+    <scroll-view wx:if="{{groups.length}}" scroll-x class="group-strip"
+      ><button
+        class="chip {{!group ? 'selected' : ''}}"
+        data-group=""
+        bindtap="setGroup"
+      >
+        全部分组</button
+      ><button
+        wx:for="{{groups}}"
+        wx:key="*this"
+        class="chip {{group === item ? 'selected' : ''}}"
+        data-group="{{item}}"
+        bindtap="setGroup"
+      >
+        {{item}}
+      </button></scroll-view
+    >
+    <view class="sync-line"
+      ><text
+        >{{localMode ? '资料保存在本机' : syncing ? '正在同步…' : pending ? pending + ' 个操作待同步' : '已连接个人服务'}} · {{matched}}
+        张卡片</text
+      ><button class="text-button" bindtap="toggleRecords">
+        投递记录
+      </button></view
+    >
+    <view wx:if="{{!items.length}}" class="empty card-paper"
+      ><text class="empty-title"
+        >{{scope === 'done' ? '完成的事情，会留在这里。' : scope === 'trash' ? '这里还没有删除的事项。' : '给世界留一点生长的空间。'}}</text
+      ><text>尚未整理的文字可在投递记录中查看或手动记成事项。</text
+      ><button class="text-button" bindtap="toggleRecords">
+        查看投递记录 →
+      </button></view
+    >
+    <block wx:if="{{grouped}}"
+      ><view wx:for="{{sections}}" wx:key="title"
+        ><text class="group-title">{{item.title}} · {{item.items.length}}</text
+        ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
+          ><template is="itemCard" data="{{row, sort}}" /></block></view></block
+    ><block wx:else
+      ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
+        ><template is="itemCard" data="{{row, sort}}" /></block
+    ></block>
+    <button
+      wx:if="{{matched > items.length}}"
+      class="small-button more-button"
+      bindtap="loadMore"
+    >
+      再看一些 · {{matched - items.length}} 张
+    </button>
   </view>
-  <view wx:else class="settings">
-    <text class="section-title">连接你自己的拾序</text>
-    <view class="settings-copy">连接后，已投递的文字可以在使用同一服务的客户端间同步。尚未接入当前 Windows 应用。</view>
-    <view class="field-label">服务地址</view><input value="{{serverUrl}}" bindinput="onServer" placeholder="https://你的服务域名"/>
-    <view class="field-label">个人服务访问口令</view><input value="{{password}}" bindinput="onPassword" password placeholder="服务器上设置的访问口令"/>
-    <button class="primary" bindtap="connect" loading="{{connecting}}" disabled="{{connecting || syncing || !password.length}}">连接并保存设备授权</button>
-    <view class="settings-copy">访问口令不会保存在手机；设备授权会留在本机。这里填写的不是 AI API 密钥。</view>
-    <view wx:if="{{notice}}" class="notice">{{notice}}</view>
-    <view class="about">拾序小程序 · 开发版 0.1.0</view>
-  </view>
-  <view class="bottom-nav"><button class="nav-button {{tab === 'capture' ? 'active' : ''}}" data-tab="capture" bindtap="switchTab">桶</button><button class="nav-button {{tab === 'world' ? 'active' : ''}}" data-tab="world" bindtap="switchTab">世界 · {{count}}</button></view>
+  <view wx:else class="settings"
+    ><text class="eyebrow">MAKE YOURSELF AT HOME</text
+    ><view class="section-top"><text class="section-title">连接与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="card-paper ai-connection"
+      ><text class="subheading">AI 连接 · 服务端配置</text>
+      <text class="settings-copy">{{!connected ? '请先填写下方服务地址和访问口令。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
+      <text class="settings-copy">AI 密钥由服务器统一保管，无需在手机重复填写。Windows 本机设置中的密钥不会自动上传到服务器。</text>
+      <view class="button-row"><button class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '如何接入 API'}}</button><button wx:if="{{connected}}" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
+      <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">1. 由服务维护者在服务器配置 DeepSeek 密钥并启用 AI，手机不填写模型密钥。</text><text class="settings-copy">2. 手机与 Windows 云同步版填写同一服务地址和访问口令，连接后刷新 AI 状态。</text><text class="settings-copy">3. 本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取；当前服务端只支持文字和 UTF-8 原件，图片、PDF 等暂可手动记事项。</text></view>
+      <view class="capability"><text>事项 AI 对话</text><text>{{!connected ? '未连接' : capabilities.itemChat ? '已可用' : '服务端未启用'}}</text></view>
+      </view><view class="card-paper"
+      ><text class="subheading">个人同步服务</text
+      ><text class="settings-copy"
+        >本机资料单独保留，连接后可导入。使用同一服务的 Windows 云同步版与手机共用资料；已发行的 0.3.8 仍需升级。</text
+      ><view class="field-label">服务地址</view
+      ><input
+        value="{{serverUrl}}"
+        bindinput="onServer"
+        placeholder="https://你的服务域名"
+      /><view class="field-label">个人服务访问口令</view
+      ><input
+        value="{{password}}"
+        bindinput="onPassword"
+        password
+        placeholder="服务器访问口令，不是 AI 密钥"
+      /><button
+        class="primary"
+        bindtap="connect"
+        loading="{{connecting}}"
+        disabled="{{connecting || syncing || !password.length}}"
+      >
+        连接并保存设备授权</button
+      ><view class="button-row"
+        ><button
+          wx:if="{{connected}}"
+          class="small-button"
+          bindtap="sync"
+          disabled="{{syncing}}"
+        >
+          {{syncing ? '正在同步' : '立即同步'}}</button
+        ><button wx:if="{{connected}}" class="small-button" bindtap="useLocal">
+          返回本机资料
+        </button></view
+      ><button
+        wx:if="{{connected && localCount}}"
+        class="small-button"
+        bindtap="importLocal"
+        disabled="{{syncing}}"
+      >
+        导入 {{localCount}} 次本机投递（保留原件）</button
+      ><text class="settings-copy"
+        >口令不保留，设备授权保存在本机。不同服务使用独立资料空间。</text
+      ></view
+    ><view class="card-paper"
+      ><text class="subheading">当前能力</text
+      ><view class="capability"
+        ><text>文字与事项同步</text
+        ><text>{{connected ? '已连接' : '未连接'}}</text></view
+      ><view class="capability"
+        ><text>AI 整理</text
+        ><text
+          >{{!connected ? '未连接' : capabilities.aiOrganize ? '已可用' : '服务端未启用'}}</text
+        ></view
+      ><view class="capability"
+        ><text>原件同步</text
+        ><text
+          >{{capabilities.attachments ? '服务支持' : '服务尚未接入'}}</text
+        ></view
+      ><text class="settings-copy"
+        >真机需要 HTTPS 和微信服务器域名配置，不能直接访问电脑本机地址。</text
+      ></view
+    ><text class="about">拾序小程序 · 开发版 0.2.0 · 桌面基线 0.3.8</text></view
+  >
+  <view wx:if="{{filesBusy || pendingFiles}}" class="notice">{{filesBusy ? "正在保存或传输原件，请稍候" : pendingFiles + " 份原件保留在本机，等待上传"}}</view><view class="bottom-nav"
+    ><button
+      class="nav-button {{tab === 'capture' ? 'active' : ''}}"
+      data-tab="capture"
+      bindtap="switchTab"
+    >
+      桶 <text class="nav-badge">{{count}}</text></button
+    ><button
+      class="nav-button {{tab === 'world' ? 'active' : ''}}"
+      data-tab="world"
+      bindtap="switchTab"
+    >
+      世界 <text class="nav-badge">✦</text>
+    </button></view
+  >
 </view>
+<view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
+  ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
+    ><text>模型任务 · {{jobLabels[item.state] || "待核对"}}</text
+    ><text wx:if="{{item.error}}">{{item.error}}</text
+    ><button
+      wx:if="{{item.hasOutput}}"
+      class="text-button"
+      data-id="{{item.id}}"
+      bindtap="copyJobResult"
+    >
+      复制保留的结果（未覆盖卡片）
+    </button></view
+  ></view
+><view wx:if="{{recordsOpen}}" class="scrim" bindtap="toggleRecords"
+  ><view class="sheet" catchtap="stopTap"
+    ><view class="section-top"
+      ><text class="section-title">投递记录</text
+      ><button class="icon-button" bindtap="toggleRecords">×</button></view
+    ><button class="chip" bindtap="toggleDeleted">
+      {{showDeleted ? '查看未删除' : '查看最近删除'}}</button
+    ><scroll-view scroll-y class="sheet-scroll"
+      ><view class="button-row"><button class="small-button" data-step="-1" bindtap="recordPage" disabled="{{recordPage === 0}}">上一页</button><text class="quiet">第 {{recordPage + 1}} 页 · {{recordTotal}} 次投递</text><button class="small-button" data-step="1" bindtap="recordPage" disabled="{{(recordPage + 1) * 30 >= recordTotal}}">下一页</button></view><view wx:if="{{!rows.length}}" class="empty">这里还没有投递。</view
+      ><view wx:for="{{rows}}" wx:key="id" class="card-paper"
+        ><view class="card-top"
+          ><text class="card-title">{{item.title}}</text
+          ><text class="badge"
+            >{{localMode ? '本机保存' : item.state}}</text
+          ></view
+        ><text class="source-preview" selectable>{{item.text}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy || item.deleted}}">查看原件</button></view><text class="quiet">{{item.date}}</text
+        ><view class="button-row"
+          ><button
+            wx:if="{{item.conflict}}"
+            class="small-button"
+            data-id="{{item.id}}"
+            bindtap="resolveConflict"
+          >
+            处理冲突</button
+          ><block wx:elif="{{item.deleted}}"
+            ><button
+              class="small-button"
+              data-id="{{item.id}}"
+              bindtap="restore"
+            >
+              恢复投递</button
+            ><button
+              class="text-button danger"
+              data-id="{{item.id}}"
+              bindtap="purgePacket"
+            >
+              永久删除
+            </button></block
+          ><block wx:else
+            ><button
+              wx:if="{{!item.hasResult}}"
+              class="small-button"
+              data-id="{{item.id}}"
+              bindtap="organizeRecord"
+              disabled="{{jobBusy}}"
+            >
+              AI 整理</button
+            ><button
+              class="small-button"
+              data-id="{{item.id}}"
+              bindtap="createManual"
+            >
+              记成事项</button
+            ><button
+              class="text-button danger"
+              data-id="{{item.id}}"
+              bindtap="remove"
+            >
+              删除整次投递
+            </button></block
+          ></view
+        ></view
+      ></scroll-view
+    ></view
+  ></view
+>
+<view wx:if="{{selected}}" class="scrim detail-scrim" bindtap="closeItem"
+  ><view class="sheet detail-sheet" catchtap="stopTap"
+    ><view class="section-top"
+      ><text class="kind-label"
+        >{{selected.kindLabel}} {{selected.group ? '· ' + selected.group : ''}}</text
+      ><button class="icon-button" bindtap="closeItem">×</button></view
+    ><scroll-view scroll-y class="sheet-scroll">
+      <block wx:if="{{editing}}"
+        ><view class="field-label">标题</view
+        ><input
+          value="{{editTitle}}"
+          data-field="editTitle"
+          bindinput="onEdit"
+          maxlength="150"
+        /><view class="field-label">总结</view
+        ><textarea
+          class="edit-area"
+          value="{{editSummary}}"
+          data-field="editSummary"
+          bindinput="onEdit"
+          maxlength="2000"
+        /><view class="field-label">类型</view
+        ><picker
+          range="{{editKinds}}"
+          value="{{editKind}}"
+          bindchange="onEditKind"
+          ><view class="filter">{{editKinds[editKind]}} ▾</view></picker
+        ><view class="field-label">分组（留空拆出分组）</view
+        ><input
+          value="{{editGroup}}"
+          data-field="editGroup"
+          bindinput="onEdit"
+          maxlength="150"
+        /><view class="field-label">日期（留空清除）</view
+        ><input
+          value="{{editDate}}"
+          data-field="editDate"
+          bindinput="onEdit"
+          placeholder="YYYY-MM-DD"
+        /><view class="button-row"
+          ><button class="primary" bindtap="saveEdit">保存修改</button
+          ><button class="small-button" bindtap="cancelEdit">取消</button></view
+        ></block
+      >
+      <block wx:else
+        ><text class="detail-title">{{selected.item.title}}</text
+        ><text class="detail-summary" selectable>{{selected.item.summary}}</text
+        ><text wx:if="{{selected.date}}" class="due-label"
+          >{{selected.date}} {{selected.time}}</text
+        ><view wx:if="{{!selected.deleted}}" class="button-row"
+          ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone">
+            {{selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
+          ><button class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
+            {{selected.starred ? '★ 已星标' : '☆ 星标'}}</button
+          ><button class="chip" data-id="{{selected.id}}" bindtap="togglePin">
+            {{selected.pinned ? '取消置顶' : '置顶'}}</button
+          ><button class="small-button" bindtap="beginEdit">编辑</button
+          ><button
+            class="small-button"
+            data-id="{{selected.id}}"
+            bindtap="progressItem"
+          >
+            {{selected.progress ? '取消进行中' : '开始处理'}}</button
+          ><button
+            wx:if="{{selected.kind === 'habit'}}"
+            class="small-button"
+            data-id="{{selected.id}}"
+            bindtap="checkin"
+          >
+            {{selected.checked ? '今日已打卡 ✓' : '今日打卡'}}
+          </button></view
+        >
+        <view wx:if="{{selected.facts.length}}" class="detail-section"
+          ><text class="subheading">原文要求</text
+          ><text
+            wx:for="{{selected.facts}}"
+            wx:key="index"
+            class="detail-line"
+            selectable
+            >• {{item}}</text
+          ></view
+        ><view wx:if="{{selected.nextSteps.length}}" class="detail-section"
+          ><text class="subheading">下一步建议</text
+          ><text
+            wx:for="{{selected.nextSteps}}"
+            wx:key="index"
+            class="detail-line"
+            >→ {{item}}</text
+          ></view
+        ><view wx:if="{{selected.uncertainties.length}}" class="detail-section"
+          ><text class="subheading">待确认</text
+          ><text
+            wx:for="{{selected.uncertainties}}"
+            wx:key="index"
+            class="detail-line"
+            >{{item}}</text
+          ></view
+        ><view wx:if="{{selected.evidence.length}}" class="detail-section"
+          ><text class="subheading">原文依据</text
+          ><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"
+            ><text class="quiet">{{item.name}}</text
+            ><text class="detail-line" selectable>“{{item.quote}}”</text></view
+          ></view
+        >
+        <view class="detail-section"
+          ><view class="section-top"
+            ><text class="subheading">同行材料</text
+            ><button class="text-button" bindtap="copySource">
+              复制原文
+            </button></view
+          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">查看原件</button></view><text class="detail-line" selectable>{{selected.sourceText}}</text
+          ><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
+            ><text class="quiet">{{item.name}}</text
+            ><text class="detail-line" selectable>{{item.text}}</text></view
+          ></view
+        >
+        <view class="detail-section"
+          ><text class="subheading">补充记录</text
+          ><view wx:for="{{selected.additions}}" wx:key="id" class="evidence"
+            ><text class="detail-line" selectable>{{item.text}}</text
+            ><text class="quiet">{{item.at}}</text></view
+          ><block wx:if="{{!selected.deleted}}">
+            <textarea
+              class="edit-area"
+              value="{{addition}}"
+              data-field="addition"
+              bindinput="onEdit"
+              maxlength="4000"
+              placeholder="补充进展，保留原文依据"
+            /><button class="small-button" bindtap="addNote">
+              保存补充
+            </button></block
+          ></view
+        >
+        <view wx:if="{{!selected.deleted}}" class="detail-section"
+          ><text class="subheading">和 AI 说一声</text
+          ><textarea
+            class="edit-area"
+            value="{{chatInput}}"
+            data-field="chatInput"
+            bindinput="onEdit"
+            maxlength="4000"
+            placeholder="只针对当前事项提问或修改"
+          /><text class="quiet">使用服务端配置的模型，发送会产生调用费用。</text
+          ><button
+            class="small-button"
+            bindtap="chatWithItem"
+            disabled="{{jobBusy || !chatInput.length}}"
+          >
+            发送给当前事项
+          </button></view
+        ><view wx:if="{{selected.chat.length}}" class="detail-section"
+          ><text class="subheading">和 AI 说一声 · 历史对话</text
+          ><view wx:for="{{selected.chat}}" wx:key="id" class="evidence"
+            ><text class="quiet">{{item.role === 'user' ? '你' : '拾序'}}</text
+            ><text class="detail-line" selectable>{{item.text}}</text></view
+          ></view
+        ><view wx:if="{{selected.history.length}}" class="detail-section"
+          ><text class="subheading">修改记录</text
+          ><view wx:for="{{selected.history}}" wx:key="index" class="evidence"
+            ><text class="quiet">{{item.at}} · {{item.source}}</text
+            ><text class="detail-line" selectable
+              >{{item.field}}：{{item.before}} → {{item.after}}</text
+            ></view
+          ></view
+        >
+        <view class="detail-section button-row"
+          ><block wx:if="{{selected.deleted}}"
+            ><button
+              class="small-button"
+              data-id="{{selected.id}}"
+              bindtap="restoreItem"
+            >
+              恢复事项</button
+            ><button
+              class="text-button danger"
+              data-id="{{selected.id}}"
+              bindtap="purgeItem"
+            >
+              永久删除卡片
+            </button></block
+          ><button
+            wx:else
+            class="text-button danger"
+            data-id="{{selected.id}}"
+            bindtap="removeItem"
+          >
+            移入最近删除（保留同行事项）
+          </button></view
+        >
+      </block></scroll-view
+    ></view
+  ></view
+>
+<view wx:if="{{skinOpen}}" class="scrim skin-scrim" bindtap="closeSkins"
+  ><view class="sheet" catchtap="stopTap"
+    ><view class="section-top"
+      ><view
+        ><text class="eyebrow">A LITTLE COMPANY</text
+        ><text class="section-title">皮肤市场</text></view
+      ><button class="icon-button" bindtap="closeSkins">×</button></view
+    ><scroll-view scroll-y class="sheet-scroll"
+      ><block wx:if="{{!skinEditor}}"
+        ><view class="skin-preview" style="background:{{previewSkin.color}}"
+          ><image
+            src="{{previewSkin.image}}"
+            mode="aspectFit"
+            class="preview-art motion-{{previewSkin.motion}} {{skinAnimating ? 'animate' : ''}}"
+            bindtap="interactSkin"
+          /><text class="skin-bubble">{{skinMessage}}</text
+          ><text class="subheading">{{previewSkin.name}}</text
+          ><text class="quiet">{{previewSkin.description}}</text
+          ><view class="button-row"
+            ><button class="small-button" bindtap="feedSkin">试着喂一口</button
+            ><button class="primary" bindtap="applySkin">
+              {{activeSkin.id === previewSkin.id ? '正在陪着你 ✓' : '就选这个朋友'}}
+            </button></view
+          ></view
+        ><view class="skin-grid"
+          ><view
+            wx:for="{{skins}}"
+            wx:key="id"
+            class="skin-card {{previewSkin.id === item.id ? 'selected' : ''}}"
+            data-id="{{item.id}}"
+            bindtap="previewSkin"
+            style="background:{{item.color}}"
+            ><image src="{{item.image}}" mode="aspectFit" /><text
+              class="skin-name"
+              >{{item.name}}</text
+            ><text class="quiet">{{item.description}}</text
+            ><view wx:if="{{item.art === 'custom'}}" class="button-row"
+              ><button
+                class="text-button"
+                data-id="{{item.id}}"
+                catchtap="editSkin"
+              >
+                编辑</button
+              ><button
+                class="text-button danger"
+                data-id="{{item.id}}"
+                catchtap="deleteCustomSkin"
+              >
+                删除
+              </button></view
+            ></view
+          ></view
+        ><button class="small-button more-button" bindtap="editSkin">
+          ＋ 自己做一个</button
+        ><text class="settings-copy"
+          >共用桌面预设与原画。自定义收藏只保存在当前设备，不随事项同步。</text
+        ></block
+      ><block wx:else
+        ><image
+          wx:if="{{skinForm.image}}"
+          class="preview-art"
+          src="{{skinForm.image}}"
+          mode="aspectFit"
+        /><button class="small-button" bindtap="chooseSkinImage">
+          选择角色图片</button
+        ><text class="field-label">名字</text
+        ><input
+          value="{{skinForm.name}}"
+          data-field="name"
+          bindinput="onSkinField"
+          maxlength="20"
+        /><text class="field-label">简介</text
+        ><input
+          value="{{skinForm.description}}"
+          data-field="description"
+          bindinput="onSkinField"
+          maxlength="60"
+        /><text class="field-label">平时说的话</text
+        ><input
+          value="{{skinForm.hello}}"
+          data-field="hello"
+          bindinput="onSkinField"
+          maxlength="40"
+        /><text class="field-label">被点到时</text
+        ><input
+          value="{{skinForm.greeting}}"
+          data-field="greeting"
+          bindinput="onSkinField"
+          maxlength="40"
+        /><text class="field-label">收到投喂时</text
+        ><input
+          value="{{skinForm.feeding}}"
+          data-field="feeding"
+          bindinput="onSkinField"
+          maxlength="40"
+        /><text class="field-label">动作</text
+        ><picker
+          range="{{motionLabels}}"
+          value="{{motionIndex}}"
+          bindchange="onMotion"
+          ><view class="filter">{{motionLabels[motionIndex]}} ▾</view></picker
+        ><button class="primary" bindtap="saveCustomSkin">
+          保存并使用
+        </button></block
+      ></scroll-view
+    ></view
+  ></view
+>
+
+<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal">×</button></view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>

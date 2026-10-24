@@ -40,7 +40,9 @@ try {
   await page
     .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
     .click();
-  await page.getByRole("button", { name: "停止鲸鱼笑声", exact: true }).click();
+  await page
+    .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
     .waitFor();

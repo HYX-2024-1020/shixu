@@ -26,10 +26,11 @@ type Session = {
   left: number;
   top: number;
   active: boolean;
+  touch: boolean;
   order: string[];
   original: string[];
   clone: HTMLElement | null;
-  timer: ReturnType<typeof setTimeout>;
+  timer: ReturnType<typeof setTimeout> | undefined;
   frame: number;
   changed: boolean;
 };
@@ -56,6 +57,7 @@ export function useCardDrag(
   function cancel() {
     const s = session.current;
     if (!s) return;
+    if (s.active) suppressClick.current = true;
     cleanup(s);
     latest.current.onPreview(null);
     setAnnouncement("已取消移动");
@@ -159,6 +161,43 @@ export function useCardDrag(
     }
     s.frame = requestAnimationFrame(() => tick(s));
   }
+  function activate(s: Session) {
+    const card = s.card;
+    if (session.current !== s || !card.isConnected) return;
+    const bounds = card.getBoundingClientRect();
+    s.left = bounds.left;
+    s.top = bounds.top;
+    s.active = true;
+    window.getSelection()?.removeAllRanges();
+    card.setPointerCapture(s.pointer);
+    const clone = card.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll("dialog,details[open]").forEach((el) => el.remove());
+    clone.removeAttribute("data-motion-id");
+    clone.removeAttribute("data-dialog-origin");
+    clone.classList.add("card-drag-preview");
+    clone.setAttribute("aria-hidden", "true");
+    clone.inert = true;
+    Object.assign(clone.style, {
+      left: bounds.left + "px",
+      top: bounds.top + "px",
+      width: bounds.width + "px",
+      height: bounds.height + "px",
+      boxSizing: "border-box",
+    });
+    document.body.append(clone);
+    s.clone = clone;
+    card.setAttribute("data-dragging", "true");
+    document.body.classList.add("is-card-dragging");
+    clone.animate(
+      [
+        { transform: "scale(1) rotate(0deg)" },
+        { transform: "scale(1.025) rotate(.6deg)" },
+      ],
+      { duration: 160, easing: settle },
+    );
+    setAnnouncement("已拿起卡片，移动后松手放下，Escape 取消");
+    tick(s);
+  }
   function onPointerDown(event: ReactPointerEvent<HTMLElement>) {
     if (
       !latest.current.enabled ||
@@ -176,6 +215,7 @@ export function useCardDrag(
       return;
     const card = event.currentTarget,
       id = card.dataset.motionId!;
+    suppressClick.current = false;
     const rect = card.getBoundingClientRect();
     const s: Session = {
       card,
@@ -188,53 +228,18 @@ export function useCardDrag(
       left: rect.left,
       top: rect.top,
       active: false,
+      touch: event.pointerType === "touch",
       order: [...latest.current.ids],
       original: [...latest.current.ids],
       clone: null,
-      timer: setTimeout(() => {}, 0),
+      timer: undefined,
       frame: 0,
       changed: false,
     };
-    clearTimeout(s.timer);
-    s.timer = setTimeout(() => {
-      if (session.current !== s || !card.isConnected) return;
-      const bounds = card.getBoundingClientRect();
-      s.left = bounds.left;
-      s.top = bounds.top;
-      s.active = true;
-      window.getSelection()?.removeAllRanges();
-      card.setPointerCapture(s.pointer);
-      const clone = card.cloneNode(true) as HTMLElement;
-      clone
-        .querySelectorAll("dialog,details[open]")
-        .forEach((el) => el.remove());
-      clone.removeAttribute("data-motion-id");
-      clone.removeAttribute("data-dialog-origin");
-      clone.classList.add("card-drag-preview");
-      clone.setAttribute("aria-hidden", "true");
-      clone.inert = true;
-      Object.assign(clone.style, {
-        left: bounds.left + "px",
-        top: bounds.top + "px",
-        width: bounds.width + "px",
-        height: bounds.height + "px",
-        boxSizing: "border-box",
-      });
-      document.body.append(clone);
-      s.clone = clone;
-      card.setAttribute("data-dragging", "true");
-      document.body.classList.add("is-card-dragging");
-      clone.animate(
-        [
-          { transform: "scale(1) rotate(0deg)" },
-          { transform: "scale(1.025) rotate(.6deg)" },
-        ],
-        { duration: 160, easing: settle },
-      );
-      setAnnouncement("已拿起卡片，移动后松手放下，Escape 取消");
-      tick(s);
-    }, 280);
     session.current = s;
+    // A mouse starts dragging as soon as it moves, like Explorer. Touch keeps
+    // the existing hold gesture rather than treating every swipe as a drag.
+    if (s.touch) s.timer = setTimeout(() => activate(s), 280);
   }
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -243,13 +248,20 @@ export function useCardDrag(
       s.x = event.clientX;
       s.y = event.clientY;
       if (!s.active && Math.hypot(s.x - s.startX, s.y - s.startY) > 7) {
-        cleanup(s);
-        return;
+        if (s.touch) {
+          cleanup(s);
+          return;
+        }
+        activate(s);
       }
       if (s.active) event.preventDefault();
     };
     const up = (event: PointerEvent) => {
       const s = session.current;
+      if (suppressClick.current)
+        setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
       if (!s || event.pointerId !== s.pointer || busy.current) return;
       if (!s.active) {
         cleanup(s);
@@ -275,11 +287,15 @@ export function useCardDrag(
     const lost = () => {
       if (!busy.current) cancel();
     };
+    const nativeDrag = (event: DragEvent) => {
+      if (session.current) event.preventDefault();
+    };
     document.addEventListener("pointermove", move, { passive: false });
     document.addEventListener("pointerup", up, true);
     document.addEventListener("pointercancel", lost);
     document.addEventListener("keydown", key, true);
     document.addEventListener("click", click, true);
+    document.addEventListener("dragstart", nativeDrag, true);
     window.addEventListener("blur", lost);
     window.addEventListener("resize", lost);
     return () => {
@@ -288,6 +304,7 @@ export function useCardDrag(
       document.removeEventListener("pointercancel", lost);
       document.removeEventListener("keydown", key, true);
       document.removeEventListener("click", click, true);
+      document.removeEventListener("dragstart", nativeDrag, true);
       window.removeEventListener("blur", lost);
       window.removeEventListener("resize", lost);
       cancel();

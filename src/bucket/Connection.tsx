@@ -4,10 +4,12 @@ import { DEFAULT_MODEL } from "../../shared/bucket-engine.mjs";
 import { exportPackets, serviceRequest, type Health } from "./service";
 import type { Packet } from "./types";
 import { getModels, KNOWN_MODELS, modelLabel } from "./model-api";
+import CloudConnection from "./CloudConnection";
 import UsagePanel from "./UsagePanel";
 import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection({
+  canSwitchCloud,
   apiKey,
   model,
   remember,
@@ -18,6 +20,7 @@ export default function Connection({
   onClose,
   notify,
 }: {
+  canSwitchCloud: () => boolean;
   apiKey: string;
   model: string;
   remember: boolean;
@@ -127,18 +130,38 @@ export default function Connection({
     }
   }
   return (
-    <dialog ref={ref} className="bucket-dialog" onCancel={onClose}>
+    <dialog
+      ref={ref}
+      className="bucket-dialog"
+      onCancel={onClose}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom
+        )
+          onClose();
+      }}
+    >
       <header>
         <div>
           <span className="dialog-kicker">只需配置一次</span>
           <h2>
-            {health && !authenticated ? "进入你的个人桶" : "连接 DeepSeek"}
+            {health && !authenticated
+              ? "进入你的个人桶"
+              : window.desktop
+                ? "连接与设置"
+                : "连接 DeepSeek"}
           </h2>
         </div>
         <button aria-label="关闭设置" onClick={onClose}>
           <X size={20} />
         </button>
       </header>
+      {window.desktop && <CloudConnection canSwitch={canSwitchCloud} />}
       <form
         onSubmit={(e) => {
           e.preventDefault();

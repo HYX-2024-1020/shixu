@@ -10,6 +10,7 @@
 
 - [贡献流程](../CONTRIBUTING.md) · [开发与验证](guides/development.md)
 - [架构与目录](architecture.md) · [当前成果与路线](current-baseline.md)
+- [双端发布前验收记录](release-acceptance-2026-10-24.md) · [双端能力与持续适配](client-parity.md)
 - [桌面产品计划](desktop-product-plan.md) · [桌面实现入口](desktop-implementation.md)
 - [小程序导入](../miniprogram/README.md) · [小程序实现](miniprogram-implementation.md)
 - [同步服务部署](../deploy/sync/README.md) · [仓库治理](repository-governance.md)
