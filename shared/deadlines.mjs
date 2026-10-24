@@ -1,8 +1,9 @@
-import { groundedDate, groundedTime } from "./bucket-engine.mjs";
+import { groundedDate } from "./bucket-engine.mjs";
+import { groundedTime, resolveDeadlineTime } from "./deadline-time.mjs";
 
 // Resolve against the saved local capture day, never the day a card is viewed.
 const relative =
-  /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
+  /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
 export function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "",
@@ -21,16 +22,37 @@ export function absoluteText(text, day) {
       : "";
     previousEnd = offset + token.length;
     const date = groundedDate(anchor, day);
-    return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") : token;
+    return date
+      ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") +
+          (/晚$/.test(token) ? "晚上" : /早$/.test(token) ? "早上" : "")
+      : token;
   });
 }
-export function absoluteItem(item, day) {
+export function absoluteItem(item, day, sources = [], chat = []) {
+  const context = [
+    ...sources,
+    ...chat
+      .filter((e) => e.role === "user")
+      .slice()
+      .reverse()
+      .map((e) => ({ id: "item-chat", name: "事项对话", text: e.text })),
+  ];
   return {
     ...item,
+    due: item.due
+      ? resolveDeadlineTime(item.due, item.evidence, context)
+      : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),
     nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day)),
+    uncertainties: (item.uncertainties || []).filter(
+      (text) =>
+        text.includes("日期") ||
+        !/(?:时刻|几点|具体时间).*(?:未知|不明|未明确|未指定|未给出|需核对)|(?:没有|未指定|未给出|未明确|缺少|未自动填入).*(?:时刻|几点|具体时间)/.test(
+          text,
+        ),
+    ),
   };
 }
 export function parseDeadline(text, day, time = "") {
@@ -39,12 +61,12 @@ export function parseDeadline(text, day, time = "") {
   if (!date) throw new Error("请输入明确日期，例如 2026-10-29 或明天下午三点");
   if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))
     throw new Error("时刻格式应为 HH:mm");
-  return {
+  return resolveDeadlineTime({
     date,
-    time: time || groundedTime(text),
+    time,
     anchor: [text, time].filter(Boolean).join(" "),
     sourceId: "manual",
-  };
+  });
 }
 export function setDeadline(item, due, captureDay) {
   const result = absoluteItem(item, captureDay);
@@ -69,7 +91,7 @@ export function setDeadline(item, due, captureDay) {
     result.facts = result.facts.map(replace);
     result.nextSteps = result.nextSteps.map(replace);
   }
-  return { ...result, due };
+  return { ...result, due: due ? resolveDeadlineTime(due) : null };
 }
 export function deadlineSections(rows, day, nowTime, days = 7) {
   const sections = {

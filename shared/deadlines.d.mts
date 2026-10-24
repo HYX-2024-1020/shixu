@@ -1,6 +1,11 @@
-import type { BucketItem } from "./bucket-engine.mjs";
+import type { BucketItem, Source } from "./bucket-engine.mjs";
 export function absoluteText(text: string, day: string): string;
-export function absoluteItem<T extends BucketItem>(item: T, day: string): T;
+export function absoluteItem<T extends BucketItem>(
+  item: T,
+  day: string,
+  sources?: Source[],
+  chat?: { role: string; text: string }[],
+): T;
 export function parseDeadline(
   text: string,
   day: string,

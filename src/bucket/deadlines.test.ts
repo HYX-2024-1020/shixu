@@ -18,7 +18,7 @@ it("anchors dates to capture day across month, year, leap day and later viewing"
   });
   expect(parseDeadline("后天", "2028-02-28")).toMatchObject({
     date: "2028-03-01",
-    time: "",
+    time: "23:59",
   });
   expect(parseDeadline("下周一", "2026-10-30").date).toBe("2026-11-02");
   expect(parseDeadline("上周一", "2026-10-28").date).toBe("2026-10-19");
@@ -62,6 +62,7 @@ it("normalizes saved generated card copy while retaining exact source evidence",
   );
   expect(changed.summary).toContain("2026年11月02日");
   expect(changed.evidence).toEqual(item.evidence);
+  expect(changed.summary).toContain("23:59");
   expect(changed.summary).not.toContain("下午三点");
   const shifted = setDeadline(
     item,

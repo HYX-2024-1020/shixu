@@ -1,6 +1,6 @@
 <template name="ddlCard">
   <view class="ddl-item">
-    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '具体时刻未知'}}</text><text>核对时间 ↗</text></view>
+    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
     <view class="ddl-row"><button class="ddl-check" data-id="{{row.id}}" catchtap="toggleDone">{{row.done ? '✓' : '○'}}</button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
   </view>
 </template>
@@ -255,7 +255,7 @@
     </button>
   </view>
   <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
-    <view class="ddl-head"><image src="/assets/mascot.png" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">点一下时间，核对依据、手动修正。</text></view></view>
+    <view class="ddl-head"><image src="/assets/mascot.png" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
     <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><slider min="0" max="4" step="1" value="{{ddlIndex}}" activeColor="#7048e8" block-color="#ffd43b" bindchange="setDdlWindow"/><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this">{{item}} 天</text></view></view>
     <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
@@ -266,7 +266,7 @@
     <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
     <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
     <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
-    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="明天下午三点 / YYYY-MM-DD"/><text class="field-label">截止时刻（可留空）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
+    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="明天下午三点 / YYYY-MM-DD"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
   </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
@@ -470,13 +470,13 @@
           data-field="editGroup"
           bindinput="onEdit"
           maxlength="150"
-        /><view wx:if="{{selected.evidence.length}}" class="detail-section"><text class="subheading">时间依据 · 原文</text><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"><text class="quiet">{{item.name}}</text><text class="detail-line" selectable>{{item.quote}}</text></view></view><view class="field-label">日期（留空清除）</view
+        /><view wx:if="{{selected.evidence.length}}" class="detail-section"><text class="subheading">时间依据 · 原文</text><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"><text class="quiet">{{item.name}}</text><text class="detail-line" selectable>{{item.quote}}</text></view></view><view class="field-label">日期（留空清除）</view
         ><input
           value="{{editDate}}"
           data-field="editDate"
           bindinput="onEdit"
           placeholder="明天下午三点 / YYYY-MM-DD"
-        /><view class="field-label">时刻（留空为未知）</view><input value="{{editTime}}" data-field="editTime" bindinput="onEdit" placeholder="HH:mm"/><view class="button-row"
+        /><view class="field-label">时刻（留空按 23:59 安排）</view><input value="{{editTime}}" data-field="editTime" bindinput="onEdit" placeholder="HH:mm"/><view class="button-row"
           ><button class="primary" bindtap="saveEdit">保存修改</button
           ><button class="small-button" bindtap="cancelEdit">取消</button></view
         ></block
@@ -486,7 +486,7 @@
         ><text class="detail-summary" selectable>{{selected.item.summary}}</text
         ><text wx:if="{{selected.date}}" class="due-label"
           >{{selected.date}} {{selected.time}}</text
-        ><view wx:if="{{!selected.deleted}}" class="button-row"
+        ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row"
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone">
             {{selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleStar">

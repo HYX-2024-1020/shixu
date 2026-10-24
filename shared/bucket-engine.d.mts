@@ -25,7 +25,14 @@ export interface BucketItem {
   uncertainties: string[];
   evidence: { sourceId: string; quote: string }[];
   sourceIds: string[];
-  due: null | { date: string; time: string; anchor: string; sourceId: string };
+  due: null | {
+    date: string;
+    time: string;
+    anchor: string;
+    sourceId: string;
+    timeInferred?: boolean;
+    timeReason?: string;
+  };
 }
 export interface BucketResult {
   summary: string;

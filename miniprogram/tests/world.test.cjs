@@ -537,7 +537,7 @@ test("large source histories stay out of card payloads and records paginate with
   assert.equal(f.page._client.records()[0].data.text.length, 48000);
 });
 
-test("DDL creates grounded dates, edits unknown clocks, shares completion, and reopens without drift", () => {
+test("DDL creates grounded dates, infers omitted clocks, shares completion, and reopens without drift", () => {
   const { page, store } = fixture();
   page.setData({
     ddlTitle: "明天交报告",
@@ -554,7 +554,7 @@ test("DDL creates grounded dates, edits unknown clocks, shares completion, and r
   assert.equal(page.data.editing, true);
   page.setData({ editDate: "2026-12-31", editTime: "" });
   page.saveEdit();
-  assert.equal(itemsFor(page._client.records())[0].time, "");
+  assert.equal(itemsFor(page._client.records())[0].time, "23:59");
   page.toggleDone(event(row.id));
   assert.equal(page.data.ddlDone.length, 1);
   assert.equal(page.data.ddlCount, 0);
@@ -562,7 +562,8 @@ test("DDL creates grounded dates, edits unknown clocks, shares completion, and r
   const reopened = fixture({ store }).page;
   const saved = itemsFor(reopened._client.records())[0];
   assert.equal(saved.date, "2026-12-31");
-  assert.equal(saved.time, "");
+  assert.equal(saved.time, "23:59");
+  assert.equal(saved.item.due.timeInferred, true);
   assert.equal(saved.done, false);
   assert.equal(saved.item.evidence[0].quote, row.item.evidence[0].quote);
   reopened.switchTab(tabEvent("ddl"));
@@ -573,4 +574,76 @@ test("DDL creates grounded dates, edits unknown clocks, shares completion, and r
   reopened.addDdl();
   assert.equal(reopened.data.ddlCount, 1);
   assert.match(reopened.data.error, /明确日期/);
+});
+
+test("old blank clocks recover from matching source and chat, with stable inferred defaults", () => {
+  const sources = [
+    { id: "report", name: "通知", text: "明天下午三点十分交报告" },
+    { id: "draft", name: "通知", text: "明天交草稿" },
+  ];
+  const items = sources.map((s) => ({
+    kind: "task",
+    title: s.id,
+    summary: s.text,
+    facts: [],
+    nextSteps: [],
+    uncertainties: [],
+    sourceIds: [s.id],
+    evidence: [{ sourceId: s.id, quote: s.text }],
+    due: { date: "2026-10-29", time: "", anchor: "明天", sourceId: s.id },
+  }));
+  const rows = itemsFor([
+    {
+      id: "clock-packet",
+      data: {
+        id: "clock-packet",
+        captureDate: "2026-10-28",
+        sources,
+        result: { items },
+        itemIds: ["clock-report", "clock-draft"],
+        itemState: {},
+        doneIds: [],
+      },
+    },
+  ]);
+  assert.equal(rows[0].time, "15:10");
+  assert.equal(rows[0].item.due.timeInferred, undefined);
+  assert.equal(rows[1].time, "23:59");
+  assert.equal(rows[1].item.due.timeInferred, true);
+  assert.equal(items[0].due.time, "");
+});
+
+test("an undated mini card retains its explicitly stated clock instead of showing the default", () => {
+  const text = "月底下午三点十分提交说明";
+  const rows = itemsFor([
+    {
+      id: "pending-clock",
+      data: {
+        id: "pending-clock",
+        captureDate: "2026-10-28",
+        sources: [{ id: "input", name: "通知", text }],
+        result: {
+          items: [
+            {
+              kind: "task",
+              title: "说明",
+              summary: text,
+              facts: [],
+              nextSteps: [],
+              uncertainties: ["日期还不明确"],
+              sourceIds: ["input"],
+              evidence: [{ sourceId: "input", quote: text }],
+              due: null,
+            },
+          ],
+        },
+        itemIds: ["pending-item"],
+        itemState: {},
+        doneIds: [],
+      },
+    },
+  ]);
+  assert.equal(rows[0].date, "");
+  assert.equal(rows[0].time, "15:10");
+  assert.equal(rows[0].item.due, null);
 });
