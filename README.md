@@ -8,13 +8,15 @@
 
 [成果总览与下一阶段](docs/current-baseline.md)集中记录桌面、皮肤、小程序、云端和治理的实际状态。后续开发先读 [AGENTS.md](AGENTS.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md)，使用任务分支和 PR。
 
-- 正式 Windows 安装包：[v0.3.7](https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.7)。
-- 新整合源码：[皮肤市场](docs/skin-market.md)、[微信小程序](miniprogram/README.md)、[独立同步服务](deploy/sync/README.md)。这些源码成果不等于已包含在现有桌面安装包或已公开上线。
+- 正式 Windows 安装包：[v0.3.8](https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.8)。
+- 新整合源码：[皮肤市场](docs/skin-market.md)、[微信小程序](miniprogram/README.md)、[独立同步服务](deploy/sync/README.md)。皮肤市场纳入 Windows 0.3.8；小程序和同步服务仍按各自验证与发布流程推进。
 - 云端测试服务已部署，仅内部访问；Windows 完整同步、HTTPS、小程序真机及发布仍待完成。
 
-## Windows 桌面版 0.3.7
+## Windows 桌面版 0.3.8
 
-Windows x64 安装包输出到 `release/拾序 Setup 0.3.7.exe`，当前正式版本见 [v0.3.7](https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.7)。安装后双击“拾序”进入独立窗口；关窗进入托盘，托盘可打开或退出。普通使用无需终端、浏览器或开发服务。
+Windows x64 安装包输出到 `release/Shixu-Setup-0.3.8.exe`，当前正式版本见 [v0.3.8](https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.8)。安装后双击“拾序”进入独立窗口；关窗进入托盘，托盘可打开或退出。普通使用无需终端、浏览器或开发服务。
+
+0.3.8 将皮肤市场带入正式桌面构建：右上角「皮肤市场」或角色下方「换个伙伴」可切换 8 款预设、自定义图片与台词；桶和世界同步显示，重启后保留。本机收藏暂不跨设备同步、不包含在事项备份中，后续继续基于当前桌面设计打磨。详见 [0.3.8 发布说明](docs/releases/windows-0.3.8.md)。
 
 0.3.7 在桶里显示刚刚手动投喂这一批的处理进度与可操作结果；旧任务仍在世界里，重启不会把历史记录带回首页。卡片详情从原来的位置短促放大，关闭缩回原位，去掉模糊叠层。世界里的卡片按住约 0.28 秒即可拿起拖动，其他卡片平滑让位，松手保存位置；靠近窗口边缘自动滚动，Escape 取消。首次拖动后使用自定义顺序，筛选外的事项保持原位置。
 

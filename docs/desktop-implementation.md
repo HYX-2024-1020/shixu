@@ -224,3 +224,7 @@
 - [x] 安装器 拾序 Setup 0.3.7.exe，144248293 字节，SHA-256：e96870bb8bc3ac2f96f80131f222e62e0d3093959cbc0e2d803ba73af40d3d2c。验证报告 release/validation-summary.json、release/spatial-validation.json。
 
 开发隔离目录保留为 C:/Users/No Choice/Documents/vibecoding/forgettable_TOOL/shixu-card-motion；主工作区并行皮肤/同步/小程序改动须保留，不能用本轮快照覆盖。外部 QQ/微信/资源管理器实际载荷验收仍是历史待验，内部卡片拖动回归不替代它。
+
+## 2026-10-24：Windows 0.3.8 皮肤市场发行
+
+沿用已整合的最新 main，皮肤市场纳入当前桌面构建，不回退卡片布局或空间交互。新增 desktop-skins-smoke.mjs，通过真实 UI 验证预设投喂、桶/世界一致、自定义合成图片、两次进程重启、草稿保护、编辑删除；所有测试使用独立 profile。安装包与完整发行验收见 [0.3.8 发布说明](releases/windows-0.3.8.md)。

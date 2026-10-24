@@ -1,13 +1,15 @@
 # 拾序项目接续入口
 
-2026-10-24 当前成果与下一步统一见 [docs/current-baseline.md](docs/current-baseline.md)。先读 AGENTS.md 与 CONTRIBUTING.md；下文为历史实施记录，版本、目录与推送方式仅描述当时状态，不构成当前开发指令。当前正式 Windows 版本为 0.3.7，新整合的皮肤/小程序/同步源码尚未作为桌面新版发布。
+2026-10-24 当前成果与下一步统一见 [docs/current-baseline.md](docs/current-baseline.md)。先读 AGENTS.md 与 CONTRIBUTING.md；下文为历史实施记录，版本、目录与推送方式仅描述当时状态，不构成当前开发指令。本轮 Windows 0.3.8 将皮肤市场纳入桌面发行，发布验收见 docs/releases/windows-0.3.8.md；小程序与同步服务仍独立接续。
 
 
 更新于 2026-10-23。用户已授权持续分阶段完成全部首版主体，每完成并验证一项更新清单；不要重复询问已确认的产品问题。先读 docs/desktop-product-plan.md，再看 docs/desktop-implementation.md 最新验证记录。
 
 ## 当前状态
 
-最新安装版本 **0.3.7**：本次投喂结果、原位开合与长按拖动。开发隔离目录为 C:/Users/No Choice/Documents/vibecoding/forgettable_TOOL/shixu-card-motion（主工作区有并行皮肤/小程序/同步服务开发，不能一起打包）。源码和安装后的十一套界面回归均通过；现有资料校验一致，最终状态见文末。
+本轮发行版本 **0.3.8**：保留 0.3.7 的交互并加入皮肤市场。统一开发入口为当前 main；皮肤后续修改应从最新 main 创建任务分支，不回到原 shixu 工作区的旧混合快照。验证与发布状态见 [发布说明](docs/releases/windows-0.3.8.md)。
+
+此前安装版本 **0.3.7**：本次投喂结果、原位开合与长按拖动。开发隔离目录为 C:/Users/No Choice/Documents/vibecoding/forgettable_TOOL/shixu-card-motion（主工作区有并行皮肤/小程序/同步服务开发，不能一起打包）。源码和安装后的十一套界面回归均通过；现有资料校验一致，最终状态见文末。
 
 历史版本 **0.3.6**（2026-10-24）：卡片入场/弹窗开合/菜单回弹、完成勾选后退出、删除和排序后的卡片补位、星标/置顶/按钮反馈、拖入拖出与工作区切换衔接。可打断动画，快速连点不丢数据。保持当前视觉；用户明确不需要减少动态效果功能，已移除先前适配。已安装，最新完整结果见本文末尾。
 
