@@ -39,7 +39,7 @@ export function setMenuOpen(menu: HTMLDetailsElement, open: boolean) {
 export async function leaveCard(id: string, deleting: boolean) {
   const card = Array.from(
     document.querySelectorAll<HTMLElement>("[data-motion-id]"),
-  ).find((el) => el.dataset.motionId === id);
+  ).find((el) => el.dataset.motionId === id && el.checkVisibility());
   if (!card || !card.checkVisibility()) return;
   card.dataset.departing = "true";
   try {
@@ -63,10 +63,10 @@ export async function leaveCard(id: string, deleting: boolean) {
   }
 }
 export function resetCard(id: string) {
-  const card = Array.from(
+  const cards = Array.from(
     document.querySelectorAll<HTMLElement>("[data-motion-id]"),
-  ).find((el) => el.dataset.motionId === id);
-  if (card) {
+  ).filter((el) => el.dataset.motionId === id);
+  for (const card of cards) {
     card.getAnimations().forEach((animation) => animation.cancel());
     delete card.dataset.departing;
   }

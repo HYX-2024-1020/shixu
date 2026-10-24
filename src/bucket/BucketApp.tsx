@@ -112,6 +112,16 @@ export default function BucketApp() {
     else reveal();
   }
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [currentCaptureId, setCurrentCaptureId] = useState("");
+  useEffect(() => {
+    if (!currentCaptureId) return;
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector(".current-delivery")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [currentCaptureId]);
   const [dropVisible, setDropVisible] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
@@ -174,6 +184,38 @@ export default function BucketApp() {
     setPackets(next);
   }, []);
   const save = useCallback((packet: Packet) => saveMany([packet]), [saveMany]);
+  const reorderCards = useCallback(
+    async (ids: string[]) => {
+      const ranks = new Map(ids.map((id, index) => [id, index]));
+      const changes: Packet[] = [];
+      for (const packet of packetsRef.current) {
+        if (packet.deletedAt) continue;
+        const itemState = { ...packet.itemState };
+        let changed = false;
+        for (const [index] of (packet.result?.items || []).entries()) {
+          const id = packet.itemIds?.[index] || `${packet.id}:${index}`;
+          const order = ranks.get(id);
+          if (
+            order === undefined ||
+            itemState[id]?.deletedAt ||
+            itemState[id]?.purgedAt ||
+            itemState[id]?.order === order
+          )
+            continue;
+          itemState[id] = { ...itemState[id], order };
+          changed = true;
+        }
+        if (changed)
+          changes.push({
+            ...packet,
+            itemState,
+            updatedAt: new Date().toISOString(),
+          });
+      }
+      if (changes.length) await saveMany(changes);
+    },
+    [saveMany],
+  );
   const chatLocks = useRef(new Set<string>());
   async function editWithAI(
     packetId: string,
@@ -878,6 +920,7 @@ export default function BucketApp() {
           updatedAt: at,
         };
       await save(packet);
+      setCurrentCaptureId(packet.id);
       setText("");
       setAttachments([]);
       await writeDraft({ text: "", attachments: [] });
@@ -1098,6 +1141,7 @@ export default function BucketApp() {
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
+  const currentCapture = visible.find((p) => p.id === currentCaptureId);
   const [mascotHappy, setMascotHappy] = useState(false);
   const mascotAudio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => mascotAudio.current?.pause(), []);
@@ -1576,6 +1620,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "results"}>
           <Results
+            reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
             onChat={editWithAI}
             packets={packets}
@@ -1757,6 +1802,67 @@ export default function BucketApp() {
               连接设置
             </button>
           </div>
+          {currentCapture && (
+            <section className="current-delivery" aria-label="这次投喂">
+              <header>
+                <h2>这次放进来的</h2>
+                {currentCapture.result && (
+                  <button
+                    onClick={() => goWorkspace("results", currentCapture.id)}
+                  >
+                    到世界里看 <ArrowUpRight size={17} />
+                  </button>
+                )}
+              </header>
+              {(currentCapture.status === "pending" ||
+                currentCapture.status === "processing") && (
+                <div className="current-delivery-status" role="status">
+                  <LoaderCircle className="bucket-spin" size={23} />
+                  <span>
+                    {currentCapture.status === "processing"
+                      ? (workingId === currentCapture.id && progress) ||
+                        "正在整理这次的材料…"
+                      : !online
+                        ? "已收好，联网后继续整理"
+                        : !apiKey && !health?.modelReady
+                          ? "已收好，连接后开始整理"
+                          : "已收好，等它消化一下…"}
+                  </span>
+                </div>
+              )}
+              {currentCapture.status === "error" && (
+                <div className="current-delivery-status" role="status">
+                  <span>
+                    {currentCapture.error || "这次没整理完，材料已经收好。"}
+                  </span>
+                  <button onClick={() => void retry(currentCapture)}>
+                    重试
+                  </button>
+                </div>
+              )}
+              {currentCapture.result &&
+                (currentCapture.result.items.length ? (
+                  <Results
+                    key={currentCapture.id}
+                    compact
+                    reorder={reorderCards}
+                    onRecords={() => setRecordsOpen(true)}
+                    onChat={editWithAI}
+                    packets={[currentCapture]}
+                    save={save}
+                    focusPacket=""
+                    onFocusConsumed={clearFocus}
+                    notify={notify}
+                    purge={purgePacket}
+                  />
+                ) : (
+                  <p>
+                    {currentCapture.result.summary ||
+                      "已收好，暂时没有单独的事项。"}
+                  </p>
+                ))}
+            </section>
+          )}
           {!visible.length && (
             <div className="bucket-empty">
               <span className="bucket-quiet-line" />
