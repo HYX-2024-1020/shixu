@@ -11,11 +11,11 @@ function normalizeServiceURL(value, environment) {
     throw new Error("真机与正式服务需要 HTTPS；本机 HTTP 仅供开发工具调试");
   return `${match[1]}://${host}`;
 }
-function createTransport(base, getToken) {
+function createTransport(base, getToken, runtime = wx) {
   return (method, path, data) =>
     new Promise((resolve, reject) => {
       const token = getToken();
-      wx.request({
+      runtime.request({
         url: base + path,
         method,
         ...(data ? { data } : {}),

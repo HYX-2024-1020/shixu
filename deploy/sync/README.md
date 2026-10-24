@@ -1,6 +1,8 @@
 # 独立同步后端：私有测试部署
 
-此目录由服务器部署工作维护，与桌面、小程序界面分开。当前运行的是开发中的 `server/sync-server.mjs`，只验证文字资料同步。附件、AI 后台任务、微信登录和正式公网接入尚未包含；不能用于迁移现有个人资料。
+此目录由服务器部署工作维护，与桌面、小程序界面分开。当前云端旧固定快照仅验证文字资料同步。云端尚未包含本分支的附件/AI 后台任务、微信登录和正式公网接入；不能用于迁移现有个人资料。
+
+Issue #17 开发分支新增可选文字 AI 队列（`/api/v2/jobs`）；云端旧快照没有该能力。新固定包包含同源生成的 `server/generated/ai-core.mjs` 和任务调度模块，仍然不需要 npm 安装。服务端同时设置 `SYNC_AI_ENABLED=true` 与 `DEEPSEEK_API_KEY` 才启用；默认关闭。调用按配置的模型计费，测试使用模拟模型。重启中断不自动重发计费请求；处理中发生修改的结果保留为冲突。本分支还加入原件上传/下载、去重、校验和数据库原件备份，UTF-8 文字可读取；二进制原件的模型读取和桌面接入仍待完成。详见 [附件说明](../../docs/miniprogram-attachments.md)，完整能力边界见 [双端说明](../../docs/client-parity.md)。
 
 ## 构建固定快照
 
@@ -45,7 +47,7 @@ sudo node --env-file=/etc/shixu-sync/service.env /opt/shixu-sync/current/deploy/
 sudo node /opt/shixu-sync/current/deploy/sync/backup.mjs /var/lib/shixu-sync/workspace.sqlite /var/backups/shixu-sync
 ```
 
-使用 SQLite 在线备份 API，包含已提交的 WAL 内容；创建新目录，执行完整性检查并记录 schema、epoch、sequence，不覆盖已有备份。备份含资料及设备授权摘要，应限制访问。当前只覆盖文字同步数据库，不代表附件和整个产品已备份。参考 [Node.js SQLite backup](https://nodejs.org/download/release/v24.20.0/docs/api/sqlite.html#sqlitebackupsourceDb-path-options)。
+使用 SQLite 在线备份 API，包含已提交的 WAL 内容；创建新目录，执行完整性检查并记录 schema、epoch、sequence，不覆盖已有备份。备份含资料及设备授权摘要，应限制访问。旧云端快照的备份只覆盖文字数据库；本分支将原件 BLOB 一并存入 SQLite，在线备份和恢复测试已核对二进制内容。这不包含客户端本机资料、运行配置或整个产品。参考 [Node.js SQLite backup](https://nodejs.org/download/release/v24.20.0/docs/api/sqlite.html#sqlitebackupsourceDb-path-options)。
 
 升级时安装器会先备份；健康检查失败后只尝试退回前一个代码版本。此步骤仅适用于当前未迁移的相同数据库 schema；以后存在迁移时必须先评估恢复路径。恢复演练应在独立数据目录与端口运行，不能直接覆盖正在使用的数据库。恢复旧备份后还需处理同步 epoch、未同步操作和设备重新核对，不能直接宣称资料一致。
 

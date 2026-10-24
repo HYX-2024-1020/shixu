@@ -2037,3 +2037,33 @@ button:hover:not(:disabled) {
     font-size: 23px;
   }
 }
+
+.cloud-connection {
+  gap: 12px;
+}
+.cloud-connection h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.cloud-connection p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: inherit;
+}
+.bucket-dialog .cloud-connection form {
+  padding: 0;
+}
+.cloud-connection button:not(:disabled) {
+  color: #171717;
+}
+.cloud-connection button {
+  padding: 8px 12px;
+  border: 2px solid #171717;
+  background: #ffda46;
+  font-size: 12px;
+  border-radius: 3px;
+}
+.cloud-connection > button {
+  width: auto;
+}

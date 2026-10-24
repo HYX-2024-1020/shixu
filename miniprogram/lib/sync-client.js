@@ -114,9 +114,13 @@ function createSyncClient({ read, write, request, makeId = uid }) {
           : type === "restore" || type === "put"
             ? null
             : before.deletedAt,
-      purged: false,
+      purged: type === "purge",
       pending: true,
     };
+    if (type === "purge") {
+      if (!before.deletedAt) throw issue("NOT_DELETED", "请先移入最近删除");
+      local.data = null;
+    }
     const next = copy(state);
     next.outbox.push({
       operation,
@@ -236,13 +240,19 @@ function createSyncClient({ read, write, request, makeId = uid }) {
       commit(next);
     }
     await pull();
-    return { pending: state.outbox.length, conflicts: state.conflicts.length };
+    return {
+      pending: state.outbox.length,
+      conflicts: state.conflicts.length,
+      capabilities: status.capabilities || {},
+      epoch: status.epoch,
+    };
   }
   return {
     newId: makeId,
     put: (id, data) => enqueue("put", id, data),
     remove: (id) => enqueue("delete", id),
     restore: (id) => enqueue("restore", id),
+    purge: (id) => enqueue("purge", id),
     records: () => Object.values(view()).map(copy),
     pendingCount: () => state.outbox.length,
     conflicts: () => copy(state.conflicts),

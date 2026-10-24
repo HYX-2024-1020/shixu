@@ -187,6 +187,36 @@ export default function BucketApp() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
+  useEffect(() => {
+    if (!loaded || !window.desktop) return;
+    let stopped = false,
+      busy = false;
+    const refresh = async () => {
+      if (busy || working.current || submitLock.current) return;
+      busy = true;
+      try {
+        if (!(await window.desktop!.cloud("status")).base) return;
+        await window.desktop!.cloud("sync");
+        const rows = await allPackets();
+        if (!stopped && !working.current && !submitLock.current) {
+          packetsRef.current = rows;
+          setPackets(rows);
+        }
+      } catch {
+        /* Persistent queue and last error are visible in cloud settings. */
+      } finally {
+        busy = false;
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), 8000);
+    window.addEventListener("online", refresh);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener("online", refresh);
+    };
+  }, [loaded]);
   const purgePacket = useCallback(
     async (id: string) => {
       await removePacket(id);
@@ -401,7 +431,11 @@ export default function BucketApp() {
         stored = samples;
       }
       for (const p of stored)
-        if (p.status === "processing" && !p.remote) {
+        if (
+          p.status === "processing" &&
+          !p.remote &&
+          p.syncAutoOrganize !== false
+        ) {
           p.status = p.result ? "ready" : "error";
           p.retryUnread = false;
           p.error =
@@ -482,7 +516,8 @@ export default function BucketApp() {
     const refresh = async () => {
       if (working.current || submitLock.current) return;
       try {
-        await window.desktop!.store("cleanup");
+        if (!(await window.desktop!.cloud("status")).base)
+          await window.desktop!.store("cleanup");
         const stored = await allPackets();
         if (working.current || submitLock.current) return;
         packetsRef.current = stored;
@@ -612,6 +647,7 @@ export default function BucketApp() {
         (p) =>
           !p.deletedAt &&
           !p.remote &&
+          p.syncAutoOrganize !== false &&
           (p.status === "pending" ||
             (p.status === "ready" && p.association?.state === "pending")),
       )
@@ -958,6 +994,8 @@ export default function BucketApp() {
     }
   }
   async function retry(p: Packet) {
+    // Explicit retry opts this device into processing an incoming cloud capture.
+    p = { ...p, syncAutoOrganize: true };
     try {
       if (p.remote) {
         const result = await serviceRequest("packets/" + p.id + "/retry", {
@@ -1917,6 +1955,7 @@ export default function BucketApp() {
       )}
       {settings && (
         <Connection
+          canSwitchCloud={() => !working.current && !submitLock.current}
           apiKey={apiKey}
           model={model}
           remember={remember}
