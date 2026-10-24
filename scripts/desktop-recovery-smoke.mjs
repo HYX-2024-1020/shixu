@@ -191,7 +191,9 @@ try {
     async () =>
       (await window.desktop.store("packets")).find(
         (p) => p.id === "interrupted-packet",
-      ).status === "error",
+      ).status === "error" &&
+      (await window.desktop.store("usage")).find((u) => u.id === "pending-call")
+        ?.state === "unreported",
   );
   const interrupted = await page.evaluate(async () => ({
     packet: (await window.desktop.store("packets")).find(

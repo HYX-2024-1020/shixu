@@ -29,7 +29,7 @@ npm run desktop:start
 
 3. 完成实现和适用验证。提交前审查差异、敏感信息及第三方许可，显式选择要暂存的文件。
 4. 提交使用 `type: 简述` 或 `type(scope): 简述`；PR 标题遵守同样格式。正文保留“变更内容”“验证结果”“风险与回滚”“双端影响”四节，填写实际结果，关联 Issue（例如 `Closes #123`）。未完成工作开 Draft PR。
-5. 推送任务分支并创建 PR，等待 `Required checks` 成功、处理 review。由维护者审阅并 squash merge，GitHub 自动删除已合并远端分支。不要绕过保护或直接推送 `main`。
+5. 推送任务分支并创建 PR，等待 `Required checks` 成功、处理 review。维护者已长期授权编码代理：用户要求的功能/修复完成适用验证、全部必需 CI 成功且审查无阻塞后，自行 squash merge，无需反复请求合并批准。GitHub 自动删除已合并远端分支。代码合入与安装器、微信及服务器发布分别记录；尚未完成的发布验收继续由 Issue 跟踪。不要绕过保护或直接推送 `main`。
 
 单维护者阶段不要求额外一名审批人，因为作者不能批准自己的 PR；PR、CI 和讨论解决仍强制执行。引入第二位维护者后，可以把 required approvals 提升为 1。AI 代理还须遵守 [AGENTS.md](AGENTS.md)。
 

@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { installAudioClock } from "./desktop-audio-test.mjs";
 
 const profile = await mkdtemp(path.join(tmpdir(), "shixu-skins-"));
 const env = { ...process.env, SHIXU_DATA_DIR: profile };
@@ -27,10 +28,18 @@ try {
   await mkdir("release", { recursive: true });
   app = await launch();
   let page = await pageForApp();
+  const audioClock = !!(process.env.CI || process.env.SHIXU_SYNTHETIC_AUDIO);
+  if (audioClock) {
+    await installAudioClock(page);
+    await expect(
+      page.getByLabel("往桶里放入内容", { exact: true }),
+    ).toBeEnabled();
+  }
   // Use the actual bundled MP3 and Chromium media pipeline. A greeting must
   // restart on every click and continue beyond the previous 3.2s cutoff.
   await page.evaluate(() => {
     window.__mediaPlays = 0;
+    if (window.__syntheticAudio) return;
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       window.__greetingAudio = this;
@@ -40,11 +49,22 @@ try {
   });
   const whale = page.locator(".bucket-drawing.skin-mascot");
   await whale.click();
+  assert.equal(
+    await page.evaluate(() =>
+      window.__greetingAudio.src.endsWith("/laugh.mp3"),
+    ),
+    true,
+  );
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(0.15);
   for (let i = 0; i < 3; i++) await whale.click();
   assert.equal(await page.evaluate(() => window.__mediaPlays), 4);
+  assert.equal(
+    await page.evaluate(() => window.__greetingAudio.currentTime < 0.5),
+    true,
+    "each tap restarts from the beginning",
+  );
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(3.3);
@@ -54,6 +74,7 @@ try {
       timeout: 20000,
     })
     .toBe(true);
+  await expect(whale).toHaveAttribute("data-motion", "idle");
   const version = await app.evaluate(({ app }) => app.getVersion());
   const settingsPoint = await page.locator(".bucket-settings").boundingBox();
   await page.locator(".bucket-settings").click();
@@ -150,10 +171,15 @@ try {
   const report = {
     version,
     packaged: !!process.env.SHIXU_PACKAGED_EXE,
+    audioMode: audioClock
+      ? "real MP3 decode with playback clock adapter (no physical output)"
+      : "actual HTMLMediaElement playback",
     checks: [
       "eight presets and feed preview",
       "settings dismisses on the second header-position click and Escape",
-      "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
+      audioClock
+        ? "real MP3 decoded; playback clock adapter verifies every-click restart, no 3.2s cutoff and natural-duration completion"
+        : "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",
