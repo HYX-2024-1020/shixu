@@ -1,0 +1,4 @@
+{
+  "desc": "个人开发预览不收录",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

@@ -1,0 +1,12 @@
+{
+  "pages": ["pages/index/index"],
+  "window": {
+    "navigationBarTitleText": "拾序",
+    "navigationBarBackgroundColor": "#f8f3e3",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f8f3e3"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

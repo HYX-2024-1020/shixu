@@ -1,0 +1,22 @@
+{
+  "appid": "wx03d8b4c63a26177c",
+  "projectname": "shixu",
+  "description": "拾序微信小程序开发工程",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "./",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  },
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "tests" },
+      { "type": "file", "value": "README.md" },
+      { "type": "file", "value": "package.json" }
+    ],
+    "include": []
+  }
+}

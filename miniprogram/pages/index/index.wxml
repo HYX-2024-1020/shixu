@@ -1,0 +1,40 @@
+<view class="page">
+  <view class="heading">
+    <view><text class="brand">拾序</text><text class="tagline">一个，什么都能放的桶。</text></view>
+    <button class="settings-button" data-tab="settings" bindtap="switchTab">连接</button>
+  </view>
+  <view class="preview-note">开发预览 · 已接入文字收集与同步，AI 整理尚未接入</view>
+  <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate">新版本已就绪，保存后更新 →</view>
+  <view wx:if="{{error}}" class="error" selectable>{{error}}</view>
+  <view wx:if="{{tab === 'capture'}}" class="capture">
+    <view class="hero"><image class="mascot" src="/assets/mascot.png" mode="aspectFit"/><view class="speech">先放进来，<text class="line-break">慢慢理清楚。</text></view></view>
+    <view class="editor">
+      <textarea value="{{draft}}" bindinput="onDraft" maxlength="60000" placeholder="一段通知、几句灵感……先放在这里。" cursor-spacing="24" adjust-position auto-height/>
+      <view class="editor-foot"><text>文字草稿自动保存在本机</text><text>{{draft.length}} 字</text></view>
+    </view>
+    <button class="primary" bindtap="submit" disabled="{{!draft.length}}">丢进去 →</button>
+    <view wx:if="{{notice}}" class="notice">{{notice}}</view>
+    <button class="text-button" data-tab="world" bindtap="switchTab">看看已经放下的 {{count}} 次投递 →</button>
+  </view>
+  <view wx:elif="{{tab === 'world'}}" class="world">
+    <view class="section-top"><text class="section-title">{{showDeleted ? '最近删除' : '我的世界'}}</text><button class="text-button" bindtap="toggleDeleted">{{showDeleted ? '返回' : '最近删除'}}</button></view>
+    <view class="sync-line"><text>{{syncing ? '正在同步…' : pending ? pending + ' 个操作待同步' : connected ? '已连接个人服务' : '尚未连接个人服务'}}</text><button wx:if="{{connected}}" class="text-button" bindtap="sync" disabled="{{syncing}}">同步</button></view>
+    <view wx:if="{{!rows.length}}" class="empty">{{showDeleted ? '这里还没有删除的投递。' : '你的文字和想法，会慢慢在这里积累。'}}</view>
+    <view wx:for="{{rows}}" wx:key="id" class="card {{item.conflict ? 'conflict-card' : ''}}">
+      <view class="card-top"><text class="card-title" data-id="{{item.id}}" bindtap="expand">{{item.title}}</text><text class="badge">{{item.state}}</text></view>
+      <view class="card-text {{expandedId === item.id ? 'expanded' : ''}}" data-id="{{item.id}}" bindtap="expand" selectable>{{item.text}}</view>
+      <view class="card-foot"><text>{{item.date}}</text><button wx:if="{{item.conflict}}" class="text-button" data-id="{{item.id}}" bindtap="resolveConflict">处理冲突</button><button wx:elif="{{item.deleted}}" class="text-button" data-id="{{item.id}}" bindtap="restore">恢复</button><button wx:else class="text-button" data-id="{{item.id}}" bindtap="remove">移入最近删除</button></view>
+    </view>
+  </view>
+  <view wx:else class="settings">
+    <text class="section-title">连接你自己的拾序</text>
+    <view class="settings-copy">连接后，已投递的文字可以在使用同一服务的客户端间同步。尚未接入当前 Windows 应用。</view>
+    <view class="field-label">服务地址</view><input value="{{serverUrl}}" bindinput="onServer" placeholder="https://你的服务域名"/>
+    <view class="field-label">个人服务访问口令</view><input value="{{password}}" bindinput="onPassword" password placeholder="服务器上设置的访问口令"/>
+    <button class="primary" bindtap="connect" loading="{{connecting}}" disabled="{{connecting || syncing || !password.length}}">连接并保存设备授权</button>
+    <view class="settings-copy">访问口令不会保存在手机；设备授权会留在本机。这里填写的不是 AI API 密钥。</view>
+    <view wx:if="{{notice}}" class="notice">{{notice}}</view>
+    <view class="about">拾序小程序 · 开发版 0.1.0</view>
+  </view>
+  <view class="bottom-nav"><button class="nav-button {{tab === 'capture' ? 'active' : ''}}" data-tab="capture" bindtap="switchTab">桶</button><button class="nav-button {{tab === 'world' ? 'active' : ''}}" data-tab="world" bindtap="switchTab">世界 · {{count}}</button></view>
+</view>

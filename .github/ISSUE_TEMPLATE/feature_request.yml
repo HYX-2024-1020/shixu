@@ -1,0 +1,21 @@
+name: 功能建议
+description: 提出用户问题、预期结果和验收标准
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 当前什么场景遇到什么困难？请勿填写个人敏感信息。
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 预期结果与验收标准
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案与范围
