@@ -13,6 +13,7 @@ function fixture({
   failWrite = () => false,
   modal = { confirm: true, content: "手动事项" },
   audio = null,
+  failAudio = false,
 } = {}) {
   let definition;
   const context = {
@@ -26,7 +27,14 @@ function fixture({
     setTimeout,
     clearTimeout,
     wx: {
-      ...(audio ? { createInnerAudioContext: () => audio } : {}),
+      ...(audio || failAudio
+        ? {
+            createInnerAudioContext: () => {
+              if (failAudio) throw Error("audio unavailable");
+              return audio;
+            },
+          }
+        : {}),
       getStorageSync: (key) => store.get(key),
       setStorageSync: (key, value) => {
         if (failWrite(key, value)) throw Error("disk full");
@@ -55,6 +63,18 @@ function fixture({
 }
 const event = (id) => ({ currentTarget: { dataset: { id } } });
 const tabEvent = (tab) => ({ currentTarget: { dataset: { tab } } });
+
+test("an unavailable native audio subsystem cannot prevent loading skins, saving drafts or captures", () => {
+  const { page } = fixture({ failAudio: true });
+  assert.ok(page._client);
+  assert.equal(page.data.activeSkin.image, "/assets/mascot.png");
+  page.interactSkin();
+  page.onDraft({ detail: { value: "音频失败也要保存" } });
+  page.submit();
+  assert.equal(page.data.count, 1);
+  assert.equal(page._client.records()[0].data.text, "音频失败也要保存");
+  page.onUnload();
+});
 
 test("settings toggles back to its originating workspace and preserves drafts and filters", () => {
   const { page } = fixture();

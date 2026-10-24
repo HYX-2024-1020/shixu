@@ -139,13 +139,6 @@ Page({
     },
   },
   onLoad() {
-    if (wx.createInnerAudioContext) {
-      this._skinAudio = wx.createInnerAudioContext();
-      this._skinAudio.src = "/assets/laugh.mp3";
-      this._skinAudio.volume = 0.5;
-      this._skinAudio.onEnded(() => this.setData({ skinAnimating: false }));
-      this._skinAudio.onError(() => this.setData({ skinAnimating: false }));
-    }
     try {
       this._skinCollection = parseSkinCollection(
         wx.getStorageSync(SKINS) || null,
@@ -177,6 +170,7 @@ Page({
       if (result.isConnected) this.syncQuietly();
     };
     wx.onNetworkStatusChange(this._network);
+    this._prepareSkinAudio();
   },
   onShow() {
     this.setData({ updateReady: getApp().globalData.updateReady });
@@ -1480,8 +1474,16 @@ Page({
       skinMessage: s.greeting,
       skinAnimating: true,
     });
-    if (s.art === "whale" && this._skinAudio) this._skinAudio.play();
-    else
+    if (s.art === "whale" && this._prepareSkinAudio()) {
+      try {
+        this._skinAudio.play();
+      } catch (_) {
+        this.setData({
+          skinAnimating: false,
+          notice: "声音暂时不可用，资料保存不受影响",
+        });
+      }
+    } else
       this._skinTimer = setTimeout(
         () => this.setData({ skinAnimating: false }),
         3200,
@@ -1489,8 +1491,29 @@ Page({
   },
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
-    if (this._skinAudio) this._skinAudio.stop();
+    try {
+      if (this._skinAudio) this._skinAudio.stop();
+    } catch (_) {}
     this.setData({ skinAnimating: false });
+  },
+  _prepareSkinAudio() {
+    if (this._skinAudio) return true;
+    if (!wx.createInnerAudioContext) return false;
+    let audio;
+    try {
+      audio = wx.createInnerAudioContext();
+      audio.onEnded(() => this.setData({ skinAnimating: false }));
+      audio.onError(() => this.setData({ skinAnimating: false }));
+      audio.volume = 0.5;
+      audio.src = "/assets/laugh.mp3";
+      this._skinAudio = audio;
+      return true;
+    } catch (_) {
+      try {
+        if (audio) audio.destroy();
+      } catch (_) {}
+      return false;
+    }
   },
   feedSkin() {
     this._stopSkinInteraction();
