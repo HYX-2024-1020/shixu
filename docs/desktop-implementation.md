@@ -12,3 +12,5 @@
 详细目录见 [架构](architecture.md)，操作命令见 [开发指南](guides/development.md)。[历史日志](archive/desktop-implementation-2026-10.md)仅供追溯，实际发行验证见 [0.3.8](releases/windows-0.3.8.md)和对应 Release 报告。
 
 - DDL：`src/bucket/DDL.tsx` 与 `shared/deadlines.mjs`，小程序共用解析/分区函数；见 [DDL 实现记录](ddl.md)。
+
+0.3.9 本机安装与微信工程更新见 [交付记录](releases/windows-0.3.9.md)，公开 Release 与本机安装版本分别记录。

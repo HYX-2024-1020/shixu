@@ -2,13 +2,13 @@
 
 **一个，什么都能放的桶。**
 
-把通知、截图、附件和零散想法放进同一个输入框。拾序调用你配置的 DeepSeek，整理成可编辑的事项卡片，保留原文和附件：在「桶」里接住内容，在「世界」里管理后续。
+把通知、截图、附件和零散想法放进同一个输入框。拾序调用你配置的 DeepSeek，整理成可编辑的事项卡片，保留原文和附件：在「桶」里接住内容，在「世界」里管理后续，在「DDL」里查看截止事项。
 
 **[下载 Windows 最新版](https://github.com/HYX-2024-1020/shixu/releases/latest) · [打开网页版](https://hyx-2024-1020.github.io/shixu/) · [使用指南](docs/guides/windows.md) · [开发与贡献](CONTRIBUTING.md)**
 
 ## 先用起来
 
-Windows 当前正式版本为 **0.3.8**，已包含皮肤市场。
+Windows 本机交付版本为 **0.3.9**，新增 DDL；[0.3.9 本机交付记录](docs/releases/windows-0.3.9.md)包含安装与微信工程核对结果。公开 Release 当前仍为 **0.3.8**，本机更新不等同于公开发布。
 
 1. 在 [Releases](https://github.com/HYX-2024-1020/shixu/releases/latest) 下载 **Shixu-Setup-0.3.8.exe**；同页提供 SHA-256 和验证报告。
 2. 安装并打开「拾序」。升级前从托盘正常退出旧版；关闭窗口会收进托盘。
