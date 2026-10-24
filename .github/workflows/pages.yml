@@ -40,3 +40,27 @@ jobs:
       - name: Publish static application
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Verify the deployed source revision
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          for (let attempt = 0; attempt < 8; attempt++) {
+            try {
+              const url = new URL('version.json', process.env.PAGE_URL);
+              url.searchParams.set('revision', process.env.EXPECTED_REVISION);
+              const response = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const build = await response.json();
+              if (build.application !== 'shixu' || build.revision !== process.env.EXPECTED_REVISION)
+                throw new Error('The public site still serves another revision');
+              console.log(JSON.stringify(build));
+              process.exit(0);
+            } catch (error) {
+              console.log(`Publish verification ${attempt + 1}: ${error.message}`);
+              if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+          }
+          process.exit(1);
+          NODE

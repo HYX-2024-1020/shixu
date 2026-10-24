@@ -1,5 +1,24 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+let revision = process.env.GITHUB_SHA;
+if (!revision) {
+  try {
+    revision = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    revision = "unavailable";
+  }
+}
+const buildInfo =
+  JSON.stringify(
+    { application: "shixu", version, revision, platform: "web" },
+    null,
+    2,
+  ) + "\n";
+await writeFile("dist/version.json", buildInfo);
 const files = await readdir("dist", { recursive: true, withFileTypes: true });
 const assets = files
   .filter((file) => file.isFile())
@@ -13,6 +32,7 @@ const assets = files
 const hash = createHash("sha256")
   .update(
     assets.join("\n") +
+      buildInfo +
       (await readFile("dist/index.html", "utf8")) +
       (await readFile("public/sw.js", "utf8")),
   )

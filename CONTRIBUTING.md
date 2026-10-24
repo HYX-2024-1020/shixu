@@ -35,14 +35,14 @@ npm run desktop:start
 
 ## 变更验证表
 
-| 变更                       | 合并前验证                                                                            |
-| -------------------------- | ------------------------------------------------------------------------------------- |
-| 所有变更                   | `git diff --check`，检查 PR 描述、无凭据或个人数据；CI 全部必需检查                   |
-| 文档/仓库配置              | 检查链接、命令和配置语法；`node --test scripts/check-pr.test.mjs` 验证 PR 门禁        |
-| 前端/共享整理逻辑          | `npm test`、`npm run build`、`npm run test:e2e`                                       |
-| 个人服务                   | 上述核心检查及 `npm run test:server`                                                  |
-| Electron/文件/备份/桌面 UI | `npm run test:desktop`、`npm run desktop:build`、`npm run test:desktop:ui`（Windows） |
-| 新增模块                   | 增加模块所需验证并接入 CI；不能引用尚未提交的其他工作区文件                           |
+| 变更                       | 合并前验证                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 所有变更                   | `git diff --check`，检查 PR 描述、无凭据或个人数据；CI 全部必需检查                                                        |
+| 文档/仓库配置              | 检查链接、命令和配置语法；`node scripts/check-docs.mjs` 检查文档链接，`node --test scripts/check-pr.test.mjs` 验证 PR 门禁 |
+| 前端/共享整理逻辑          | `npm test`、`npm run build`、`npm run test:e2e`                                                                            |
+| 个人服务                   | 上述核心检查及 `npm run test:server`                                                                                       |
+| Electron/文件/备份/桌面 UI | `npm run test:desktop`、`npm run desktop:build`、`npm run test:desktop:ui`（Windows）                                      |
+| 新增模块                   | 增加模块所需验证并接入 CI；不能引用尚未提交的其他工作区文件                                                                |
 
 CI 对所有 PR 执行核心测试/构建、浏览器 Chromium/WebKit 回归、Windows 桌面回归、PR 规范检查和 Gitleaks 全历史扫描，不按文件路径跳过必需检查。UI 测试使用隔离 profile 和模拟接口。没有实际执行的验证必须在 PR 中明确标注，不能用“应该通过”代替结果。
 
@@ -63,3 +63,5 @@ npm run test:e2e
 - PR 写明测试命令与实际结果、未验证限制和回滚方式。
 
 凭据扫描工具会有漏报，发现疑似泄露请私密报告并优先撤销凭据，不要把完整凭据粘贴到 Issue。
+
+目录与运行边界见 [架构说明](docs/architecture.md)，开发/测试/发布命令见 [开发指南](docs/guides/development.md)。旧实施日志集中在 docs/archive，不从历史机器状态推断当前交付。

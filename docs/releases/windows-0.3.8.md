@@ -14,7 +14,7 @@
 - 源码皮肤专项通过，使用合成图片与独立 profile，无真实模型调用或个人资料读取。
 - Windows x64 NSIS 安装包已生成；SHIXU_PACKAGED_EXE 指向 release/win-unpacked/拾序.exe 的十二套完整桌面回归通过，皮肤报告确认 version 0.3.8、packaged true。
 - 安装器 SHA-256：`9fdc08b06d7c733c21bf89e2cf67de896ae07c171405c0e0be3422cf3903dbd1`；源码生产构建、旧服务、同步与部署包检查通过。
-- 最终远端完整浏览器/Windows/凭据/PR 门禁以本次 PR Checks 为准；本机覆盖安装须在用户正常退出旧实例后执行，打包程序验证不等同于个人工作区升级验收。
+- [PR #14](https://github.com/HYX-2024-1020/shixu/pull/14) 六项必需检查通过并合并；本机安装退出码 0，版本 0.3.8.0。安装后 exe 与验收过的打包 exe 哈希一致，安装版皮肤专项通过。实际报告与校验值随 [v0.3.8 Release](https://github.com/HYX-2024-1020/shixu/releases/tag/v0.3.8) 提供。
 
 ## 安装与回退
 

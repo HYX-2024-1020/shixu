@@ -17,7 +17,7 @@ AI 整理、聊天附件/截图导入、微信登录绑定和现有 Windows 应�
 
 ## 启动独立本地同步服务
 
-在仓库根目录使用 Node.js 24+：
+在仓库根目录使用 Node.js 24.x：
 
 ```powershell
 Copy-Item .env.sync.example .env.sync
@@ -41,4 +41,4 @@ npm run test:sync
 
 新版本下载完成后只显示提示。更新前保存草稿，正在同步时等待；未同步操作持久保留，重启后重试。实际平台更新仍需上传新版本并经过对应发布流程，修改后端不能替代小程序客户端发布。
 
-服务接口与后续迁移任务见 [实施记录](../docs/miniprogram-implementation.md) 和 [迁移计划](../docs/miniprogram-migration-plan.md)。
+服务接口与后续迁移任务见 [实施记录](../docs/miniprogram-implementation.md) 和 [迁移计划](../docs/archive/miniprogram-migration-plan-2026-10.md)。
