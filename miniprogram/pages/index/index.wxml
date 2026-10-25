@@ -1,12 +1,12 @@
 <template name="ddlCard">
-  <view class="ddl-item">
+  <view class="ddl-item {{leavingId === row.id ? 'is-leaving' : ''}}">
     <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text wx:if="{{row.startDate}}">时间段 · {{row.startDate}} {{row.startTime}} →</text><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
-    <view class="ddl-row"><button class="done-button {{row.done ? 'checked' : ''}}" aria-label="{{row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone">{{row.done ? '✓' : ''}}</button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
+    <view class="ddl-row"><button class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone">{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id ? '✓' : ''}}</button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
   </view>
 </template>
 <template name="itemCard">
   <view
-    class="item-card kind-{{row.kind}} {{row.done ? 'done-card' : ''}}"
+    class="item-card kind-{{row.kind}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}"
     data-id="{{row.id}}"
     bindtap="openItem"
   >
@@ -31,7 +31,7 @@
     >
     <view class="card-foot"
       ><text
-        >{{row.done ? '已完成' : row.importance === 2 ? '重要' : '慢慢来，一件件完成'}}</text
+        >{{row.kind === 'habit' ? (row.checked ? '今日已打卡' : '今日待打卡') + ' · 累计 ' + row.checkinCount + ' 天' : row.done ? '已完成' : row.importance === 2 ? '重要' : '慢慢来，一件件完成'}}</text
       ><view class="card-actions"
         ><button
           wx:if="{{sort === 'custom' && !row.deleted}}"
@@ -58,11 +58,11 @@
           恢复</button
         ><button
           wx:else
-          class="done-button {{row.done ? 'checked' : ''}}"
+          class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}"
           data-id="{{row.id}}"
           catchtap="toggleDone"
         >
-          {{row.done ? '✓' : ''}}
+          {{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id ? '✓' : ''}}
         </button></view
       ></view
     >
@@ -141,7 +141,7 @@
           </button></view
         ></view
       ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block
     ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
@@ -241,10 +241,10 @@
       ><view wx:for="{{sections}}" wx:key="title"
         ><text class="group-title">{{item.title}} · {{item.items.length}}</text
         ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-          ><template is="itemCard" data="{{row, sort}}" /></block></view></block
+          ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block></view></block
     ><block wx:else
       ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block
     ></block>
     <button
       wx:if="{{matched > items.length}}"
@@ -259,11 +259,11 @@
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
     <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><view class="ddl-slider" role="slider" aria-label="未来时间窗"><view class="ddl-slider-rail"><view class="ddl-slider-square" style="left: {{ddlIndex * 25}}%"></view></view><slider class="ddl-native-slider" min="0" max="4" step="1" block-size="32" value="{{ddlIndex}}" bindchanging="previewDdlWindow" bindchange="setDdlWindow"/></view><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this" class="{{index === ddlIndex ? 'selected' : ''}}" data-index="{{index}}" bindtap="chooseDdlWindow">{{item}} 天</text></view></view>
     <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
-    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block>
-    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></view>
+    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block>
+    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></view>
     <view wx:if="{{!ddlSections.length}}" class="ddl-empty">{{ddlCount ? '这个时间窗里没有待交事项。' : ddlDone.length ? '全都完成了，轻松一下。' : '还没有截止事项，把通知丢进桶里，或在下方补充。'}}</view>
-    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
-    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
+    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block></view>
+    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block></view>
     <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
     <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
     <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
@@ -487,7 +487,7 @@
           >{{selected.date}} {{selected.time}}</text
         ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row"
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone">
-            {{selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
+            {{selected.kind === 'habit' ? (selected.checked ? '撤销今日打卡' : '今日打卡') : selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
             {{selected.starred ? '★ 已星标' : '☆ 星标'}}</button
           ><button class="chip" data-id="{{selected.id}}" bindtap="togglePin">
@@ -505,7 +505,7 @@
             data-id="{{selected.id}}"
             bindtap="checkin"
           >
-            {{selected.checked ? '今日已打卡 ✓' : '今日打卡'}}
+            {{selected.checked ? '今日已打卡 · 再点撤销' : '今日打卡'}} · 累计 {{selected.checkinCount}} 天
           </button></view
         >
         <view wx:if="{{selected.facts.length}}" class="detail-section"
