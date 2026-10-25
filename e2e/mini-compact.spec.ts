@@ -24,8 +24,8 @@ for (const width of [320, 375, 414]) {
         .map(
           (i) => `
         <view class="item-card shadow-${i}"><view class="card-top"><button size="mini" class="done-button" aria-label="完成"><view class="completion-orbit"></view></button><text class="kind-label">任务</text><button class="icon-button" aria-label="星标">☆</button></view>
-        <text class="item-title">${title}</text><text class="item-summary">摘要也很长，默认只显示一行，其余从详情查看。</text><view class="card-meta"><text>2026-10-26 14:00 → 2026-10-28 23:59</text><text>课程分组</text></view>
-        <view class="card-foot"><button class="card-source-link">完整详情 ↗</button><view class="card-actions"><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view>`,
+        <view class="card-content"><text class="item-title">${title}</text><text class="item-summary">摘要也很长，默认只显示一行，其余从详情查看。</text></view><view class="card-meta"><view class="card-deadline"><text class="card-meta-label">截止</text><text class="card-meta-value">2026-10-26 14:00 → 2026-10-28 23:59</text></view><view class="card-meta-notes"><text>置顶</text><text>今日待打卡</text><text class="card-group">很长的课程分组</text></view></view>
+        <view class="card-foot"><button class="card-source-link text-button">详情 ↗</button><view class="card-actions"><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view>`,
         )
         .join("")}</view></view>
       <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-countdown cd-future">还剩 13 天</text><text class="ddl-date">2026-10-26</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
@@ -42,7 +42,8 @@ for (const width of [320, 375, 414]) {
     );
     if (width > 340) expect(boxes[0]!.y).toBe(boxes[1]!.y);
     else expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y);
-    expect(boxes[0]!.height).toBeLessThan(250);
+    // A full two-line interval plus status notes may grow beyond the old clipped fixed height.
+    expect(boxes[0]!.height).toBeLessThan(270);
     for (const button of await page
       .locator(
         ".done-button,.icon-button,.compact-delete,.card-source-link,.ddl-verify-button",
@@ -71,6 +72,11 @@ for (const width of [320, 375, 414]) {
       const visual = await orbit.boundingBox();
       expect(visual!.width).toBe(22);
       expect(visual!.height).toBe(22);
+    }
+    for (const meta of await page
+      .locator(".world .card-meta, .world .card-meta text")
+      .all()) {
+      await expect(meta).toHaveCSS("box-shadow", "none");
     }
     const ddl = await page.locator(".ddl-item").boundingBox();
     expect(ddl!.height).toBeLessThan(150);
@@ -202,6 +208,100 @@ for (const width of [320, 375]) {
     ).toHaveCSS("color", "rgb(92, 88, 74)");
     await page.locator(".page").screenshot({
       path: `test-results/mini-typography-${width}-${test.info().project.name}.png`,
+    });
+  });
+}
+
+for (const width of [375, 427]) {
+  test(`mini short cards have natural text rhythm without date underlines at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 812 });
+    const read = (p: string) => readFileSync(p, "utf8");
+    const css = (
+      read("miniprogram/app.wxss") +
+      read("miniprogram/pages/index/index.wxss").replace(
+        '@import "../../lib/generated/client-ui.wxss";',
+        read("miniprogram/lib/generated/client-ui.wxss"),
+      )
+    ).replace(/(-?[\d.]+)rpx/g, (_, n) => `${(Number(n) * width) / 750}px`);
+    const cards = [
+      ["1", "", "2026-11-01 23:59"],
+      ["2", "", "2026-11-02 23:59"],
+      ["下午三点前", "整理好材料，提交课程报告", "2026-11-02 15:00"],
+    ];
+    await page.setContent(
+      `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#fff9e6}view,text{display:block}button{box-sizing:border-box;border:0;background:transparent}button::after{border:0}${css}</style><view class="page"><view class="world"><view class="world-heading"><view><text class="world-title">这是你的<text class="hero-highlight">世界。</text></text><text class="quiet">点开查看完整内容 · 长按卡片移动</text></view></view><view class="world-grid">${cards.map(([title, summary, date], i) => `<view class="item-card shadow-${i}"><view class="card-top"><button class="done-button"><view class="completion-orbit"></view></button><text class="kind-label">任务</text><button class="icon-button">☆</button></view><view class="card-content"><text class="item-title">${title}</text>${summary ? `<text class="item-summary">${summary}</text>` : ""}</view><view class="card-meta"><view class="card-deadline"><text class="card-meta-label">截止</text><text class="card-meta-value">${date}</text></view></view><view class="card-foot"><button class="card-source-link text-button">详情 ↗</button><view class="card-actions"><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view>`).join("")}</view></view></view>`,
+    );
+    await page.locator(".item-card").evaluateAll(async (elements) => {
+      await Promise.all(
+        elements
+          .flatMap((el) => el.getAnimations())
+          .map((a) => a.finished.catch(() => {})),
+      );
+    });
+    const cardBoxes = await Promise.all(
+      (await page.locator(".item-card").all()).map((el) => el.boundingBox()),
+    );
+    expect(
+      Math.max(...cardBoxes.map((b) => b!.height)) -
+        Math.min(...cardBoxes.map((b) => b!.height)),
+    ).toBeLessThan(0.2);
+    expect(cardBoxes[0]!.height).toBeLessThan(210);
+    // Equal grid tracks keep the drag engine's measured slots stable despite different text lengths.
+    await page
+      .locator(".world-grid")
+      .evaluate((grid) => grid.prepend(grid.lastElementChild!));
+    await page.locator(".item-card").evaluateAll(async (elements) => {
+      await Promise.all(
+        elements
+          .flatMap((el) => el.getAnimations())
+          .map((a) => a.finished.catch(() => {})),
+      );
+    });
+    const movedBoxes = await Promise.all(
+      (await page.locator(".item-card").all()).map((el) => el.boundingBox()),
+    );
+    for (let i = 0; i < cardBoxes.length; i++) {
+      expect(movedBoxes[i]!.x).toBeCloseTo(cardBoxes[i]!.x, 1);
+      expect(movedBoxes[i]!.y).toBeCloseTo(cardBoxes[i]!.y, 1);
+      expect(movedBoxes[i]!.height).toBeCloseTo(cardBoxes[i]!.height, 1);
+    }
+    await page
+      .locator(".world-grid")
+      .evaluate((grid) => grid.append(grid.firstElementChild!));
+    await page.locator(".item-card").evaluateAll(async (elements) => {
+      await Promise.all(
+        elements
+          .flatMap((el) => el.getAnimations())
+          .map((a) => a.finished.catch(() => {})),
+      );
+    });
+    const first = page.locator(".item-card").first();
+    const titleBox = (await first.locator(".item-title").boundingBox())!;
+    const deadline = (await first.locator(".card-deadline").boundingBox())!;
+    expect(titleBox.height).toBeLessThan(25);
+    expect(deadline.y - titleBox.y - titleBox.height).toBeLessThan(12);
+    await expect(first.locator(".card-meta-value")).toHaveText(
+      "2026-11-01 23:59",
+    );
+    for (const el of await page.locator(".card-meta, .card-meta text").all())
+      await expect(el).toHaveCSS("box-shadow", "none");
+    for (const el of await page.locator(".card-meta-value").all()) {
+      const extent = await el.evaluate((node) => ({
+        width: node.clientWidth,
+        scroll: node.scrollWidth,
+        height: node.clientHeight,
+        content: node.scrollHeight,
+      }));
+      expect(extent.scroll).toBeLessThanOrEqual(extent.width + 1);
+      expect(extent.content).toBeLessThanOrEqual(extent.height + 1);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.locator(".world").screenshot({
+      path: `test-results/mini-card-rhythm-${width}-${test.info().project.name}.png`,
     });
   });
 }

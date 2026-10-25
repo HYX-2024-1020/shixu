@@ -208,6 +208,31 @@ assert.ok(
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
+page.setData({ tab: "world" });
+const worldNodes = view();
+assert.ok(
+  worldNodes.some((node) => node.attr?.class === "card-content"),
+  "native world renders the unified card text block",
+);
+assert.ok(
+  worldNodes.some(
+    (node) =>
+      node.attr?.class === "card-meta-value" &&
+      JSON.stringify(node).includes(ddlRow.date),
+  ),
+  "deadline stays in its dedicated metadata strip",
+);
+assert.ok(
+  worldNodes.some(
+    (node) =>
+      node.attr?.class?.includes("card-source-link") &&
+      node.attr.catchtap === "openItem" &&
+      node.attr.ariaLabel,
+  ),
+  "compact detail control retains the accessible original/material entry",
+);
+page.setData({ tab: "ddl" });
+
 const countdownNode = view().find((node) =>
   node.attr?.class?.includes("ddl-countdown"),
 );

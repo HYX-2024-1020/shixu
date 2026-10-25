@@ -1211,14 +1211,6 @@ page {
 .item-card .card-top .done-button {
   margin-right: 8rpx;
 }
-.item-card .card-meta > text:first-child:not(:empty) {
-  border: 4rpx solid #111;
-  border-radius: 8rpx;
-  padding: 4rpx 10rpx;
-  color: #111;
-  background: #fff4bd;
-  box-shadow: 4rpx 4rpx #111;
-}
 .item-card .card-foot {
   flex-wrap: wrap;
 }
@@ -1316,6 +1308,39 @@ page {
   max-height: 7em;
 }
 
+/* Capture-result cards use the same type hierarchy with a little more reading room. */
+.page .current-delivery .item-card .item-title {
+  margin: 0;
+  font-size: 30rpx;
+  line-height: 1.4;
+  max-height: 2.8em;
+  font-weight: 600;
+}
+.page .current-delivery .item-card .item-summary {
+  font-size: 26rpx;
+  line-height: 1.55;
+  max-height: 4.65em;
+  margin: 10rpx 0 0;
+  color: #726b5b;
+}
+.page .current-delivery .item-card .card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid #e9e2d2;
+}
+.page .current-delivery .item-card .card-foot > text {
+  display: none;
+}
+.page .current-delivery .item-card .card-meta {
+  margin: 16rpx 0;
+  gap: 10rpx;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 /* Phone controls: two large targets; secondary options appear only on request. */
 .world-controls {
   display: flex;
@@ -1394,15 +1419,17 @@ page {
 .world-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 22rpx;
   margin: 18rpx 8rpx 24rpx 0;
 }
 .page .world .item-card {
   box-sizing: border-box;
   min-width: 0;
-  height: 448rpx;
+  height: auto;
+  min-height: calc(88px + 120rpx);
   margin: 0;
-  padding: 12rpx 14rpx;
+  padding: 12rpx 18rpx 6rpx;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1442,13 +1469,15 @@ page {
 .page .world .item-card .item-title {
   font-size: 28rpx;
   line-height: 36rpx;
-  height: 72rpx;
-  margin: 4rpx 0 6rpx;
+  height: auto;
+  max-height: 2.7em;
+  margin: 0;
 }
 .page .world .item-card .item-summary {
-  font-size: 28rpx;
-  line-height: 34rpx;
-  height: 34rpx;
+  font-size: 25rpx;
+  line-height: 1.5;
+  height: auto;
+  max-height: 1.5em;
   white-space: normal;
   -webkit-line-clamp: 1;
 }
@@ -1464,44 +1493,119 @@ page {
 .page .world .item-card .item-summary {
   -webkit-line-clamp: 1;
 }
-.page .world .item-card .card-meta {
-  display: block;
+.page .world .item-card .card-content {
   margin: 8rpx 0 0;
-  font-size: 24rpx;
-  height: 58rpx;
-  line-height: 28rpx;
+  min-width: 0;
+}
+.page .world .item-card .card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6rpx;
+  margin: 14rpx 0 0;
+  font-size: 22rpx;
+  line-height: 1.45;
+  height: auto;
+  flex-shrink: 0;
+}
+/* Desktop's first metadata badge must not draw a black underline on the phone. */
+.page .item-card .card-meta > text {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #716957;
+}
+.card-deadline {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 7rpx 10rpx;
+  border-radius: 6rpx;
+  background: #f3effb;
+  color: #645279;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+.card-meta-label {
+  flex: 0 0 auto;
+  font-size: 20rpx;
+  color: #7b678e;
+}
+.card-meta-value {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  max-height: 3em;
+  font-weight: 500;
+}
+.card-meta-notes {
+  display: flex;
+  gap: 10rpx;
+  max-width: 100%;
+  line-height: 1.5;
+  max-height: 1.5em;
   overflow: hidden;
 }
-.page .world .item-card .card-meta > text {
-  display: block;
+.card-meta-notes > text {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  padding: 0;
-  border: 0;
-  background: none;
+}
+.card-group,
+.card-habit,
+.card-conflict {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.page .world .item-card .kind-label {
+  color: #7c715c;
+  font-weight: 500;
+}
+.page .item-card .card-meta .pin-label,
+.page .item-card .card-meta .card-conflict {
+  color: #7657ae;
 }
 .page .world .item-card .card-foot {
   margin-top: auto;
-  padding-top: 0;
-  min-height: 88rpx;
+  padding-top: 4rpx;
+  border-top: 1rpx solid #e9e2d2;
+  min-height: 44px;
   display: flex;
   gap: 0;
   flex-wrap: nowrap;
 }
 .page .world .item-card .card-source-link {
   font-size: 22rpx;
-  line-height: 28rpx;
-  min-height: 88rpx;
+  line-height: 1.4;
+  min-height: 44px;
+  min-width: 44px;
   flex: 1;
-  min-width: 0;
-  padding: 8rpx 0;
+  padding: 0;
+  color: #7b68a6;
   display: flex;
   align-items: center;
 }
 .page .world .item-card .card-actions {
   gap: 0;
   flex-shrink: 0;
+}
+.page .world .item-card .compact-delete {
+  font-size: 22rpx;
+  color: #965f6c;
+}
+.page .world .item-card .drag-grip {
+  font-size: 20px;
+  color: #9b927e;
 }
 /* The whole card opens details; use one explicit details link and a discoverable delete target. */
 .page .world .item-card .card-actions .icon-button {
@@ -1646,11 +1750,11 @@ page {
     grid-template-columns: minmax(0, 1fr);
   }
   .page .world .item-card {
-    height: 394rpx;
+    height: auto;
   }
   .page .world .item-card .item-title {
     height: auto;
-    max-height: 72rpx;
+    max-height: 2.7em;
   }
   .page .ddl-item {
     grid-template-columns: 124rpx minmax(0, 1fr);
@@ -1832,15 +1936,17 @@ page {
 }
 .page .world .item-card .item-title {
   font-size: 30rpx;
-  line-height: 40rpx;
-  height: 80rpx;
+  line-height: 1.35;
+  height: auto;
+  max-height: 2.7em;
   font-weight: 600;
-  letter-spacing: -0.3rpx;
+  letter-spacing: 0;
 }
 .page .world .item-card .item-summary {
-  font-size: 28rpx;
+  font-size: 25rpx;
   font-weight: 400;
-  color: #5c584a;
+  color: #726b5b;
+  margin: 8rpx 0 0;
 }
 .page .world .item-card .kind-label {
   font-size: 22rpx;
