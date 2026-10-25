@@ -153,6 +153,6 @@ node scripts/check-docs.mjs
 
 维护入口：角色动画改 `src/bucket/skin-motion.css`；互动参数/分类文案改 `src/bucket/client-ui.ts`；世界视觉改 `src/bucket/desktop.css`，新增共用选择器时更新 `scripts/build-miniprogram.mjs` 的显式映射。移动端布局适配留在 `index.wxss`，生成器不搬运桌面 hover、media 或 `touch-action: none`，避免阻止手机滚动。修改后运行 `mini:build`、`mini:check`、`test:sync`、`mini:compile` 和适用浏览器/桌面检查。浏览器 CSS 截图不是微信模拟器或真机截图，不能宣称全部像素已验收。
 
-本轮本机结果：核心单测 81、同步/小程序 85、桌面数据回归 16、16 套 Electron 隔离 UI 回归、生产/桌面构建、共享副本检查、官方 WXML/WXSS 编译及模板事件检查、PR/双端门禁 8 项和文档链接检查通过。新增浏览器动效/阴影/375px 几何回归两项目通过。首次浏览器全套 43/44，一项 iPhone WebKit 操作超时，单项复跑通过；最终全套结果以 PR 记录为准。Electron 笑声时序使用合成播放时钟，实际 MP3 解码另经既有检查。
+本轮本机结果：核心单测 81、同步/小程序 85、桌面数据回归 16、16 套 Electron 隔离 UI 回归、生产/桌面构建、共享副本检查、官方 WXML/WXSS 编译及模板事件检查、PR/双端门禁 8 项和文档链接检查通过。新增浏览器动效/阴影/375px 几何回归两项目通过。首次浏览器全套 43/44，一项 iPhone WebKit 操作超时，单项复跑通过；最终完整复跑 46/46 通过。Electron 笑声时序使用合成播放时钟，实际 MP3 解码另经既有检查。
 
 官方 CLI 可打开本轮小程序源码工程，但隔离临时工程的 automator SDK 在响应阶段超时，未取得可靠原生视觉验收；没有回退桌面自动化、重启开发工具或读取/清除既有工程资料。当前修改未上传微信审核或发布，手机上的已发布版本不会仅因源码改动自动更新。
