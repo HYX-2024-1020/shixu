@@ -13,6 +13,7 @@ function fixture({
   failWrite = () => false,
   modal = { confirm: true, content: "手动事项" },
   audio = null,
+  createAnimation,
   failAudio = false,
   clock = { setTimeout, clearTimeout },
 } = {}) {
@@ -28,6 +29,7 @@ function fixture({
     setTimeout: clock.setTimeout,
     clearTimeout: clock.clearTimeout,
     wx: {
+      ...(createAnimation ? { createAnimation } : {}),
       ...(audio || failAudio
         ? {
             createInnerAudioContext: () => {
@@ -743,16 +745,75 @@ test("greeting and feeding restore idle copy and use shared durations", () => {
   page.onUnload();
 });
 
-test("world categories count the current scope and changing scope resets a hidden category", () => {
+test("native scope and kind pickers filter cards without exposing separate scope buttons", () => {
   const { page } = fixture();
   page._client.put("p", packet());
   page._refresh();
   assert.equal(page.data.categories.find((c) => c.key === "task").count, 1);
-  page.selectCategory({ currentTarget: { dataset: { kind: "idea" } } });
+  page.setKind({ detail: { value: page.data.kindKeys.indexOf("idea") } });
   assert.equal(page.data.items.length, 1);
   assert.equal(page.data.items[0].kind, "idea");
-  page.setScope({ currentTarget: { dataset: { scope: "done" } } });
+  page.chooseScope({ detail: { value: 1 } });
+  assert.equal(page.data.scopeIndex, 1);
+  assert.equal(page.data.scope, "done");
   assert.equal(page.data.kind, "all");
   assert.equal(page.data.categories[0].count, 0);
   page.onUnload();
+});
+
+test("native motion sends alternating targets beyond one cycle and stops on hide", () => {
+  const timers = new Map();
+  let next = 0;
+  const { page } = fixture({
+    audio: { onEnded() {}, onError() {}, play() {}, stop() {}, destroy() {} },
+    clock: {
+      setTimeout(fn, ms) {
+        const id = ++next;
+        timers.set(id, { fn, ms });
+        return id;
+      },
+      clearTimeout(id) {
+        timers.delete(id);
+      },
+    },
+    createAnimation(options) {
+      const commands = [];
+      const a = {
+        step(value) {
+          commands.push(["step", value]);
+          return a;
+        },
+        export() {
+          return { options, commands };
+        },
+      };
+      for (const method of ["translateY", "scale", "rotate"])
+        a[method] = (...args) => {
+          commands.push([method, ...args]);
+          return a;
+        };
+      return a;
+    },
+  });
+  page.interactSkin();
+  const targets = [];
+  for (let i = 0; i < 6; i++) {
+    const value = page.data.skinAnimation;
+    targets.push(JSON.stringify(value));
+    assert.equal(value.commands.filter((c) => c[0] === "step").length, 1);
+    const id = page._skinMotionTimer,
+      timer = timers.get(id);
+    assert.equal(timer.ms, 291);
+    timers.delete(id);
+    timer.fn();
+  }
+  for (let i = 1; i < targets.length; i++)
+    assert.notEqual(
+      targets[i],
+      targets[i - 1],
+      "each native update must contain a different target",
+    );
+  page.onHide();
+  assert.equal(page.data.skinAnimating, false);
+  assert.equal(timers.size, 0);
 });

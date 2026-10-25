@@ -10,7 +10,6 @@
       <button wx:if="{{row.deleted}}" class="text-button" data-id="{{row.id}}" catchtap="restoreItem">恢复</button>
       <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成 / 归档' : row.kind === 'task' ? '完成' : '归档'}}" data-id="{{row.id}}" catchtap="toggleDone"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></button>
       <text class="kind-label">{{row.kindLabel}}{{row.progress ? ' · 正在做' : ''}}{{row.pinned ? ' · 置顶' : ''}}</text>
-      <button wx:if="{{!row.deleted}}" class="card-delete icon-button" aria-label="删除事项" data-id="{{row.id}}" catchtap="removeItem">×</button>
       <button class="icon-button {{row.starred ? 'starred' : ''}}" aria-label="{{row.starred ? '取消星标' : '星标'}}" data-id="{{row.id}}" catchtap="toggleStar" disabled="{{row.deleted}}">{{row.starred ? '★' : '☆'}}</button>
     </view>
     <text class="item-title">{{row.title}}</text><text wx:if="{{row.summary}}" class="item-summary">{{row.summary}}</text>
@@ -35,7 +34,7 @@
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
-      <view class="bucket-drawing skin-mascot" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image class="mascot skin-body" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
+      <view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image animation="{{skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
       <button class="skin-home-change" bindtap="openSkins">{{activeSkin.name}} · 换个伙伴</button>
       <view class="count-line">它已经吃掉了 <text class="count-badge">{{count}}</text> 件</view>
     </view>
@@ -111,69 +110,26 @@
         mode="aspectFit"
         bindtap="openSkins"
     /></view>
-    <view class="world-records"><button class="small-button" bindtap="toggleRecords">整理记录</button></view><view class="search-box"
+<view class="search-box"
       ><text>⌕</text
       ><input
         value="{{query}}"
         bindinput="onQuery"
         placeholder="搜索标题、原文或文件名"
     /></view>
-    <view class="scope-tabs"
-      ><button
-        class="chip {{scope === 'active' ? 'selected' : ''}}"
-        data-scope="active"
-        bindtap="setScope"
-      >
-        待处理</button
-      ><button
-        class="chip {{scope === 'done' ? 'selected' : ''}}"
-        data-scope="done"
-        bindtap="setScope"
-      >
-        完成 / 归档</button
-      ><button
-        class="chip {{scope === 'trash' ? 'selected' : ''}}"
-        data-scope="trash"
-        bindtap="setScope"
-      >
-        最近删除</button
-      ><button
-        class="chip {{filtersOpen ? 'selected' : ''}}"
-        bindtap="toggleFilters"
-      >
-        筛选与排序
-      </button></view
-    >
-    <view wx:if="{{filtersOpen}}" class="filter-bar"
-      ><picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"
-        ><view class="filter">{{dates[dateIndex]}} ▾</view></picker
-      ><picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"
-        ><view class="filter">{{sorts[sortIndex]}} ▾</view></picker
-      ><button
-        class="filter {{grouped ? 'selected' : ''}}"
-        bindtap="toggleGrouped"
-      >
-        按分组查看
-      </button><button class="filter {{starOnly ? 'selected' : ''}}" bindtap="toggleStarFilter">★ 仅星标</button></view
-    >
-    <scroll-view scroll-x class="category-nav"><button wx:for="{{categories}}" wx:key="key" class="category-button {{kind === item.key ? 'selected' : ''}}" data-kind="{{item.key}}" bindtap="selectCategory">{{item.label}} {{item.count}}</button></scroll-view>
-    <scroll-view wx:if="{{groups.length}}" scroll-x class="group-strip"
-      ><button
-        class="chip {{!group ? 'selected' : ''}}"
-        data-group=""
-        bindtap="setGroup"
-      >
-        全部分组</button
-      ><button
-        wx:for="{{groups}}"
-        wx:key="*this"
-        class="chip {{group === item ? 'selected' : ''}}"
-        data-group="{{item}}"
-        bindtap="setGroup"
-      >
-        {{item}}
-      </button></scroll-view
-    >
+    <view class="world-controls">
+      <picker class="scope-picker" range="{{scopeLabels}}" value="{{scopeIndex}}" bindchange="chooseScope"><view class="scope-control"><text>{{scopeLabels[scopeIndex]}}</text><text>⌄</text></view></picker>
+      <button class="filter-trigger {{filtersOpen ? 'is-open' : ''}}" bindtap="toggleFilters">筛选与排序</button>
+    </view>
+    <view wx:if="{{filtersOpen}}" class="touch-filters">
+      <picker range="{{kinds}}" value="{{kindIndex}}" bindchange="setKind"><view class="filter-field"><text>类型</text><text>{{kinds[kindIndex]}} ⌄</text></view></picker>
+      <picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"><view class="filter-field"><text>日期</text><text>{{dates[dateIndex]}} ⌄</text></view></picker>
+      <picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"><view class="filter-field"><text>排序</text><text>{{sorts[sortIndex]}} ⌄</text></view></picker>
+      <picker wx:if="{{groups.length}}" range="{{groupChoices}}" value="{{groupIndex}}" bindchange="chooseGroup"><view class="filter-field"><text>分组</text><text>{{groupChoices[groupIndex]}} ⌄</text></view></picker>
+      <view class="filter-field"><text>仅星标</text><switch checked="{{starOnly}}" bindchange="toggleStarFilter" color="#7048e8"/></view>
+      <view class="filter-field"><text>按分组查看</text><switch checked="{{grouped}}" bindchange="toggleGrouped" color="#7048e8"/></view>
+      <button class="filter-done" bindtap="toggleFilters">收起筛选</button>
+    </view>
     <view class="sync-line"
       ><text
         >{{localMode ? '资料保存在本机' : syncing ? '正在同步…' : pending ? pending + ' 个操作待同步' : '已连接个人服务'}} · {{matched}}
@@ -588,7 +544,7 @@
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
         ><view class="skin-preview" style="background:{{previewSkin.color}}"
-          ><view class="skin-preview-stage skin-mascot" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" class="preview-art skin-body"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
+          ><view class="skin-preview-stage skin-mascot {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" animation="{{skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}}"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><text class="quiet">{{previewSkin.description}}</text
           ><view class="button-row"
             ><button class="small-button" bindtap="feedSkin">试着喂一口</button

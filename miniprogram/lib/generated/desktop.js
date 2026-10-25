@@ -22,6 +22,7 @@ var stdin_exports = {};
 __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
+  NATIVE_SKIN_MOTIONS: () => NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION: () => SKIN_INTERACTION,
   SKIN_MOTIONS: () => SKIN_MOTIONS,
   absoluteItem: () => absoluteItem,
@@ -919,3 +920,6 @@ function buildGroups(packets) {
     };
   }).sort((a, b) => b.latestAt.localeCompare(a.latestAt));
 }
+
+// <stdin>
+var NATIVE_SKIN_MOTIONS = { "bounce": { "duration": 550, "frames": [{ "at": 0, "commands": [["translateY", 0], ["scale", 1.04, 0.96]] }, { "at": 50, "commands": [["translateY", -16], ["scale", 0.96, 1.04]] }, { "at": 100, "commands": [["translateY", 0], ["scale", 1.04, 0.96]] }] }, "wiggle": { "duration": 650, "frames": [{ "at": 0, "commands": [["rotate", -7]] }, { "at": 50, "commands": [["rotate", 7]] }, { "at": 100, "commands": [["rotate", -7]] }] }, "spin": { "duration": 1400, "frames": [{ "at": 0, "commands": [["rotate", 0]] }, { "at": 100, "commands": [["rotate", 360]] }] }, "float": { "duration": 1500, "frames": [{ "at": 0, "commands": [["translateY", 0], ["rotate", -3]] }, { "at": 50, "commands": [["translateY", -17], ["rotate", 3]] }, { "at": 100, "commands": [["translateY", 0], ["rotate", -3]] }] } };

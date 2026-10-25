@@ -19,7 +19,7 @@ test("mini uses Windows looping motion, card palette and readable narrow world h
     <view class="page"><view class="world">
       <view class="world-heading"><view><text class="world-title"><text class="line-break">消化完了，</text>这是你的<text class="hero-highlight">世界。</text></text></view></view>
       ${[1, 2, 3, 4].map((i) => `<view class="item-card shadow-${i - 1}"><view class="card-top"><button size="mini" class="done-button"></button><text class="kind-label">任务</text></view><text class="item-title">合成事项 ${i}</text><text class="item-summary">保留原文与完整要求</text><view class="card-foot">输入原文 ↗</view></view>`).join("")}
-      <view class="skin-mascot" data-motion="bounce"><view class="skin-body">角色</view><text class="skin-spark">✦</text></view>
+      <view class="skin-mascot skin-interacting"><view class="skin-body skin-motion-bounce">角色</view><text class="skin-spark">✦</text></view>
     </view></view>`);
   const art = page.locator(".skin-body");
   await expect(art).toHaveCSS("animation-iteration-count", "infinite");

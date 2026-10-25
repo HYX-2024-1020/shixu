@@ -62,7 +62,18 @@ for (const selector of sharedSelectors.keys()) {
     );
 }
 // 1 CSS px maps to 2 rpx at the 375px phone design width.
-const nativeCSS = (motion + visuals)
+// WeChat data-* values belong to event datasets, not reliable CSS attributes.
+// Target native image classes directly; the desktop still uses data-motion.
+const nativeMotion = motion
+  .replace(
+    /\.skin-mascot\[data-motion="(\w+)"\] \.skin-body/g,
+    ".skin-body.skin-motion-$1",
+  )
+  .replace(
+    '.skin-mascot:not([data-motion="idle"])',
+    ".skin-mascot.skin-interacting",
+  );
+const nativeCSS = (nativeMotion + visuals)
   .replace(/touch-action:\s*[^;]+;/g, "")
   .replace(/[ \t]+$/gm, "")
   .replace(/(-?[\d.]+)px\b/g, (_, n) => `${Number(n) * 2}rpx`);
@@ -73,9 +84,46 @@ outputs.set(
       nativeCSS,
   ),
 );
+// Native WeChat animation commands derived from the same desktop keyframes.
+const nativeSkinMotions = {};
+for (const name of ["bounce", "wiggle", "spin", "float"]) {
+  const body = motion.match(
+    new RegExp(`@keyframes skin-${name} \\{([\\s\\S]*?)\\n\\}`, "m"),
+  )?.[1];
+  const duration =
+    Number(
+      motion.match(new RegExp(`animation: skin-${name} ([\\d.]+)s`))?.[1],
+    ) * 1000;
+  if (!body || !duration)
+    throw new Error(`Missing native motion source: ${name}`);
+  const frames = [];
+  for (const frame of body.matchAll(
+    /([\d%,\s]+|from|to)\s*\{\s*transform:\s*([^;]+);/g,
+  )) {
+    const commands = [...frame[2].matchAll(/(\w+)\(([^)]+)\)/g)].map((m) => [
+      m[1],
+      ...m[2].split(",").map((v) => parseFloat(v)),
+    ]);
+    for (const percent of frame[1].trim().split(","))
+      frames.push({
+        at:
+          percent.trim() === "from"
+            ? 0
+            : percent.trim() === "to"
+              ? 100
+              : parseFloat(percent),
+        commands,
+      });
+  }
+  nativeSkinMotions[name] = {
+    duration,
+    frames: frames.sort((a, b) => a.at - b.at),
+  };
+}
 const bundled = await build({
   stdin: {
-    contents: `export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
+    contents: `export const NATIVE_SKIN_MOTIONS = ${JSON.stringify(nativeSkinMotions)};
+    export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
     export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';

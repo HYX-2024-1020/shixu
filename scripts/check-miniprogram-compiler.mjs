@@ -83,12 +83,20 @@ assert.ok(
   "item template rendered",
 );
 assert.ok(
-  view().some(
-    (node) =>
-      node.attr?.bindtap === "selectCategory" &&
-      node.attr["data-kind"] === "task",
+  view().some((node) => node.attr?.bindchange === "chooseScope"),
+  "native scope picker rendered",
+);
+assert.ok(
+  !view().some((node) =>
+    /scope-tabs|category-nav|group-strip/.test(node.attr?.class || ""),
   ),
-  "counted category rendered with stable key",
+  "no persistent scope/category button strips",
+);
+assert.ok(
+  !readFileSync(join(mini, "lib/generated/client-ui.wxss"), "utf8").includes(
+    "[data-motion=",
+  ),
+  "native motion must not depend on dataset CSS attributes",
 );
 assert.ok(
   !view().some((node) => node.attr?.bindchange === "setSort"),
@@ -176,20 +184,14 @@ assert.ok(
 page.switchTab({ currentTarget: { dataset: { tab: "capture" } } });
 page.interactSkin();
 assert.ok(
-  view().some(
-    (node) =>
-      node.attr?.class?.includes("skin-mascot") &&
-      node.attr["data-motion"] === page.data.activeSkin.motion,
+  view().some((node) =>
+    node.attr?.class?.includes("skin-motion-" + page.data.activeSkin.motion),
   ),
   "native mascot receives the shared active motion",
 );
 page._stopSkinInteraction();
 assert.ok(
-  view().some(
-    (node) =>
-      node.attr?.class?.includes("skin-mascot") &&
-      node.attr["data-motion"] === "idle",
-  ),
+  view().some((node) => node.attr?.class?.includes("skin-motion-idle")),
   "native mascot resets to idle",
 );
 page.openSkins();

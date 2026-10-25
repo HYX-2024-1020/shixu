@@ -25,6 +25,7 @@ const {
   statePatch,
 } = require("../../lib/world");
 const {
+  NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION,
   BUILTIN_SKINS,
   SKIN_MOTIONS,
@@ -100,6 +101,9 @@ Page({
     expandedId: "",
     updateReady: false,
     scope: "active",
+    scopeLabels: ["待处理", "完成 / 归档", "最近删除"],
+    scopeIndex: 0,
+    filtersOpen: false,
     query: "",
     kind: "all",
     sort: "priority",
@@ -378,6 +382,8 @@ Page({
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
+      groupChoices: ["全部分组", ...view.groups],
+      groupIndex: view.groups.indexOf(this.data.group) + 1,
       categories: view.categories,
       items: view.items.map(this._cardView),
       sections: view.sections.map((s) => ({
@@ -1125,10 +1131,20 @@ Page({
     this.setData({ query: event.detail.value, limit: 60 });
     this._refresh();
   },
+  chooseScope(event) {
+    const scope = ["active", "done", "trash"][Number(event.detail.value)];
+    if (scope) this.setScope({ currentTarget: { dataset: { scope } } });
+  },
+  chooseGroup(event) {
+    const group = this.data.groupChoices[Number(event.detail.value)];
+    this.setData({ group: group === "全部分组" ? "" : group, limit: 60 });
+    this._refresh();
+  },
   setScope(event) {
     const scope = event.currentTarget.dataset.scope;
     this.setData({
       scope,
+      scopeIndex: ["active", "done", "trash"].indexOf(scope),
       kind: "all",
       kindIndex: 0,
       showDeleted: scope === "trash",
@@ -1138,15 +1154,6 @@ Page({
   },
   toggleFilters() {
     this.setData({ filtersOpen: !this.data.filtersOpen });
-  },
-  selectCategory(event) {
-    const kind = event.currentTarget.dataset.kind;
-    this.setData({
-      kind,
-      kindIndex: this.data.kindKeys.indexOf(kind),
-      limit: 60,
-    });
-    this._refresh();
   },
   setKind(event) {
     const i = Number(event.detail.value);
@@ -1771,6 +1778,7 @@ Page({
       skinMessage: s.greeting,
       skinAnimating: true,
     });
+    this._startSkinMotion(s);
     if (s.art === "whale" && this._prepareSkinAudio()) {
       try {
         this._skinAudio.play();
@@ -1786,11 +1794,58 @@ Page({
         SKIN_INTERACTION.greetingMs,
       );
   },
+  _startSkinMotion(skin) {
+    if (!wx.createAnimation) return;
+    const motion = NATIVE_SKIN_MOTIONS[skin.motion];
+    if (!motion) return;
+    clearTimeout(this._skinMotionTimer);
+    const generation = (this._skinMotionGeneration || 0) + 1;
+    this._skinMotionGeneration = generation;
+    this.setData({ skinNativeMotion: true });
+    let index = 1,
+      turns = 0;
+    const advance = () => {
+      if (!this.data.skinAnimating || generation !== this._skinMotionGeneration)
+        return;
+      const frame = motion.frames[index];
+      const duration =
+        ((frame.at - motion.frames[index - 1].at) * motion.duration) / 100;
+      // Send one changed target per render. Re-exporting identical whole cycles
+      // can be deduplicated by the native view after the first cycle.
+      const animation = wx.createAnimation({
+        duration,
+        transformOrigin: "50% 83%",
+        timingFunction: "ease-in-out",
+      });
+      for (const [method, ...args] of frame.commands) {
+        if (skin.motion === "spin" && method === "rotate")
+          animation.rotate(args[0] + 360 * turns);
+        else animation[method](...args);
+      }
+      animation.step({ duration });
+      this.setData({ skinAnimation: animation.export() });
+      index++;
+      if (index === motion.frames.length) {
+        index = 1;
+        turns++;
+      }
+      this._skinMotionTimer = setTimeout(advance, duration + 16);
+    };
+    advance();
+  },
   _finishSkinInteraction() {
     const skin = this.data.skinOpen
       ? this.data.previewSkin
       : this.data.activeSkin;
-    this.setData({ skinAnimating: false, skinMessage: skin.hello });
+    clearTimeout(this._skinMotionTimer);
+    this._skinMotionGeneration = (this._skinMotionGeneration || 0) + 1;
+    const reset = wx.createAnimation && wx.createAnimation({ duration: 100 });
+    if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
+    this.setData({
+      skinAnimating: false,
+      skinMessage: skin.hello,
+      ...(reset ? { skinAnimation: reset.export() } : {}),
+    });
   },
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
@@ -1825,6 +1880,7 @@ Page({
       skinMessage: s.feeding,
       skinAnimating: true,
     });
+    this._startSkinMotion(s);
     this._skinTimer = setTimeout(
       () => this._finishSkinInteraction(),
       SKIN_INTERACTION.feedingMs,

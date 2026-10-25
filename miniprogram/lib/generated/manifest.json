@@ -1,8 +1,8 @@
 {
   "source": "desktop/shared",
   "files": {
-    "miniprogram/lib/generated/client-ui.wxss": "05048cef3e98075e3a2e8e217c82a3533fc826e36dc103e2ed2fb8d4bcaf554d",
-    "miniprogram/lib/generated/desktop.js": "4d0ea2f04a1170a75ff50cd497b49969740955439d9d6f00d21c535e57ab1d7f",
+    "miniprogram/lib/generated/client-ui.wxss": "af352b1aae0441fdeb94e9aae807fc10c67c2b16d2e7608679db32d60df03c45",
+    "miniprogram/lib/generated/desktop.js": "c39be453f0a5902bb2cbd4925623edc8b146169c9f26f821c468ab609992f021",
     "server/generated/ai-core.mjs": "ac5c2926c912299fced2000534a8e3e4a7365f1357df16483e5e5d73654cb611",
     "desktop/generated/sync-client.cjs": "5cd9d7624a9263c8e7159ed3213cd6fb1227a397f03cb4f39afa5f49f19fdb14",
     "miniprogram/assets/skins/cat.png": "2c0492a3f4213ff42771384ea33b9c6b66b6031df7a0c47450e348905158dd7f",

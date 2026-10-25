@@ -1183,3 +1183,72 @@ page {
   padding: 14rpx 12rpx;
   font-size: 23rpx;
 }
+
+/* Phone controls: two large targets; secondary options appear only on request. */
+.world-controls {
+  display: flex;
+  gap: 24rpx;
+  margin: 24rpx 0;
+}
+.scope-picker {
+  flex: 1;
+  min-width: 0;
+}
+.scope-control,
+.filter-trigger {
+  box-sizing: border-box;
+  min-height: 96rpx;
+  border: 4rpx solid #111;
+  border-radius: 8rpx;
+  background: #fff;
+  font-size: 28rpx;
+  padding: 20rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.filter-trigger {
+  flex: 0 0 auto;
+  justify-content: center;
+  margin: 0;
+  font-weight: 700;
+}
+.filter-trigger.is-open {
+  background: #eee8ff;
+}
+.touch-filters {
+  margin-bottom: 28rpx;
+  padding: 0 24rpx 24rpx;
+  border: 3rpx solid #111;
+  border-radius: 8rpx;
+  background: #fff;
+}
+.filter-field {
+  min-height: 100rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24rpx;
+  border-bottom: 2rpx solid #eee9db;
+  font-size: 28rpx;
+}
+.filter-field > text:last-child {
+  color: #655f50;
+}
+.filter-done {
+  min-height: 88rpx;
+  margin-top: 24rpx;
+  background: #111;
+  color: #fff;
+  font-size: 28rpx;
+}
+.skin-body {
+  display: block;
+}
+.item-card .icon-button {
+  min-width: 88rpx;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
