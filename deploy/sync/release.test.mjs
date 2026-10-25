@@ -18,10 +18,12 @@ test("account service and protected CLI run from the self-contained release", as
   let service;
   try {
     const { directory: release } = await buildRelease(join(directory, "release"));
+    const current = join(directory, "current");
+    await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
     const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
     const accountDirectory = join(directory, "accounts");
     const secret = "synthetic-release-secret-32-characters";
-    const { stdout } = await promisify(execFile)(process.execPath, [join(release, "server/sync-admin.mjs"), "generate", "2"], {
+    const { stdout } = await promisify(execFile)(process.execPath, [join(current, "server/sync-admin.mjs"), "generate", "2"], {
       env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
     });
     assert.equal(JSON.parse(stdout).length, 2);
@@ -31,6 +33,14 @@ test("account service and protected CLI run from the self-contained release", as
     assert.equal((await (await fetch(base + "/api/v3/status")).json()).protocolVersion, 3);
     assert.equal((await fetch(base + "/api/v2/changes")).status, 404);
     assert.equal((await fetch(base + "/api/v3/changes")).status, 401);
+    const env = { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret };
+    const probe = await promisify(execFile)(process.execPath, [join(current, "deploy/sync/verify-accounts.mjs"), base], { env });
+    assert.equal(JSON.parse(probe.stdout).isolatedAccounts, true);
+    const usage = await promisify(execFile)(process.execPath, ["--preserve-symlinks-main", join(current, "server/sync-admin.mjs"), "usage", "synthetic-unknown-user"], { env });
+    assert.deepEqual(JSON.parse(usage.stdout), []);
+    service.server.close(); await once(service.server, "close"); service = null;
+    const snapshot = await promisify(execFile)(process.execPath, [join(current, "deploy/sync/backup-accounts.mjs"), accountDirectory, join(directory, "backups"), "--service-stopped"]);
+    assert.equal(JSON.parse(await readFile(join(snapshot.stdout.trim(), "backup.json"), "utf8")).integrity, "ok");
   } finally {
     if (service) { service.server.close(); await once(service.server, "close"); }
     assert.ok(directory.includes("shixu-accounts-release-"));

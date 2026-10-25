@@ -2,6 +2,7 @@ import { backup, DatabaseSync } from "node:sqlite";
 import { mkdtemp, mkdir, readdir, lstat, writeFile } from "node:fs/promises";
 import { join, resolve, dirname, relative } from "node:path";
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 
 export async function backupAccounts(
   source,
@@ -65,7 +66,9 @@ export async function backupAccounts(
 }
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
+    (path) => import.meta.url === pathToFileURL(path).href,
+  )
 ) {
   if (process.argv.length !== 5 || process.argv[4] !== "--service-stopped")
     throw Error(

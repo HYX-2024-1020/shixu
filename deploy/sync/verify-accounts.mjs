@@ -8,6 +8,7 @@ import {
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { AccountRegistry, proofMessage } from "../../server/sync-accounts.mjs";
 
 export async function verifyAccounts(
@@ -138,7 +139,10 @@ export async function verifyAccounts(
         "/api/v3/activate/windows",
         { invite: invitation.invite, publicKey },
       );
-      assert.equal(enrolled.token, repeated.token);
+      assert.ok(
+        enrolled.token === repeated.token,
+        "Activation replay must retain credential identity",
+      );
       devices.push({ ...device, ...enrolled });
     }
     const [a, b] = devices,
@@ -305,7 +309,9 @@ export async function verifyAccounts(
 }
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
+    (path) => import.meta.url === pathToFileURL(path).href,
+  )
 ) {
   if (!process.env.SYNC_ACCOUNT_DIR || !process.env.SYNC_ACCOUNT_SECRET)
     throw Error("Account environment required");
@@ -324,6 +330,27 @@ if (
               execFileSync("systemctl", ["restart", "shixu-sync.service"], {
                 stdio: "pipe",
               });
+              const deadline = Date.now() + 10000;
+              for (;;) {
+                try {
+                  const response = await fetch(
+                    (process.argv[2] || "http://127.0.0.1:8788") +
+                      "/api/v3/status",
+                    {
+                      headers: { Connection: "close" },
+                      signal: AbortSignal.timeout(1000),
+                    },
+                  );
+                  if (
+                    response.ok &&
+                    (await response.json()).protocolVersion === 3
+                  )
+                    break;
+                } catch {}
+                if (Date.now() > deadline)
+                  throw Error("Service not healthy after restart");
+                await new Promise((done) => setTimeout(done, 100));
+              }
             }
           : undefined,
         wechatConfig: process.argv.includes("--wechat-config")
