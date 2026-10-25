@@ -32,6 +32,7 @@ const {
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
   mergeCardOrder,
+  deadlineCountdown,
   parseDeadline,
   absoluteItem,
   setDeadline,
@@ -333,12 +334,29 @@ Page({
       }));
     const view = worldView(this._client.records(), this.data);
     const clock = new Date();
+    const day = `${clock.getFullYear()}-${String(clock.getMonth() + 1).padStart(2, "0")}-${String(clock.getDate()).padStart(2, "0")}`;
+    const clockText = `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`;
     const ddl = ddlLists(
       itemsFor(this._client.records()),
-      localDay(),
-      `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`,
+      day,
+      clockText,
       this.data.ddlDays[this.data.ddlIndex],
     );
+    const ddlCard = (row, index) => {
+      const card = this._cardView(row, index);
+      const countdown = deadlineCountdown(
+        card.date || "",
+        day,
+        card.time || "",
+        clockText,
+        !!card.done,
+      );
+      return {
+        ...card,
+        countdown: countdown.label,
+        countdownStatus: countdown.status,
+      };
+    };
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
@@ -358,21 +376,21 @@ Page({
                   !this._record(e.packetId).deletedAt,
               ).length
           : 0,
-      ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(this._cardView),
-      ddlUnsure: ddl.unsure.slice(0, this.data.ddlLimit).map(this._cardView),
-      ddlDone: ddl.done.slice(0, this.data.ddlLimit).map(this._cardView),
+      ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(ddlCard),
+      ddlUnsure: ddl.unsure.slice(0, this.data.ddlLimit).map(ddlCard),
+      ddlDone: ddl.done.slice(0, this.data.ddlLimit).map(ddlCard),
       ddlSections: [
         {
           title: "今天截止",
-          rows: ddl.today.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.today.slice(0, this.data.ddlLimit).map(ddlCard),
         },
         {
           title: `未来 ${this.data.ddlDays[this.data.ddlIndex]} 天`,
-          rows: ddl.soon.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.soon.slice(0, this.data.ddlLimit).map(ddlCard),
         },
         {
           title: `${this.data.ddlDays[this.data.ddlIndex]} 天之后`,
-          rows: ddl.later.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.later.slice(0, this.data.ddlLimit).map(ddlCard),
         },
       ].flatMap((section) =>
         [...new Set(section.rows.map((row) => row.date))].map((date) => ({

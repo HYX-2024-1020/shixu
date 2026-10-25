@@ -31,6 +31,7 @@ __export(stdin_exports, {
   cardCopy: () => cardCopy,
   categories: () => categories,
   compareItems: () => compareItems,
+  deadlineCountdown: () => deadlineCountdown,
   deadlineLabel: () => deadlineLabel,
   deadlineSections: () => deadlineSections,
   habitCheckin: () => habitCheckin,
@@ -188,6 +189,22 @@ function parseSkinCollection(raw) {
   } catch (e) {
     return { selected: "whale", custom: [] };
   }
+}
+
+// src/bucket/deadline-countdown.ts
+function calendarDay(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+  const date = /* @__PURE__ */ new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() / 864e5 : NaN;
+}
+function deadlineCountdown(date, day, time, clock2, done = false) {
+  if (done) return { label: "已完成", status: "done" };
+  const days = calendarDay(date) - calendarDay(day);
+  if (!Number.isFinite(days)) return { label: "日期待确认", status: "unsure" };
+  if (days < 0) return { label: `已逾期 ${-days} 天`, status: "overdue" };
+  if (days > 0) return { label: `还剩 ${days} 天`, status: "future" };
+  if (time && time < clock2) return { label: "今天已逾期", status: "overdue" };
+  return { label: "今天截止", status: "today" };
 }
 
 // shared/deadline-time.mjs

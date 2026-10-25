@@ -125,6 +125,7 @@ const bundled = await build({
     contents: `export const NATIVE_SKIN_MOTIONS = ${JSON.stringify(nativeSkinMotions)};
     export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
     export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
+    export { deadlineCountdown } from './src/bucket/deadline-countdown';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
     export { compareItems, habitCheckin } from './src/bucket/management';

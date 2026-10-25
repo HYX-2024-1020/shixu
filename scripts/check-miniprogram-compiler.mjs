@@ -208,6 +208,29 @@ assert.ok(
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
+const countdownNode = view().find((node) =>
+  node.attr?.class?.includes("ddl-countdown"),
+);
+assert.ok(
+  countdownNode?.attr.class.includes(`cd-${ddlRow.countdownStatus}`),
+  "compiled countdown state class matches the DDL row",
+);
+assert.ok(
+  JSON.stringify(countdownNode).includes(ddlRow.countdown),
+  "compiled countdown text matches the shared calendar result",
+);
+assert.equal(
+  view().filter((node) => node.attr?.class === "nav-icon").length,
+  3,
+  "all dock icons compile",
+);
+const activeSkin = page.data.activeSkin;
+page.setData({ activeSkin: { ...activeSkin, image: "/assets/skins/cat.png" } });
+assert.ok(
+  view().some((node) => node.attr?.src === "/assets/skins/cat.png"),
+  "DDL header follows the selected skin",
+);
+page.setData({ activeSkin });
 const verify = view().find((node) => node.attr?.class === "ddl-verify-button");
 assert.ok(
   verify && verify.attr.catchtap === "verifyDdl",

@@ -14,12 +14,14 @@ function fixture({
   modal = { confirm: true, content: "手动事项" },
   audio = null,
   createAnimation,
+  date = Date,
   selectorQuery,
   failAudio = false,
   clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
   const context = {
+    Date: date,
     Page: (value) => {
       definition = value;
     },
@@ -1323,4 +1325,95 @@ test("view-follow hit testing does not resend ghost positions over setData for e
   p.dragTouchMove({ ...f.touch("task-a", 85, 95), viewFollow: true });
   assert.equal(writes.filter((value) => value.dragGhost).length, 0);
   p.cancelDrag();
+});
+
+test("mini countdown covers every DDL section, retains interval clocks and refreshes across midnight", async () => {
+  let now = "2026-10-26T15:00:00";
+  class Clock extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [now]));
+    }
+  }
+  const { page, store } = fixture({ date: Clock });
+  try {
+    const data = packet("countdown");
+    data.itemIds = [
+      "past",
+      "today",
+      "soon",
+      "later",
+      "unsure",
+      "done",
+      "range",
+    ];
+    data.itemState = { done: { status: "done" } };
+    data.doneIds = [5];
+    const dates = [
+      "2026-10-25",
+      "2026-10-26",
+      "2026-10-30",
+      "2026-11-08",
+      "",
+      "2026-10-24",
+      "2026-10-28",
+    ];
+    data.result.items = dates.map((date, i) => ({
+      kind: "task",
+      title: `合成事项${i}`,
+      summary: "保留原文",
+      facts: [],
+      nextSteps: [],
+      uncertainties: [],
+      sourceIds: [],
+      evidence: [],
+      due: date
+        ? {
+            date,
+            time: "16:00",
+            ...(i === 6 ? { startDate: "2026-10-26", startTime: "14:00" } : {}),
+          }
+        : null,
+    }));
+    data.result.items[4].dueCleared = true;
+    page._client.put(data.id, data);
+    page._refresh();
+    const rows = () => [
+      ...page.data.ddlOverdue,
+      ...page.data.ddlSections.flatMap((s) => s.rows),
+      ...page.data.ddlUnsure,
+      ...page.data.ddlDone,
+    ];
+    const row = (id) => rows().find((r) => r.id === id);
+    assert.equal(row("past").countdown, "已逾期 1 天");
+    assert.equal(row("today").countdown, "今天截止");
+    assert.equal(row("soon").countdown, "还剩 4 天");
+    assert.equal(row("later").countdown, "还剩 13 天");
+    assert.equal(row("unsure").countdownStatus, "unsure");
+    assert.equal(row("done").countdownStatus, "done");
+    assert.equal(row("range").countdown, "还剩 2 天");
+    assert.equal(row("range").startTime, "14:00");
+    assert.equal(row("range").time, "16:00");
+    now = "2026-10-26T16:01:00";
+    page._refresh();
+    assert.equal(row("today").countdown, "今天已逾期");
+    now = "2026-10-27T00:01:00";
+    page._refresh();
+    assert.equal(row("today").countdown, "已逾期 1 天");
+    assert.equal(row("soon").countdown, "还剩 3 天");
+    await page.toggleDone(event("soon"));
+    assert.equal(row("soon").countdown, "已完成");
+    const reopened = fixture({ store, date: Clock }).page;
+    try {
+      assert.equal(
+        reopened.data.ddlDone.find((r) => r.id === "soon").countdown,
+        "已完成",
+      );
+    } finally {
+      reopened.onUnload();
+    }
+    await page.toggleDone(event("soon"));
+    assert.equal(row("soon").countdown, "还剩 3 天");
+  } finally {
+    page.onUnload();
+  }
 });

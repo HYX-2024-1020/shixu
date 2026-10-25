@@ -2,7 +2,7 @@
   "source": "desktop/shared",
   "files": {
     "miniprogram/lib/generated/client-ui.wxss": "af352b1aae0441fdeb94e9aae807fc10c67c2b16d2e7608679db32d60df03c45",
-    "miniprogram/lib/generated/desktop.js": "c39be453f0a5902bb2cbd4925623edc8b146169c9f26f821c468ab609992f021",
+    "miniprogram/lib/generated/desktop.js": "7d913d329d136f2a40eec5fda7b61f75780e08b80d6e6c344bd3525205466acd",
     "server/generated/ai-core.mjs": "ac5c2926c912299fced2000534a8e3e4a7365f1357df16483e5e5d73654cb611",
     "desktop/generated/sync-client.cjs": "9f320384bec65f80fcd4b028959a292b9e08a78a888ed90198ab69ec9ffd96bb",
     "miniprogram/assets/skins/cat.png": "2c0492a3f4213ff42771384ea33b9c6b66b6031df7a0c47450e348905158dd7f",

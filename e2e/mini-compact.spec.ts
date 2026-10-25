@@ -28,7 +28,7 @@ for (const width of [320, 375, 414]) {
         <view class="card-foot"><button class="card-source-link">完整详情 ↗</button><view class="card-actions"><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view>`,
         )
         .join("")}</view></view>
-      <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-date">2026-10-26</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
+      <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-countdown cd-future">还剩 13 天</text><text class="ddl-date">2026-10-26</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
     const cards = page.locator(".world .item-card");
     await cards.evaluateAll(async (elements) => {
       await Promise.all(
@@ -73,7 +73,13 @@ for (const width of [320, 375, 414]) {
       expect(visual!.height).toBe(22);
     }
     const ddl = await page.locator(".ddl-item").boundingBox();
-    expect(ddl!.height).toBeLessThan(115);
+    expect(ddl!.height).toBeLessThan(150);
+    const countdown = (await page.locator(".ddl-countdown").boundingBox())!;
+    const date = (await page.locator(".ddl-date").boundingBox())!;
+    expect(countdown.y + countdown.height).toBeLessThanOrEqual(date.y + 0.1);
+    expect(countdown.x + countdown.width).toBeLessThanOrEqual(
+      ddl!.x + ddl!.width,
+    );
     const timeRail = (await page.locator(".ddl-time").boundingBox())!;
     const bodyRow = (await page.locator(".ddl-row").boundingBox())!;
     expect(timeRail.y + timeRail.height).toBeLessThanOrEqual(bodyRow.y + 0.1);
@@ -91,6 +97,10 @@ for (const width of [320, 375, 414]) {
           timeFields[i - 1]!.x + timeFields[i - 1]!.width,
         ).toBeLessThanOrEqual(box.x + 0.1);
     }
+    await page.screenshot({
+      path: `test-results/mini-polish-${width}-${test.info().project.name}.png`,
+      fullPage: true,
+    });
     const titleBox = (await page.locator(".ddl-copy").boundingBox())!;
     expect(titleBox.width).toBeGreaterThan(130);
   });
