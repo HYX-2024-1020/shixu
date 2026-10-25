@@ -48,21 +48,45 @@ function moveInGroup(order, id, target, groups) {
   next.splice(siblings.indexOf(target), 0, id);
   return mergeCardOrder(order, siblings, next);
 }
-function nearestSlot(rects, x, y, scrollDelta) {
-  let target,
-    distance = Infinity;
+// Treat gaps, empty final columns and the first/last row margins as part of the
+// list. Pick the intended row first, then its nearest column, instead of requiring
+// a fingertip to land inside the painted card. Foreign groups still win spatially
+// and are rejected by the caller; never snap through them into the dragged group.
+function nearestSlot(rects, x, y, scrollDelta, previousSlot) {
+  if (!rects.length) return;
+  const left = Math.min(...rects.map((r) => r.left));
+  const right = Math.max(...rects.map((r) => r.right));
+  if (x < left - 32 || x > right + 32) return;
+  const rows = [];
   for (const rect of rects) {
     const top = rect.top - scrollDelta;
-    if (x < rect.left || x > rect.right || y < top || y > top + rect.height)
-      continue;
-    const d =
-      (rect.left + rect.width / 2 - x) ** 2 + (top + rect.height / 2 - y) ** 2;
-    if (d < distance) {
-      distance = d;
-      target = rect.slot;
+    let row = rows.find((row) => Math.abs(row.top - top) < 4);
+    if (!row) {
+      row = { top, height: rect.height, cards: [] };
+      rows.push(row);
     }
+    row.height = Math.max(row.height, rect.height);
+    row.cards.push(rect);
   }
-  return target;
+  const dy = (row) => Math.max(row.top - y, y - row.top - row.height, 0);
+  rows.sort(
+    (a, b) =>
+      dy(a) - dy(b) ||
+      Math.abs(y - a.top - a.height / 2) - Math.abs(y - b.top - b.height / 2),
+  );
+  let row = rows[0];
+  const previousRow = rows.find((row) =>
+    row.cards.some((card) => card.slot === previousSlot),
+  );
+  // A small dead band keeps the placeholder steady around a row/column midpoint.
+  if (previousRow && dy(previousRow) <= dy(row) + 8) row = previousRow;
+  if (dy(row) > Math.max(44, Math.min(80, row.height * 0.3))) return;
+  const dx = (card) => Math.abs(card.left + card.width / 2 - x);
+  const cards = row.cards.slice().sort((a, b) => dx(a) - dx(b));
+  const previous = cards.find((card) => card.slot === previousSlot);
+  return previous && dx(previous) <= dx(cards[0]) + 12
+    ? previous.slot
+    : cards[0].slot;
 }
 function createTouchOrder(wx) {
   return {
@@ -257,7 +281,7 @@ function createTouchOrder(wx) {
       const s = this._drag;
       if (!s) return;
       const delta = (this._scrollTop || 0) - s.baseline;
-      const slot = nearestSlot(s.rects, s.x, s.y, delta);
+      const slot = nearestSlot(s.rects, s.x, s.y, delta, s.lastSlot);
       const target = slot === undefined ? null : s.order[slot];
       s.validDrop =
         !!target &&
@@ -267,6 +291,7 @@ function createTouchOrder(wx) {
         s.y >= s.bounds.top &&
         s.y <= s.bounds.bottom &&
         !s.cancelDrop;
+      if (s.validDrop) s.lastSlot = slot;
       const next = s.validDrop
         ? moveInGroup(s.order, s.id, target, s.groups)
         : s.order;

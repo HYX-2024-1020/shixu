@@ -1202,3 +1202,38 @@ test("view-layer drag gate allows ordinary scroll, blocks finger scroll while li
   assert.equal(calls[1][0], "dragTouchMove");
   assert.equal(calls[1][1].touches[0].clientY, 400);
 });
+
+test("generous drop inference covers gutters, an empty final column and list end margins", () => {
+  const { nearestSlot } = require("../lib/touch-order");
+  const rects = [
+    { left: 16, right: 176, top: 100, width: 160, height: 200, slot: 0 },
+    { left: 190, right: 350, top: 100, width: 160, height: 200, slot: 1 },
+    { left: 16, right: 176, top: 324, width: 160, height: 200, slot: 2 },
+  ];
+  assert.equal(nearestSlot(rects, 185, 200, 0), 1); // column gutter
+  assert.equal(nearestSlot(rects, 250, 315, 0), 2); // row gap, nearest lower row
+  assert.equal(nearestSlot(rects, 320, 400, 0), 2); // empty second column of final row
+  assert.equal(nearestSlot(rects, 100, 65, 0), 0); // before first row
+  assert.equal(nearestSlot(rects, 280, 570, 0), 2); // after last row
+  assert.equal(nearestSlot(rects, 320, 200, 200), 2); // scrolling shifts every drop band
+  assert.equal(nearestSlot(rects, 440, 400, 0), undefined);
+  assert.equal(nearestSlot(rects, 100, 700, 0), undefined);
+});
+test("drop inference resists midpoint jitter and cannot snap through a foreign group", () => {
+  const { nearestSlot } = require("../lib/touch-order");
+  const rects = [
+    { left: 0, right: 160, top: 0, width: 160, height: 200, slot: 0 },
+    { left: 180, right: 340, top: 0, width: 160, height: 200, slot: 1 },
+  ];
+  assert.equal(nearestSlot(rects, 173, 100, 0, 0), 0);
+  assert.equal(nearestSlot(rects, 195, 100, 0, 0), 1);
+  const f = dragFixture(),
+    p = f.page;
+  p._changeItem("task-c", { group: "other" });
+  p.setData({ grouped: true });
+  p._refresh();
+  f.start("task-a");
+  f.move(250, 90);
+  assert.equal(p._drag.validDrop, false);
+  p.cancelDrag();
+});
