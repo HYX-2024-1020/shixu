@@ -188,7 +188,7 @@
 .quiet {
   display: block;
   font-size: 23rpx;
-  color: #777061;
+  color: #655f4e;
   line-height: 1.8;
 }
 .delivery-heading {
@@ -307,9 +307,9 @@
 }
 .item-summary {
   display: block;
-  font-size: 27rpx;
-  line-height: 1.8;
-  color: #625e51;
+  font-size: 28rpx;
+  line-height: 1.75;
+  color: #5c584a;
   white-space: pre-wrap;
 }
 .card-meta {
@@ -317,14 +317,14 @@
   gap: 14rpx;
   flex-wrap: wrap;
   margin: 22rpx 0;
-  font-size: 23rpx;
-  color: #625e51;
+  font-size: 24rpx;
+  color: #5c584a;
 }
 .card-foot {
   padding-top: 18rpx;
   border-top: 2rpx solid rgba(41, 40, 34, 0.12);
-  font-size: 21rpx;
-  color: #716c5c;
+  font-size: 22rpx;
+  color: #676152;
 }
 .card-actions {
   display: flex;
@@ -1270,6 +1270,52 @@ page {
   font-size: 23rpx;
 }
 
+/* ========== 第三轮：卡片文字排版（2026-10-26） ========== */
+
+/*
+ * 卡片是"扫一眼"的预览，详情抽屉才是读全文的地方。
+ * 列表卡片统一收敛行数（超出省略号），max-height 为 line-clamp 的降级兜底。
+ * 详情抽屉 / 投递记录弹窗内的同名类不受影响，始终显示全文。
+ */
+.item-card .item-title,
+.ddl-copy .item-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-height: 3em;
+}
+.item-card .item-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  max-height: 5.25em;
+}
+.ddl-copy .item-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-height: 3.5em;
+}
+/* 投喂后的原文预览最长，收敛到 5 行，完整原文永远在"点开/投递记录"里 */
+.current-delivery .source-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+  max-height: 9.5em;
+}
+/* 整理完成后投递卡片里的 AI 摘要同样收敛，避免一张卡占满整屏 */
+.current-delivery > .card-paper > .item-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  max-height: 7em;
+}
+
 /* Phone controls: two large targets; secondary options appear only on request. */
 .world-controls {
   display: flex;
@@ -1400,9 +1446,9 @@ page {
   margin: 4rpx 0 6rpx;
 }
 .page .world .item-card .item-summary {
-  font-size: 24rpx;
-  line-height: 30rpx;
-  height: 30rpx;
+  font-size: 28rpx;
+  line-height: 34rpx;
+  height: 34rpx;
   white-space: normal;
   -webkit-line-clamp: 1;
 }
@@ -1421,7 +1467,7 @@ page {
 .page .world .item-card .card-meta {
   display: block;
   margin: 8rpx 0 0;
-  font-size: 21rpx;
+  font-size: 24rpx;
   height: 58rpx;
   line-height: 28rpx;
   overflow: hidden;
@@ -1444,7 +1490,7 @@ page {
   flex-wrap: nowrap;
 }
 .page .world .item-card .card-source-link {
-  font-size: 21rpx;
+  font-size: 22rpx;
   line-height: 28rpx;
   min-height: 88rpx;
   flex: 1;
@@ -1792,9 +1838,9 @@ page {
   letter-spacing: -0.3rpx;
 }
 .page .world .item-card .item-summary {
-  font-size: 24rpx;
+  font-size: 28rpx;
   font-weight: 400;
-  color: #6d685b;
+  color: #5c584a;
 }
 .page .world .item-card .kind-label {
   font-size: 22rpx;

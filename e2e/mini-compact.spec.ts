@@ -142,3 +142,66 @@ for (const width of [320, 375]) {
     ).toBeLessThanOrEqual(width);
   });
 }
+
+for (const width of [320, 375]) {
+  test(`mini capture previews are bounded while detail and records retain full text at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 812 });
+    const read = (p: string) => readFileSync(p, "utf8");
+    const css = (
+      read("miniprogram/app.wxss") +
+      read("miniprogram/pages/index/index.wxss").replace(
+        '@import "../../lib/generated/client-ui.wxss";',
+        read("miniprogram/lib/generated/client-ui.wxss"),
+      )
+    ).replace(/(-?[\d.]+)rpx/g, (_, n) => `${(Number(n) * width) / 750}px`);
+    const full = Array.from(
+      { length: 20 },
+      (_, i) => `第${i + 1}行合成原文与摘要，完整内容始终保留。`,
+    ).join("\n");
+    await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}view,text{display:block}${css}</style>
+      <view class="page"><view class="current-delivery"><view class="card-paper"><text class="source-preview">${full}</text><text class="item-summary">${full}</text></view>
+      <view class="item-card"><text class="item-title">${full}</text><text class="item-summary">${full}</text></view></view></view>
+      <view class="sheet"><text class="source-preview record-original">${full}</text><text class="item-summary record-summary">${full}</text></view>
+      <view class="detail-sheet"><text class="detail-summary">${full}</text><text class="detail-line">${full}</text></view>`);
+    const limits: [string, number][] = [
+      [".current-delivery .source-preview", 5],
+      [".current-delivery > .card-paper > .item-summary", 4],
+      [".current-delivery .item-card .item-title", 2],
+      [".current-delivery .item-card .item-summary", 3],
+    ];
+    for (const [selector, lines] of limits) {
+      const el = page.locator(selector);
+      await expect(el).toHaveText(full);
+      const box = await el.evaluate((node) => ({
+        height: node.getBoundingClientRect().height,
+        line: parseFloat(getComputedStyle(node).lineHeight),
+        clamp: getComputedStyle(node).webkitLineClamp,
+        scroll: node.scrollHeight,
+      }));
+      expect(box.clamp).toBe(String(lines));
+      expect(box.height).toBeLessThanOrEqual(box.line * lines + 0.2);
+      expect(box.height).toBeGreaterThanOrEqual(box.line * lines - 0.2);
+      expect(box.scroll).toBeGreaterThan(box.height);
+    }
+    for (const selector of [
+      ".record-original",
+      ".record-summary",
+      ".detail-summary",
+      ".detail-line",
+    ]) {
+      await expect(page.locator(selector)).toHaveText(full);
+      await expect(page.locator(selector)).toHaveCSS(
+        "-webkit-line-clamp",
+        "none",
+      );
+    }
+    await expect(
+      page.locator(".current-delivery .item-summary").first(),
+    ).toHaveCSS("color", "rgb(92, 88, 74)");
+    await page.locator(".page").screenshot({
+      path: `test-results/mini-typography-${width}-${test.info().project.name}.png`,
+    });
+  });
+}
