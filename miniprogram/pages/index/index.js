@@ -58,6 +58,7 @@ Page({
     tab: "capture",
     dragId: "",
     dragGhost: null,
+    dragSettling: false,
     dragScrollTop: 0,
     dragNotice: "",
     ddlDays: [1, 3, 7, 14, 30],
@@ -288,7 +289,7 @@ Page({
     this._refresh();
   },
   _refresh() {
-    if (this._drag) return;
+    if (this._drag || this._completionLock) return;
     if (!this._client) return;
     try {
       const library = this._library();
@@ -1221,7 +1222,7 @@ Page({
     this.setData({ recordPage: next });
     this._refresh();
   },
-  _changeItem(id, changes) {
+  _changeItem(id, changes, deferRefresh = false) {
     const row = itemsFor(this._client.records()).find((r) => r.id === id);
     if (!row || row.packetDeleted) throw new Error("请先恢复整次投递");
     const patch = statePatch(this._record(row.packetId).data, row, changes);
@@ -1234,7 +1235,7 @@ Page({
       this.setData({
         selected: { ...this.data.selected, id: patch.itemIds[row.index] },
       });
-    this._refresh();
+    if (!deferRefresh) this._refresh();
     this.syncQuietly();
   },
   async toggleDone(event) {
@@ -1244,30 +1245,29 @@ Page({
     try {
       const row = this._detail(event.currentTarget.dataset.id);
       if (!row || row.deleted) return;
-      if (!(row.kind === "habit" ? row.checked : row.done)) {
-        this.setData({ checkingId: row.id });
-        await new Promise((resolve) => setTimeout(resolve, 230));
-      }
-      if (row.kind !== "habit") {
-        this.setData({ leavingId: row.id });
-        await new Promise((resolve) => setTimeout(resolve, 170));
-      }
-      const current = this._detail(row.id);
-      if (!current || current.deleted) return;
+      // Persist first: a missed animation or interrupted page must not lose the action.
       this._changeItem(
         row.id,
-        current.kind === "habit"
-          ? habitCheckin(current.meta, localDay())
+        row.kind === "habit"
+          ? habitCheckin(row.meta, localDay())
           : {
-              status: current.done ? "active" : "done",
-              completedAt: current.done ? "" : new Date().toISOString(),
+              status: row.done ? "active" : "done",
+              completedAt: row.done ? "" : new Date().toISOString(),
             },
+        true,
       );
+      this.setData({ checkingId: row.id });
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      if (row.kind !== "habit") {
+        this.setData({ leavingId: row.id });
+        await new Promise((resolve) => setTimeout(resolve, 160));
+      }
     } catch (error) {
       this._error(error);
     } finally {
       this.setData({ checkingId: "", leavingId: "" });
       this._completionLock = false;
+      this._refresh();
     }
   },
   toggleStar(event) {
@@ -1282,7 +1282,13 @@ Page({
   togglePin(event) {
     try {
       const row = this._detail(event.currentTarget.dataset.id);
+      if (this._blockDragTap()) return;
+      wx.setStorageSync(FILTERS, { sort: "priority" });
+      this.setData({ sort: "priority", sortIndex: 0 });
       this._changeItem(row.id, { pinned: !row.pinned });
+      this.setData({
+        notice: row.pinned ? "已取消置顶" : "已置顶，世界已切换为优先处理",
+      });
     } catch (error) {
       this._error(error);
     }

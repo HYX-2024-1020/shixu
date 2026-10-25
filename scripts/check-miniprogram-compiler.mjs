@@ -20,7 +20,12 @@ const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
 const exe = process.platform === "win32" ? ".exe" : "";
 execFileSync(
   join(directory, "wcc" + exe),
-  ["-o", join(temporary, "page.js"), "pages/index/index.wxml"],
+  [
+    "-o",
+    join(temporary, "page.js"),
+    "pages/index/index.wxml",
+    "lib/drag-gesture.wxs",
+  ],
   { cwd: mini, stdio: "pipe" },
 );
 execFileSync(
@@ -112,7 +117,7 @@ assert.ok(
   view().some(
     (node) =>
       node.attr?.bindlongpress === "startDrag" &&
-      node.attr?.bindtouchmove === "dragTouchMove",
+      typeof node.attr?.["$wxs:bindtouchmove"] === "function",
   ),
   "long press and tracked movement compiled",
 );
@@ -120,7 +125,7 @@ assert.ok(
   view().some(
     (node) =>
       node.attr?.catchtap === "confirmRemoveItem" &&
-      node.attr?.catchtouchstart === "stopTap",
+      node.attr?.catchtouchstart === "onCardActionStart",
   ),
   "discoverable deletion cannot arm a parent drag",
 );
@@ -134,7 +139,7 @@ assert.ok(
   "drag placeholder compiled",
 );
 assert.ok(
-  view().some((node) => node.attr?.class === "drag-ghost"),
+  view().some((node) => node.attr?.class?.split(/\s+/).includes("drag-ghost")),
   "drag preview compiled",
 );
 page.setData({ dragId: "", dragGhost: null });

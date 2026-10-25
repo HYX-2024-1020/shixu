@@ -59,8 +59,9 @@ function fixture({
   );
   const page = Object.assign({}, definition, {
     data: structuredClone(definition.data),
-    setData(value) {
+    setData(value, callback) {
       Object.assign(this.data, value);
+      if (callback) callback();
     },
   });
   page.onLoad();
@@ -419,10 +420,13 @@ test("every WXML event resolves to an actual page handler", () => {
   assert.equal(xml.includes("<span"), false);
   for (const expression of xml.matchAll(/\{\{([\s\S]*?)\}\}/g)) {
     // HTML formatters can insert a newline inside WXML string literals.
-    assert.doesNotThrow(
-      () => new vm.Script(`(${expression[1]})`),
-      expression[1],
-    );
+    assert.doesNotThrow(() => {
+      try {
+        new vm.Script(`(${expression[1]})`);
+      } catch {
+        new vm.Script(`({${expression[1]}})`);
+      }
+    }, expression[1]);
   }
 });
 test("lost AI acknowledgement persists a stable request and retries it after page restart", async () => {
@@ -1133,4 +1137,68 @@ test("interleaved group reordering replaces only that group's slots", () => {
     "a",
     "d",
   ]);
+});
+
+test("releasing outside a slot after a valid preview returns all ranks to their original positions", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  assert.equal(p._drag.validDrop, true);
+  f.move(420, 90);
+  assert.equal(p._drag.validDrop, false);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  assert.equal(p.data.dragSettling, true);
+  assert.equal(p.data.dragGhost.left, 0);
+  p.cancelDrag();
+});
+test("completion persists before animation, fresh control touches bypass only stale release suppression, and state survives restart", async () => {
+  const f = seeded(),
+    p = f.page;
+  p._dragTapUntil = Date.now() + 1000;
+  p.onCardActionStart();
+  const animation = p.toggleDone(event("task-a"));
+  assert.equal(p._detail("task-a").done, true);
+  assert.equal(p.data.checkingId, "task-a");
+  await animation;
+  assert.equal(fixture({ store: f.store }).page._detail("task-a").done, true);
+});
+test("pinning after drag selects Windows priority ranking and brings the item to the top on reopen", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.onCardActionStart();
+  p.togglePin(event("task-d"));
+  assert.equal(p.data.sort, "priority");
+  assert.equal(p.data.items[0].id, "task-d");
+  assert.equal(fixture({ store: f.store }).page.data.items[0].id, "task-d");
+});
+test("FLIP preview animates sibling slots and clears the inverse transform before settling", async () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(250, 90);
+  assert.ok(p.data.items.some((row) => /translate/.test(row.dragStyle)));
+  await new Promise((resolve) => setTimeout(resolve, 45));
+  assert.ok(p.data.items.every((row) => !row.dragStyle));
+  p.cancelDrag();
+});
+test("view-layer drag gate allows ordinary scroll, blocks finger scroll while lifted, and forwards touch coordinates", () => {
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(
+    readFileSync(resolve(__dirname, "../lib/drag-gesture.wxs"), "utf8"),
+    context,
+  );
+  const calls = [],
+    owner = { callMethod: (...args) => calls.push(args) };
+  const e = {
+    touches: [{ identifier: 0, clientX: 20, clientY: 400 }],
+    currentTarget: { dataset: { dragging: false } },
+  };
+  assert.equal(context.module.exports.move(e, owner), undefined);
+  e.currentTarget.dataset.dragging = true;
+  assert.equal(context.module.exports.move(e, owner), false);
+  assert.equal(calls[1][0], "dragTouchMove");
+  assert.equal(calls[1][1].touches[0].clientY, 400);
 });

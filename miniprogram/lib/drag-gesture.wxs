@@ -1,0 +1,7 @@
+// WXS runs in the view layer. A held card consumes finger scrolling only after
+// long press; scroll-y remains enabled so programmatic edge scrolling still works.
+function move(event, owner) {
+  owner.callMethod('dragTouchMove', {touches: event.touches});
+  if (event.currentTarget.dataset.dragging) return false;
+}
+module.exports = {move: move};

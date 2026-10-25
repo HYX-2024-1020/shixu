@@ -53,12 +53,7 @@ function nearestSlot(rects, x, y, scrollDelta) {
     distance = Infinity;
   for (const rect of rects) {
     const top = rect.top - scrollDelta;
-    if (
-      x < rect.left - 12 ||
-      x > rect.right + 12 ||
-      y < top - 12 ||
-      y > top + rect.height + 12
-    )
+    if (x < rect.left || x > rect.right || y < top || y > top + rect.height)
       continue;
     const d =
       (rect.left + rect.width / 2 - x) ** 2 + (top + rect.height / 2 - y) ** 2;
@@ -73,6 +68,16 @@ function createTouchOrder(wx) {
   return {
     _blockDragTap() {
       return !!this._drag || Date.now() < (this._dragTapUntil || 0);
+    },
+    onCardActionStart() {
+      if (this._drag) return;
+      this._dragTouch = null;
+      this._dragTapUntil = 0;
+      this._stopDragSettle();
+    },
+    _stopDragSettle() {
+      clearTimeout(this._dragSettleTimer);
+      this.setData({ dragSettling: false, dragGhost: null });
     },
     onWorkspaceScroll(event) {
       const top = event.detail.scrollTop;
@@ -98,6 +103,8 @@ function createTouchOrder(wx) {
         event.touches.length !== 1
       )
         return;
+      this._stopDragSettle();
+      this._dragTapUntil = 0;
       const touch = event.touches[0];
       this._dragTouch = {
         id: event.currentTarget.dataset.id,
@@ -195,6 +202,7 @@ function createTouchOrder(wx) {
           !slots.some((rect) => rect.dataset.id === row.id)
         )
           return;
+        const origin = slots.find((rect) => rect.dataset.id === row.id);
         const order = slots.map((rect) => rect.dataset.id);
         const groups = new Map(
           visible.map((r) => [
@@ -206,6 +214,10 @@ function createTouchOrder(wx) {
         );
         const s = (this._drag = {
           ...candidate,
+          origin,
+          validDrop: true,
+          offsetX: candidate.x - origin.left,
+          offsetY: candidate.y - origin.top,
           x: candidate.x,
           y: candidate.y,
           bounds,
@@ -246,32 +258,52 @@ function createTouchOrder(wx) {
       if (!s) return;
       const delta = (this._scrollTop || 0) - s.baseline;
       const slot = nearestSlot(s.rects, s.x, s.y, delta);
-      const next =
-        slot === undefined
-          ? s.order
-          : moveInGroup(s.order, s.id, s.order[slot], s.groups);
+      const target = slot === undefined ? null : s.order[slot];
+      s.validDrop =
+        !!target &&
+        s.groups.get(target) === s.groups.get(s.id) &&
+        s.x >= s.bounds.left &&
+        s.x <= s.bounds.right &&
+        s.y >= s.bounds.top &&
+        s.y <= s.bounds.bottom &&
+        !s.cancelDrop;
+      const next = s.validDrop
+        ? moveInGroup(s.order, s.id, target, s.groups)
+        : s.order;
       this.setData({
+        dragNotice: s.validDrop ? "松手放在这里" : "此处不能放置，松手回原位",
         dragGhost: {
           title: s.rows.get(s.id).title,
-          width: Math.min(210, s.bounds.width - 24),
-          left: Math.max(
-            s.bounds.left + 8,
-            Math.min(s.x - 64, s.bounds.right - 218),
-          ),
-          top: Math.max(s.bounds.top, Math.min(s.y - 42, s.bounds.bottom - 90)),
+          summary: s.rows.get(s.id).summary,
+          width: s.origin.width,
+          height: s.origin.height,
+          left: s.x - s.offsetX,
+          top: s.y - s.offsetY,
         },
       });
       if (next !== s.order) {
+        const before = s.order;
         s.order = next;
-        this._previewDrag();
+        this._previewDrag(before);
       }
     },
-    _previewDrag() {
+    _previewDrag(before) {
       const s = this._drag,
         positions = new Map(s.order.map((id, i) => [id, i]));
+      const old = new Map((before || s.order).map((id, i) => [id, i]));
       const sort = (rows) =>
         rows
-          .slice()
+          .map((row) => {
+            const from = s.rects[old.get(row.id)],
+              to = s.rects[positions.get(row.id)];
+            return {
+              ...row,
+              dragStyle:
+                before && from && to
+                  ? `transform:translate(${from.left - to.left}px,${from.top - to.top}px);transition:none;`
+                  : "",
+            };
+          })
           .sort(
             (a, b) =>
               (positions.get(a.id) ?? 1e9) - (positions.get(b.id) ?? 1e9),
@@ -294,6 +326,14 @@ function createTouchOrder(wx) {
                 rows: sort(section.rows),
               })),
             },
+        before
+          ? () => {
+              clearTimeout(s.reflowTimer);
+              s.reflowTimer = setTimeout(() => {
+                if (this._drag === s) this._previewDrag();
+              }, 24);
+            }
+          : undefined,
       );
     },
     _dragTick() {
@@ -322,34 +362,67 @@ function createTouchOrder(wx) {
         this._updateDrag();
       }
     },
-    _clearDrag() {
+    _clearDrag(keepGhost = false) {
       const s = this._drag;
-      if (s) clearInterval(s.timer);
+      if (s) {
+        clearInterval(s.timer);
+        clearTimeout(s.reflowTimer);
+      }
       this._drag = null;
       this._dragTouch = null;
       if (s) this._dragTapUntil = Date.now() + 500;
-      this.setData({ dragId: "", dragGhost: null });
+      this.setData({
+        dragId: "",
+        ...(keepGhost ? {} : { dragGhost: null, dragSettling: false }),
+      });
       return s;
     },
-    cancelDrag() {
-      const s = this._clearDrag();
+    cancelDrag(event) {
+      const animate = !!event && !!this._drag;
+      if (!animate) this._stopDragSettle();
+      const s = this._clearDrag(animate);
       if (s) {
         this.setData(s.initialLists);
         this._refresh();
+        if (animate) this._settleDrag(s, true);
       }
+    },
+    _settleDrag(s, restore) {
+      const index = (restore ? s.original : s.order).indexOf(s.id);
+      const target = s.rects[index] || s.origin;
+      this.setData({
+        dragSettling: true,
+        dragGhost: {
+          title: s.rows.get(s.id).title,
+          summary: s.rows.get(s.id).summary,
+          left: target.left,
+          top: target.top - ((this._scrollTop || 0) - s.baseline),
+          width: target.width,
+          height: target.height,
+        },
+      });
+      this._dragSettleTimer = setTimeout(() => this._stopDragSettle(), 260);
     },
     finishDrag(event) {
       if (event?.touches?.length) {
         this.cancelDrag();
         return;
       }
-      const s = this._clearDrag();
+      if (this._drag && event?.changedTouches?.[0]) {
+        const touch = event.changedTouches[0];
+        this._drag.x = touch.clientX;
+        this._drag.y = touch.clientY;
+        this._updateDrag();
+      }
+      const s = this._clearDrag(true);
       if (!s) return;
-      if (s.cancelDrop) {
+      if (!s.validDrop || s.cancelDrop) {
         this.setData(s.initialLists);
         this._refresh();
+        this._settleDrag(s, true);
         return;
       }
+      let restore = false;
       try {
         if (
           fingerprint(this._client.records()) !== s.fingerprint ||
@@ -379,9 +452,11 @@ function createTouchOrder(wx) {
           this.syncQuietly();
         }
       } catch (error) {
+        restore = true;
         this._error(error);
       }
       this._refresh();
+      this._settleDrag(s, restore);
     },
     _persistCardOrder(rows, ids) {
       const byId = new Map(rows.map((row) => [row.id, row])),
