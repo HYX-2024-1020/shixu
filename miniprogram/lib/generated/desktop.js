@@ -22,11 +22,13 @@ var stdin_exports = {};
 __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
+  SKIN_INTERACTION: () => SKIN_INTERACTION,
   SKIN_MOTIONS: () => SKIN_MOTIONS,
   absoluteItem: () => absoluteItem,
   absoluteText: () => absoluteText,
   buildGroups: () => buildGroups,
   cardCopy: () => cardCopy,
+  categories: () => categories,
   compareItems: () => compareItems,
   deadlineLabel: () => deadlineLabel,
   deadlineSections: () => deadlineSections,
@@ -40,6 +42,22 @@ __export(stdin_exports, {
   setDeadline: () => setDeadline
 });
 module.exports = __toCommonJS(stdin_exports);
+
+// src/bucket/client-ui.ts
+var categories = {
+  task: "任务",
+  event: "日程 / 活动",
+  idea: "灵感",
+  habit: "习惯",
+  notice: "通知",
+  note: "资料 / 笔记",
+  other: "其他"
+};
+var SKIN_INTERACTION = {
+  greetingMs: 3200,
+  feedingMs: 2800,
+  volume: 0.5
+};
 
 // src/bucket/skins.ts
 var SKIN_MOTIONS = {

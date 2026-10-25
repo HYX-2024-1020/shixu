@@ -14,6 +14,7 @@ function fixture({
   modal = { confirm: true, content: "手动事项" },
   audio = null,
   failAudio = false,
+  clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
   const context = {
@@ -24,8 +25,8 @@ function fixture({
     require: createRequire(resolve(__dirname, "../pages/index/index.js")),
     setInterval,
     clearInterval,
-    setTimeout,
-    clearTimeout,
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
     wx: {
       ...(audio || failAudio
         ? {
@@ -712,4 +713,46 @@ test("habit check-in retains the card, repairs legacy completion and keeps detai
     1,
   );
   assert.equal(reopened.data.activeCount, 2);
+});
+
+test("greeting and feeding restore idle copy and use shared durations", () => {
+  const scheduled = [];
+  const { page } = fixture({
+    clock: {
+      setTimeout(fn, ms) {
+        scheduled.push({ fn, ms });
+        return scheduled.length;
+      },
+      clearTimeout() {},
+    },
+  });
+  page.previewSkin(event("cat"));
+  page.setData({ activeSkin: page.data.previewSkin });
+  page.interactSkin();
+  assert.equal(page.data.skinMessage, page.data.activeSkin.greeting);
+  assert.equal(scheduled.at(-1).ms, desktop.SKIN_INTERACTION.greetingMs);
+  scheduled.at(-1).fn();
+  assert.equal(page.data.skinMessage, page.data.activeSkin.hello);
+  assert.equal(page.data.skinAnimating, false);
+  page.openSkins();
+  page.feedSkin();
+  assert.equal(scheduled.at(-1).ms, desktop.SKIN_INTERACTION.feedingMs);
+  assert.equal(page.data.skinAnimating, true);
+  scheduled.at(-1).fn();
+  assert.equal(page.data.skinMessage, page.data.previewSkin.hello);
+  page.onUnload();
+});
+
+test("world categories count the current scope and changing scope resets a hidden category", () => {
+  const { page } = fixture();
+  page._client.put("p", packet());
+  page._refresh();
+  assert.equal(page.data.categories.find((c) => c.key === "task").count, 1);
+  page.selectCategory({ currentTarget: { dataset: { kind: "idea" } } });
+  assert.equal(page.data.items.length, 1);
+  assert.equal(page.data.items[0].kind, "idea");
+  page.setScope({ currentTarget: { dataset: { scope: "done" } } });
+  assert.equal(page.data.kind, "all");
+  assert.equal(page.data.categories[0].count, 0);
+  page.onUnload();
 });
