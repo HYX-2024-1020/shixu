@@ -20,7 +20,7 @@ export async function accountUIFixture(ai = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "shixu-account-ui-"));
   const service = createMultiUserService({
     directory: path.join(root, "server"),
-    secret: "synthetic-ui-secret-with-32-characters",
+    secret: "fixture".repeat(8),
     wechat: async (code) => code,
     aiLimits: { enabled: true, taskBudgetMicros: 10, dailyBudgetMicros: 10000 },
     ai: {
