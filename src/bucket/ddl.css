@@ -157,6 +157,28 @@
 .time-rail b {
   font-size: 24px;
 }
+.time-rail .ddl-countdown {
+  color: #111;
+  background: #eee8ff;
+  border-bottom: 2px solid #7048e8;
+  padding: 3px 6px;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+.ddl-countdown[data-deadline-status="today"] {
+  background: #ffd43b;
+  border-color: #111;
+}
+.ddl-countdown[data-deadline-status="overdue"] {
+  background: #ffe5ee;
+  border-color: #d6336c;
+}
+.ddl-countdown[data-deadline-status="done"],
+.ddl-countdown[data-deadline-status="unsure"] {
+  background: #f1f1ed;
+  border-color: #888;
+}
 .time-rail small {
   color: #7048e8;
   font-size: 11px;
