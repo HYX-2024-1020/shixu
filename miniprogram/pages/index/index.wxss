@@ -328,10 +328,18 @@
 .starred {
   color: #9b6800;
 }
-.done-button {
-  width: 48rpx;
-  height: 48rpx;
-  min-height: 0;
+.done-button[size="mini"] {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 64rpx;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  min-width: 64rpx;
+  max-width: 64rpx;
+  height: 64rpx;
+  min-height: 64rpx;
+  max-height: 64rpx;
   border: 3rpx solid #111;
   border-radius: 50%;
   padding: 0;
@@ -340,8 +348,56 @@
   font-size: 30rpx;
 }
 .done-button.checked {
+  background: #ffd43b;
+  color: #111;
+}
+.completion-check {
+  position: relative;
+  width: 30rpx;
+  height: 28rpx;
+  pointer-events: none;
+}
+.check-short,
+.check-long {
+  position: absolute;
+  height: 3rpx;
+  border-radius: 2rpx;
   background: #111;
-  color: #fff;
+  transform-origin: left center;
+}
+.check-short {
+  left: 3rpx;
+  top: 11rpx;
+  width: 11rpx;
+  transform: rotate(45deg);
+}
+.check-long {
+  left: 11rpx;
+  top: 19rpx;
+  width: 21rpx;
+  transform: rotate(-45deg);
+}
+.is-checking .check-short {
+  animation: check-short-draw 70ms ease-out both;
+}
+.is-checking .check-long {
+  animation: check-long-draw 110ms 70ms ease-out both;
+}
+@keyframes check-short-draw {
+  from {
+    transform: rotate(45deg) scaleX(0);
+  }
+  to {
+    transform: rotate(45deg) scaleX(1);
+  }
+}
+@keyframes check-long-draw {
+  from {
+    transform: rotate(-45deg) scaleX(0);
+  }
+  to {
+    transform: rotate(-45deg) scaleX(1);
+  }
 }
 .done-card {
   opacity: 0.78;
