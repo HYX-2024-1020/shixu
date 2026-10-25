@@ -57,6 +57,7 @@ Page({
   data: {
     tab: "capture",
     dragId: "",
+    dragView: null,
     dragGhost: null,
     dragSettling: false,
     dragScrollTop: 0,
@@ -1078,9 +1079,21 @@ Page({
       this.setData({ [field]: event.detail.value });
   },
   verifyDdl(event) {
-    if (this._blockDragTap()) return;
-    this.openItem(event);
-    this.beginEdit();
+    if (this._drag || this._completionLock) return;
+    try {
+      const row = this._presentDetail(
+        this._detail(event.currentTarget.dataset.id),
+      );
+      if (!row || row.deleted) throw Error("事项已更新，请重新打开");
+      this.setData({
+        selected: row,
+        addition: "",
+        error: "",
+        ...this._editFields(row),
+      });
+    } catch (error) {
+      this._error(error);
+    }
   },
   addDdl() {
     try {
@@ -1375,10 +1388,8 @@ Page({
       },
     });
   },
-  beginEdit() {
-    const row = this.data.selected;
-    if (!row || row.deleted) return;
-    this.setData({
+  _editFields(row) {
+    return {
       editing: true,
       editTitle: row.item.title,
       editSummary: row.item.summary || "",
@@ -1386,7 +1397,11 @@ Page({
       editDate: row.startDate ? row.timeLabel.replace(" → ", " 至 ") : row.date,
       editTime: row.startDate ? "" : row.time,
       editKind: Object.keys(KINDS).indexOf(row.kind),
-    });
+    };
+  },
+  beginEdit() {
+    const row = this.data.selected;
+    if (row && !row.deleted) this.setData(this._editFields(row));
   },
   onEdit(event) {
     const field = event.currentTarget.dataset.field;

@@ -1237,3 +1237,90 @@ test("drop inference resists midpoint jitter and cannot snap through a foreign g
   assert.equal(p._drag.validDrop, false);
   p.cancelDrag();
 });
+
+test("DDL verify is an independent action that opens grounded clock editing even immediately after a drag", () => {
+  const f = seeded(),
+    p = f.page;
+  p._dragTapUntil = Date.now() + 1000;
+  p.verifyDdl(event("task-a"));
+  assert.equal(p.data.selected.id, "task-a");
+  assert.equal(p.data.editing, true);
+  assert.equal(p.data.editTime, "15:00");
+  assert.equal(p.data.editDate, "2026-10-24");
+});
+test("grip starts on movement without waiting for a long-press event", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const e = f.touch("task-a", 80, 90);
+  e.currentTarget.dataset.immediate = true;
+  p.dragTouchStart(e);
+  assert.equal(p.data.dragId, "");
+  f.move(90, 100);
+  assert.equal(p.data.dragId, "task-a");
+  p.cancelDrag();
+});
+test("view-thread following paints every move while throttling bridge work, and bakes the exact final pointer on release", () => {
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(
+    readFileSync(resolve(__dirname, "../lib/drag-gesture.wxs"), "utf8"),
+    context,
+  );
+  const styles = [],
+    calls = [],
+    ghost = { setStyle: (value) => styles.push(value) };
+  const owner = {
+    selectComponent: (id) => {
+      assert.equal(id, "#drag-ghost");
+      return ghost;
+    },
+    callMethod: (...args) => calls.push(args),
+  };
+  for (let i = 1; i <= 8; i++)
+    context.module.exports.move(
+      {
+        timeStamp: i * 8,
+        touches: [{ clientX: 100 + i, clientY: 200 + i }],
+        currentTarget: {
+          dataset: {
+            dragging: true,
+            follow: { x: 100, y: 200, left: 20, top: 40, token: 1 },
+          },
+        },
+      },
+      owner,
+    );
+  assert.equal(styles.length, 8);
+  assert.ok(calls.length < 4);
+  assert.match(styles[7].transform, /8px,8px/);
+  context.module.exports.end(
+    {
+      touches: [],
+      changedTouches: [{ clientX: 150, clientY: 260 }],
+      currentTarget: {
+        dataset: {
+          dragging: true,
+          follow: { x: 100, y: 200, left: 20, top: 40, token: 1 },
+        },
+      },
+    },
+    owner,
+  );
+  assert.equal(styles[8].left, "70px");
+  assert.equal(styles[8].top, "100px");
+  assert.equal(calls[calls.length - 1][0], "finishDrag");
+  assert.equal(calls[calls.length - 1][1].changedTouches[0].clientY, 260);
+});
+test("view-follow hit testing does not resend ghost positions over setData for every move", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  const writes = [],
+    original = p.setData;
+  p.setData = function (value, callback) {
+    writes.push(value);
+    original.call(this, value, callback);
+  };
+  p.dragTouchMove({ ...f.touch("task-a", 85, 95), viewFollow: true });
+  assert.equal(writes.filter((value) => value.dragGhost).length, 0);
+  p.cancelDrag();
+});

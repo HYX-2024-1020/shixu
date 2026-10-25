@@ -1,12 +1,12 @@
 <wxs module="dragGesture" src="../../lib/drag-gesture.wxs"/>
 <template name="ddlCard">
-  <view style="{{row.dragStyle}}" class="ddl-item drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" bindtouchend="finishDrag" bindtouchcancel="cancelDrag">
-    <view class="ddl-time" data-id="{{row.id}}" catchtap="verifyDdl" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap"><text>{{row.date || '待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对 ↗</text></view>
+  <view style="{{row.dragStyle}}" class="ddl-item drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}">
+    <view class="ddl-time"><text class="ddl-date">{{row.date || '待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><button class="ddl-verify-button" aria-label="核对截止时间" data-id="{{row.id}}" catchtap="verifyDdl" catchtouchstart="onCardActionStart">核对时间 ↗</button></view>
     <view class="ddl-row"><button size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? '今日打卡 / 撤销打卡' : row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button><view class="ddl-copy" data-id="{{row.id}}" catchtap="openItem"><text class="item-title">{{row.title}}</text><text class="ddl-status">{{row.kind === 'habit' ? (row.checked ? '今日已打卡' : '今日待打卡') : row.done ? '已完成' : '待完成'}}{{row.group ? ' · ' + row.group : ''}}{{row.startDate ? ' · 时间区间' : ''}} · 详情 ↗</text></view><button class="compact-delete" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" aria-label="删除事项">删除</button></view>
   </view>
 </template>
 <template name="itemCard">
-  <view style="{{row.dragStyle}}" class="item-card drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} shadow-{{row.shadowIndex}} kind-{{row.kind}} {{row.pinned ? 'is-pinned' : ''}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="openItem" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" bindtouchend="finishDrag" bindtouchcancel="cancelDrag">
+  <view style="{{row.dragStyle}}" class="item-card drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} shadow-{{row.shadowIndex}} kind-{{row.kind}} {{row.pinned ? 'is-pinned' : ''}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="openItem" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}">
     <view class="card-top">
       <button wx:if="{{row.deleted}}" class="text-button" data-id="{{row.id}}" catchtap="restoreItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap">恢复</button>
       <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成 / 归档' : row.kind === 'task' ? '完成' : '归档'}}" data-id="{{row.id}}" catchtap="toggleDone" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button>
@@ -18,7 +18,7 @@
     <view class="card-foot">
       <button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap">{{row.attachmentCount ? row.attachmentCount + ' 份材料 · 详情' : '原文与详情'}} ↗</button>
       <text wx:if="{{row.kind === 'habit'}}">{{row.checked ? '今日已打卡' : '今日打卡'}} · 累计 {{row.checkinCount}} 天</text>
-      <view class="card-actions"><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap">删除</button><view wx:if="{{!row.deleted && allowDrag}}" class="drag-grip" role="button" aria-label="长按移动事项" data-id="{{row.id}}" catchtouchstart="dragTouchStart" catchlongpress="startDrag" catchtouchmove="dragTouchMove" catchtouchend="finishDrag" catchtouchcancel="cancelDrag" catchtap="stopTap">⠿</view></view>
+      <view class="card-actions"><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap">删除</button><view wx:if="{{!row.deleted && allowDrag}}" class="drag-grip" role="button" aria-label="长按移动事项" data-id="{{row.id}}" data-immediate="{{true}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" catchtouchstart="dragTouchStart" catchlongpress="startDrag" catchtouchmove="{{dragGesture.move}}" catchtouchend="{{dragGesture.end}}" catchtouchcancel="{{dragGesture.cancel}}" catchtap="stopTap">⠿</view></view>
     </view>
   </view>
 </template>
@@ -95,7 +95,7 @@
           </button></view
         ></view
       ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
     ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
@@ -152,10 +152,10 @@
       ><view wx:for="{{sections}}" wx:key="title"
         ><text class="group-title">{{item.title}} · {{item.items.length}}</text
         ><view class="world-grid"><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block></view></view></block
+          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block></view></view></block
     ><view wx:else class="world-grid"
       ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
     ></view>
     <button
       wx:if="{{matched > items.length}}"
@@ -171,11 +171,11 @@
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
     <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><view class="ddl-slider" role="slider" aria-label="未来时间窗"><view class="ddl-slider-rail"><view class="ddl-slider-square" style="left: {{ddlIndex * 25}}%"></view></view><slider class="ddl-native-slider" min="0" max="4" step="1" block-size="32" value="{{ddlIndex}}" bindchanging="previewDdlWindow" bindchange="setDdlWindow"/></view><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this" class="{{index === ddlIndex ? 'selected' : ''}}" data-index="{{index}}" bindtap="chooseDdlWindow">{{item}} 天</text></view></view>
     <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
-    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId}}"/></block>
-    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId}}"/></view>
+    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block>
+    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></view>
     <view wx:if="{{!ddlSections.length}}" class="ddl-empty">{{ddlCount ? '这个时间窗里没有待交事项。' : ddlDone.length ? '全都完成了，轻松一下。' : '还没有截止事项，把通知丢进桶里，或在下方补充。'}}</view>
-    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId}}"/></block></view>
-    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId}}"/></block></view>
+    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block></view>
+    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block></view>
     <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
     <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
     <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
@@ -629,5 +629,5 @@
 
 <view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal">×</button></view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>
 
-<view wx:if="{{dragGhost}}" class="drag-ghost {{dragSettling ? 'is-settling' : ''}}" style="height: {{dragGhost.height}}px; left: {{dragGhost.left}}px; top: {{dragGhost.top}}px; width: {{dragGhost.width}}px;"><text class="drag-ghost-label">移动中 · 松手放下</text><text class="drag-ghost-title">{{dragGhost.title}}</text><text class="drag-ghost-summary">{{dragGhost.summary}}</text></view>
+<view wx:if="{{dragGhost}}" id="drag-ghost" class="drag-ghost {{dragSettling ? 'is-settling' : ''}}" style="transform: {{dragGhost.transform || 'scale(1.025)'}}; height: {{dragGhost.height}}px; left: {{dragGhost.left}}px; top: {{dragGhost.top}}px; width: {{dragGhost.width}}px;"><text class="drag-ghost-label">移动中 · 松手放下</text><text class="drag-ghost-title">{{dragGhost.title}}</text><text class="drag-ghost-summary">{{dragGhost.summary}}</text></view>
 <view wx:if="{{dragId}}" class="drag-toolbar"><text>{{dragNotice}}</text><button bindtap="cancelDrag">取消移动</button></view>

@@ -1845,3 +1845,35 @@ page {
 .drag-grip {
   font-size: 22px;
 }
+.page .ddl-time {
+  padding: 4rpx 6rpx;
+  gap: 0;
+}
+.page .ddl-time .ddl-date {
+  font-size: 20rpx;
+  color: #655f50;
+  line-height: 1.35;
+}
+.page .ddl-time .ddl-clock {
+  margin: 0;
+  font-size: 29rpx;
+  line-height: 1.25;
+  color: #111;
+  font-weight: 600;
+}
+.ddl-verify-button {
+  width: 100%;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: #7048e8;
+  font-size: 22rpx;
+  line-height: 44px;
+}
+.drag-ghost {
+  animation: none;
+  will-change: transform;
+}

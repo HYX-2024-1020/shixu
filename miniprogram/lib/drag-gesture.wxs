@@ -1,7 +1,46 @@
-// WXS runs in the view layer. A held card consumes finger scrolling only after
-// long press; scroll-y remains enabled so programmatic edge scrolling still works.
+// Move the floating card on the view thread; hit testing/persistence can trail
+// behind at 32ms without making the visible card trail behind the finger.
+var lastToken = null;
+var lastSent = 0;
+var lastPaintToken = null;
+function paint(event, owner, bake) {
+  var touch = event.touches && event.touches[0];
+  if (!touch && event.changedTouches) touch = event.changedTouches[0];
+  var data = event.currentTarget.dataset;
+  var follow = data.follow;
+  var ghost = owner.selectComponent && owner.selectComponent('#drag-ghost');
+  if (!data.dragging || !follow || !touch || !ghost) return false;
+  var dx = touch.clientX - follow.x;
+  var dy = touch.clientY - follow.y;
+  if (bake) {
+    ghost.setStyle({left: (follow.left + dx) + 'px', top: (follow.top + dy) + 'px', transform: 'scale(1.025)'});
+  } else {
+    var style = {transform: 'translate3d(' + dx + 'px,' + dy + 'px,0) scale(1.025)'};
+    // Re-anchor once when taking over from the initial logic-thread render.
+    if (lastPaintToken !== follow.token) {style.left = follow.left + 'px'; style.top = follow.top + 'px';}
+    ghost.setStyle(style);
+  }
+  lastPaintToken = follow.token;
+  return true;
+}
 function move(event, owner) {
-  owner.callMethod('dragTouchMove', {touches: event.touches});
+  var following = paint(event, owner, false);
+  var token = event.currentTarget.dataset.follow;
+  token = token && token.token;
+  if (token !== lastToken) {lastToken = token; lastSent = 0;}
+  var now = event.timeStamp || 0;
+  if (!following || !lastSent || !now || now - lastSent >= 32) {
+    owner.callMethod('dragTouchMove', {touches: event.touches, viewFollow: following});
+    lastSent = now;
+  }
   if (event.currentTarget.dataset.dragging) return false;
 }
-module.exports = {move: move};
+function end(event, owner) {
+  var following = paint(event, owner, true);
+  owner.callMethod('finishDrag', {touches: event.touches, changedTouches: event.changedTouches, viewFollow: following});
+}
+function cancel(event, owner) {
+  paint(event, owner, true);
+  owner.callMethod('cancelDrag', {type: 'touchcancel'});
+}
+module.exports = {move: move, end: end, cancel: cancel};

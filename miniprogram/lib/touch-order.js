@@ -95,6 +95,7 @@ function createTouchOrder(wx) {
     },
     onCardActionStart() {
       if (this._drag) return;
+      clearTimeout(this._dragHoldTimer);
       this._dragTouch = null;
       this._dragTapUntil = 0;
       this._stopDragSettle();
@@ -135,8 +136,18 @@ function createTouchOrder(wx) {
         x: touch.clientX,
         y: touch.clientY,
         identifier: touch.identifier,
+        immediate: !!event.currentTarget.dataset.immediate,
         scrollTop: this._scrollTop || 0,
       };
+      clearTimeout(this._dragHoldTimer);
+      const candidate = this._dragTouch;
+      if (!candidate.immediate)
+        this._dragHoldTimer = setTimeout(() => {
+          if (this._dragTouch === candidate)
+            this.startDrag({
+              currentTarget: { dataset: { id: candidate.id } },
+            });
+        }, 220);
     },
     dragTouchMove(event) {
       const touch = event.touches[0],
@@ -147,28 +158,29 @@ function createTouchOrder(wx) {
       }
       if (!s) {
         const candidate = this._dragTouch;
-        if (
-          candidate &&
-          Math.hypot(touch.clientX - candidate.x, touch.clientY - candidate.y) >
-            7
-        )
+        if (!candidate) return;
+        const distance = Math.hypot(
+          touch.clientX - candidate.x,
+          touch.clientY - candidate.y,
+        );
+        candidate.latest = { x: touch.clientX, y: touch.clientY };
+        if (candidate.activating) return;
+        if (candidate.immediate && distance > 4) {
+          this.startDrag({ currentTarget: { dataset: { id: candidate.id } } });
+        } else if (distance > 7) {
+          clearTimeout(this._dragHoldTimer);
           this._dragTouch = null;
+        }
         return;
       }
       if (touch.identifier !== s.identifier) {
         this.cancelDrag();
         return;
       }
+      s.viewFollow = !!event.viewFollow;
       s.x = touch.clientX;
       s.y = touch.clientY;
       s.cancelDrop = s.y > s.bounds.bottom - 64 && s.x > s.bounds.right - 120;
-      this.setData({
-        dragNotice: s.cancelDrop
-          ? "松手取消移动"
-          : s.tab === "ddl"
-            ? "同一日期内移动 · 截止时间不变"
-            : "松手保存顺序",
-      });
       this._updateDrag();
     },
     startDrag(event) {
@@ -177,9 +189,12 @@ function createTouchOrder(wx) {
         !candidate ||
         candidate.id !== event.currentTarget.dataset.id ||
         this._drag ||
+        candidate.activating ||
         (this.data.scope === "trash" && this.data.tab === "world")
       )
         return;
+      clearTimeout(this._dragHoldTimer);
+      candidate.activating = true;
       // Measure real native slots, including both grid columns, once per gesture.
       const query = wx.createSelectorQuery().in(this);
       query.select(".workspace-scroll").boundingClientRect();
@@ -242,8 +257,8 @@ function createTouchOrder(wx) {
           validDrop: true,
           offsetX: candidate.x - origin.left,
           offsetY: candidate.y - origin.top,
-          x: candidate.x,
-          y: candidate.y,
+          x: candidate.latest?.x ?? candidate.x,
+          y: candidate.latest?.y ?? candidate.y,
           bounds,
           all,
           rows,
@@ -266,6 +281,21 @@ function createTouchOrder(wx) {
         this._dragTapUntil = Date.now() + 700;
         this.setData({
           dragScrollTop: this._scrollTop || 0,
+          dragView: {
+            x: candidate.x,
+            y: candidate.y,
+            left: origin.left,
+            top: origin.top,
+            token: (this._dragToken = (this._dragToken || 0) + 1),
+          },
+          dragGhost: {
+            title: row.title,
+            summary: row.summary,
+            width: origin.width,
+            height: origin.height,
+            left: origin.left,
+            top: origin.top,
+          },
           dragId: row.id,
           dragNotice:
             this.data.tab === "ddl"
@@ -295,17 +325,19 @@ function createTouchOrder(wx) {
       const next = s.validDrop
         ? moveInGroup(s.order, s.id, target, s.groups)
         : s.order;
-      this.setData({
-        dragNotice: s.validDrop ? "松手放在这里" : "此处不能放置，松手回原位",
-        dragGhost: {
+      const notice = s.validDrop ? "松手放在这里" : "此处不能放置，松手回原位";
+      const update = {};
+      if (this.data.dragNotice !== notice) update.dragNotice = notice;
+      if (!s.viewFollow)
+        update.dragGhost = {
           title: s.rows.get(s.id).title,
           summary: s.rows.get(s.id).summary,
           width: s.origin.width,
           height: s.origin.height,
           left: s.x - s.offsetX,
           top: s.y - s.offsetY,
-        },
-      });
+        };
+      if (Object.keys(update).length) this.setData(update);
       if (next !== s.order) {
         const before = s.order;
         s.order = next;
@@ -388,6 +420,7 @@ function createTouchOrder(wx) {
       }
     },
     _clearDrag(keepGhost = false) {
+      clearTimeout(this._dragHoldTimer);
       const s = this._drag;
       if (s) {
         clearInterval(s.timer);
@@ -420,6 +453,7 @@ function createTouchOrder(wx) {
         dragGhost: {
           title: s.rows.get(s.id).title,
           summary: s.rows.get(s.id).summary,
+          transform: "scale(1)",
           left: target.left,
           top: target.top - ((this._scrollTop || 0) - s.baseline),
           width: target.width,
@@ -435,6 +469,7 @@ function createTouchOrder(wx) {
       }
       if (this._drag && event?.changedTouches?.[0]) {
         const touch = event.changedTouches[0];
+        this._drag.viewFollow = !!event.viewFollow;
         this._drag.x = touch.clientX;
         this._drag.y = touch.clientY;
         this._updateDrag();

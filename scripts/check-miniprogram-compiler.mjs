@@ -208,6 +208,19 @@ assert.ok(
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
+const verify = view().find((node) => node.attr?.class === "ddl-verify-button");
+assert.ok(
+  verify && verify.attr.catchtap === "verifyDdl",
+  "explicit native time verification button exists",
+);
+page.verifyDdl({ currentTarget: { dataset: { id: ddlRow.id } } });
+assert.equal(
+  page.data.editing,
+  true,
+  "verification directly opens time editing",
+);
+assert.equal(page.data.selected.id, ddlRow.id);
+page.closeItem();
 page.setData({ checkingId: ddlRow.id });
 const checkingNodes = view();
 assert.ok(

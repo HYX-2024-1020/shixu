@@ -28,7 +28,7 @@ for (const width of [320, 375, 414]) {
         <view class="card-foot"><button class="card-source-link">完整详情 ↗</button><view class="card-actions"><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view>`,
         )
         .join("")}</view></view>
-      <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text>2026-10-26</text><text class="ddl-clock">23:59</text><text>核对 ↗</text></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
+      <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-date">2026-10-26</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
     const cards = page.locator(".world .item-card");
     const boxes = await Promise.all(
       [0, 1].map((i) => cards.nth(i).boundingBox()),
@@ -37,7 +37,9 @@ for (const width of [320, 375, 414]) {
     else expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y);
     expect(boxes[0]!.height).toBeLessThan(250);
     for (const button of await page
-      .locator(".done-button,.icon-button,.compact-delete,.card-source-link")
+      .locator(
+        ".done-button,.icon-button,.compact-delete,.card-source-link,.ddl-verify-button",
+      )
       .all()) {
       const box = await button.boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(43.5);
