@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 import { AccountRegistry } from "./sync-accounts.mjs";
 
 // Local privileged CLI only; no administrator credential or endpoint in clients.
@@ -37,7 +38,9 @@ export function runAdmin(registry, [command, userId, argument, amount]) {
 }
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
+    (path) => import.meta.url === pathToFileURL(path).href,
+  )
 ) {
   process.umask(0o077);
   const registry = new AccountRegistry(

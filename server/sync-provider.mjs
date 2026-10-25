@@ -25,6 +25,9 @@ export function boundedModelFetch({
     const payload = JSON.parse(init.body);
     payload.max_tokens = maxOutputTokens;
     payload.stream = false;
+    // The provider now defaults to thinking mode. Reserve the small output
+    // allowance for the structured answer, not hidden reasoning tokens.
+    payload.thinking = { type: "disabled" };
     const body = JSON.stringify(payload);
     if (Buffer.byteLength(body) > maxRequestBytes)
       throw new SyncError(

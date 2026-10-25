@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { createPublicKey, randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 import {
   AccountRegistry,
   digest,
@@ -429,7 +430,9 @@ export function wechatCodeExchange(appId, appSecret, fetcher = fetch) {
 }
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
+    (path) => import.meta.url === pathToFileURL(path).href,
+  )
 ) {
   process.umask(0o077);
   const { server } = createMultiUserService({

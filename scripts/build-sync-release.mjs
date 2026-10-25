@@ -12,6 +12,8 @@ const files = [
   "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
+  "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",
+  "deploy/sync/shixu-accounts.service", "deploy/sync/install-accounts.sh",
 ];
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -36,6 +38,7 @@ export async function buildRelease(output) {
     releaseId, createdAt: new Date().toISOString(), sourceRevision: revision,
     sourceFingerprint: fingerprint, source: "working-tree-snapshot", nodeMajor: 24,
     application: "shixu-sync", protocolVersion: 2, schemaVersion: 1,
+    supportedProtocols: [2, 3], accountEntry: "server/sync-multi-user.mjs",
     stage: "private-text-sync", files,
   }, null, 2) + "\n";
   await writeFile(join(destination, "release.json"), manifest, { flag: "wx" });
