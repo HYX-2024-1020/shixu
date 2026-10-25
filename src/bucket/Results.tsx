@@ -1,4 +1,9 @@
-import { absoluteItem, setDeadline } from "../../shared/deadlines.mjs";
+import {
+  absoluteItem,
+  setDeadline,
+  deadlineLabel,
+  parseDeadline,
+} from "../../shared/deadlines.mjs";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Star,
@@ -586,10 +591,7 @@ function Results({
                             : "deadline"
                         }
                       >
-                        {item.due.date === day
-                          ? "今天"
-                          : item.due.date.slice(5).replace("-", "/")}{" "}
-                        {item.due.time}
+                        {deadlineLabel(item.due)}
                         {item.due.date < day && !done ? " · 已过期" : ""}
                       </span>
                     )}
@@ -681,19 +683,25 @@ function Results({
                                 e.preventDefault();
                                 const data = new FormData(e.currentTarget),
                                   date = String(data.get("date") || "");
+                                let parsedDue = null;
+                                try {
+                                  parsedDue = date
+                                    ? parseDeadline(
+                                        date,
+                                        localDate(),
+                                        String(data.get("time") || ""),
+                                      )
+                                    : null;
+                                } catch (error) {
+                                  notify((error as Error).message);
+                                  return;
+                                }
                                 const items = [...p.result!.items];
                                 items[index] = {
                                   ...item,
                                   title: String(data.get("title")).trim(),
                                   kind: String(data.get("kind")) as BucketKind,
-                                  due: date
-                                    ? {
-                                        date,
-                                        time: String(data.get("time") || ""),
-                                        sourceId: item.due?.sourceId || "input",
-                                        anchor: "人工确认",
-                                      }
-                                    : null,
+                                  due: parsedDue,
                                 };
                                 items[index] = {
                                   ...items[index],
@@ -806,9 +814,17 @@ function Results({
                               <label>
                                 日期
                                 <input
-                                  type="date"
+                                  type="text"
                                   name="date"
-                                  defaultValue={item.due?.date}
+                                  placeholder="26号 / 26-28 / 明天14:00到16:00"
+                                  defaultValue={
+                                    item.due?.startDate
+                                      ? deadlineLabel(item.due).replace(
+                                          " → ",
+                                          " 至 ",
+                                        )
+                                      : item.due?.date
+                                  }
                                 />
                               </label>
                               <label>
@@ -816,7 +832,9 @@ function Results({
                                 <input
                                   type="time"
                                   name="time"
-                                  defaultValue={item.due?.time}
+                                  defaultValue={
+                                    item.due?.startDate ? "" : item.due?.time
+                                  }
                                 />
                               </label>
                               <label>
@@ -862,7 +880,7 @@ function Results({
                               }
                             >
                               {item.kind === "event" ? "发生时间" : "截止"}：
-                              {item.due.date} {item.due.time}{" "}
+                              {deadlineLabel(item.due)}{" "}
                               {item.due.date < day
                                 ? item.kind === "event"
                                   ? "· 已结束"

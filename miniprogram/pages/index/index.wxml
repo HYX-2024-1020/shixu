@@ -1,6 +1,6 @@
 <template name="ddlCard">
   <view class="ddl-item">
-    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
+    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text wx:if="{{row.startDate}}">时间段 · {{row.startDate}} {{row.startTime}} →</text><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
     <view class="ddl-row"><button class="done-button {{row.done ? 'checked' : ''}}" aria-label="{{row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone">{{row.done ? '✓' : ''}}</button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
   </view>
 </template>
@@ -24,7 +24,7 @@
     <text class="item-title">{{row.title}}</text
     ><text class="item-summary">{{row.summary}}</text
     ><view class="card-meta"
-      ><text>{{row.date}} {{row.time}}</text
+      ><text>{{row.timeLabel}}</text
       ><text wx:if="{{row.group}}"># {{row.group}}</text
       ><text wx:if="{{row.progress}}">进行中</text
       ><text wx:if="{{row.conflict}}">需处理冲突</text></view
@@ -68,7 +68,7 @@
     >
   </view>
 </template>
-<view class="page">
+<scroll-view scroll-y class="workspace-scroll"><view class="page">
   <view class="heading">
     <view class="brand"><text class="brand-mark">拾</text><text>拾序</text><text class="brand-en">SHIXU</text></view>
     <view class="header-actions"><button class="small-button market-button" bindtap="openSkins">皮肤市场</button><button class="small-button" data-tab="settings" bindtap="switchTab">{{tab === 'settings' ? '关闭设置' : '连接设置'}}</button></view>
@@ -257,7 +257,7 @@
   <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
     <view class="ddl-head"><image src="/assets/mascot.png" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
-    <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><slider min="0" max="4" step="1" value="{{ddlIndex}}" activeColor="#7048e8" block-color="#ffd43b" bindchange="setDdlWindow"/><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this">{{item}} 天</text></view></view>
+    <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><view class="ddl-slider" role="slider" aria-label="未来时间窗"><view class="ddl-slider-rail"><view class="ddl-slider-square" style="left: {{ddlIndex * 25}}%"></view></view><slider class="ddl-native-slider" min="0" max="4" step="1" block-size="32" value="{{ddlIndex}}" bindchanging="previewDdlWindow" bindchange="setDdlWindow"/></view><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this" class="{{index === ddlIndex ? 'selected' : ''}}" data-index="{{index}}" bindtap="chooseDdlWindow">{{item}} 天</text></view></view>
     <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
     <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block>
     <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></view>
@@ -266,7 +266,7 @@
     <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row}}"/></block></view>
     <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
     <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
-    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="明天下午三点 / YYYY-MM-DD"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
+    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
   </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
@@ -341,7 +341,7 @@
       ></view
     ><text class="about">拾序小程序 · 开发版 0.2.0 · 桌面基线 0.3.8</text></view
   >
-  <view wx:if="{{filesBusy || pendingFiles}}" class="notice">{{filesBusy ? "正在保存或传输原件，请稍候" : pendingFiles + " 份原件保留在本机，等待上传"}}</view><view class="bottom-nav"
+  <view wx:if="{{filesBusy || pendingFiles}}" class="notice">{{filesBusy ? "正在保存或传输原件，请稍候" : pendingFiles + " 份原件保留在本机，等待上传"}}</view></view></scroll-view><view class="bottom-nav"
     ><button
       class="nav-button {{tab === 'capture' ? 'active' : ''}}"
       data-tab="capture"
@@ -356,7 +356,6 @@
       世界 <text class="nav-badge">✦</text>
     </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab">DDL <text class="nav-badge">{{ddlCount}}</text></button></view
   >
-</view>
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
     ><text>模型任务 · {{jobLabels[item.state] || "待核对"}}</text
@@ -470,7 +469,7 @@
           data-field="editGroup"
           bindinput="onEdit"
           maxlength="150"
-        /><view wx:if="{{selected.evidence.length}}" class="detail-section"><text class="subheading">时间依据 · 原文</text><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"><text class="quiet">{{item.name}}</text><text class="detail-line" selectable>{{item.quote}}</text></view></view><view class="field-label">日期（留空清除）</view
+        /><view wx:if="{{selected.evidence.length}}" class="detail-section"><text class="subheading">时间依据 · 原文</text><text wx:if="{{selected.item.due.dateInferred}}" class="detail-line">日期依据：{{selected.item.due.dateReason}}</text><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:for="{{selected.evidence}}" wx:key="index" class="evidence"><text class="quiet">{{item.name}}</text><text class="detail-line" selectable>{{item.quote}}</text></view></view><view class="field-label">日期（留空清除）</view
         ><input
           value="{{editDate}}"
           data-field="editDate"

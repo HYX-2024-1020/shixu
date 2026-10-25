@@ -971,3 +971,57 @@ input {
   padding-left: 20rpx;
   padding-right: 20rpx;
 }
+
+/* Reserve the dock outside the scrollable content, including iPhone safe area. */
+page {
+  height: 100%;
+  overflow: hidden;
+}
+.workspace-scroll {
+  height: calc(100vh - 180rpx - env(safe-area-inset-bottom));
+}
+.page {
+  padding-bottom: 36rpx;
+}
+.ddl-slider {
+  position: relative;
+  height: 84rpx;
+  margin: 20rpx 0 8rpx;
+}
+.ddl-slider-rail {
+  position: absolute;
+  left: 32rpx;
+  right: 32rpx;
+  top: 36rpx;
+  height: 14rpx;
+  border: 4rpx solid #111;
+  border-radius: 5rpx;
+  background: #fff9e6;
+  pointer-events: none;
+}
+.ddl-slider-square {
+  position: absolute;
+  top: 50%;
+  width: 56rpx;
+  height: 56rpx;
+  box-sizing: border-box;
+  border: 5rpx solid #111;
+  border-radius: 6rpx;
+  background: #ffd43b;
+  box-shadow: 5rpx 5rpx #111;
+  transform: translate(-50%, -50%);
+}
+.ddl-native-slider {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+}
+.ddl-stops .selected {
+  background: #ffd43b;
+  color: #111;
+  border: 3rpx solid #111;
+}
+.ddl-stops text {
+  padding: 6rpx 10rpx;
+}

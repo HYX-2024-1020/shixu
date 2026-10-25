@@ -1,5 +1,47 @@
 import { test, expect } from "@playwright/test";
 
+test("date ranges normalize without a year and content stays above the navigation dock", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-25T12:00:00"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  const ddl = page.getByRole("region", { name: "DDL 截止事项" });
+  await ddl.getByText("＋ 自己补充一项 DDL", { exact: true }).click();
+  await ddl.getByLabel("事项标题", { exact: true }).fill("合成区间训练");
+  await ddl.getByLabel("截止日期", { exact: true }).last().fill("26-28");
+  const add = ddl.getByRole("button", { name: "添加 DDL", exact: true });
+  await add.scrollIntoViewIfNeeded();
+  const nav = await page
+    .getByRole("navigation", { name: "主工作区" })
+    .boundingBox();
+  const area = await page.locator(".bucket-main").boundingBox();
+  const button = await add.boundingBox();
+  expect(area!.y + area!.height).toBeLessThanOrEqual(nav!.y);
+  expect(button!.y + button!.height).toBeLessThanOrEqual(nav!.y);
+  await add.click();
+  const card = ddl.locator(".ddl-item").filter({ hasText: "合成区间训练" });
+  await expect(card.locator(".time-rail")).toContainText("2026-10-26");
+  await expect(card.locator(".time-rail")).toContainText("2026-10-28");
+  await card.getByRole("button", { name: /核对截止时间/ }).click();
+  await expect(card.locator(".ddl-absolute-time")).toHaveText(
+    "2026-10-26 00:00 → 2026-10-28 23:59",
+  );
+  await expect(card.locator(".ddl-date-inference")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  await card.getByRole("button", { name: /核对截止时间/ }).click();
+  await expect(card.getByLabel("截止日期", { exact: true })).toHaveValue(
+    "2026-10-26 00:00 至 2026-10-28 23:59",
+  );
+  await card.getByLabel("截止日期", { exact: true }).fill("");
+  await card.getByRole("button", { name: "保存时间", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  await ddl.getByText(/日期待确认 · 1 项/).click();
+  await expect(card.locator(".time-rail")).toContainText("日期待确认");
+});
+
 test("legacy blank deadline clocks recover the stated time or get an editable default", async ({
   page,
 }) => {

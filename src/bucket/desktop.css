@@ -2258,3 +2258,35 @@ body.is-card-dragging * {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Content gets its own viewport; the bottom dock never covers a card or form. */
+.bucket-app {
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+}
+.bucket-header {
+  flex: none;
+}
+.bucket-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scroll-padding: 20px 0 30px;
+  scrollbar-gutter: stable;
+  margin-left: auto;
+  margin-right: auto;
+}
+.bucket-header .workspace-nav {
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+}
+.bucket-header {
+  width: 100%;
+  margin: 0;
+}

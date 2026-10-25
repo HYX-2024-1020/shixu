@@ -19,7 +19,10 @@ export function useCardMotion() {
           x: matrix.m41,
           y: matrix.m42,
           left: rect.left + scrollX - matrix.m41,
-          top: rect.top + scrollY - matrix.m42,
+          top:
+            rect.top +
+            (card.closest(".bucket-main")?.scrollTop || 0) -
+            matrix.m42,
         };
       });
     for (const { card, id, x, y, left, top } of reads) {

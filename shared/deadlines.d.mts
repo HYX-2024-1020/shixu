@@ -1,5 +1,6 @@
 import type { BucketItem, Source } from "./bucket-engine.mjs";
 export function absoluteText(text: string, day: string): string;
+export { deadlineLabel } from "./deadline-date.mjs";
 export function absoluteItem<T extends BucketItem>(
   item: T,
   day: string,
@@ -19,6 +20,7 @@ export function setDeadline<T extends BucketItem>(
 export interface DeadlineRow {
   id: string;
   date: string;
+  startDate?: string;
   time: string;
   kind: string;
   done: boolean;

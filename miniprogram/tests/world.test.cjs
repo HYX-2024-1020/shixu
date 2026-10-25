@@ -572,8 +572,8 @@ test("DDL creates grounded dates, infers omitted clocks, shares completion, and 
   assert.equal(reopened.data.tab, "ddl");
   reopened.setData({ ddlDate: "尽快", ddlTitle: "模糊时间" });
   reopened.addDdl();
-  assert.equal(reopened.data.ddlCount, 1);
-  assert.match(reopened.data.error, /明确日期/);
+  assert.equal(reopened.data.ddlCount, 2);
+  assert.equal(reopened.data.ddlUnsure.length, 1);
 });
 
 test("old blank clocks recover from matching source and chat, with stable inferred defaults", () => {
@@ -614,7 +614,7 @@ test("old blank clocks recover from matching source and chat, with stable inferr
 });
 
 test("an undated mini card retains its explicitly stated clock instead of showing the default", () => {
-  const text = "月底下午三点十分提交说明";
+  const text = "开学前下午三点十分提交说明";
   const rows = itemsFor([
     {
       id: "pending-clock",
@@ -646,4 +646,33 @@ test("an undated mini card retains its explicitly stated clock instead of showin
   assert.equal(rows[0].date, "");
   assert.equal(rows[0].time, "15:10");
   assert.equal(rows[0].item.due, null);
+});
+
+test("DDL ranges retain both endpoints through editing, restart and shared completion", () => {
+  const { page, store } = fixture();
+  page.setData({ ddlTitle: "合成区间", ddlDate: "明天14:00到后天16:00" });
+  page.addDdl();
+  let row = itemsFor(page._client.records())[0];
+  assert.ok(row.startDate);
+  assert.equal(row.startTime, "14:00");
+  assert.equal(row.time, "16:00");
+  assert.match(row.timeLabel, /14:00 → .*16:00/);
+  page.verifyDdl(event(row.id));
+  assert.match(page.data.editDate, / 至 /);
+  page.saveEdit();
+  row = itemsFor(fixture({ store }).page._client.records())[0];
+  assert.ok(row.startDate);
+  page.previewDdlWindow({ detail: { value: 4 } });
+  assert.equal(page.data.ddlIndex, 4);
+  page.chooseDdlWindow({ currentTarget: { dataset: { index: 0 } } });
+  assert.equal(page.data.ddlIndex, 0);
+  page.toggleDone(event(row.id));
+  assert.equal(page.data.ddlDone.length, 1);
+  page.toggleDone(event(row.id));
+  page.verifyDdl(event(row.id));
+  page.setData({ editDate: "", editTime: "" });
+  page.saveEdit();
+  row = itemsFor(fixture({ store }).page._client.records())[0];
+  assert.equal(row.date, "");
+  assert.equal(row.item.dueCleared, true);
 });

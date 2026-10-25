@@ -73,7 +73,7 @@ try {
         ? [
             {
               kind: "task",
-              title: text.includes("相册") ? "整理周末相册" : "提交英语报告",
+              title: text.includes("相册") ? "整理相册" : "提交英语报告",
               summary: text,
               facts: [],
               sourceIds: [sources[0].id],
@@ -124,7 +124,7 @@ try {
   await input.fill("周末整理相册");
   await page.getByRole("button", { name: "丢进去", exact: true }).click();
   await expect(
-    current.getByRole("button", { name: "查看 整理周末相册", exact: true }),
+    current.getByRole("button", { name: "查看 整理相册", exact: true }),
   ).toBeVisible();
   await expect(
     current.getByRole("button", { name: "查看 提交英语报告", exact: true }),
@@ -140,7 +140,7 @@ try {
     page.getByRole("button", { name: "查看 提交英语报告", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "查看 整理周末相册", exact: true }),
+    page.getByRole("button", { name: "查看 整理相册", exact: true }),
   ).toBeVisible();
   report.checks.push(
     "capture shows only latest manual delivery, live progress and actionable results; restart clears receipt view and retains every task",
@@ -187,7 +187,9 @@ try {
     page.locator(".results-workspace .result-card:visible"),
   ).toHaveCount(8);
   await page.waitForTimeout(350);
-  await page.evaluate(() => scrollTo(0, 420));
+  await page.evaluate(() =>
+    document.querySelector(".bucket-main").scrollTo(0, 420),
+  );
   const first = page.locator('[data-motion-id="drag-0"]');
   const source = await first.boundingBox();
   await page.evaluate(() => {
@@ -339,7 +341,9 @@ try {
     "mouse movement starts drag without hold; slot reflow, landing and persistence; no accidental detail/drop overlay",
   );
   // Escape restores both layout and persisted order.
-  await page.evaluate(() => scrollTo(0, 420));
+  await page.evaluate(() =>
+    document.querySelector(".bucket-main").scrollTo(0, 420),
+  );
   const cancelCard = page.locator('[data-motion-id="drag-1"] .card-open'),
     cancelBox = await cancelCard.boundingBox();
   await page.mouse.move(cancelBox.x + 50, cancelBox.y + 25);
@@ -362,11 +366,15 @@ try {
   const edgeBox = await cancelCard.boundingBox();
   await page.mouse.move(edgeBox.x + 50, edgeBox.y + 25);
   await page.mouse.down();
-  const scrollBefore = await page.evaluate(() => scrollY);
+  const scrollBefore = await page.evaluate(
+    () => document.querySelector(".bucket-main").scrollTop,
+  );
   const viewportHeight = await page.evaluate(() => innerHeight);
   await page.mouse.move(edgeBox.x + 100, viewportHeight - 22, { steps: 6 });
   await expect
-    .poll(() => page.evaluate(() => scrollY))
+    .poll(() =>
+      page.evaluate(() => document.querySelector(".bucket-main").scrollTop),
+    )
     .toBeGreaterThan(scrollBefore + 25);
   await page.keyboard.press("Escape");
   await page.mouse.up();

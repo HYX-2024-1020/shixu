@@ -6,6 +6,7 @@ import {
   deadlineSections,
   parseDeadline,
   setDeadline,
+  deadlineLabel,
 } from "../../shared/deadlines.mjs";
 import { localDate } from "../organize";
 import type { Packet, ItemState } from "./types";
@@ -62,6 +63,7 @@ export default function DDL({
         meta,
         kind: item.kind,
         date: item.due?.date || "",
+        startDate: item.due?.startDate,
         time: clockInfo.time,
         done: meta.status === "done" || p.doneIds.includes(index),
         deleted: p.deletedAt || meta.deletedAt,
@@ -143,6 +145,13 @@ export default function DDL({
           aria-label={`核对截止时间：${item.title}`}
           onClick={() => setOpen(open === id ? "" : id)}
         >
+          {item.due?.startDate && (
+            <>
+              <span>时间段 · 开始</span>
+              <b>{item.due.startDate}</b>
+              <span>{item.due.startTime || "00:00"} → 结束</span>
+            </>
+          )}
           <span>{row.date || "日期待确认"}</span>
           <b>{row.time || "23:59"}</b>
           <small>核对时间 ↗</small>
@@ -187,6 +196,14 @@ export default function DDL({
           {open === id && (
             <div className="ddl-panel">
               <h4>完整要求 · 时间依据</h4>
+              {item.due && (
+                <p className="ddl-absolute-time">{deadlineLabel(item.due)}</p>
+              )}
+              {item.due?.dateInferred && (
+                <p className="ddl-date-inference">
+                  日期依据：{item.due.dateReason}
+                </p>
+              )}
               {row.clockInfo.timeInferred && (
                 <p className="ddl-time-inference">
                   安排时刻：{row.clockInfo.timeReason}
@@ -227,8 +244,12 @@ export default function DDL({
                   <input
                     name="date"
                     aria-label="截止日期"
-                    defaultValue={row.date}
-                    placeholder="明天下午三点 / YYYY-MM-DD"
+                    defaultValue={
+                      item.due?.startDate
+                        ? deadlineLabel(item.due).replace(" → ", " 至 ")
+                        : row.date
+                    }
+                    placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"
                   />
                 </label>
                 <label>
@@ -237,7 +258,7 @@ export default function DDL({
                     type="time"
                     name="time"
                     aria-label="截止时刻"
-                    defaultValue={row.time}
+                    defaultValue={item.due?.startDate ? "" : row.time}
                   />
                 </label>
                 <button disabled={busy}>保存时间</button>
@@ -354,12 +375,17 @@ export default function DDL({
             if (!title) return;
             try {
               const captureDate = localDate(),
-                now = new Date().toISOString(),
+                now = new Date().toISOString();
+              let due;
+              try {
                 due = parseDeadline(
                   String(data.get("date")),
                   captureDate,
                   String(data.get("time") || ""),
                 );
+              } catch {
+                due = null;
+              }
               lock.current = true;
               setBusy(true);
               const id = crypto.randomUUID(),
@@ -386,7 +412,9 @@ export default function DDL({
                         summary: String(data.get("requirements") || ""),
                         facts: [],
                         nextSteps: [],
-                        uncertainties: [],
+                        uncertainties: due
+                          ? []
+                          : [`时间待确认：${data.get("date")}`],
                         evidence: [{ sourceId: "manual", quote: text }],
                         sourceIds: ["manual"],
                         due,
@@ -420,7 +448,7 @@ export default function DDL({
             <input
               name="date"
               required
-              placeholder="明天下午三点 / YYYY-MM-DD"
+              placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"
             />
           </label>
           <label>

@@ -181,8 +181,10 @@ describe("the bucket understands one complete packet", () => {
       sourceId: "input",
     };
     const out = validateResult(value, input, today);
-    expect(out.items[0].due).toBeNull();
-    expect(out.items[0].uncertainties[0]).toContain("月底前");
+    expect(out.items[0].due).toMatchObject({
+      date: "2026-10-31",
+      dateInferred: true,
+    });
     expect(groundedDate("2026年2月30日", today)).toBe("");
     expect(groundedDate("2026 年 10 月 30 日", today)).toBe("2026-10-30");
   });
@@ -191,7 +193,7 @@ describe("the bucket understands one complete packet", () => {
     expect(groundedTime("下周三 23:59 前")).toBe("23:59");
     expect(groundedTime("明天三点前")).toBe("");
     expect(groundedDate("下周三", today)).toBe("2026-10-28");
-    expect(groundedDate("2026年10月22日至10月30日", today)).toBe("");
+    expect(groundedDate("2026年10月22日至10月30日", today)).toBe("2026-10-30");
   });
   it("does not silently truncate long files and does not duplicate a source id within a chunk", () => {
     const text = "甲".repeat(40000) + "\n最后一段也必须保留";

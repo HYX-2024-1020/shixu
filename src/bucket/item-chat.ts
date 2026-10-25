@@ -1,3 +1,4 @@
+import { parseDateExpression } from "../../shared/deadline-date.mjs";
 import { resolveDeadlineTime } from "../../shared/deadline-time.mjs";
 import {
   absoluteItem,
@@ -12,7 +13,10 @@ import {
 } from "../../shared/bucket-engine.mjs";
 import type { BucketItem, ItemState } from "./types";
 export type ItemPatch = Partial<
-  Pick<BucketItem, "title" | "summary" | "kind" | "due" | "facts">
+  Pick<
+    BucketItem,
+    "title" | "summary" | "kind" | "due" | "facts" | "dueCleared"
+  >
 > &
   Partial<
     Pick<ItemState, "group" | "importance" | "status" | "starred" | "pinned">
@@ -82,16 +86,24 @@ export function validateChat(
         !instruction.includes(anchor)
       )
         throw new Error("没有找到你给出的明确日期，卡片未改动");
+      const parsed = parseDateExpression(anchor, today);
       const date =
-        groundedDate(anchor, today) ||
+        parsed?.date ||
         (/(?:\d|[零〇一二两三四五六七八九十])\s*(?:点|时|[:：])|上午|下午|晚上|中午|傍晚|凌晨/.test(
           anchor,
         ) && !/今天|明天|后天|昨天|前天|周|星期|礼拜|日|号|月|年/.test(anchor)
           ? currentDue?.date
           : "");
-      if (!date) throw new Error("日期还不能确定，可以直接告诉我年月日");
+      if (!date)
+        throw new Error("暂时无法判断日期，可以说26号、10月26日或26-28");
       output.due = resolveDeadlineTime(
-        { date, time: "", anchor, sourceId: "item-chat" },
+        {
+          ...parsed,
+          date,
+          time: parsed?.startDate ? parsed.time : "",
+          anchor,
+          sourceId: "item-chat",
+        },
         [],
         [{ id: "item-chat", name: "本轮指令", text: instruction }],
       );
@@ -156,6 +168,7 @@ export async function chatWithItem(
       validated.patch.due ?? null,
       options.captureDate,
     );
+    validated.patch.dueCleared = next.dueCleared;
     for (const key of ["title", "summary", "facts"] as const) {
       if (JSON.stringify(next[key]) !== JSON.stringify(item[key]))
         Object.assign(validated.patch, { [key]: next[key] });
