@@ -64,6 +64,7 @@ for (const selector of sharedSelectors.keys()) {
 // 1 CSS px maps to 2 rpx at the 375px phone design width.
 const nativeCSS = (motion + visuals)
   .replace(/touch-action:\s*[^;]+;/g, "")
+  .replace(/[ \t]+$/gm, "")
   .replace(/(-?[\d.]+)px\b/g, (_, n) => `${Number(n) * 2}rpx`);
 outputs.set(
   "miniprogram/lib/generated/client-ui.wxss",

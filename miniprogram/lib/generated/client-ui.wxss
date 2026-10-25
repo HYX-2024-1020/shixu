@@ -204,5 +204,5 @@
   transition: box-shadow 180ms ease;
 }
 .page .item-card {
-  
+
 }
