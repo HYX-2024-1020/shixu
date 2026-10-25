@@ -11,6 +11,8 @@ import {
 import { localDate } from "../organize";
 import type { Packet, ItemState } from "./types";
 import DeliverySources from "./DeliverySources";
+import { leaveCard, resetCard } from "./motion";
+import { useCardMotion } from "./useCardMotion";
 import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
@@ -29,6 +31,8 @@ export default function DDL({
   const [windowIndex, setWindowIndex] = useState(2);
   const [open, setOpen] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState("");
+  const motionRoot = useCardMotion();
   const [limit, setLimit] = useState(60);
   const lock = useRef(false);
   const latest = useRef(packets);
@@ -87,6 +91,13 @@ export default function DDL({
     lock.current = true;
     setBusy(true);
     try {
+      if (changes.status === "done") {
+        setChecking(row.id);
+        await new Promise((resolve) => setTimeout(resolve, 230));
+        await leaveCard(row.id, false);
+      } else if (changes.status === "active") {
+        await leaveCard(row.id, false);
+      }
       const p = latest.current.find((p) => p.id === row.p.id);
       if (!p?.result || p.deletedAt) throw new Error("事项已变动，请重新打开");
       const index = p.itemIds?.indexOf(row.id) ?? row.index;
@@ -132,6 +143,8 @@ export default function DDL({
     } catch (error) {
       notify((error as Error).message);
     } finally {
+      resetCard(row.id);
+      setChecking("");
       lock.current = false;
       setBusy(false);
     }
@@ -139,7 +152,7 @@ export default function DDL({
   function card(row: Row) {
     const { item, p, id } = row;
     return (
-      <article className="ddl-item" key={id}>
+      <article className="ddl-item" key={id} data-motion-id={id}>
         <button
           className="time-rail"
           aria-label={`核对截止时间：${item.title}`}
@@ -159,7 +172,9 @@ export default function DDL({
         <div className="ddl-body">
           <div className="ddl-row">
             <button
-              className="completion-orbit"
+              className={
+                "completion-orbit" + (checking === id ? " is-checking" : "")
+              }
               aria-pressed={row.done}
               disabled={busy}
               aria-label={`${row.done ? "撤销完成" : "标记完成"}：${item.title}`}
@@ -170,7 +185,7 @@ export default function DDL({
                 })
               }
             >
-              {row.done && <Check size={19} />}
+              {(row.done || checking === id) && <Check size={19} />}
             </button>
             <button
               className="ddl-copy"
@@ -281,7 +296,11 @@ export default function DDL({
       </section>
     );
   return (
-    <section className="ddl-workspace" aria-label="DDL 截止事项">
+    <section
+      ref={motionRoot}
+      className="ddl-workspace"
+      aria-label="DDL 截止事项"
+    >
       <header className="ddl-head">
         <img src={`${import.meta.env.BASE_URL}mascot.png`} alt="" />
         <div>

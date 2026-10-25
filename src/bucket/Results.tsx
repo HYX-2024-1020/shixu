@@ -27,7 +27,7 @@ import type { Packet, ItemState, BucketKind } from "./types";
 import SkinArt from "./SkinArt";
 import type { Skin } from "./skins";
 import { localDate } from "../organize";
-import { compareItems } from "./management";
+import { compareItems, habitCheckin } from "./management";
 import {
   buildGroups,
   itemRef,
@@ -163,7 +163,7 @@ function Results({
       if (
         "deletedAt" in changes ||
         changes.status === "done" ||
-        changes.status === "active"
+        (changes.status === "active" && !changes.checkins)
       )
         setSelected("");
     } catch (e) {
@@ -171,6 +171,41 @@ function Results({
       notify((e as Error).message);
     } finally {
       mutationLocks.current.delete(id);
+    }
+  }
+  async function toggleCompletion(p: Packet, id: string) {
+    if (completionLock.current.has(id)) return;
+    completionLock.current.add(id);
+    try {
+      const current =
+        latestPackets.current.find((packet) => packet.id === p.id) || p;
+      const index = current.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
+      const meta = current.itemState?.[id] || {};
+      const habit = current.result?.items[index]?.kind === "habit";
+      const checked = habit
+        ? !!meta.checkins?.includes(localDate())
+        : meta.status === "done" || current.doneIds.includes(index);
+      if (!checked) {
+        setCompleting((values) => new Set(values).add(id));
+        await new Promise((resolve) => setTimeout(resolve, 230));
+      }
+      await update(
+        current,
+        id,
+        habit
+          ? habitCheckin(meta, localDate())
+          : {
+              status: checked ? "active" : "done",
+              completedAt: checked ? "" : new Date().toISOString(),
+            },
+      );
+    } finally {
+      completionLock.current.delete(id);
+      setCompleting((values) => {
+        const next = new Set(values);
+        next.delete(id);
+        return next;
+      });
     }
   }
   const automaticGroups = useMemo(() => buildGroups(packets), [packets]);
@@ -217,7 +252,9 @@ function Results({
         id,
         meta,
         deleted: p.deletedAt || meta.deletedAt,
-        done: meta.status === "done" || p.doneIds.includes(index),
+        done:
+          item.kind !== "habit" &&
+          (meta.status === "done" || p.doneIds.includes(index)),
       };
     }),
   );
@@ -489,38 +526,28 @@ function Results({
                         (completing.has(id) ? " is-checking" : "")
                       }
                       aria-label={
-                        done
-                          ? "撤销完成 / 归档"
-                          : item.kind === "task"
-                            ? "完成"
-                            : "归档"
+                        item.kind === "habit"
+                          ? meta.checkins?.includes(day)
+                            ? "撤销今日打卡"
+                            : "今日打卡"
+                          : done
+                            ? "撤销完成 / 归档"
+                            : item.kind === "task"
+                              ? "完成"
+                              : "归档"
                       }
-                      aria-pressed={done}
+                      aria-pressed={
+                        item.kind === "habit"
+                          ? !!meta.checkins?.includes(day)
+                          : done
+                      }
                       disabled={p.status !== "ready" || !!deleted}
-                      onClick={async () => {
-                        if (completionLock.current.has(id)) return;
-                        completionLock.current.add(id);
-                        if (!done) {
-                          setCompleting((current) => new Set(current).add(id));
-                          await new Promise((resolve) =>
-                            setTimeout(resolve, 230),
-                          );
-                        }
-                        await update(p, id, {
-                          status: done ? "active" : "done",
-                          completedAt: done
-                            ? undefined
-                            : new Date().toISOString(),
-                        });
-                        completionLock.current.delete(id);
-                        setCompleting((current) => {
-                          const next = new Set(current);
-                          next.delete(id);
-                          return next;
-                        });
-                      }}
+                      onClick={() => void toggleCompletion(p, id)}
                     >
-                      {(done || completing.has(id)) && <Check size={19} />}
+                      {(done ||
+                        completing.has(id) ||
+                        (item.kind === "habit" &&
+                          meta.checkins?.includes(day))) && <Check size={19} />}
                     </button>
                     <span className="card-kind">
                       {categories[item.kind]}
@@ -617,17 +644,12 @@ function Results({
                       <button
                         className="habit-check"
                         aria-pressed={!!meta.checkins?.includes(day)}
-                        onClick={() =>
-                          void update(p, id, {
-                            checkins: meta.checkins?.includes(day)
-                              ? meta.checkins.filter((d) => d !== day)
-                              : [...new Set([...(meta.checkins || []), day])],
-                          })
-                        }
+                        onClick={() => void toggleCompletion(p, id)}
                       >
                         {meta.checkins?.includes(day)
-                          ? "今天已打卡"
-                          : "今天打卡"}
+                          ? "今日已打卡 · 再点撤销"
+                          : "今日打卡"}{" "}
+                        · 累计 {new Set(meta.checkins || []).size} 天
                       </button>
                     )}
                     <details className="card-menu">
@@ -938,7 +960,15 @@ function Results({
                             {meta.corrected && (
                               <small>已人工修正，重试不会覆盖此结果</small>
                             )}
-                            {meta.completedAt && (
+                            {item.kind === "habit" && (
+                              <p>
+                                {meta.checkins?.includes(day)
+                                  ? "今日已打卡"
+                                  : "今日待打卡"}{" "}
+                                · 累计 {new Set(meta.checkins || []).size} 天
+                              </p>
+                            )}
+                            {item.kind !== "habit" && meta.completedAt && (
                               <p>
                                 <small>
                                   完成 / 归档于{" "}
@@ -1225,20 +1255,17 @@ function Results({
                                   {meta.pinned ? "取消置顶" : "置顶"}
                                 </button>
                                 <button
-                                  onClick={() =>
-                                    void update(p, id, {
-                                      status: done ? "active" : "done",
-                                      completedAt: done
-                                        ? undefined
-                                        : new Date().toISOString(),
-                                    })
-                                  }
+                                  onClick={() => void toggleCompletion(p, id)}
                                 >
-                                  {done
-                                    ? "撤销完成 / 归档"
-                                    : item.kind === "task"
-                                      ? "完成"
-                                      : "归档"}
+                                  {item.kind === "habit"
+                                    ? meta.checkins?.includes(day)
+                                      ? "撤销今日打卡"
+                                      : "今日打卡"
+                                    : done
+                                      ? "撤销完成 / 归档"
+                                      : item.kind === "task"
+                                        ? "完成"
+                                        : "归档"}
                                 </button>
                                 <button
                                   onClick={() => {

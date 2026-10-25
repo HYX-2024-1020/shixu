@@ -256,19 +256,19 @@ test("manual item creation is explicit and never invents AI output", () => {
   assert.equal(p.itemState[p.itemIds[0]].origin, "manual");
   assert.equal(f.page.data.itemCount, 1);
 });
-test("item status, editing, notes, star and deletion preserve siblings, sources and future fields", () => {
+test("item status, editing, notes, star and deletion preserve siblings, sources and future fields", async () => {
   const f = seeded(),
     p = f.page;
   p.openItem(event("task-a"));
   p.toggleStar(event("task-a"));
   p.togglePin(event("task-a"));
-  p.toggleDone(event("task-a"));
+  await p.toggleDone(event("task-a"));
   let r = p._client.records()[0].data;
   assert.equal(r.itemState["task-a"].status, "done");
   assert.equal(r.itemState["task-a"].chat[0].text, "旧对话");
   assert.deepEqual(r.doneIds, [0]);
   assert.equal(p.data.doneCount, 1);
-  p.toggleDone(event("task-a"));
+  await p.toggleDone(event("task-a"));
   p.beginEdit();
   p.setData({
     editTitle: "修改标题",
@@ -344,13 +344,13 @@ test("group reorder cannot cross groups and persists on reopen", () => {
     [...after],
   );
 });
-test("full storage never acknowledges local mutation or changes persisted skin", () => {
+test("full storage never acknowledges local mutation or changes persisted skin", async () => {
   let full = false;
   const f = fixture({ failWrite: () => full });
   f.page._client.put("p", packet());
   f.page._refresh();
   full = true;
-  f.page.toggleDone(event("task-a"));
+  await f.page.toggleDone(event("task-a"));
   assert.equal(
     f.page._client.records()[0].data.itemState["task-a"].status,
     undefined,
@@ -537,7 +537,7 @@ test("large source histories stay out of card payloads and records paginate with
   assert.equal(f.page._client.records()[0].data.text.length, 48000);
 });
 
-test("DDL creates grounded dates, infers omitted clocks, shares completion, and reopens without drift", () => {
+test("DDL creates grounded dates, infers omitted clocks, shares completion, and reopens without drift", async () => {
   const { page, store } = fixture();
   page.setData({
     ddlTitle: "明天交报告",
@@ -555,10 +555,10 @@ test("DDL creates grounded dates, infers omitted clocks, shares completion, and 
   page.setData({ editDate: "2026-12-31", editTime: "" });
   page.saveEdit();
   assert.equal(itemsFor(page._client.records())[0].time, "23:59");
-  page.toggleDone(event(row.id));
+  await page.toggleDone(event(row.id));
   assert.equal(page.data.ddlDone.length, 1);
   assert.equal(page.data.ddlCount, 0);
-  page.toggleDone(event(row.id));
+  await page.toggleDone(event(row.id));
   const reopened = fixture({ store }).page;
   const saved = itemsFor(reopened._client.records())[0];
   assert.equal(saved.date, "2026-12-31");
@@ -648,7 +648,7 @@ test("an undated mini card retains its explicitly stated clock instead of showin
   assert.equal(rows[0].item.due, null);
 });
 
-test("DDL ranges retain both endpoints through editing, restart and shared completion", () => {
+test("DDL ranges retain both endpoints through editing, restart and shared completion", async () => {
   const { page, store } = fixture();
   page.setData({ ddlTitle: "合成区间", ddlDate: "明天14:00到后天16:00" });
   page.addDdl();
@@ -666,13 +666,50 @@ test("DDL ranges retain both endpoints through editing, restart and shared compl
   assert.equal(page.data.ddlIndex, 4);
   page.chooseDdlWindow({ currentTarget: { dataset: { index: 0 } } });
   assert.equal(page.data.ddlIndex, 0);
-  page.toggleDone(event(row.id));
+  await page.toggleDone(event(row.id));
   assert.equal(page.data.ddlDone.length, 1);
-  page.toggleDone(event(row.id));
+  await page.toggleDone(event(row.id));
   page.verifyDdl(event(row.id));
   page.setData({ editDate: "", editTime: "" });
   page.saveEdit();
   row = itemsFor(fixture({ store }).page._client.records())[0];
   assert.equal(row.date, "");
   assert.equal(row.item.dueCleared, true);
+});
+
+test("habit check-in retains the card, repairs legacy completion and keeps detail in sync", async () => {
+  const { page, store } = fixture();
+  const data = packet();
+  data.result.items[0].kind = "habit";
+  data.doneIds = [0];
+  data.itemState["task-a"].status = "done";
+  data.itemState["task-a"].checkins = ["2020-01-01"];
+  page._client.put("p", data);
+  page._refresh();
+  assert.equal(page.data.activeCount, 2);
+  assert.equal(page.data.doneCount, 0);
+  page.openItem(event("task-a"));
+  const first = page.toggleDone(event("task-a"));
+  await page.toggleDone(event("task-a"));
+  assert.equal(page.data.checkingId, "task-a");
+  await first;
+  assert.equal(page.data.items.find((r) => r.id === "task-a").checkinCount, 2);
+  assert.equal(page.data.selected.checked, true);
+  assert.equal(page.data.selected.checkinCount, 2);
+  assert.deepEqual(page._client.records()[0].data.doneIds, []);
+  const reopened = fixture({ store }).page;
+  assert.equal(
+    reopened.data.items.find((r) => r.id === "task-a").checked,
+    true,
+  );
+  await reopened.checkin(event("task-a"));
+  assert.equal(
+    reopened.data.items.find((r) => r.id === "task-a").checked,
+    false,
+  );
+  assert.equal(
+    reopened.data.items.find((r) => r.id === "task-a").checkinCount,
+    1,
+  );
+  assert.equal(reopened.data.activeCount, 2);
 });

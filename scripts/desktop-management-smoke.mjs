@@ -100,21 +100,31 @@ try {
   const habit = page.locator(".result-card").filter({
     has: page.getByRole("heading", { name: "每天阅读", exact: true }),
   });
-  await habit.getByRole("button", { name: "今天打卡", exact: true }).click();
+  await habit.getByRole("button", { name: "今日打卡", exact: true }).click();
   await waitForPageState(
     page,
     async () =>
-      (await window.desktop.store("packets"))[0].itemState.i2.checkins
-        .length === 1,
+      (await window.desktop.store("packets"))[0].itemState.i2?.checkins
+        ?.length === 1,
   );
-  await habit.getByRole("button", { name: "今天已打卡", exact: true }).click();
+  assert.match(
+    await habit.locator(".habit-check").innerText(),
+    /今日已打卡.*累计 1 天/,
+  );
+  assert.equal(
+    await habit.locator(".completion-orbit").getAttribute("aria-pressed"),
+    "true",
+  );
+  await habit
+    .getByRole("button", { name: "撤销今日打卡", exact: true })
+    .click();
   await waitForPageState(
     page,
     async () =>
       (await window.desktop.store("packets"))[0].itemState.i2.checkins
         .length === 0,
   );
-  await habit.getByRole("button", { name: "今天打卡", exact: true }).click();
+  await habit.getByRole("button", { name: "今日打卡", exact: true }).click();
   await habit.getByRole("button", { name: "删除事项", exact: true }).click();
   await page.getByLabel("结果范围").selectOption("trash");
   await habit

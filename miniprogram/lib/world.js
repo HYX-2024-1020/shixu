@@ -54,7 +54,11 @@ function itemsFor(records) {
           meta,
           kind: item.kind,
           kindLabel: KINDS[item.kind] || KINDS.other,
-          done: meta.status === "done" || (p.doneIds || []).includes(index),
+          done:
+            item.kind !== "habit" &&
+            (meta.status === "done" || (p.doneIds || []).includes(index)),
+          checked: (meta.checkins || []).includes(localDay()),
+          checkinCount: new Set(meta.checkins || []).size,
           deleted: !!(record.deletedAt || meta.deletedAt),
           packetDeleted: !!record.deletedAt,
           starred: !!meta.starred,

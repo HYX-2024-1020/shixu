@@ -1,3 +1,10 @@
+export function habitCheckin(meta: { checkins?: string[] }, day: string) {
+  const days = new Set(meta.checkins || []);
+  if (days.has(day)) days.delete(day);
+  else days.add(day);
+  return { status: "active" as const, completedAt: "", checkins: [...days] };
+}
+
 export interface RankedItem {
   id: string;
   date?: string;

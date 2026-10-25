@@ -30,6 +30,7 @@ __export(stdin_exports, {
   compareItems: () => compareItems,
   deadlineLabel: () => deadlineLabel,
   deadlineSections: () => deadlineSections,
+  habitCheckin: () => habitCheckin,
   isSkinImage: () => isSkinImage,
   itemDeadlineTime: () => itemDeadlineTime,
   itemRef: () => itemRef,
@@ -756,6 +757,12 @@ function deadlineSections(rows, day, nowTime, days = 7) {
 }
 
 // src/bucket/management.ts
+function habitCheckin(meta, day) {
+  const days = new Set(meta.checkins || []);
+  if (days.has(day)) days.delete(day);
+  else days.add(day);
+  return { status: "active", completedAt: "", checkins: [...days] };
+}
 function compareItems(a, b, sort, day) {
   if (sort === "custom") return a.order - b.order || a.id.localeCompare(b.id);
   if (sort === "created")

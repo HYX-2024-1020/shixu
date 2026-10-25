@@ -27,6 +27,7 @@ const {
   parseDeadline,
   absoluteItem,
   setDeadline,
+  habitCheckin,
 } = require("../../lib/generated/desktop");
 const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
@@ -1089,15 +1090,36 @@ Page({
     this._refresh();
     this.syncQuietly();
   },
-  toggleDone(event) {
+  async toggleDone(event) {
+    if (this._completionLock) return;
+    this._completionLock = true;
     try {
       const row = this._detail(event.currentTarget.dataset.id);
-      this._changeItem(row.id, {
-        status: row.done ? "active" : "done",
-        completedAt: row.done ? "" : new Date().toISOString(),
-      });
+      if (!row || row.deleted) return;
+      if (!(row.kind === "habit" ? row.checked : row.done)) {
+        this.setData({ checkingId: row.id });
+        await new Promise((resolve) => setTimeout(resolve, 230));
+      }
+      if (row.kind !== "habit") {
+        this.setData({ leavingId: row.id });
+        await new Promise((resolve) => setTimeout(resolve, 170));
+      }
+      const current = this._detail(row.id);
+      if (!current || current.deleted) return;
+      this._changeItem(
+        row.id,
+        current.kind === "habit"
+          ? habitCheckin(current.meta, localDay())
+          : {
+              status: current.done ? "active" : "done",
+              completedAt: current.done ? "" : new Date().toISOString(),
+            },
+      );
     } catch (error) {
       this._error(error);
+    } finally {
+      this.setData({ checkingId: "", leavingId: "" });
+      this._completionLock = false;
     }
   },
   toggleStar(event) {
@@ -1148,18 +1170,7 @@ Page({
     }
   },
   checkin(event) {
-    try {
-      const row = this._detail(event.currentTarget.dataset.id),
-        day = localDay(),
-        old = row.meta.checkins || [];
-      this._changeItem(row.id, {
-        checkins: old.includes(day)
-          ? old.filter((d) => d !== day)
-          : [...old, day],
-      });
-    } catch (error) {
-      this._error(error);
-    }
+    return this.toggleDone(event);
   },
   purgeItem(event) {
     const id = event.currentTarget.dataset.id,

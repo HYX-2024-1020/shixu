@@ -1859,7 +1859,8 @@
 .result-card .card-delete + .card-star {
   margin-left: 0;
 }
-.result-card .completion-orbit.is-checking {
+.result-card .completion-orbit.is-checking,
+.ddl-item .completion-orbit.is-checking {
   background: #ffd43b;
   animation: check-pop 230ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
