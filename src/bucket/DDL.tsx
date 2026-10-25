@@ -13,18 +13,22 @@ import type { Packet, ItemState } from "./types";
 import DeliverySources from "./DeliverySources";
 import { leaveCard, resetCard } from "./motion";
 import { useCardMotion } from "./useCardMotion";
+import { useCardDrag } from "./useCardDrag";
+import { mergeCardOrder } from "./card-order";
 import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
 export default function DDL({
   packets,
   save,
+  reorder,
   notify,
   active: isActive,
 }: {
   packets: Packet[];
   active: boolean;
   save: (p: Packet) => Promise<void>;
+  reorder: (ids: string[]) => Promise<void>;
   notify: (s: string) => void;
 }) {
   const [now, setNow] = useState(new Date());
@@ -33,6 +37,7 @@ export default function DDL({
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState("");
   const motionRoot = useCardMotion();
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
   const [limit, setLimit] = useState(60);
   const lock = useRef(false);
   const latest = useRef(packets);
@@ -49,10 +54,9 @@ export default function DDL({
   useEffect(() => {
     if (isActive) setNow(new Date());
   }, [isActive]);
-  if (!isActive) return null;
   const day = localDate(now);
   const clock = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const rows = packets.flatMap((p) =>
+  const rows = (isActive ? packets : []).flatMap((p) =>
     (p.result?.items || []).map((raw, index) => {
       const id = p.itemIds?.[index] || `${p.id}:${index}`;
       const meta = p.itemState?.[id] || {};
@@ -76,6 +80,56 @@ export default function DDL({
   );
   type Row = (typeof rows)[number];
   const sections = deadlineSections(rows, day, clock, stops[windowIndex]);
+  const positions = new Map(dragOrder?.map((id, index) => [id, index]));
+  for (const list of Object.values(sections) as Row[][]) {
+    list.sort((a, b) =>
+      dragOrder
+        ? (positions.get(a.id) ?? 1e9) - (positions.get(b.id) ?? 1e9)
+        : (a.meta.order ?? Infinity) - (b.meta.order ?? Infinity),
+    );
+  }
+  const visible = (Object.entries(sections) as [string, Row[]][]).flatMap(
+    ([group, list]) => list.slice(0, limit).map((row) => ({ ...row, group })),
+  );
+  const drag = useCardDrag(motionRoot, {
+    ids: visible.map((r) => r.id),
+    groups: new Map(visible.map((r) => [r.id, r.group])),
+    enabled: isActive && !busy && !open,
+    onPreview: setDragOrder,
+    onCommit: async (ids) => {
+      const baseline = deadlineSections(rows, day, clock, stops[windowIndex]);
+      const groups = new Map(visible.map((r) => [r.id, r.group]));
+      const changed = (Object.entries(baseline) as [string, Row[]][]).find(
+        ([group, list]) => {
+          list.sort(
+            (a, b) => (a.meta.order ?? Infinity) - (b.meta.order ?? Infinity),
+          );
+          return (
+            list
+              .slice(0, limit)
+              .map((r) => r.id)
+              .join("|") !==
+            ids.filter((id) => groups.get(id) === group).join("|")
+          );
+        },
+      );
+      if (!changed) return;
+      const [group, list] = changed;
+      const moved = ids.filter((id) => groups.get(id) === group);
+      const all = rows
+        .filter((r) => !r.deleted && !r.meta.purgedAt)
+        .sort((a, b) => (a.meta.order ?? a.index) - (b.meta.order ?? b.index));
+      await reorder(
+        mergeCardOrder(
+          all.map((r) => r.id),
+          list.slice(0, limit).map((r) => r.id),
+          moved,
+        ),
+      );
+    },
+    onError: notify,
+  });
+  if (!isActive) return null;
   const active =
     sections.overdue.length +
     sections.today.length +
@@ -152,9 +206,15 @@ export default function DDL({
   function card(row: Row) {
     const { item, p, id } = row;
     return (
-      <article className="ddl-item" key={id} data-motion-id={id}>
+      <article
+        className="ddl-item"
+        key={id}
+        data-motion-id={id}
+        onPointerDown={drag.onPointerDown}
+      >
         <button
           className="time-rail"
+          data-card-drag-handle
           aria-label={`核对截止时间：${item.title}`}
           onClick={() => setOpen(open === id ? "" : id)}
         >
@@ -189,6 +249,7 @@ export default function DDL({
             </button>
             <button
               className="ddl-copy"
+              data-card-drag-handle
               aria-expanded={open === id}
               onClick={() => setOpen(open === id ? "" : id)}
             >
@@ -301,6 +362,9 @@ export default function DDL({
       className="ddl-workspace"
       aria-label="DDL 截止事项"
     >
+      <span className="drag-announcement" role="status" aria-live="polite">
+        {drag.announcement}
+      </span>
       <header className="ddl-head">
         <img src={`${import.meta.env.BASE_URL}mascot.png`} alt="" />
         <div>

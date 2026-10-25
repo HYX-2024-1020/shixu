@@ -2158,7 +2158,7 @@
 
 /* One composited surface zooms between the actual card and the detail sheet. */
 :root {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 .item-dialog {
   transform-origin: center;
@@ -2184,7 +2184,8 @@
 .result-card[data-dialog-origin] {
   opacity: 0 !important;
 }
-.result-card[data-dragging] {
+.result-card[data-dragging],
+.ddl-item[data-dragging] {
   opacity: 0.18 !important;
   pointer-events: none;
 }
@@ -2290,4 +2291,37 @@ body.is-card-dragging * {
 .bucket-header {
   width: 100%;
   margin: 0;
+}
+
+/* The viewport owns the scrollbar; readable content grows inside it. */
+.bucket-main {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding-inline: clamp(18px, 3.2vw, 64px);
+}
+.bucket-main > div {
+  max-width: 1760px;
+  width: 100%;
+  margin-inline: auto;
+}
+.world-heading {
+  max-width: none;
+}
+.result-controls > button {
+  background: #fff;
+  border: 2px solid #111;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #111;
+}
+.ddl-workspace {
+  max-width: 1280px;
+}
+.ddl-copy,
+.ddl-item .time-rail {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
