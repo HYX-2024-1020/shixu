@@ -112,6 +112,7 @@ jobs:
       - run: npm run test:desktop
       - run: npm run desktop:build
       - run: npm run test:desktop:ui
+      - run: node scripts/desktop-layout-drag-smoke.mjs
 
   required:
     name: Required checks

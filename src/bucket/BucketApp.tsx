@@ -1756,6 +1756,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "ddl"}>
           <DDL
+            reorder={reorderCards}
             active={workspace === "ddl"}
             packets={packets}
             save={save}
