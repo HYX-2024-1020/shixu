@@ -16,7 +16,7 @@ test("DDL restores reference countdowns alongside exact dates and refreshes acro
         startDate: "2026-10-25",
         startTime: "09:00",
       },
-      { title: "合成今日提交", date: "2026-10-24" },
+      { title: "合成当日提交", date: "2026-10-24" },
       { title: "合成已逾期", date: "2026-10-23" },
     ];
     await store.putPacket({
@@ -77,7 +77,7 @@ test("DDL restores reference countdowns alongside exact dates and refreshes acro
   await expect(card("合成奖学金材料").locator(".time-rail")).toContainText(
     "15:00",
   );
-  await expect(card("合成今日提交").locator(".ddl-countdown")).toHaveText(
+  await expect(card("合成当日提交").locator(".ddl-countdown")).toHaveText(
     "今天截止",
   );
   await ddl.getByText("已逾期 · 1 项 · 点开看看", { exact: true }).click();
@@ -96,7 +96,7 @@ test("DDL restores reference countdowns alongside exact dates and refreshes acro
 
   await page.clock.setFixedTime(new Date("2026-10-24T15:01:00"));
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect(card("合成今日提交").locator(".ddl-countdown")).toHaveText(
+  await expect(card("合成当日提交").locator(".ddl-countdown")).toHaveText(
     "今天已逾期",
   );
   await page.clock.setFixedTime(new Date("2026-10-25T00:01:00"));
