@@ -66,7 +66,26 @@ for (const width of [320, 375, 414]) {
       expect(visual!.height).toBe(22);
     }
     const ddl = await page.locator(".ddl-item").boundingBox();
-    expect(ddl!.height).toBeLessThan(110);
+    expect(ddl!.height).toBeLessThan(115);
+    const timeRail = (await page.locator(".ddl-time").boundingBox())!;
+    const bodyRow = (await page.locator(".ddl-row").boundingBox())!;
+    expect(timeRail.y + timeRail.height).toBeLessThanOrEqual(bodyRow.y + 0.1);
+    const timeFields = await Promise.all(
+      [".ddl-date", ".ddl-clock", ".ddl-verify-button"].map((selector) =>
+        page.locator(selector).boundingBox(),
+      ),
+    );
+    for (let i = 0; i < timeFields.length; i++) {
+      const box = timeFields[i]!;
+      expect(box.x).toBeGreaterThanOrEqual(ddl!.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(ddl!.x + ddl!.width);
+      if (i)
+        expect(
+          timeFields[i - 1]!.x + timeFields[i - 1]!.width,
+        ).toBeLessThanOrEqual(box.x + 0.1);
+    }
+    const titleBox = (await page.locator(".ddl-copy").boundingBox())!;
+    expect(titleBox.width).toBeGreaterThan(130);
   });
 }
 
