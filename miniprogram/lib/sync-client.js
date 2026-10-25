@@ -42,7 +42,16 @@ function merge(before, patch, id) {
 
 // No wx or Node dependency: the same queue can later serve the desktop client.
 // write() must persist synchronously; a failed write never advances in-memory state.
-function createSyncClient({ read, write, request, makeId = uid }) {
+function createSyncClient({
+  read,
+  write,
+  request,
+  makeId = uid,
+  protocolVersion = 2,
+}) {
+  if (![2, 3].includes(protocolVersion))
+    throw issue("INCOMPATIBLE_SERVICE", "同步协议版本不兼容");
+  const api = `/api/v${protocolVersion}`;
   let state = read() || {
     version: 1,
     epoch: null,
@@ -137,7 +146,7 @@ function createSyncClient({ read, write, request, makeId = uid }) {
       const cursor = state.cursor;
       const result = await request(
         "GET",
-        `/api/v2/changes?cursor=${cursor}&epoch=${encodeURIComponent(state.epoch)}`,
+        `${api}/changes?cursor=${cursor}&epoch=${encodeURIComponent(state.epoch)}`,
       );
       if (result.epoch !== state.epoch)
         throw issue("RESET_REQUIRED", "服务器资料版本已变化，未同步内容已保留");
@@ -164,10 +173,14 @@ function createSyncClient({ read, write, request, makeId = uid }) {
     } while (more);
   }
   async function execute() {
-    const status = await request("GET", "/api/v2/status");
+    const status = await request("GET", `${api}/status`);
+    if (protocolVersion === 3 && status.protocolVersion === 3) {
+      const account = await request("GET", `${api}/account`);
+      status.epoch = account.epoch;
+    }
     if (
       status.application !== "shixu-sync" ||
-      status.protocolVersion !== 2 ||
+      status.protocolVersion !== protocolVersion ||
       typeof status.epoch !== "string"
     )
       throw issue("INCOMPATIBLE_SERVICE", "该地址不是兼容的拾序同步服务");
@@ -189,7 +202,7 @@ function createSyncClient({ read, write, request, makeId = uid }) {
       const op = entry.operation;
       let result;
       try {
-        result = await request("POST", "/api/v2/operations", {
+        result = await request("POST", `${api}/operations`, {
           epoch: state.epoch,
           operation: op,
         });

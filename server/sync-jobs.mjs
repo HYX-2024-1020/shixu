@@ -42,7 +42,7 @@ function withFileSources(store, packet) {
     })),
   };
 }
-export function createJobQueue(store, ai) {
+export function createJobQueue(store, ai, hooks = {}) {
   const db = store.db;
   db.exec(`CREATE TABLE IF NOT EXISTS sync_jobs(
     id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES sync_devices(id), record_id TEXT NOT NULL,
@@ -73,18 +73,19 @@ export function createJobQueue(store, ai) {
           output: row.output ? JSON.parse(row.output) : null,
         }
       : null;
-  const update = (id, state, output = null, error = "") =>
-    db
-      .prepare(
-        "UPDATE sync_jobs SET state=?, output=?, error=?, updated_at=? WHERE id=?",
-      )
-      .run(
-        state,
-        output ? JSON.stringify(output) : null,
-        error,
-        new Date().toISOString(),
-        id,
-      );
+  const update = (id, state, output = null, error = "") => {
+    db.prepare(
+      "UPDATE sync_jobs SET state=?, output=?, error=?, updated_at=? WHERE id=?",
+    ).run(
+      state,
+      output ? JSON.stringify(output) : null,
+      error,
+      new Date().toISOString(),
+      id,
+    );
+    if (["done", "error", "conflict", "interrupted"].includes(state))
+      hooks.finish?.(id, state);
+  };
   const get = (id) => db.prepare("SELECT * FROM sync_jobs WHERE id=?").get(id);
   async function drain() {
     if (running || stopped || !ai) return;
@@ -111,6 +112,12 @@ export function createJobQueue(store, ai) {
           update(job.id, "error", null, "设备授权已失效，请重新连接");
           continue;
         }
+        try {
+          hooks.authorize?.(job.device_id);
+        } catch {
+          update(job.id, "error", null, "设备授权已失效，请重新激活");
+          continue;
+        }
         if (
           !record ||
           record.deletedAt ||
@@ -134,8 +141,10 @@ export function createJobQueue(store, ai) {
             ]);
           const output =
             input.kind === "organize"
-              ? await ai.organize(packet, signal)
-              : await ai.chat(packet, input.itemId, input.instruction, signal);
+              ? await ai.organize(packet, signal, { deviceId: job.device_id })
+              : await ai.chat(packet, input.itemId, input.instruction, signal, {
+                  deviceId: job.device_id,
+                });
           if (stopped) return;
           if (!get(job.id)) continue;
           // Durably retain a paid result before attempting an optimistic record update.
@@ -277,6 +286,10 @@ export function createJobQueue(store, ai) {
       clearTimeout(timer);
     },
     redact(packetId) {
+      for (const job of db
+        .prepare("SELECT id FROM sync_jobs WHERE record_id=?")
+        .all(packetId))
+        hooks.finish?.(job.id, "purged");
       db.prepare("DELETE FROM sync_jobs WHERE record_id=?").run(packetId);
     },
     get(id) {
@@ -388,16 +401,27 @@ export function createJobQueue(store, ai) {
           .get(request.packetId)
       )
         throw new SyncError(409, "JOB_RUNNING", "这次投递已有任务正在处理");
-      db.prepare(
-        "INSERT INTO sync_jobs(id,device_id,record_id,fingerprint,request,state,updated_at) VALUES(?,?,?,?,?,'queued',?)",
-      ).run(
+      hooks.reserve?.(
         request.id,
-        deviceId,
-        request.packetId,
         fingerprint,
-        JSON.stringify(request),
-        new Date().toISOString(),
+        withFileSources(store, record.data),
+        request,
       );
+      try {
+        db.prepare(
+          "INSERT INTO sync_jobs(id,device_id,record_id,fingerprint,request,state,updated_at) VALUES(?,?,?,?,?,'queued',?)",
+        ).run(
+          request.id,
+          deviceId,
+          request.packetId,
+          fingerprint,
+          JSON.stringify(request),
+          new Date().toISOString(),
+        );
+      } catch (error) {
+        hooks.release?.(request.id);
+        throw error;
+      }
       kick();
       return publicJob(get(request.id));
     },

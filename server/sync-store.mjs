@@ -139,12 +139,13 @@ export class SyncStore {
   close() {
     this.db.close();
   }
-  createDevice(name = "个人设备", now = Date.now()) {
+  createDevice(name = "个人设备", now = Date.now(), credential = {}) {
     if (typeof name !== "string" || !name.trim() || name.length > 80)
       throw new SyncError(400, "INVALID_DEVICE", "设备名称应为 1 至 80 个字符");
-    const id = randomUUID(),
-      token = "shixu_" + randomBytes(32).toString("base64url");
-    const expiresAt = now + 30 * 86400000;
+    const id = credential.id || randomUUID(),
+      token =
+        credential.token || "shixu_" + randomBytes(32).toString("base64url");
+    const expiresAt = credential.expiresAt || now + 30 * 86400000;
     this.db
       .prepare(
         "INSERT INTO sync_devices(id,name,token_hash,expires) VALUES(?,?,?,?)",
@@ -289,6 +290,7 @@ export class SyncStore {
         type === "put" ? mergeData(current?.data, data, id) : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      if (type === "put") this.validateStorage?.(nextData, current);
       if (type === "put") {
         if (this.files)
           this.files.validateReferences(id, nextData.attachments || []);
