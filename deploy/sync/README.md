@@ -1,5 +1,24 @@
 # 独立同步后端：私有测试部署
 
+## 邀请账号版 v3
+
+Issue #40 的账号版必须使用 `install-accounts.sh`，不能用下方旧 v2 安装器冒充账号部署。新安装器会保存原服务 unit、配置和旧单用户数据库备份，停服后备份账号注册表与所有用户数据库，再切换同一个 shixu-sync.service 的入口；失败恢复旧代码与 unit，不删除新旧资料。旧 workspace.sqlite 保持封存，不复制给新账号。
+
+```sh
+sudo bash deploy/sync/install-accounts.sh /absolute/path/to/release
+curl --fail http://127.0.0.1:8788/api/v3/status
+sudo env SYNC_ACCOUNT_DIR=/var/lib/shixu-sync/accounts-v3 node \
+  --env-file=/etc/shixu-sync/service.env \
+  /opt/shixu-sync/current/deploy/sync/verify-accounts.mjs \
+  http://127.0.0.1:8788 --restart-service
+```
+
+默认验收不创建 AI 任务，使用两个合成账号验证激活重试、越权隔离、附件下载、幂等、删除恢复、真实重启和撤销；清除测试原文/原件并停用测试账号。微信配置检查可显式增加 `--wechat-config`，只输出是否有效或错误码，不输出 access_token 或 AppSecret；这不等于 wx.login 的真实身份已验收。
+
+`--real-ai` 仅在已经说明用途与预算并配置额度后使用：至多创建一次整理和一次事项对话，每个任务仅一次上游调用，重复提交不会再计费；失败不会自动重发。2026-10-25 本轮预算预留总上限 0.50 元（每任务0.25元），只用合成文本，验证后关闭 AI。token/字节限额仍按配置生效；费用预留不等于供应商账单。服务端明确关闭供应商默认思考模式，避免小输出额度被推理占用，见 [官方参数](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/)。
+
+后续账号一致性备份先停止服务，再运行 `backup-accounts.mjs DATA_DIRECTORY BACKUP_DIRECTORY --service-stopped`，备份中央注册表与每个用户库并执行 quick_check；环境秘密单独以0600权限备份。不得把正在运行时逐个复制数据库称为跨库一致快照。安装器只绑定loopback，不修改域名、HTTPS、微信域名或防火墙；部署记录见 [本轮验收](../../docs/accounts-deployment-2026-10-25.md)。
+
 此目录由服务器部署工作维护，与桌面、小程序界面分开。当前云端旧固定快照仅验证文字资料同步。云端尚未包含本分支的附件/AI 后台任务、微信登录和正式公网接入；不能用于迁移现有个人资料。
 
 Issue #17 开发分支新增可选文字 AI 队列（`/api/v2/jobs`）；云端旧快照没有该能力。新固定包包含同源生成的 `server/generated/ai-core.mjs` 和任务调度模块，仍然不需要 npm 安装。服务端同时设置 `SYNC_AI_ENABLED=true` 与 `DEEPSEEK_API_KEY` 才启用；默认关闭。调用按配置的模型计费，测试使用模拟模型。重启中断不自动重发计费请求；处理中发生修改的结果保留为冲突。本分支还加入原件上传/下载、去重、校验和数据库原件备份，UTF-8 文字可读取；二进制原件的模型读取和桌面接入仍待完成。详见 [附件说明](../../docs/miniprogram-attachments.md)，完整能力边界见 [双端说明](../../docs/client-parity.md)。

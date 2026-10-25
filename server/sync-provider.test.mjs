@@ -25,6 +25,7 @@ test("provider bounds the actual request and allows one billable attempt per job
   const response = await fetcher(url, request);
   assert.equal(payload.max_tokens, 1024);
   assert.equal(payload.stream, false);
+  assert.deepEqual(payload.thinking, { type: "disabled" });
   assert.deepEqual(await response.json(), { fixture: true });
   await assert.rejects(
     fetcher(url, request),
