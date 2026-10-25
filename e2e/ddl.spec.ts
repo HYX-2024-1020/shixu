@@ -39,7 +39,12 @@ test("DDL restores reference countdowns alongside exact dates and refreshes acro
           uncertainties: [],
           sourceIds: ["synthetic"],
           evidence: [],
-          due: { ...due, time: "15:00", sourceId: "manual", anchor: due.date },
+          due: {
+            ...due,
+            time: "15:00",
+            sourceId: "manual",
+            anchor: `${due.date} 15:00`,
+          },
         })),
       },
       itemIds: entries.map((_, i) => `countdown-${i}`),
