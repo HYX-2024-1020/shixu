@@ -1,6 +1,13 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const {
+  CONNECTION,
+  SERVICE_ORIGIN,
+  activate: activateAccount,
+  spaceKey,
+  accountTransport,
+} = require("../../lib/accounts");
+const {
   KEY: FILES,
   createFileLibrary,
   createFileTransport,
@@ -33,7 +40,6 @@ const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
 const jobsKey = (base) => `shixu:mini:jobs:v1:${base}`;
 const DRAFT = "shixu:mini:draft:v1";
-const CONNECTION = "shixu:mini:connection:v1";
 const stateKey = (base) => `shixu:mini:workspace:v1:${base}`;
 function dateInfo() {
   const now = new Date();
@@ -81,6 +87,8 @@ Page({
     serverUrl: "",
     password: "",
     connected: false,
+    accountAiState: "未激活",
+    activationState: "未激活",
     connecting: false,
     syncing: false,
     aiChecking: false,
@@ -184,7 +192,13 @@ Page({
             : (savedDraft && savedDraft.text) || "",
       });
       const connection = wx.getStorageSync(CONNECTION);
-      if (connection && connection.base && connection.token)
+      if (
+        connection &&
+        connection.protocolVersion === 3 &&
+        connection.base &&
+        connection.token &&
+        wx.getStorageSync(CONNECTION + ":active") !== false
+      )
         this._activate(connection);
       else this._activateLocal();
     } catch (error) {
@@ -219,22 +233,42 @@ Page({
   _activate(connection) {
     const environment = wx.getAccountInfoSync().miniProgram.envVersion;
     const base = normalizeServiceURL(connection.base, environment);
-    const transport = createTransport(base, () => connection.token);
+    if (connection.protocolVersion === 3 && base !== SERVICE_ORIGIN)
+      throw new Error("激活服务地址无效");
+    const transport =
+      connection.protocolVersion === 3
+        ? accountTransport(connection, wx, (account) => {
+            const day = new Date().toISOString().slice(0, 10),
+              used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
+            this.setData({
+              activationState: "已激活",
+              accountAiState: !account.ai.enabled
+                ? "服务端 AI 暂未启用"
+                : used >= account.ai.dailyLimit
+                  ? "今日 AI 额度已用完；记录和同步仍可用"
+                  : `今日 ${used} / ${account.ai.dailyLimit} 次，UTC 零点重置`,
+            });
+          })
+        : createTransport(base, () => connection.token);
+    const space = spaceKey(connection);
     const client = createSyncClient({
-      read: () => wx.getStorageSync(stateKey(base)) || null,
-      write: (value) => wx.setStorageSync(stateKey(base), value),
+      read: () => wx.getStorageSync(stateKey(space)) || null,
+      write: (value) => wx.setStorageSync(stateKey(space), value),
       request: transport,
+      protocolVersion: connection.protocolVersion || 2,
     });
     this._connection = connection;
     this._epoch = connection.epoch || null;
     this._transport = transport;
     this._client = client;
-    const jobs = wx.getStorageSync(jobsKey(base));
+    const jobs = wx.getStorageSync(jobsKey(space));
     if (jobs && !Array.isArray(jobs))
       throw new Error("任务记录无法读取，请保留资料联系开发者");
     this._jobs = jobs || [];
+    this._loadDraft();
     this.setData({
       connected: true,
+      activationState: "设备凭证已保存，等待核验",
       serverUrl: base,
       localMode: false,
       jobs: this._jobViews(this._jobs),
@@ -251,7 +285,7 @@ Page({
           .filter((r) => r.purged && !r.pending))
           library.forgetPacket(
             row.id,
-            this.data.localMode ? "local" : this._connection.base,
+            this.data.localMode ? "local" : this._space(),
           );
     } catch (error) {
       this._error(
@@ -301,7 +335,7 @@ Page({
       pendingFiles:
         this._library() && !this.data.localMode
           ? this._library()
-              .entries(null, this._connection.base)
+              .entries(null, this._space())
               .filter(
                 (e) =>
                   !e.remote &&
@@ -389,6 +423,8 @@ Page({
   },
   _fileEntries(packetId, space) {
     if (!packetId || !this._library()) return [];
+    if (space === undefined)
+      space = packetId === this._draftId ? this._draftSpace() : this._space();
     const entries = this._library().entries(packetId, space);
     // A retained local copy and its remote import may share one original.
     return entries.filter(
@@ -422,13 +458,16 @@ Page({
     try {
       if (!this._draftId) this._draftId = makeId();
       // Persist the owner ID before copying a temporary file to durable storage.
-      wx.setStorageSync(DRAFT, { id: this._draftId, text: this.data.draft });
+      wx.setStorageSync(this._draftKey(), {
+        id: this._draftId,
+        text: this.data.draft,
+      });
       const library = this._library();
       if (!library) throw new Error("当前环境暂不支持原件保存");
       for (const file of files) {
         if (this._fileEntries(this._draftId).length >= 20)
           throw new Error("一次投递最多 20 份原件");
-        library.add(file, this._draftId);
+        library.add(file, this._draftId, this._draftSpace());
       }
       this.setData({
         error: "",
@@ -444,6 +483,7 @@ Page({
       this._library().removeDraft(
         event.currentTarget.dataset.id,
         this._draftId,
+        this._draftSpace(),
       );
       this._refresh();
     } catch (error) {
@@ -454,8 +494,13 @@ Page({
     const library = this._library();
     if (!library || this.data.filesBusy || !this.data.capabilities.attachments)
       return;
-    const base = this._connection.base,
-      transport = createFileTransport(base, () => this._connection.token);
+    const base = this._space(),
+      transport = createFileTransport(
+        this._connection.base,
+        () => this._connection.token,
+        wx,
+        this._connection.protocolVersion || 2,
+      );
     this.setData({ filesBusy: true });
     try {
       let changed = false;
@@ -501,7 +546,7 @@ Page({
       if (!file) throw new Error("附件不存在");
       const library = this._library();
       if (!library) throw new Error("当前环境不支持原件预览");
-      const space = this.data.localMode ? "local" : this._connection.base;
+      const space = this.data.localMode ? "local" : this._space();
       let entry = library.entries(packet, space).find((e) => e.id === id),
         path;
       if (entry) {
@@ -518,6 +563,8 @@ Page({
         const bytes = await createFileTransport(
           this._connection.base,
           () => this._connection.token,
+          wx,
+          this._connection.protocolVersion || 2,
         ).download(packet, id, this._epoch);
         const latest = this._record(packet);
         if (
@@ -605,15 +652,65 @@ Page({
       })),
     };
   },
+  _space() {
+    return this._connection ? spaceKey(this._connection) : "local";
+  },
+  _draftKey() {
+    return this._connection?.protocolVersion === 3
+      ? DRAFT + ":" + this._space()
+      : DRAFT;
+  },
+  _draftSpace() {
+    return this._connection?.protocolVersion === 3
+      ? "draft:" + this._space()
+      : "draft";
+  },
+  _loadDraft() {
+    const saved = wx.getStorageSync(this._draftKey());
+    this._draftId = saved && typeof saved === "object" ? saved.id : null;
+    this.setData({
+      draft: typeof saved === "string" ? saved : saved?.text || "",
+      draftFiles: [],
+      selected: null,
+      originalPreview: null,
+      chatInput: "",
+    });
+  },
+  async resumeAccount() {
+    if (
+      this.data.filesBusy ||
+      this.data.connecting ||
+      this.data.syncing ||
+      this.data.jobBusy
+    )
+      return;
+    try {
+      const connection = wx.getStorageSync(CONNECTION);
+      if (!connection?.token || connection.protocolVersion !== 3)
+        throw Error("此设备尚未激活");
+      wx.setStorageSync(this._draftKey(), {
+        id: this._draftId,
+        text: this.data.draft,
+      });
+      wx.setStorageSync(CONNECTION + ":active", true);
+      this._activate(connection);
+      await this.sync();
+    } catch (error) {
+      this._error(error);
+    }
+  },
   _activateLocal() {
     this._client = this._localWorkspace();
     this._connection = null;
     this._transport = null;
     this._jobs = [];
+    this._loadDraft();
     this.setData({
       localMode: true,
       connected: false,
+      activationState: "未激活 · 本机空间",
       jobs: [],
+      accountAiState: "未激活 · 本机资料可用",
       capabilities: {},
     });
     this._refresh();
@@ -628,7 +725,11 @@ Page({
       return;
     // Remote outbox remains durable under its original service URL.
     try {
-      wx.setStorageSync(CONNECTION, null);
+      wx.setStorageSync(this._draftKey(), {
+        id: this._draftId,
+        text: this.data.draft,
+      });
+      wx.setStorageSync(CONNECTION + ":active", false);
       this._activateLocal();
       this.setData({
         tab: "capture",
@@ -660,7 +761,7 @@ Page({
         if (!existing)
           this._client.put(row.id, { ...row.data, attachments: [] });
         if (this._library())
-          this._library().copySpace(row.id, "local", this._connection.base);
+          this._library().copySpace(row.id, "local", this._space());
       }
       await this.sync();
       this.setData({ notice: "导入操作已保存，本机原件保留；以同步状态为准" });
@@ -670,6 +771,14 @@ Page({
     this._refresh();
   },
   _error(error) {
+    if (
+      error.status === 401 ||
+      ["UNAUTHORIZED", "ACCOUNT_DISABLED"].includes(error.code)
+    )
+      this.setData({
+        activationState: "授权失效，请联系管理员恢复",
+        accountAiState: "设备授权失效，本地资料仍保留",
+      });
     this.setData({ error: error.message || "操作未完成，请稍后重试" });
   },
   onDraft(event) {
@@ -677,7 +786,7 @@ Page({
     if (!this._draftId) this._draftId = makeId();
     this.setData({ draft });
     try {
-      wx.setStorageSync(DRAFT, { id: this._draftId, text: draft });
+      wx.setStorageSync(this._draftKey(), { id: this._draftId, text: draft });
       this.setData({ error: "" });
     } catch (_) {
       this.setData({ error: "草稿保存失败，请先复制保留文字，再释放存储空间" });
@@ -722,7 +831,10 @@ Page({
     this.setData({ aiChecking: true, error: "" });
     try {
       const status = await this._transport("GET", "/api/v2/status");
-      if (status.application !== "shixu-sync" || status.protocolVersion !== 2)
+      if (
+        status.application !== "shixu-sync" ||
+        status.protocolVersion !== (this._connection?.protocolVersion || 2)
+      )
         throw new Error("该地址不是兼容的拾序同步服务");
       this.setData({ capabilities: status.capabilities || {} });
     } catch (error) {
@@ -749,38 +861,22 @@ Page({
       return;
     this.setData({ connecting: true, error: "", notice: "" });
     try {
-      const base = normalizeServiceURL(
-        this.data.serverUrl,
-        wx.getAccountInfoSync().miniProgram.envVersion,
-      );
-      if (
-        this._connection &&
-        this._connection.base !== base &&
-        this._client.pendingCount()
-      )
-        throw new Error("当前服务还有未同步操作，请先完成同步再切换服务地址");
-      const transport = createTransport(base, () => null);
-      const status = await transport("GET", "/api/v2/status");
-      if (status.application !== "shixu-sync" || status.protocolVersion !== 2)
-        throw new Error("该地址不是兼容的拾序同步服务");
-      const previous = wx.getStorageSync(stateKey(base));
-      if (previous && previous.epoch && previous.epoch !== status.epoch)
-        throw new Error("服务器资料版本已变化，本机内容已保留，请先核对资料");
-      const device = await transport("POST", "/api/v2/devices", {
-        password: this.data.password,
-        name: "拾序微信小程序",
+      if (this._connection && this._client.pendingCount())
+        throw new Error("请先同步当前账号的待传操作");
+      wx.setStorageSync(this._draftKey(), {
+        id: this._draftId,
+        text: this.data.draft,
       });
-      const connection = {
-        base,
-        epoch: device.epoch,
-        token: device.token,
-        deviceId: device.deviceId,
-        expiresAt: device.expiresAt,
-      };
-      this.setData({ capabilities: status.capabilities || {} });
+      const connection = await activateAccount(this.data.password, wx);
+      if (this._client.pendingCount())
+        throw Error("原空间新增了待同步操作，请先同步，再恢复激活");
+      const previous = wx.getStorageSync(stateKey(spaceKey(connection)));
+      if (previous?.epoch && previous.epoch !== connection.epoch)
+        throw new Error("账号资料版本已变化，请保留本地队列联系管理员核对");
       this._activate(connection);
       wx.setStorageSync(CONNECTION, connection);
-      this.setData({ password: "", notice: "已连接，正在核对资料" });
+      wx.setStorageSync(CONNECTION + ":active", true);
+      this.setData({ password: "", notice: "设备已激活，正在核对资料" });
       await this.sync();
     } catch (error) {
       this._error(error);
@@ -799,7 +895,7 @@ Page({
       await this._pollJobs();
       const pendingFiles = this._library()
         ? this._library()
-            .entries(null, this._connection.base)
+            .entries(null, this._space())
             .filter(
               (e) =>
                 !e.remote &&
@@ -823,9 +919,14 @@ Page({
     }
   },
   syncQuietly() {
-    if (this._client && !this.data.localMode) return this.sync();
+    if (this._client && !this.data.localMode && !this.data.connecting)
+      return this.sync();
   },
   submit() {
+    if (this.data.connecting) {
+      wx.showToast({ title: "正在激活，请稍后投递", icon: "none" });
+      return;
+    }
     if (
       this.data.filesBusy ||
       (!this.data.draft.trim() && !this.data.draftFiles.length)
@@ -846,7 +947,8 @@ Page({
       if (this._library())
         this._library().assign(
           id,
-          this.data.localMode ? "local" : this._connection.base,
+          this.data.localMode ? "local" : this._space(),
+          this._draftSpace(),
         );
       this._client.put(id, {
         id,
@@ -862,7 +964,7 @@ Page({
         doneIds: [],
       });
       // Queue persistence happens before clearing the draft.
-      wx.setStorageSync(DRAFT, "");
+      wx.setStorageSync(this._draftKey(), "");
       this._draftId = null;
       this.setData({
         draft: "",
@@ -1452,7 +1554,7 @@ Page({
     }));
   },
   _saveJobs(jobs) {
-    wx.setStorageSync(jobsKey(this._connection.base), jobs);
+    wx.setStorageSync(jobsKey(this._space()), jobs);
     this._jobs = jobs;
     this.setData({ jobs: this._jobViews(jobs) });
   },
@@ -1478,7 +1580,7 @@ Page({
               ? await this._transport("POST", "/api/v2/jobs", saved.request)
               : await this._transport("GET", `/api/v2/jobs/${saved.id}`);
         } catch (error) {
-          if ([400, 403, 404, 409, 422, 503].includes(error.status)) {
+          if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error.status)) {
             this._saveJobs(
               this._jobs.map((j) =>
                 j.id === saved.id
@@ -1875,7 +1977,7 @@ Page({
       return;
     }
     try {
-      wx.setStorageSync(DRAFT, {
+      wx.setStorageSync(this._draftKey(), {
         id: this._draftId || null,
         text: this.data.draft,
       });

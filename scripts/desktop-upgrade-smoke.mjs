@@ -120,8 +120,12 @@ try {
     }),
   }));
   assert.equal(result.packets.length, 2);
-  assert.equal(result.key, "legacy-dummy-key");
-  assert.equal(result.config.key, undefined);
+  assert.equal(result.key, "");
+  assert.equal(
+    result.config.key,
+    "legacy-dummy-key",
+    "existing legacy configuration is not read, migrated or removed",
+  );
   assert.equal(result.originalLength, 2);
   const a = result.packets.find((p) => p.id === "old-a"),
     b = result.packets.find((p) => p.id === "old-b");
@@ -137,7 +141,7 @@ try {
     3,
   );
   console.log(
-    "PASS: first desktop profile upgrades records/originals/draft/relations, encrypts legacy key, and leaves original IndexedDB intact",
+    "PASS: first desktop profile upgrades records/originals/draft/relations, does not read or migrate legacy key, and leaves original IndexedDB intact",
   );
 } finally {
   await app.close();

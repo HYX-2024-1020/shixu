@@ -160,6 +160,7 @@ export function createAttachmentStore(store, limits = {}) {
           .prepare("SELECT hash FROM sync_blobs WHERE hash=?")
           .get(hash);
         if (!blob) {
+          store.validateBlobStorage?.(bytes.length);
           const used = db
             .prepare("SELECT COALESCE(SUM(size),0) AS bytes FROM sync_blobs")
             .get().bytes;

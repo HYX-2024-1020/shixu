@@ -1,0 +1,3 @@
+# Historical synthetic UI-fixture signing secret, never a provider credential.
+# Current source uses an obviously non-secret repeated fixture word instead.
+0d4d6a3466f4ba1970d6984266cb94e3f266c552:scripts/account-ui-fixture.mjs:generic-api-key:23

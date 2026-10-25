@@ -13,6 +13,31 @@ import { buildRelease } from "../../scripts/build-sync-release.mjs";
 import { backupDatabase } from "./backup.mjs";
 import { verifyService } from "./verify.mjs";
 
+test("account service and protected CLI run from the self-contained release", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
+  let service;
+  try {
+    const { directory: release } = await buildRelease(join(directory, "release"));
+    const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
+    const accountDirectory = join(directory, "accounts");
+    const secret = "synthetic-release-secret-32-characters";
+    const { stdout } = await promisify(execFile)(process.execPath, [join(release, "server/sync-admin.mjs"), "generate", "2"], {
+      env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
+    });
+    assert.equal(JSON.parse(stdout).length, 2);
+    service = createMultiUserService({ directory: accountDirectory, secret });
+    service.server.listen(0, "127.0.0.1"); await once(service.server, "listening");
+    const base = `http://127.0.0.1:${service.server.address().port}`;
+    assert.equal((await (await fetch(base + "/api/v3/status")).json()).protocolVersion, 3);
+    assert.equal((await fetch(base + "/api/v2/changes")).status, 404);
+    assert.equal((await fetch(base + "/api/v3/changes")).status, 401);
+  } finally {
+    if (service) { service.server.close(); await once(service.server, "close"); }
+    assert.ok(directory.includes("shixu-accounts-release-"));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("release starts independently; two devices, restart, WAL backup and restored service work", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-deploy-"));
   let service;
@@ -25,7 +50,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["generated", "sync-files.mjs", "sync-jobs.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["generated", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

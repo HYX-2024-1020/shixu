@@ -162,20 +162,14 @@ try {
   await page.getByRole("dialog").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  await page.route("https://api.deepseek.com/models", (route) =>
-    route.fulfill({ json: { data: [{ id: "deepseek-flash" }] } }),
-  );
   await page.getByRole("button", { name: "连接与设置", exact: true }).click();
-  await page
-    .getByLabel("DeepSeek API 密钥", { exact: true })
-    .fill("dummy-key-for-settings-test");
-  await page.getByLabel("在这台个人设备上记住密钥", { exact: true }).check();
-  await page.getByRole("button", { name: "连接并开始", exact: true }).click();
-  await page.getByRole("dialog").waitFor({ state: "detached" });
   assert.equal(
-    await page.evaluate(() => window.desktop.key("read")),
-    "dummy-key-for-settings-test",
+    await page.getByLabel("DeepSeek API 密钥", { exact: true }).count(),
+    0,
   );
+  assert.equal(await page.getByLabel("邀请码", { exact: true }).count(), 1);
+  assert.equal(await page.evaluate(() => window.desktop.key("read")), "");
+  await page.keyboard.press("Escape");
   console.log(
     "PASS: bundled UI, renderer isolation, tray close/reopen, persisted draft after restart",
   );

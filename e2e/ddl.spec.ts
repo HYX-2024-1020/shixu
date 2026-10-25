@@ -36,6 +36,8 @@ test("date ranges normalize without a year and content stays above the navigatio
   );
   await card.getByLabel("截止日期", { exact: true }).fill("");
   await card.getByRole("button", { name: "保存时间", exact: true }).click();
+  // The section appears only after the asynchronous durable save completes.
+  await expect(ddl.getByText(/日期待确认 · 1 项/)).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
   await ddl.getByText(/日期待确认 · 1 项/).click();

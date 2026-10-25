@@ -1,10 +1,12 @@
+import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
+const fixture = await accountUIFixture();
 const env = {
-  ...process.env,
+  ...fixture.env,
   SHIXU_DATA_DIR: await mkdtemp(path.join(tmpdir(), "shixu-spatial-")),
 };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -57,49 +59,9 @@ try {
     await window.desktop.store("savePackets", [
       window.makePacket("history", ["以前的任务不要出现在桶里"]),
     ]);
-    await window.desktop.key("save", "dummy-for-mocked-model");
   });
   await page.reload();
-  await page.route("https://api.deepseek.com/**", async (route) => {
-    const body = route.request().postDataJSON();
-    const data = JSON.parse(body.messages?.[1]?.content || "{}");
-    const sources = data.sources || [];
-    const text = sources.map((s) => s.text).join("");
-    const output = {
-      summary: "收好了",
-      warnings: [],
-      links: [],
-      items: sources.length
-        ? [
-            {
-              kind: "task",
-              title: text.includes("相册") ? "整理相册" : "提交英语报告",
-              summary: text,
-              facts: [],
-              sourceIds: [sources[0].id],
-              evidence: [{ sourceId: sources[0].id, quote: sources[0].text }],
-              due: null,
-              nextSteps: [],
-              uncertainties: [],
-              importance: 1,
-            },
-          ]
-        : [],
-    };
-    await new Promise((r) => setTimeout(r, 280));
-    await route.fulfill({
-      json: {
-        model: "deepseek-flash",
-        choices: [
-          {
-            finish_reason: "stop",
-            message: { content: JSON.stringify(output) },
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
-      },
-    });
-  });
+  await fixture.activate(page, true);
   const input = page.getByRole("textbox", {
     name: "往桶里放入内容",
     exact: true,
@@ -391,4 +353,5 @@ try {
   console.log("PASS:", report.checks.join("; "));
 } finally {
   await app.close();
+  await fixture.close();
 }

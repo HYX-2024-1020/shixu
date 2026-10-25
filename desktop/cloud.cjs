@@ -69,6 +69,7 @@ class CloudWorkspace {
       fs.mkdirSync(cache.file("files"), { recursive: true });
       const file = cache.file("queue.json");
       const client = createSyncClient({
+        protocolVersion: this.protocolVersion || 2,
         read: () =>
           fs.existsSync(file)
             ? JSON.parse(fs.readFileSync(file, "utf8"))
@@ -78,7 +79,7 @@ class CloudWorkspace {
         request: async (method, api, data) => {
           if (
             method === "POST" &&
-            api === "/api/v2/operations" &&
+            ["/api/v2/operations", "/api/v3/operations"].includes(api) &&
             data.operation.type === "put"
           ) {
             const op = data.operation;

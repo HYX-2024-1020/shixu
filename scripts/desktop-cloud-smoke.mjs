@@ -1,77 +1,66 @@
 import { _electron as electron, expect } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import assert from "node:assert/strict";
-import { createSyncService } from "../server/sync-server.mjs";
 import { createRequire } from "node:module";
+import { accountUIFixture, fixtureItem } from "./account-ui-fixture.mjs";
 import { waitForPageState } from "./desktop-test-wait.mjs";
-const require = createRequire(import.meta.url);
-const { createSyncClient } = require("../miniprogram/lib/sync-client.js");
-const root = await mkdtemp(path.join(tmpdir(), "shixu-cloud-ui-"));
-const password = "synthetic-cloud-ui-passphrase";
-const service = createSyncService({
-  database: path.join(root, "server.sqlite"),
-  password,
-});
-await new Promise((r) => service.server.listen(0, "127.0.0.1", r));
-const base = `http://127.0.0.1:${service.server.address().port}`;
-const env = { ...process.env, SHIXU_DATA_DIR: path.join(root, "profile") };
-delete env.ELECTRON_RUN_AS_NODE;
+const { createSyncClient } = createRequire(import.meta.url)(
+  "../miniprogram/lib/sync-client.js",
+);
+const fixture = await accountUIFixture();
+delete fixture.env.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ args: ["."], env });
+  app = await electron.launch({ args: ["."], env: fixture.env });
   const page = await app.firstWindow();
-  await waitForPageState(
-    page,
-    () =>
-      !!document.querySelector("textarea") &&
-      !document.querySelector("textarea").disabled,
-  );
+  await fixture.activate(page);
   await page.locator(".bucket-settings").click();
-  await page.getByLabel("同步服务地址", { exact: true }).fill(base);
-  await page.getByLabel("同步访问口令", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "连接云端资料", exact: true }).click();
-  await waitForPageState(
-    page,
-    async () => !!(await window.desktop.cloud("status")).base,
+  await expect(page.getByLabel("邀请码", { exact: true })).toBeVisible();
+  assert.equal(
+    await page.getByLabel("DeepSeek API 密钥", { exact: true }).count(),
+    0,
   );
-  await waitForPageState(
-    page,
-    () =>
-      !!document.querySelector("textarea") &&
-      !document.querySelector("textarea").disabled,
+  assert.equal(
+    await page.getByLabel("同步服务地址", { exact: true }).count(),
+    0,
   );
+  assert.equal(await page.evaluate(() => window.desktop.key("read")), "");
+  await page.keyboard.press("Escape");
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
     .fill("Windows 云同步 UI 合成投递");
   await page.locator(".bucket-send").click();
   await waitForPageState(page, async () =>
     (await window.desktop.store("packets")).some(
-      (p) => p.text === "Windows 云同步 UI 合成投递",
+      (p) => p.result?.items?.length,
     ),
   );
-  await page.evaluate(() => window.desktop.cloud("sync"));
-  const d = await fetch(base + "/api/v2/devices", {
+  const enrolled = await fetch(fixture.base + "/api/v3/activate/wechat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password, name: "synthetic mini runtime" }),
+    body: JSON.stringify({
+      invite: fixture.invitation.invite,
+      code: "synthetic-mini-runtime",
+    }),
   }).then((r) => r.json());
+  let state;
   const mini = createSyncClient({
-    read: () => null,
-    write: () => {},
+    protocolVersion: 3,
+    read: () => state,
+    write: (next) => {
+      state = structuredClone(next);
+    },
     request: async (method, api, data) => {
-      const r = await fetch(base + api, {
+      const r = await fetch(fixture.base + api, {
         method,
         headers: {
-          Authorization: `Bearer ${d.token}`,
+          Authorization: `Bearer ${enrolled.token}`,
           "Content-Type": "application/json",
         },
         ...(data ? { body: JSON.stringify(data) } : {}),
       });
-      const body = await r.json();
-      if (!r.ok) throw Object.assign(Error(body.error), body);
-      return body;
+      const result = await r.json();
+      if (!r.ok) throw Object.assign(Error(result.error), result);
+      return result;
     },
   });
   await mini.sync();
@@ -80,65 +69,45 @@ try {
   );
   mini.put("phone-ui-probe", {
     id: "phone-ui-probe",
-    text: "手机端合成资料",
+    text: "手机合成资料",
     sources: [],
     attachments: [],
-    capturedAt: "2026-10-24T01:00:00Z",
-    captureDate: "2026-10-24",
+    capturedAt: new Date().toISOString(),
+    captureDate: "2026-10-25",
     status: "ready",
-    error: "",
-    doneIds: [],
-    itemIds: ["phone_item"],
     result: {
       summary: "手机事项",
       warnings: [],
-      items: [
-        {
-          kind: "task",
-          title: "手机送来的待办",
-          summary: "验证跨端展示",
-          facts: [],
-          nextSteps: [],
-          uncertainties: [],
-          sourceIds: [],
-          evidence: [],
-          due: null,
-        },
-      ],
+      items: [fixtureItem("手机送来的待办")],
     },
+    itemIds: ["phone-item"],
+    doneIds: [],
+    itemState: {},
   });
   await mini.sync();
-  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.evaluate(() => window.desktop.cloud("sync"));
+  await page.reload();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
-  await page
-    .getByText("手机送来的待办", { exact: true })
-    .waitFor({ timeout: 20000 });
-  assert.equal(
-    await page.evaluate(
-      async () =>
-        (await window.desktop.store("packets")).find(
-          (p) => p.id === "phone-ui-probe",
-        ).syncAutoOrganize,
-    ),
-    false,
-  );
+  await expect(
+    page.getByRole("heading", { name: "手机送来的待办", exact: true }),
+  ).toBeVisible();
   await page.locator(".bucket-settings").click();
-  await page.getByRole("button", { name: "切回本机资料", exact: true }).click();
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.getByRole("button", { name: "切回本机资料", exact: true }).click(),
+  ]);
   await waitForPageState(
     page,
     async () => !(await window.desktop.cloud("status")).base,
   );
   assert.equal(
-    await page.evaluate(
-      async () => (await window.desktop.store("packets")).length,
-    ),
+    (await page.evaluate(() => window.desktop.store("packets"))).length,
     0,
   );
   console.log(
-    "PASS: real Windows cloud connection form, encrypted enrollment, UI capture to mini queue, phone task rendered, local/cloud isolation",
+    "PASS: invitation UI, main-process credential boundary, server AI, shared v3 queue and independent local workspace (synthetic)",
   );
 } finally {
-  if (app) await app.close();
-  await new Promise((r) => service.server.close(r));
-  await rm(root, { recursive: true, force: true });
+  await app?.close();
+  await fixture.close();
 }

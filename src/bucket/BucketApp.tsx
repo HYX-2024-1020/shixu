@@ -74,6 +74,8 @@ const CONFIG_KEY = DEMO
   ? "shixu-bucket-connection-demo"
   : "shixu-bucket-connection";
 function initialConfig() {
+  if (window.desktop)
+    return { key: "", model: DEFAULT_MODEL, rememberKey: false };
   try {
     const value = JSON.parse(localStorage.getItem(CONFIG_KEY) || "{}");
     return {
@@ -138,6 +140,8 @@ export default function BucketApp() {
     else reveal();
   }
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  const [cloudActive, setCloudActive] = useState(false);
   const [currentCaptureId, setCurrentCaptureId] = useState("");
   useEffect(() => {
     if (!currentCaptureId) return;
@@ -197,15 +201,24 @@ export default function BucketApp() {
       if (busy || working.current || submitLock.current) return;
       busy = true;
       try {
-        if (!(await window.desktop!.cloud("status")).base) return;
-        await window.desktop!.cloud("sync");
+        const state = await window.desktop!.cloud("status");
+        setCloudActive(!!state.base);
+        if (!state.base) return;
+        const updated = await window.desktop!.cloud("sync");
+        const ai = updated.account?.ai;
+        const used =
+          ai?.usage.find((u) => u.day === new Date().toISOString().slice(0, 10))
+            ?.requests || 0;
+        setCloudReady(!!ai?.enabled && used < ai.dailyLimit);
         const rows = await allPackets();
         if (!stopped && !working.current && !submitLock.current) {
           packetsRef.current = rows;
           setPackets(rows);
         }
       } catch {
-        /* Persistent queue and last error are visible in cloud settings. */
+        setCloudReady(
+          false,
+        ); /* Persistent queue and last error are visible in cloud settings. */
       } finally {
         busy = false;
       }
@@ -273,11 +286,58 @@ export default function BucketApp() {
     [saveMany],
   );
   const chatLocks = useRef(new Set<string>());
+  async function runCloudAI(
+    value: {
+      kind: string;
+      packetId: string;
+      itemId?: string;
+      instruction?: string;
+    },
+    wait = false,
+  ): Promise<Packet[]> {
+    const state = await window.desktop!.cloud("ai", value);
+    if (wait) {
+      const deadline = Date.now() + 245000;
+      for (;;) {
+        const status = await window.desktop!.cloud("sync");
+        if (status.base !== state.base)
+          throw Error("账号空间已切换，结果保留在原账号");
+        const job = status.jobs?.find((j) => j.id === state.job);
+        if (job?.state === "done") break;
+        if (job && ["error", "conflict", "interrupted"].includes(job.state))
+          throw Error(job.error || "AI 未覆盖资料，请核对后重试");
+        if (Date.now() > deadline)
+          throw Error("任务仍在服务端处理，请稍后核对状态；不会自动重复提交");
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await window.desktop!.cloud("sync");
+    }
+    const rows = await allPackets();
+    packetsRef.current = rows;
+    setPackets(rows);
+    if (!wait) notify("任务已保存，结果就绪后会同步；请在设置中查看 AI 状态");
+    return rows;
+  }
   async function editWithAI(
     packetId: string,
     itemId: string,
     instruction: string,
   ): Promise<ItemState> {
+    if (window.desktop) {
+      if (chatLocks.current.has(packetId))
+        throw Error("这张卡片正在处理，请稍后");
+      chatLocks.current.add(packetId);
+      try {
+        const result = await runCloudAI(
+          { kind: "chat", packetId, itemId, instruction },
+          true,
+        );
+        const packet = result.find((p) => p.id === packetId);
+        return packet?.itemState?.[itemId] || {};
+      } finally {
+        chatLocks.current.delete(packetId);
+      }
+    }
     if (!apiKey) throw new Error("请先在连接与设置中填写 DeepSeek 密钥");
     if (chatLocks.current.has(packetId))
       throw new Error("这张卡片正在处理，请稍后");
@@ -411,22 +471,6 @@ export default function BucketApp() {
     (async () => {
       if (window.desktop) {
         await upgradeDesktopProfile();
-        try {
-          if (initial.key && initial.rememberKey) {
-            await window.desktop.key("save", initial.key);
-            localStorage.setItem(
-              CONFIG_KEY,
-              JSON.stringify({ model: initial.model, rememberKey: false }),
-            );
-          }
-          const savedKey = await window.desktop.key("read");
-          if (active && typeof savedKey === "string" && savedKey) {
-            setApiKey(savedKey);
-            setRemember(true);
-          }
-        } catch (e) {
-          notify(message(e));
-        }
       }
       let stored = await allPackets();
       if (!active) return;
@@ -548,7 +592,7 @@ export default function BucketApp() {
     };
   }, [text, attachments]);
   useEffect(() => {
-    if (DEMO) return;
+    if (DEMO || window.desktop) return;
     let active = true;
     const detect = async () => {
       const result = await detectService();
@@ -646,6 +690,7 @@ export default function BucketApp() {
       !loaded ||
       working.current ||
       !online ||
+      !!window.desktop ||
       (!apiKey && !health?.authenticated)
     )
       return;
@@ -993,7 +1038,15 @@ export default function BucketApp() {
       setText("");
       setAttachments([]);
       await writeDraft({ text: "", attachments: [] });
-      if (!apiKey && !health?.modelReady) setSettings(true);
+      if (window.desktop) {
+        const state = await window.desktop.cloud("status");
+        if (state.base)
+          void runCloudAI(
+            { kind: "organize", packetId: packet.id },
+            true,
+          ).catch((e) => notify(message(e)));
+        else notify("已保存在本机；激活后可在独立云空间使用 AI");
+      } else if (!apiKey && !health?.modelReady) setSettings(true);
     } catch (error) {
       notify(message(error));
     } finally {
@@ -1002,6 +1055,14 @@ export default function BucketApp() {
     }
   }
   async function retry(p: Packet) {
+    if (window.desktop) {
+      try {
+        await runCloudAI({ kind: "organize", packetId: p.id }, true);
+      } catch (e) {
+        notify(message(e));
+      }
+      return;
+    }
     // Explicit retry opts this device into processing an incoming cloud capture.
     p = { ...p, syncAutoOrganize: true };
     try {
@@ -1647,7 +1708,11 @@ export default function BucketApp() {
           aria-expanded={settings}
           onClick={() => setSettings((open) => !open)}
         >
-          <i className={apiKey || health?.modelReady ? "status-live" : ""} />
+          <i
+            className={
+              apiKey || health?.modelReady || cloudReady ? "status-live" : ""
+            }
+          />
           <span>
             {new Date()
               .toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
@@ -1655,7 +1720,7 @@ export default function BucketApp() {
             {new Date()
               .toLocaleDateString("en-US", { weekday: "short" })
               .toUpperCase()}{" "}
-            · {apiKey || health?.modelReady ? "AI ON" : "AI OFF"}
+            · {apiKey || health?.modelReady || cloudReady ? "AI ON" : "AI OFF"}
           </span>
         </button>
         <nav className="workspace-nav" aria-label="主工作区">
@@ -1860,7 +1925,7 @@ export default function BucketApp() {
           </section>
           <div className="bucket-under-composer">
             <span
-              className={`model-status ${apiKey || health?.modelReady ? "is-connected" : ""}`}
+              className={`model-status ${apiKey || health?.modelReady || cloudReady ? "is-connected" : ""}`}
             >
               <i />
               {!online
@@ -1873,13 +1938,23 @@ export default function BucketApp() {
                     : "个人服务待解锁"
                   : apiKey
                     ? "DeepSeek 已连接"
-                    : "连接 DeepSeek 后，自动整理"}
+                    : window.desktop
+                      ? cloudActive
+                        ? cloudReady
+                          ? "服务端 AI 已启用"
+                          : "已激活 · AI 暂不可用"
+                        : "本机记录 · 激活后使用服务端 AI"
+                      : "连接 DeepSeek 后，自动整理"}
               {waiting > 0 && online ? ` · ${waiting} 包等待处理` : ""}
             </span>
             <button
               className="bucket-model-cost"
               onClick={() => setSettings(true)}
-              aria-label="选择模型与查看费用"
+              aria-label={
+                window.desktop
+                  ? "查看激活、同步与 AI 状态"
+                  : "选择模型与查看费用"
+              }
               aria-expanded={settings}
             >
               连接设置
@@ -1981,7 +2056,9 @@ export default function BucketApp() {
       )}
       {settings && (
         <Connection
-          canSwitchCloud={() => !working.current && !submitLock.current}
+          canSwitchCloud={() =>
+            !working.current && !submitLock.current && !chatLocks.current.size
+          }
           apiKey={apiKey}
           model={model}
           remember={remember}

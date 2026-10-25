@@ -9,6 +9,23 @@ interface Window {
       pending: number;
       conflicts: { id: string; text: string }[];
       error: string;
+      activation?: string;
+      job?: string;
+      jobs?: {
+        id: string;
+        packetId?: string;
+        state: string;
+        error?: string;
+        output?: unknown;
+      }[];
+      account?: {
+        activation: string;
+        ai: {
+          enabled: boolean;
+          dailyLimit: number;
+          usage: { day: string; requests: number; reservedMicros: number }[];
+        };
+      } | null;
     }>;
     store(method: string, value?: unknown): Promise<any>;
     key(

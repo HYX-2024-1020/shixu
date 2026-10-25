@@ -14,8 +14,7 @@ const {
   shell,
 } = require("electron");
 const { externalWebUrl } = require("./external.cjs");
-const fs = require("node:fs/promises");
-const { CloudWorkspace } = require("./cloud.cjs");
+const { AccountWorkspace } = require("./accounts.cjs");
 const { DesktopStore } = require("./storage.cjs");
 const { exportBackup, importBackup } = require("./backup.cjs");
 const { readArchive } = require("./archive.cjs");
@@ -76,9 +75,14 @@ else {
       const store = new DesktopStore(
         path.join(app.getPath("userData"), "workspace"),
       );
-      const cloud = new CloudWorkspace({
+      const cloud = new AccountWorkspace({
         root: path.join(app.getPath("userData"), "cloud"),
         local: store,
+        ...(!app.isPackaged &&
+        process.env.SHIXU_TEST_SERVICE_ORIGIN &&
+        process.env.SHIXU_DATA_DIR
+          ? { serviceOrigin: process.env.SHIXU_TEST_SERVICE_ORIGIN }
+          : {}),
         seal: (value) => safeStorage.encryptStringAsync(value),
         unseal: async (bytes) =>
           (await safeStorage.decryptStringAsync(bytes)).result,
@@ -117,29 +121,10 @@ else {
         validSender(event);
         return readOffice(bytes, extension);
       });
-      const keyFile = path.join(app.getPath("userData"), "api-key.enc");
       ipcMain.handle("key", async (event, action, value) => {
         validSender(event);
-        if (action === "remove") return fs.rm(keyFile, { force: true });
-        if (action === "read") {
-          try {
-            return (
-              await safeStorage.decryptStringAsync(await fs.readFile(keyFile))
-            ).result;
-          } catch (e) {
-            if (e.code === "ENOENT") return "";
-            throw new Error("系统无法解密密钥，请重新填写");
-          }
-        }
-        if (
-          action !== "save" ||
-          typeof value !== "string" ||
-          value.length > 1024
-        )
-          throw new Error("密钥无效");
-        const encrypted = await safeStorage.encryptStringAsync(value);
-        await fs.writeFile(keyFile + ".next", encrypted);
-        await fs.rename(keyFile + ".next", keyFile);
+        if (action === "read") return "";
+        throw new Error("模型由服务端统一管理，无需本机密钥");
       });
       ipcMain.handle("backup", async (event, action) => {
         validSender(event);
@@ -175,6 +160,10 @@ else {
       });
       session.defaultSession.setPermissionRequestHandler(
         (_contents, _permission, callback) => callback(false),
+      );
+      session.defaultSession.webRequest.onBeforeRequest(
+        { urls: ["http://*/*", "https://*/*"] },
+        (_request, callback) => callback({ cancel: true }),
       );
       const workArea = screen.getPrimaryDisplay().workAreaSize;
       if (process.platform === "win32")
