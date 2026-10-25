@@ -33,7 +33,7 @@ npm run dev
 npm run desktop:pack
 ```
 
-产物位于 `release/`，当前本机构建安装器为 `Shixu-Setup-0.3.12.exe`（尚未上传公开 Release）。`SHIXU_PACKAGED_EXE` 指向实际 exe 时可验证打包/安装后的程序，使用独立临时 profile。`SHIXU_DATA_DIR` 只应指向明确选定的测试目录。
+产物位于 `release/`，当前本机构建安装器为 `Shixu-Setup-0.3.13.exe`（尚未上传公开 Release）。`SHIXU_PACKAGED_EXE` 指向实际 exe 时可验证打包/安装后的程序，使用独立临时 profile。`SHIXU_DATA_DIR` 只应指向明确选定的测试目录。
 
 安装包不进入 Git。版本、锁文件和说明经 PR 合并，必需检查通过后从对应提交发布 Release，附 SHA-256、验证范围和限制。打包成功、隔离 exe 回归和个人工作区安装分别记录。
 
