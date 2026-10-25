@@ -36,6 +36,7 @@
     "test:sync:release": "node --test deploy/sync/release.test.mjs deploy/sync/configure-secrets.test.mjs deploy/sync/accounts-deployment.test.mjs",
     "mini:build": "node scripts/build-miniprogram.mjs",
     "mini:check": "node scripts/build-miniprogram.mjs --check",
+    "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs",
     "mini:compile": "node scripts/check-miniprogram-compiler.mjs",
     "test:mini": "node --test miniprogram/tests/*.test.cjs"
   },

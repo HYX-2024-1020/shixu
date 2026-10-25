@@ -28,3 +28,20 @@ Windows 原有交互不改，未重跑整套 Electron UI、未制作安装器。
 - `npm run mini:build`、`mini:check` 通过；`mini:compile` 官方 WXML/WXSS 编译与模板渲染通过，含双列容器、删除触控隔离、长按、占位和浮起预览断言。
 - 浏览器全套首次 49/52：一项发现 320px DDL 删除按钮目标不足，已修正；另两项因重叠运行 Playwright 使用同一产物目录产生 ENOENT。完成首轮后串行复跑受影响的三项均通过，紧凑布局 320/375/414px 两项目六项均通过。未用该结果代替微信原生手感。
 - PR/双端门禁八项、文档链接和 `git diff --check` 通过。远端 CI 另由 PR 执行，不预称通过。
+
+
+## 当前已打开工程的源码送达（2026-10-26 纠正）
+
+用户实际打开的是临时工程 `shixu-ui-parity-ojIwyw`，并非仓库目录。上轮源码没有进入该工程，用户的单列/无拖动截图属实。本轮在不切工程、不重启 IDE、不接触个人资料的情况下同步运行源码；之后每次修改都要同步并检查，不能仅检查仓库：
+
+```powershell
+npm run mini:preview:sync -- --target "$env:TEMP/shixu-ui-parity-ojIwyw"
+npm run mini:preview:sync -- --target "$env:TEMP/shixu-ui-parity-ojIwyw" --check
+```
+
+目标必须显式指定且 AppID/工程类型匹配。仅处理 Git 跟踪的 app、pages、lib、assets 和 sitemap，不读取或覆盖 private config，不替换工程配置，不移除任何目标文件。`--check` 的 changed 为空仅表示运行源码一致，不代表微信界面验收通过。
+
+本轮可见检查：世界有两列及底部六点握柄；详情是黑框纸色卡片、右上黄色关闭按钮和两列操作；世界长按标题或握柄、DDL 长按标题应显示浮起反馈。由用户亲自点击编译反馈，保留 Draft。
+
+
+此次定向验证：页面/拖动及同步脚本合成测试 40 项通过；新增详情按钮几何与既有紧凑布局合计 5 项浏览器 mobile 项目通过；对已打开的临时工程运行官方 WXML/WXSS 编译和模板渲染通过（`WECHAT_PROJECT_DIR` 显式指定目标）。27 个运行文件校验一致。没有操作 IDE 窗口或重新启动工具，微信实际视觉与拖动仍等待用户确认。其余广泛回归由 PR CI 执行，本次未因样式微调重复跑整套桌面 UI 或安装构建。

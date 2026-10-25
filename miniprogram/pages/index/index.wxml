@@ -17,7 +17,7 @@
     <view class="card-foot">
       <button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem" catchtouchstart="stopTap" catchlongpress="stopTap">{{row.attachmentCount ? row.attachmentCount + ' 份材料 · 详情' : '原文与详情'}} ↗</button>
       <text wx:if="{{row.kind === 'habit'}}">{{row.checked ? '今日已打卡' : '今日打卡'}} · 累计 {{row.checkinCount}} 天</text>
-      <view class="card-actions"><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="stopTap" catchlongpress="stopTap">删除</button><button class="icon-button" aria-label="更多事项操作" data-id="{{row.id}}" catchtap="openItem" catchtouchstart="stopTap" catchlongpress="stopTap">···</button></view>
+      <view class="card-actions"><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="stopTap" catchlongpress="stopTap">删除</button><view wx:if="{{!row.deleted && allowDrag}}" class="drag-grip" role="button" aria-label="长按移动事项" data-id="{{row.id}}" catchtouchstart="dragTouchStart" catchlongpress="startDrag" catchtouchmove="dragTouchMove" catchtouchend="finishDrag" catchtouchcancel="cancelDrag" catchtap="stopTap">⠿</view></view>
     </view>
   </view>
 </template>
@@ -94,7 +94,7 @@
           </button></view
         ></view
       ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block
     ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
@@ -151,10 +151,10 @@
       ><view wx:for="{{sections}}" wx:key="title"
         ><text class="group-title">{{item.title}} · {{item.items.length}}</text
         ><view class="world-grid"><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId}}" /></block></view></view></block
+          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block></view></view></block
     ><view wx:else class="world-grid"
       ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, allowDrag: tab === 'world'}}" /></block
     ></view>
     <button
       wx:if="{{matched > items.length}}"
@@ -344,10 +344,10 @@
 >
 <view wx:if="{{selected}}" class="scrim detail-scrim" bindtap="closeItem"
   ><view class="sheet detail-sheet" catchtap="stopTap"
-    ><view class="section-top"
+    ><view class="section-top detail-toolbar"
       ><text class="kind-label"
         >{{selected.kindLabel}} {{selected.group ? '· ' + selected.group : ''}}</text
-      ><button class="icon-button" bindtap="closeItem">×</button></view
+      ><button class="icon-button detail-close" aria-label="关闭事项详情" bindtap="closeItem">×</button></view
     ><scroll-view scroll-y class="sheet-scroll">
       <block wx:if="{{editing}}"
         ><view class="field-label">标题</view
@@ -387,11 +387,11 @@
         ></block
       >
       <block wx:else
-        ><text class="detail-title">{{selected.item.title}}</text
-        ><text class="detail-summary" selectable>{{selected.item.summary}}</text
+        ><text class="detail-title">{{selected.title}}</text
+        ><text class="detail-summary" selectable>{{selected.summary}}</text
         ><text wx:if="{{selected.date}}" class="due-label"
-          >{{selected.date}} {{selected.time}}</text
-        ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row"
+          >{{selected.timeLabel || (selected.date + ' ' + selected.time)}}</text
+        ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row detail-actions"
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone">
             {{selected.kind === 'habit' ? (selected.checked ? '撤销今日打卡' : '今日打卡') : selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
           ><button class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
@@ -405,14 +405,7 @@
             bindtap="progressItem"
           >
             {{selected.progress ? '取消进行中' : '开始处理'}}</button
-          ><button
-            wx:if="{{selected.kind === 'habit'}}"
-            class="small-button"
-            data-id="{{selected.id}}"
-            bindtap="checkin"
-          >
-            {{selected.checked ? '今日已打卡 · 再点撤销' : '今日打卡'}} · 累计 {{selected.checkinCount}} 天
-          </button></view
+          ><text wx:if="{{selected.kind === 'habit'}}" class="detail-habit-status">{{selected.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{selected.checkinCount}} 天</text></view
         >
         <view wx:if="{{selected.facts.length}}" class="detail-section"
           ><text class="subheading">原文要求</text
@@ -527,7 +520,7 @@
             wx:else
             class="text-button danger"
             data-id="{{selected.id}}"
-            bindtap="removeItem"
+            bindtap="confirmRemoveItem"
           >
             移入最近删除（保留同行事项）
           </button></view

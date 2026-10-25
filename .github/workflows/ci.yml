@@ -67,6 +67,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: node --test scripts/sync-miniprogram-preview.test.mjs
       - run: npm run mini:check
       - run: node scripts/check-docs.mjs
       - run: npm run build

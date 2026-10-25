@@ -14,7 +14,9 @@ if (!directory)
     "Set WECHAT_COMPILER_DIR to the installed official wcc-exec directory. This check does not enable IDE security settings.",
   );
 const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
-  mini = join(root, "miniprogram");
+  mini = process.env.WECHAT_PROJECT_DIR
+    ? resolve(process.env.WECHAT_PROJECT_DIR)
+    : join(root, "miniprogram");
 const exe = process.platform === "win32" ? ".exe" : "";
 execFileSync(
   join(directory, "wcc" + exe),
@@ -154,6 +156,18 @@ assert.ok(
   view().some((node) => node.attr?.bindtap === "beginEdit"),
   "detail actions rendered",
 );
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.class?.includes("detail-close") &&
+      node.attr?.bindtap === "closeItem",
+  ),
+  "right-aligned detail close control compiled",
+);
+assert.ok(
+  view().some((node) => node.attr?.class?.includes("detail-actions")),
+  "consistent detail action grid compiled",
+);
 page.beginEdit();
 assert.ok(
   view().some((node) => node.attr?.bindtap === "saveEdit"),
@@ -239,4 +253,5 @@ assert.equal(
 console.log(
   "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 8 skins). Not an IDE or real-device test.",
 );
+console.log(`Compiled source project: ${mini}`);
 console.log(`Compiler output: ${resolve(temporary)}`);
