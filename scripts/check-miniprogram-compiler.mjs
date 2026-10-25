@@ -121,6 +121,35 @@ assert.ok(
   view().some((node) => node.attr?.bindtap === "verifyDdl"),
   "DDL verification action compiled",
 );
+const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
+page.setData({ checkingId: ddlRow.id });
+const checkingNodes = view();
+assert.ok(
+  checkingNodes.some(
+    (node) =>
+      node.attr?.size === "mini" && node.attr?.class?.includes("done-button"),
+  ),
+  "native completion button explicitly uses mini sizing",
+);
+assert.ok(
+  checkingNodes.some((node) => node.attr?.class === "check-short"),
+  "short check stroke renders while checking",
+);
+assert.ok(
+  checkingNodes.some((node) => node.attr?.class === "check-long"),
+  "long check stroke renders while checking",
+);
+page.setData({ checkingId: "" });
+await page.toggleDone({ currentTarget: { dataset: { id: ddlRow.id } } });
+page.setData({ ddlShowDone: true });
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.class?.includes("done-button checked") &&
+      node.attr?.size === "mini",
+  ),
+  "completed DDL retains compact native control and strokes",
+);
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,
