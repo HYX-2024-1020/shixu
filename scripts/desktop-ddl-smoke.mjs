@@ -28,6 +28,7 @@ try {
   await ddl.getByLabel("截止日期", { exact: true }).last().fill("明天下午三点");
   await ddl.getByRole("button", { name: "添加 DDL", exact: true }).click();
   await ddl.locator(".ddl-item").waitFor();
+  await expect(ddl.locator(".ddl-countdown")).toHaveText("还剩 1 天");
   assert.match(await ddl.locator(".time-rail").innerText(), /15:00/);
   assert.doesNotMatch(await ddl.locator(".ddl-copy h3").innerText(), /明天/);
   await ddl.getByRole("button", { name: /标记完成/ }).click();
@@ -41,6 +42,7 @@ try {
   await page.getByRole("button", { name: "DDL", exact: true }).click();
   await page.getByText(/已完成 · 1 项/).click();
   const completed = page.getByRole("button", { name: /撤销完成/ });
+  await expect(page.locator(".ddl-countdown")).toHaveText("已完成");
   assert.equal(await completed.getAttribute("class"), "completion-orbit");
   assert.equal(await completed.getAttribute("aria-pressed"), "true");
   await completed.locator("svg").waitFor();

@@ -15,6 +15,7 @@ import { leaveCard, resetCard } from "./motion";
 import { useCardMotion } from "./useCardMotion";
 import { useCardDrag } from "./useCardDrag";
 import { mergeCardOrder } from "./card-order";
+import { deadlineCountdown } from "./deadline-countdown";
 import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
@@ -205,6 +206,7 @@ export default function DDL({
   }
   function card(row: Row) {
     const { item, p, id } = row;
+    const countdown = deadlineCountdown(row.date, day, row.time, clock, row.done);
     return (
       <article
         className="ddl-item"
@@ -218,6 +220,12 @@ export default function DDL({
           aria-label={`核对截止时间：${item.title}`}
           onClick={() => setOpen(open === id ? "" : id)}
         >
+          <strong
+            className="ddl-countdown"
+            data-deadline-status={countdown.status}
+          >
+            {countdown.label}
+          </strong>
           {item.due?.startDate && (
             <>
               <span>时间段 · 开始</span>

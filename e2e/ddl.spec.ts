@@ -1,5 +1,122 @@
 import { test, expect } from "@playwright/test";
 
+test("DDL restores reference countdowns alongside exact dates and refreshes across days", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-24T12:00:00"));
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const store = await import("/src/bucket/store.ts");
+    const entries = [
+      { title: "合成奖学金材料", date: "2026-10-28" },
+      { title: "合成志愿者确认", date: "2026-11-06" },
+      {
+        title: "合成区间截止",
+        date: "2026-10-28",
+        startDate: "2026-10-25",
+        startTime: "09:00",
+      },
+      { title: "合成今日提交", date: "2026-10-24" },
+      { title: "合成已逾期", date: "2026-10-23" },
+    ];
+    await store.putPacket({
+      id: "countdown-reference",
+      text: "合成倒计时回归",
+      sources: [{ id: "synthetic", name: "合成通知", text: "回归测试资料" }],
+      attachments: [],
+      captureDate: "2026-10-24",
+      capturedAt: "2026-10-24T12:00:00Z",
+      status: "ready",
+      result: {
+        summary: "合成回归",
+        warnings: [],
+        items: entries.map(({ title, ...due }) => ({
+          title,
+          kind: "task",
+          summary: "提交合成材料",
+          facts: [],
+          nextSteps: [],
+          uncertainties: [],
+          sourceIds: ["synthetic"],
+          evidence: [],
+          due: { ...due, time: "15:00", sourceId: "manual", anchor: due.date },
+        })),
+      },
+      itemIds: entries.map((_, i) => `countdown-${i}`),
+      itemState: {},
+      doneIds: [],
+      error: "",
+      updatedAt: "2026-10-24T12:00:00Z",
+    });
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  const ddl = page.getByRole("region", { name: "DDL 截止事项" });
+  const card = (title: string) =>
+    ddl.locator(".ddl-item").filter({ hasText: title });
+  await expect(card("合成奖学金材料").locator(".ddl-countdown")).toHaveText(
+    "还剩 4 天",
+  );
+  await expect(card("合成志愿者确认").locator(".ddl-countdown")).toHaveText(
+    "还剩 13 天",
+  );
+  await expect(card("合成区间截止").locator(".ddl-countdown")).toHaveText(
+    "还剩 4 天",
+  );
+  await expect(card("合成区间截止").locator(".time-rail")).toContainText(
+    "2026-10-25",
+  );
+  await expect(card("合成奖学金材料").locator(".time-rail")).toContainText(
+    "2026-10-28",
+  );
+  await expect(card("合成奖学金材料").locator(".time-rail")).toContainText(
+    "15:00",
+  );
+  await expect(card("合成今日提交").locator(".ddl-countdown")).toHaveText(
+    "今天截止",
+  );
+  await ddl.getByText("已逾期 · 1 项 · 点开看看", { exact: true }).click();
+  await expect(card("合成已逾期").locator(".ddl-countdown")).toHaveText(
+    "已逾期 1 天",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: `test-results/ddl-countdown-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+
+  await page.clock.setFixedTime(new Date("2026-10-24T15:01:00"));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(card("合成今日提交").locator(".ddl-countdown")).toHaveText(
+    "今天已逾期",
+  );
+  await page.clock.setFixedTime(new Date("2026-10-25T00:01:00"));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(card("合成奖学金材料").locator(".ddl-countdown")).toHaveText(
+    "还剩 3 天",
+  );
+  await expect(card("合成已逾期").locator(".ddl-countdown")).toHaveText(
+    "已逾期 2 天",
+  );
+  await card("合成奖学金材料")
+    .getByRole("button", { name: /标记完成/ })
+    .click();
+  await ddl.getByText(/已完成 · 1 项/).click();
+  await expect(card("合成奖学金材料").locator(".ddl-countdown")).toHaveText(
+    "已完成",
+  );
+  await card("合成奖学金材料")
+    .getByRole("button", { name: /撤销完成/ })
+    .click();
+  await expect(card("合成奖学金材料").locator(".ddl-countdown")).toHaveText(
+    "还剩 3 天",
+  );
+});
+
 test("date ranges normalize without a year and content stays above the navigation dock", async ({
   page,
 }) => {
