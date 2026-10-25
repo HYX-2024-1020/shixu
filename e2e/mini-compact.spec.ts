@@ -30,6 +30,13 @@ for (const width of [320, 375, 414]) {
         .join("")}</view></view>
       <view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-date">2026-10-26</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">${title}</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`);
     const cards = page.locator(".world .item-card");
+    await cards.evaluateAll(async (elements) => {
+      await Promise.all(
+        elements
+          .flatMap((element) => element.getAnimations())
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
     const boxes = await Promise.all(
       [0, 1].map((i) => cards.nth(i).boundingBox()),
     );
