@@ -175,7 +175,14 @@ export function createJobQueue(store, ai) {
             const result = structuredClone(packet.result),
               meta = packet.itemState?.[input.itemId] || {},
               changes = { ...output.patch };
-            for (const key of ["title", "summary", "facts", "kind", "due"])
+            for (const key of [
+              "title",
+              "summary",
+              "facts",
+              "kind",
+              "due",
+              "dueCleared",
+            ])
               if (key in changes) {
                 result.items[index][key] = changes[key];
                 delete changes[key];

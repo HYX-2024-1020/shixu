@@ -14,6 +14,7 @@ export interface Source {
   text: string;
 }
 export interface BucketItem {
+  dueCleared?: boolean;
   importance?: number;
   importanceReason?: string;
   group?: string;
@@ -32,6 +33,10 @@ export interface BucketItem {
     sourceId: string;
     timeInferred?: boolean;
     timeReason?: string;
+    startDate?: string;
+    startTime?: string;
+    dateInferred?: boolean;
+    dateReason?: string;
   };
 }
 export interface BucketResult {

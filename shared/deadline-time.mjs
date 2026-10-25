@@ -141,6 +141,7 @@ function anchorContext(text, anchor) {
   return "";
 }
 export function resolveDeadlineTime(due, evidence = [], sources = []) {
+  if (due?.startDate && validTime(due.time)) return due;
   if (
     validTime(due?.time) &&
     (!due.timeInferred ||
@@ -258,6 +259,7 @@ export function resolveDeadlineTime(due, evidence = [], sources = []) {
 // while showing that clock; do not replace an explicit 15:10 with a generic default.
 export function itemDeadlineTime(item, sources = [], chat = []) {
   const recoverCardClock = (due) => {
+    if (due.startDate) return due;
     if (!due.timeInferred) return due;
     // Legacy/manual date-only cards may keep their only clock in their own copy.
     // Ignore suggestions and refuse to choose between different stated clocks.

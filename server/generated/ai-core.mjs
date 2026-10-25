@@ -115,6 +115,7 @@ function anchorContext(text, anchor) {
   return "";
 }
 function resolveDeadlineTime(due, evidence = [], sources = []) {
+  if (due?.startDate && validTime(due.time)) return due;
   if (validTime(due?.time) && (!due.timeInferred || due.sourceId === "manual" || due.anchor === "人工确认")) {
     const anchorClock = clock(due.anchor || "");
     if (due.sourceId !== "manual" && due.anchor !== "人工确认" && anchorClock && anchorClock.time !== due.time)
@@ -196,6 +197,7 @@ function resolveDeadlineTime(due, evidence = [], sources = []) {
 }
 function itemDeadlineTime(item, sources = [], chat = []) {
   const recoverCardClock = (due) => {
+    if (due.startDate) return due;
     if (!due.timeInferred) return due;
     const times = [item.title, item.summary, ...item.facts || []].flatMap((text) => String(text || "").split(/[。；;\n，,！？]/)).map((text) => clock(text, true)).filter(Boolean);
     const unique = [...new Set(times.map((value) => value.time))];
@@ -229,8 +231,224 @@ function itemDeadlineTime(item, sources = [], chat = []) {
   return recoverCardClock(candidates.sort((a, b) => rank(a) - rank(b))[0]);
 }
 
+// shared/deadline-date.mjs
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || "") && !Number.isNaN(Date.parse(value + "T12:00:00Z")) && (/* @__PURE__ */ new Date(value + "T12:00:00Z")).toISOString().slice(0, 10) === value;
+}
+var pad = (n) => String(n).padStart(2, "0");
+var dateOf = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+function shiftDate(day, n) {
+  const date = /* @__PURE__ */ new Date(day + "T12:00:00Z");
+  date.setUTCDate(date.getUTCDate() + n);
+  return date.toISOString().slice(0, 10);
+}
+var digits2 = {
+  零: 0,
+  "〇": 0,
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9
+};
+function number(value) {
+  if (/^\d+$/.test(value)) return Number(value);
+  if (value.includes("十")) {
+    const [a, b] = value.split("十");
+    return (a ? digits2[a] : 1) * 10 + (b ? digits2[b] : 0);
+  }
+  return Number([...value].map((c) => digits2[c]).join(""));
+}
+function normalizeDateText(value) {
+  return String(value || "").normalize("NFKC").replace(
+    /[零〇一二两三四五六七八九十]{1,4}(?=年|月|日|号|天[后内前])/g,
+    (n) => String(number(n))
+  ).replace(/\s+/g, "");
+}
+function point(text, today, inherited, end = false) {
+  const [year, month] = today.split("-").map(Number);
+  let date = "", inferred2 = false;
+  const full = text.match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})(?:日|号)?/);
+  const relative2 = text.match(
+    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚/
+  );
+  const week = text.match(
+    /(上上|上|下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天末])/
+  );
+  const offset = text.match(/(\d{1,3})天(后|前|内)/);
+  if (full) date = dateOf(+full[1], +full[2], +full[3]);
+  else if (relative2)
+    date = shiftDate(
+      today,
+      {
+        大前天: -3,
+        前天: -2,
+        昨天: -1,
+        昨日: -1,
+        大后天: 3,
+        后天: 2,
+        明天: 1,
+        今天: 0,
+        今日: 0,
+        明早: 1,
+        明晚: 1,
+        今早: 0,
+        今晚: 0,
+        昨早: -1,
+        昨晚: -1
+      }[relative2[0]]
+    );
+  else if (offset)
+    date = shiftDate(today, +offset[1] * (offset[2] === "前" ? -1 : 1));
+  else if (week) {
+    const weekBase = inherited && !week[1] ? inherited : today;
+    const target = "一二三四五六日".indexOf(
+      /[天末]/.test(week[2]) ? "日" : week[2]
+    );
+    const current = ((/* @__PURE__ */ new Date(weekBase + "T12:00:00Z")).getUTCDay() + 6) % 7;
+    let n = target - current;
+    n += { 上上: -14, 上: -7, 下: 7, 下下: 14 }[week[1]] || 0;
+    if (!week[1] && n < 0) n += 7;
+    date = shiftDate(weekBase, n);
+  } else if (/(?:本|这|下|上)?月[底末]/.test(text)) {
+    const n = /下月/.test(text) ? 1 : /上月/.test(text) ? -1 : 0;
+    date = new Date(Date.UTC(year, month + n, 0, 12)).toISOString().slice(0, 10);
+    inferred2 = true;
+  } else {
+    const md = text.match(
+      /(?:(今年|明年|去年))?(\d{1,2})[月/.-](\d{1,2})(?:日|号)?/
+    );
+    const dom = text.match(/(?:(本月|这个月|下月|下个月|上月))?(\d{1,2})(?:日|号)/) || text.match(/^(\d{1,2})$/) || inherited && text.match(/^(\d{1,2})(?!\d|[:点时])/);
+    if (md) {
+      let y = inherited ? +inherited.slice(0, 4) : year;
+      y += md[1] === "明年" ? 1 : md[1] === "去年" ? -1 : 0;
+      date = dateOf(y, +md[2], +md[3]);
+      if (!md[1] && date < (inherited || today))
+        date = dateOf(y + 1, +md[2], +md[3]);
+      inferred2 = !md[1];
+    } else if (dom) {
+      const scoped = dom.length > 2;
+      const prefix = scoped ? dom[1] : "";
+      const d = +(scoped ? dom[2] : dom[1]);
+      const base = /* @__PURE__ */ new Date((inherited || today) + "T12:00:00Z");
+      let y = base.getUTCFullYear(), m = base.getUTCMonth() + 1;
+      if (/下/.test(prefix || "")) m++;
+      if (/上/.test(prefix || "")) m--;
+      if (m > 12) {
+        y++;
+        m = 1;
+      }
+      if (m < 1) {
+        y--;
+        m = 12;
+      }
+      date = dateOf(y, m, d);
+      if (!prefix && (!validDate(date) || date < (inherited || today))) {
+        for (let n = 1; n <= 12; n++) {
+          const next = new Date(Date.UTC(y, m - 1 + n, 1, 12));
+          const candidate = dateOf(
+            next.getUTCFullYear(),
+            next.getUTCMonth() + 1,
+            d
+          );
+          if (validDate(candidate)) {
+            date = candidate;
+            break;
+          }
+        }
+      }
+      inferred2 = !prefix;
+    } else if (inherited && /[:点时]|上午|下午|晚上|早上|中午|凌晨/.test(text))
+      date = inherited;
+  }
+  if (!validDate(date)) return null;
+  const timed = resolveDeadlineTime({
+    date,
+    time: "",
+    anchor: text,
+    sourceId: ""
+  });
+  if (!end && timed.timeInferred && timed.time === "23:59")
+    timed.time = "00:00";
+  return {
+    ...timed,
+    dateInferred: inferred2,
+    ...inferred2 ? { dateReason: "省略年月按录入日推定最近的对应日期，可手动修改" } : {}
+  };
+}
+function parseDateExpression(value, today) {
+  if (!validDate(today)) return null;
+  let text = normalizeDateText(value);
+  if (/\d{1,2}[-~至到]\d{1,2}(?:分|秒|页|元|人|%)/.test(text) && !/年|月|日|号|今天|明天|后天|周/.test(text))
+    return null;
+  text = text.replace(
+    /(\d{1,2}月\d{1,2})(?:日|号)?([-~～至到—–])(\d{1,2})(?:日|号)?(?!\d|[:点时月])/g,
+    "$1日$2$3号"
+  );
+  const short = text.match(
+    /(?:^|[^\d月/.-])(\d{1,2})\s*[-~～至到—–]\s*(\d{1,2})(?:日|号)?(?!\d|[:点时月/.-分秒页人元%])/
+  );
+  if (short)
+    text = text.replace(
+      short[0],
+      short[0].replace(short[1], short[1] + "号").replace(new RegExp(short[2] + "(?:日|号)?$"), short[2] + "号")
+    );
+  text = text.replace(/([日号点分半刻])-/g, "$1至");
+  const separator = /(?:至|到)(?=[\d今明后前昨上下本这周星礼零一二三四五六七八九十早晚凌中午])|~|～|—|–|-(?=\d{1,2}(?:日|号|点|时|:|\/|月))/;
+  const isoRange = text.match(
+    /^(.*?\d{4}-\d{1,2}-\d{1,2}[^至到~～—–]*?)-(\d{4}-\d{1,2}-\d{1,2}.*)$/
+  );
+  const split = isoRange ? [isoRange[1], isoRange[2]] : text.split(separator);
+  if (split.length > 2) return null;
+  if (split.length === 2) {
+    const start = point(split[0], today, null, false);
+    if (!start) return null;
+    let endText = split[1];
+    const period = split[0].match(/凌晨|早上|上午|中午|下午|晚上|晚间/);
+    if (period && !/日|号|月|年|今天|明天|后天|周|早|晚|午|凌/.test(endText))
+      endText = period[0] + endText;
+    const end = point(endText, today, start.date, true);
+    if (!end) return null;
+    if (end.date === start.date && end.time < start.time) {
+      if (/晚|夜/.test(split[0]) && !/日|号|月|年|今天|明天|后天|周/.test(split[1]))
+        end.date = shiftDate(end.date, 1);
+      else return null;
+    }
+    if (end.date < start.date) return null;
+    return {
+      ...end,
+      startDate: start.date,
+      startTime: start.time,
+      dateInferred: start.dateInferred || end.dateInferred,
+      ...start.dateInferred || end.dateInferred ? { dateReason: start.dateReason || end.dateReason } : {},
+      ...start.timeInferred || end.timeInferred ? {
+        timeInferred: true,
+        timeReason: "区间省略或模糊的时刻已按时段及日界补齐，可修改"
+      } : {}
+    };
+  }
+  const dateTokens = text.match(
+    /20\d{2}[年/-]\d{1,2}[月/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}(?:日|号)|今天|明天|后天|昨天|前天|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天]/g
+  ) || [];
+  if (new Set(
+    dateTokens.map((token) => point(token, today, null, true)?.date).filter(Boolean)
+  ).size > 1)
+    return null;
+  return point(text, today, null, true);
+}
+function deadlineLabel(due) {
+  if (!due?.date) return "日期待确认";
+  const end = `${due.date} ${due.time || "23:59"}`;
+  return due.startDate ? `${due.startDate} ${due.startTime || "00:00"} → ${end}` : end;
+}
+
 // shared/deadlines.mjs
-var relative = /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]/g;
+var relative = /(?:\d{1,2}月)?\d{1,2}(?:日|号)?\s*[-~～至到—–]\s*(?:\d{1,2}月)?\d{1,2}(?:日|号)?(?!\d|分|页|元|人|%)|(?:今年|明年|去年)?\d{1,2}月\d{1,2}(?:日|号)?|(?:本月|下月|下个月|上月)?\d{1,2}(?:日|号)|(?:本|下|上)?月[底末]|[\d一二两三四五六七八九十]+天[后前内]|大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚|(?:上上|上|下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天末]/g;
 function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "", previousEnd = 0;
@@ -241,7 +459,11 @@ function absoluteText(text, day) {
     const anchor = coordinated ? previousWeek + token : token;
     previousWeek = isWeek ? scoped?.[1] || (coordinated ? previousWeek : "") : "";
     previousEnd = offset + token.length;
-    const date = groundedDate(anchor, day);
+    if (/[\d年/-]$/.test(text.slice(0, offset)) && /^\d/.test(token))
+      return token;
+    const parsed = parseDateExpression(anchor, day);
+    const date = parsed?.date;
+    if (parsed?.startDate) return `${parsed.startDate} 至 ${parsed.date}`;
     return date ? date.replace(/^(\d+)-(\d+)-(\d+)$/, "$1年$2月$3日") + (/晚$/.test(token) ? "晚上" : /早$/.test(token) ? "早上" : "") : token;
   });
 }
@@ -250,17 +472,30 @@ function absoluteItem(item, day, sources = [], chat = []) {
     ...sources,
     ...chat.filter((e) => e.role === "user").slice().reverse().map((e) => ({ id: "item-chat", name: "事项对话", text: e.text }))
   ];
+  let due = item.due;
+  if (!item.dueCleared && (!due && ["task", "event", "notice"].includes(item.kind) || due && !due.startDate && /至|到|~|～|—|–|\d-\d/.test(due.anchor || "")) && !(item.uncertainties || []).some((text) => /冲突|矛盾/.test(text))) {
+    const candidates = due?.anchor ? [{ quote: due.anchor, sourceId: due.sourceId }] : item.evidence?.length ? item.evidence : [
+      { quote: item.title, sourceId: "" },
+      { quote: item.summary, sourceId: "" }
+    ];
+    const parsed = candidates.map((e) => {
+      const value = parseDateExpression(e.quote, day);
+      return value ? { ...value, anchor: e.quote, sourceId: e.sourceId } : null;
+    }).filter(Boolean);
+    if (new Set(parsed.map((d) => deadlineLabel(d))).size === 1)
+      due = parsed[0];
+  }
   return {
     ...item,
-    due: item.due ? itemDeadlineTime(item, context) : null,
+    due: due ? itemDeadlineTime({ ...item, due }, context) : null,
     title: absoluteText(item.title, day),
     summary: absoluteText(item.summary, day),
     facts: (item.facts || []).map((t) => absoluteText(t, day)),
     nextSteps: (item.nextSteps || []).map((t) => absoluteText(t, day)),
     uncertainties: (item.uncertainties || []).filter(
-      (text) => text.includes("日期") || !/(?:时刻|几点|具体时间).*(?:未知|不明|未明确|未指定|未给出|需核对)|(?:没有|未指定|未给出|未明确|缺少|未自动填入).*(?:时刻|几点|具体时间)/.test(
+      (text) => !(due && /日期还不明确|没有找到可靠的日期|缺少.*年份|未.*年份/.test(text)) && (text.includes("日期") || !/(?:时刻|几点|具体时间).*(?:未知|不明|未明确|未指定|未给出|需核对)|(?:没有|未指定|未给出|未明确|缺少|未自动填入).*(?:时刻|几点|具体时间)/.test(
         text
-      )
+      ))
     )
   };
 }
@@ -283,7 +518,11 @@ function setDeadline(item, due, captureDay) {
     result.facts = result.facts.map(replace);
     result.nextSteps = result.nextSteps.map(replace);
   }
-  return { ...result, due: due ? resolveDeadlineTime(due) : null };
+  return {
+    ...result,
+    due: due ? resolveDeadlineTime(due) : null,
+    dueCleared: !due
+  };
 }
 
 // shared/usage.mjs
@@ -359,65 +598,12 @@ function checkSources(sources) {
   if (size > 12e4)
     throw new Error("这一组内容超过 12 万字，原内容会保留，请减少附件后重试");
 }
-function validDate(value) {
+function validDate2(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + "T12:00:00Z")) && (/* @__PURE__ */ new Date(value + "T12:00:00Z")).toISOString().slice(0, 10) === value;
-}
-function shiftDate(today, days) {
-  const date = /* @__PURE__ */ new Date(today + "T12:00:00Z");
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-function groundedDate(anchor, today) {
-  if (!validDate(today)) return "";
-  anchor = compact(anchor);
-  if (/(?:至|到|~|～|—|–)/.test(anchor)) return "";
-  const absolute = anchor.match(/(20\d{2})[年\-/](\d{1,2})[月\-/](\d{1,2})/);
-  if (absolute) {
-    const date = `${absolute[1]}-${absolute[2].padStart(2, "0")}-${absolute[3].padStart(2, "0")}`;
-    return validDate(date) ? date : "";
-  }
-  const relative2 = anchor.match(
-    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚/
-  );
-  if (relative2)
-    return shiftDate(
-      today,
-      {
-        大前天: -3,
-        前天: -2,
-        昨天: -1,
-        昨日: -1,
-        大后天: 3,
-        后天: 2,
-        明天: 1,
-        今天: 0,
-        今日: 0,
-        明早: 1,
-        明晚: 1,
-        今早: 0,
-        今晚: 0,
-        昨早: -1,
-        昨晚: -1
-      }[relative2[0]]
-    );
-  const week = anchor.match(
-    /(上上|上|下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/
-  );
-  if (week) {
-    const target = "一二三四五六日".indexOf(week[2] === "天" ? "日" : week[2]), current = ((/* @__PURE__ */ new Date(today + "T12:00:00Z")).getUTCDay() + 6) % 7;
-    let offset = target - current;
-    if (week[1] === "上") offset -= 7;
-    else if (week[1] === "上上") offset -= 14;
-    else if (week[1] === "下") offset += 7;
-    else if (week[1] === "下下") offset += 14;
-    else if (!week[1] && offset < 0) offset += 7;
-    return shiftDate(today, offset);
-  }
-  return "";
 }
 function validateResult(value, sources, today) {
   checkSources(sources);
-  if (!validDate(today)) throw new Error("记录日期无效");
+  if (!validDate2(today)) throw new Error("记录日期无效");
   if (!value || typeof value !== "object" || !Array.isArray(value.items) || value.items.length > 40 || !clean(value.summary))
     throw new Error("模型返回结构不完整");
   const sourceMap = new Map(sources.map((s) => [s.id, s]));
@@ -436,12 +622,32 @@ function validateResult(value, sources, today) {
     const uncertainties = list(item.uncertainties, 8);
     let due = null;
     if (item.due && typeof item.due === "object") {
-      const source = sourceMap.get(item.due.sourceId), anchor = clean(item.due.anchor, 250);
+      const source = sourceMap.get(item.due.sourceId);
+      let anchor = clean(item.due.anchor, 250);
       const belongs = source && compact(anchor).length >= 2 && compact(source.text).includes(compact(anchor));
-      const definite = belongs ? groundedDate(anchor, today) : "";
+      let parsed = belongs ? parseDateExpression(anchor, today) : null;
+      if (belongs && !parsed?.startDate) {
+        const spans = evidence.filter(
+          (e) => e.sourceId === source.id && compact(e.quote).includes(compact(anchor))
+        ).map((e) => ({
+          quote: e.quote,
+          parsed: parseDateExpression(e.quote, today)
+        })).filter((e) => e.parsed?.startDate);
+        if (spans.length === 1) {
+          parsed = spans[0].parsed;
+          anchor = spans[0].quote;
+        }
+      }
+      const definite = parsed?.date || "";
       if (definite) {
         due = resolveDeadlineTime(
-          { date: definite, time: "", anchor, sourceId: source.id },
+          {
+            ...parsed,
+            date: definite,
+            time: parsed?.startDate ? parsed.time : "",
+            anchor,
+            sourceId: source.id
+          },
           evidence,
           sources
         );
@@ -490,7 +696,7 @@ var SYSTEM = `你是一个只服务一位大学生的“收纳桶”。用户只
 拆分边界：task必须有独立的实际行动要求；event记录会议/活动本身，不把参加活动额外复制成相同任务；habit须来自想长期重复坚持的意愿，不把一次作业变成习惯；notice保留必要的通知背景，只在与实际行动信息有区别时另列，和任务共享来源即可；note承载可回看的资料，不能把每个附件文件名机械生成一条。无法判断归other并说明。相同标题不代表同一任务，只有同一行动与原文依据一致才去重；同一课程的不同作业只是相关，不能互相覆盖。
 链接只作为用户提供的链接文字处理；当前没有抓取网页，不得假装读过 URL 指向的正文。
 灵感可以丰满：把推测、可尝试方向和小步验证放到nextSteps，绝不能把你补充的建议当成原文事实。习惯同理：没有明确频率时可以建议一个轻量起点，但不得编造用户已承诺的频率。facts只收录原文事实。
-日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天/昨天/前天、明确周几（包括上周/下周）才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
+日期以提供的captureDate为基准。尽力提取各种常用时间说法：年月日、无年份的月日、26号、26-28、10月26日至28日、今天/明天/后天、周几、月底、几天后，以及日期/时刻区间，都填写due的完整原文anchor。省略年月由程序按captureDate推定，区间必须保留起止全文。尽快、开学前等缺少可推算日期或与附件冲突时才放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。允许依据captureDate推定省略的年月，不要编造没有依据的日期。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
 每一条必须至少有一个evidence，quote必须是该来源的连续原文摘录，不得自己概括。涉及附件要求的任务必须引用附件的相应原文，必要时同时引用输入文字。若依据不足，少输出，不胡编。
 卡片文案：title用简短的动作与对象抓住核心，通常12至24个汉字，不加“待办”“需要确认”“根据原文”等前缀；summary用一至两句概括最重要的要求或信息，通常24至50个汉字，不重复标题，不堆文件名，不罗列缺失信息，不催促用户补充。完整的格式、材料、地点、评分要求仍必须保留在facts中，不能为了缩短卡片删掉事实。缺少信息只在uncertainties中客观记录，不凭空新增核对任务。
 只返回JSON对象，不使用Markdown围栏。输出示例结构：
@@ -702,12 +908,20 @@ function validateChat(value, instruction, today, currentDue) {
       const anchor = data?.anchor;
       if (typeof anchor !== "string" || !anchor || !instruction.includes(anchor))
         throw new Error("没有找到你给出的明确日期，卡片未改动");
-      const date = groundedDate(anchor, today) || (/(?:\d|[零〇一二两三四五六七八九十])\s*(?:点|时|[:：])|上午|下午|晚上|中午|傍晚|凌晨/.test(
+      const parsed = parseDateExpression(anchor, today);
+      const date = parsed?.date || (/(?:\d|[零〇一二两三四五六七八九十])\s*(?:点|时|[:：])|上午|下午|晚上|中午|傍晚|凌晨/.test(
         anchor
       ) && !/今天|明天|后天|昨天|前天|周|星期|礼拜|日|号|月|年/.test(anchor) ? currentDue?.date : "");
-      if (!date) throw new Error("日期还不能确定，可以直接告诉我年月日");
+      if (!date)
+        throw new Error("暂时无法判断日期，可以说26号、10月26日或26-28");
       output.due = resolveDeadlineTime(
-        { date, time: "", anchor, sourceId: "item-chat" },
+        {
+          ...parsed,
+          date,
+          time: parsed?.startDate ? parsed.time : "",
+          anchor,
+          sourceId: "item-chat"
+        },
         [],
         [{ id: "item-chat", name: "本轮指令", text: instruction }]
       );
@@ -766,6 +980,7 @@ async function chatWithItem(item, meta, instruction, sources, options) {
       validated.patch.due ?? null,
       options.captureDate
     );
+    validated.patch.dueCleared = next.dueCleared;
     for (const key of ["title", "summary", "facts"]) {
       if (JSON.stringify(next[key]) !== JSON.stringify(item[key]))
         Object.assign(validated.patch, { [key]: next[key] });

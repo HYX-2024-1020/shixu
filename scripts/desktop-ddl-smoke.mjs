@@ -1,4 +1,4 @@
-import { _electron as electron } from "@playwright/test";
+import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -55,8 +55,34 @@ try {
     .first()
     .getByRole("heading", { name: /合成报告/ })
     .waitFor();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  const rangeView = page.getByRole("region", { name: "DDL 截止事项" });
+  await rangeView.getByText("＋ 自己补充一项 DDL", { exact: true }).click();
+  await rangeView.getByLabel("事项标题", { exact: true }).fill("合成时间段");
+  await rangeView
+    .getByLabel("截止日期", { exact: true })
+    .last()
+    .fill("明天14:00到后天16:00");
+  await rangeView
+    .getByRole("button", { name: "添加 DDL", exact: true })
+    .click();
+  const span = rangeView.locator(".ddl-item").filter({ hasText: "合成时间段" });
+  await expect(span.locator(".time-rail")).toContainText("14:00");
+  await expect(span.locator(".time-rail")).toContainText("16:00");
+  await span.getByRole("button", { name: /核对截止时间/ }).click();
+  await expect(span.locator(".ddl-absolute-time")).toHaveText(
+    /\d{4}-\d{2}-\d{2} 14:00 → \d{4}-\d{2}-\d{2} 16:00/,
+  );
+  const content = await page.locator(".bucket-main").boundingBox();
+  const dock = await page
+    .getByRole("navigation", { name: "主工作区" })
+    .boundingBox();
+  assert.ok(
+    content.y + content.height <= dock.y,
+    "content viewport must end above the dock",
+  );
   console.log(
-    "Electron DDL: relative input, completion, restart persistence, undo and world state passed (isolated synthetic profile).",
+    "Electron DDL: relative input, ranges, navigation clearance, completion, restart persistence, undo and world state passed (isolated synthetic profile).",
   );
 } finally {
   await app?.close();

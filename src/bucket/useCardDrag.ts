@@ -106,13 +106,17 @@ export function useCardDrag(
   function tick(s: Session) {
     if (session.current !== s || !s.active) return;
     const edge = 72;
+    const scroller = root.current?.closest<HTMLElement>(".bucket-main");
+    const bounds = scroller?.getBoundingClientRect();
+    const topEdge = bounds?.top || 0,
+      bottomEdge = bounds?.bottom || innerHeight;
     const speed =
-      s.y < edge
-        ? -Math.min(15, (edge - s.y) * 0.24)
-        : s.y > innerHeight - edge
-          ? Math.min(15, (s.y - innerHeight + edge) * 0.24)
+      s.y < topEdge + edge
+        ? -Math.min(15, (topEdge + edge - s.y) * 0.24)
+        : s.y > bottomEdge - edge
+          ? Math.min(15, (s.y - bottomEdge + edge) * 0.24)
           : 0;
-    if (speed) window.scrollBy(0, speed);
+    if (speed) scroller?.scrollBy(0, speed);
     if (s.clone)
       s.clone.style.translate = `${s.x - s.startX}px ${s.y - s.startY}px`;
     const cards = [

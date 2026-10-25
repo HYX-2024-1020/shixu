@@ -2,6 +2,7 @@ const {
   compareItems,
   absoluteItem,
   itemDeadlineTime,
+  deadlineLabel,
   cardCopy,
   buildGroups,
   itemRef,
@@ -41,6 +42,9 @@ function itemsFor(records) {
         const clockInfo = itemDeadlineTime(item, p.sources, meta.chat);
         return {
           clockInfo,
+          timeLabel: deadlineLabel(item.due),
+          startDate: item.due?.startDate || "",
+          startTime: item.due?.startTime || "",
           id,
           packetId: p.id,
           index,

@@ -61,7 +61,7 @@ try {
   });
   await page.evaluate(async () => {
     const [packet] = await window.desktop.store("packets");
-    const text = "月底下午三点十分提交说明";
+    const text = "开学前下午三点十分提交说明";
     packet.sources.push({ id: "pending-date", name: "合成未定日期", text });
     packet.result.items.push({
       kind: "task",

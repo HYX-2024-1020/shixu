@@ -1,4 +1,5 @@
 // Shared by the browser and personal server. No credentials or user content is logged.
+import { parseDateExpression } from "./deadline-date.mjs";
 import { absoluteItem, absoluteText } from "./deadlines.mjs";
 import { groundedTime, resolveDeadlineTime } from "./deadline-time.mjs";
 export { groundedTime };
@@ -58,53 +59,7 @@ function shiftDate(today, days) {
   return date.toISOString().slice(0, 10);
 }
 export function groundedDate(anchor, today) {
-  if (!validDate(today)) return "";
-  anchor = compact(anchor);
-  if (/(?:至|到|~|～|—|–)/.test(anchor)) return "";
-  const absolute = anchor.match(/(20\d{2})[年\-/](\d{1,2})[月\-/](\d{1,2})/);
-  if (absolute) {
-    const date = `${absolute[1]}-${absolute[2].padStart(2, "0")}-${absolute[3].padStart(2, "0")}`;
-    return validDate(date) ? date : "";
-  }
-  const relative = anchor.match(
-    /大前天|前天|昨天|昨日|大后天|后天|明天|今天|今日|明早|明晚|今早|今晚|昨早|昨晚/,
-  );
-  if (relative)
-    return shiftDate(
-      today,
-      {
-        大前天: -3,
-        前天: -2,
-        昨天: -1,
-        昨日: -1,
-        大后天: 3,
-        后天: 2,
-        明天: 1,
-        今天: 0,
-        今日: 0,
-        明早: 1,
-        明晚: 1,
-        今早: 0,
-        今晚: 0,
-        昨早: -1,
-        昨晚: -1,
-      }[relative[0]],
-    );
-  const week = anchor.match(
-    /(上上|上|下下|下|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/,
-  );
-  if (week) {
-    const target = "一二三四五六日".indexOf(week[2] === "天" ? "日" : week[2]),
-      current = (new Date(today + "T12:00:00Z").getUTCDay() + 6) % 7;
-    let offset = target - current;
-    if (week[1] === "上") offset -= 7;
-    else if (week[1] === "上上") offset -= 14;
-    else if (week[1] === "下") offset += 7;
-    else if (week[1] === "下下") offset += 14;
-    else if (!week[1] && offset < 0) offset += 7;
-    return shiftDate(today, offset);
-  }
-  return "";
+  return parseDateExpression(anchor, today)?.date || "";
 }
 export function validateResult(value, sources, today) {
   checkSources(sources);
@@ -138,16 +93,40 @@ export function validateResult(value, sources, today) {
     const uncertainties = list(item.uncertainties, 8);
     let due = null;
     if (item.due && typeof item.due === "object") {
-      const source = sourceMap.get(item.due.sourceId),
-        anchor = clean(item.due.anchor, 250);
+      const source = sourceMap.get(item.due.sourceId);
+      let anchor = clean(item.due.anchor, 250);
       const belongs =
         source &&
         compact(anchor).length >= 2 &&
         compact(source.text).includes(compact(anchor));
-      const definite = belongs ? groundedDate(anchor, today) : "";
+      let parsed = belongs ? parseDateExpression(anchor, today) : null;
+      if (belongs && !parsed?.startDate) {
+        const spans = evidence
+          .filter(
+            (e) =>
+              e.sourceId === source.id &&
+              compact(e.quote).includes(compact(anchor)),
+          )
+          .map((e) => ({
+            quote: e.quote,
+            parsed: parseDateExpression(e.quote, today),
+          }))
+          .filter((e) => e.parsed?.startDate);
+        if (spans.length === 1) {
+          parsed = spans[0].parsed;
+          anchor = spans[0].quote;
+        }
+      }
+      const definite = parsed?.date || "";
       if (definite) {
         due = resolveDeadlineTime(
-          { date: definite, time: "", anchor, sourceId: source.id },
+          {
+            ...parsed,
+            date: definite,
+            time: parsed?.startDate ? parsed.time : "",
+            anchor,
+            sourceId: source.id,
+          },
           evidence,
           sources,
         );
@@ -208,7 +187,7 @@ const SYSTEM = `你是一个只服务一位大学生的“收纳桶”。用户�
 拆分边界：task必须有独立的实际行动要求；event记录会议/活动本身，不把参加活动额外复制成相同任务；habit须来自想长期重复坚持的意愿，不把一次作业变成习惯；notice保留必要的通知背景，只在与实际行动信息有区别时另列，和任务共享来源即可；note承载可回看的资料，不能把每个附件文件名机械生成一条。无法判断归other并说明。相同标题不代表同一任务，只有同一行动与原文依据一致才去重；同一课程的不同作业只是相关，不能互相覆盖。
 链接只作为用户提供的链接文字处理；当前没有抓取网页，不得假装读过 URL 指向的正文。
 灵感可以丰满：把推测、可尝试方向和小步验证放到nextSteps，绝不能把你补充的建议当成原文事实。习惯同理：没有明确频率时可以建议一个轻量起点，但不得编造用户已承诺的频率。facts只收录原文事实。
-日期以提供的captureDate为基准。只有明确的年月日、今天/明天/后天/昨天/前天、明确周几（包括上周/下周）才能填写due。月底、尽快、开学前、只有月份日期但无年份、与附件相冲突的日期都放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。不要猜截止日。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
+日期以提供的captureDate为基准。尽力提取各种常用时间说法：年月日、无年份的月日、26号、26-28、10月26日至28日、今天/明天/后天、周几、月底、几天后，以及日期/时刻区间，都填写due的完整原文anchor。省略年月由程序按captureDate推定，区间必须保留起止全文。尽快、开学前等缺少可推算日期或与附件冲突时才放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。允许依据captureDate推定省略的年月，不要编造没有依据的日期。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
 每一条必须至少有一个evidence，quote必须是该来源的连续原文摘录，不得自己概括。涉及附件要求的任务必须引用附件的相应原文，必要时同时引用输入文字。若依据不足，少输出，不胡编。
 卡片文案：title用简短的动作与对象抓住核心，通常12至24个汉字，不加“待办”“需要确认”“根据原文”等前缀；summary用一至两句概括最重要的要求或信息，通常24至50个汉字，不重复标题，不堆文件名，不罗列缺失信息，不催促用户补充。完整的格式、材料、地点、评分要求仍必须保留在facts中，不能为了缩短卡片删掉事实。缺少信息只在uncertainties中客观记录，不凭空新增核对任务。
 只返回JSON对象，不使用Markdown围栏。输出示例结构：

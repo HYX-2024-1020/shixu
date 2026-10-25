@@ -926,6 +926,14 @@ Page({
     });
     this._refresh();
   },
+  previewDdlWindow(event) {
+    this.setData({
+      ddlIndex: Math.max(0, Math.min(4, Number(event.detail.value))),
+    });
+  },
+  chooseDdlWindow(event) {
+    this.setDdlWindow({ detail: { value: event.currentTarget.dataset.index } });
+  },
   toggleDdl(event) {
     const field = event.currentTarget.dataset.field;
     if (
@@ -948,11 +956,16 @@ Page({
     try {
       const title = this.data.ddlTitle.trim();
       if (!title) throw new Error("请填写事项标题");
-      const due = parseDeadline(
-        this.data.ddlDate,
-        localDay(),
-        this.data.ddlTime.trim(),
-      );
+      let due;
+      try {
+        due = parseDeadline(
+          this.data.ddlDate,
+          localDay(),
+          this.data.ddlTime.trim(),
+        );
+      } catch {
+        due = null;
+      }
       const id = makeId(),
         itemId = makeId(),
         text = `${title}；截止 ${this.data.ddlDate} ${this.data.ddlTime}；${this.data.ddlRequirements}`;
@@ -963,7 +976,7 @@ Page({
           summary: this.data.ddlRequirements.trim(),
           facts: [],
           nextSteps: [],
-          uncertainties: [],
+          uncertainties: due ? [] : [`时间待确认：${this.data.ddlDate}`],
           due,
           evidence: [{ sourceId: "manual", quote: text }],
           sourceIds: ["manual"],
@@ -1194,8 +1207,8 @@ Page({
       editTitle: row.item.title,
       editSummary: row.item.summary || "",
       editGroup: row.group,
-      editDate: row.date,
-      editTime: row.time,
+      editDate: row.startDate ? row.timeLabel.replace(" → ", " 至 ") : row.date,
+      editTime: row.startDate ? "" : row.time,
       editKind: Object.keys(KINDS).indexOf(row.kind),
     });
   },

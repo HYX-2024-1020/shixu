@@ -121,7 +121,8 @@ export default function BucketApp() {
   const workspaceSequence = useRef(0);
   function goWorkspace(next: string, packetId?: string) {
     const sequence = ++workspaceSequence.current;
-    scrollPositions.current[workspace] = window.scrollY;
+    const scroller = document.querySelector<HTMLElement>(".bucket-main");
+    scrollPositions.current[workspace] = scroller?.scrollTop || 0;
     if (packetId) {
       setFocusPacket(packetId);
       setRecordsOpen(false);
@@ -130,7 +131,7 @@ export default function BucketApp() {
     const reveal = () => {
       if (sequence !== workspaceSequence.current) return;
       flushSync(() => setWorkspace(next));
-      window.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0);
+      scroller?.scrollTo(0, packetId ? 0 : scrollPositions.current[next] || 0);
     };
     if (next !== workspace && document.startViewTransition)
       workspaceMotion.current = document.startViewTransition(reveal);
@@ -341,9 +342,14 @@ export default function BucketApp() {
       const nextMeta: ItemState = { ...latest.itemState?.[itemId] };
       const edits: NonNullable<ItemState["history"]> = [];
       for (const [field, value] of Object.entries(response.patch)) {
-        const target = ["title", "summary", "kind", "due", "facts"].includes(
-          field,
-        )
+        const target = [
+          "title",
+          "summary",
+          "kind",
+          "due",
+          "facts",
+          "dueCleared",
+        ].includes(field)
           ? nextItem
           : nextMeta;
         const record = target as unknown as Record<string, unknown>;
