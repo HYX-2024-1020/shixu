@@ -121,7 +121,7 @@ export function useCardDrag(
       s.clone.style.translate = `${s.x - s.startX}px ${s.y - s.startY}px`;
     const cards = [
       ...(root.current?.querySelectorAll<HTMLElement>(
-        ".result-card[data-motion-id]",
+        ".result-card[data-motion-id],.ddl-item[data-motion-id]",
       ) || []),
     ].filter((el) => el.checkVisibility());
     let nearest: HTMLElement | undefined,
@@ -212,6 +212,7 @@ export function useCardDrag(
     )
       return;
     if (
+      !(event.target as Element).closest("[data-card-drag-handle]") &&
       (event.target as Element).closest(
         "button,a,summary,input,textarea,select,dialog",
       )
