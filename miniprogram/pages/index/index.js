@@ -32,12 +32,12 @@ const {
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
   mergeCardOrder,
-  deadlineSections,
   parseDeadline,
   absoluteItem,
   setDeadline,
   habitCheckin,
 } = require("../../lib/generated/desktop");
+const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
 const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
 const jobsKey = (base) => `shixu:mini:jobs:v1:${base}`;
@@ -53,8 +53,13 @@ function dateInfo() {
   };
 }
 Page({
+  ...createTouchOrder(wx),
   data: {
     tab: "capture",
+    dragId: "",
+    dragGhost: null,
+    dragScrollTop: 0,
+    dragNotice: "",
     ddlDays: [1, 3, 7, 14, 30],
     ddlIndex: 2,
     ddlLimit: 60,
@@ -226,10 +231,12 @@ Page({
     }, 8000);
   },
   onHide() {
+    this.cancelDrag();
     clearInterval(this._timer);
     this._stopSkinInteraction();
   },
   onUnload() {
+    this.cancelDrag();
     clearInterval(this._timer);
     this._stopSkinInteraction();
     if (this._skinAudio) this._skinAudio.destroy();
@@ -281,6 +288,7 @@ Page({
     this._refresh();
   },
   _refresh() {
+    if (this._drag) return;
     if (!this._client) return;
     try {
       const library = this._library();
@@ -323,7 +331,7 @@ Page({
       }));
     const view = worldView(this._client.records(), this.data);
     const clock = new Date();
-    const ddl = deadlineSections(
+    const ddl = ddlLists(
       itemsFor(this._client.records()),
       localDay(),
       `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`,
@@ -364,7 +372,12 @@ Page({
           title: `${this.data.ddlDays[this.data.ddlIndex]} 天之后`,
           rows: ddl.later.slice(0, this.data.ddlLimit).map(this._cardView),
         },
-      ].filter((s) => s.rows.length),
+      ].flatMap((section) =>
+        [...new Set(section.rows.map((row) => row.date))].map((date) => ({
+          title: `${section.title} · ${date || "日期待确认"}`,
+          rows: section.rows.filter((row) => row.date === date),
+        })),
+      ),
       ddlCount:
         ddl.overdue.length +
         ddl.today.length +
@@ -808,6 +821,7 @@ Page({
     this.setData({ password: event.detail.value });
   },
   switchTab(event) {
+    this.cancelDrag();
     const target = event.currentTarget.dataset.tab;
     if (target === "settings") {
       if (this.data.tab === "settings") return this.closeSettings();
@@ -1020,6 +1034,7 @@ Page({
     };
   },
   openItem(event) {
+    if (this._blockDragTap()) return;
     this.setData({
       selected: this._presentDetail(
         this._detail(event.currentTarget.dataset.id),
@@ -1062,6 +1077,7 @@ Page({
       this.setData({ [field]: event.detail.value });
   },
   verifyDdl(event) {
+    if (this._blockDragTap()) return;
     this.openItem(event);
     this.beginEdit();
   },
@@ -1222,6 +1238,7 @@ Page({
     this.syncQuietly();
   },
   async toggleDone(event) {
+    if (this._blockDragTap()) return;
     if (this._completionLock) return;
     this._completionLock = true;
     try {
@@ -1254,6 +1271,7 @@ Page({
     }
   },
   toggleStar(event) {
+    if (this._blockDragTap()) return;
     try {
       const row = this._detail(event.currentTarget.dataset.id);
       this._changeItem(row.id, { starred: !row.starred });
@@ -1278,6 +1296,16 @@ Page({
     } catch (error) {
       this._error(error);
     }
+  },
+  confirmRemoveItem(event) {
+    if (this._blockDragTap()) return;
+    wx.showModal({
+      title: "将这项移入最近删除？",
+      content: "可以在世界的最近删除中恢复，原文及其他事项会保留。",
+      success: (answer) => {
+        if (answer.confirm) this.removeItem(event);
+      },
+    });
   },
   removeItem(event) {
     try {

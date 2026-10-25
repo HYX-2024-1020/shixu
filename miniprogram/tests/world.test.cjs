@@ -14,6 +14,7 @@ function fixture({
   modal = { confirm: true, content: "手动事项" },
   audio = null,
   createAnimation,
+  selectorQuery,
   failAudio = false,
   clock = { setTimeout, clearTimeout },
 } = {}) {
@@ -29,6 +30,7 @@ function fixture({
     setTimeout: clock.setTimeout,
     clearTimeout: clock.clearTimeout,
     wx: {
+      ...(selectorQuery ? { createSelectorQuery: selectorQuery } : {}),
       ...(createAnimation ? { createAnimation } : {}),
       ...(audio || failAudio
         ? {
@@ -816,4 +818,319 @@ test("native motion sends alternating targets beyond one cycle and stops on hide
   page.onHide();
   assert.equal(page.data.skinAnimating, false);
   assert.equal(timers.size, 0);
+});
+
+// Synthetic native rectangles exercise the real page gesture handlers; no IDE control.
+function dragFixture(options = {}) {
+  let page;
+  const f = fixture({
+    ...options,
+    selectorQuery: () => ({
+      in() {
+        return this;
+      },
+      select() {
+        return this;
+      },
+      selectAll() {
+        return this;
+      },
+      boundingClientRect() {
+        return this;
+      },
+      fields() {
+        return this;
+      },
+      exec(callback) {
+        const rows =
+          page.data.tab === "ddl"
+            ? [
+                ...(page.data.ddlShowOverdue ? page.data.ddlOverdue : []),
+                ...page.data.ddlSections.flatMap((s) => s.rows),
+              ]
+            : page.data.items;
+        callback([
+          { left: 0, right: 375, top: 0, bottom: 600, width: 375, height: 600 },
+          rows.map((r, i) => ({
+            dataset: { id: r.id },
+            left: (i % 2) * 175,
+            right: (i % 2) * 175 + 165,
+            top: Math.floor(i / 2) * 230,
+            bottom: Math.floor(i / 2) * 230 + 220,
+            width: 165,
+            height: 220,
+          })),
+        ]);
+      },
+    }),
+  });
+  page = f.page;
+  const p = packet(),
+    q = packet("q");
+  q.itemIds = ["task-c", "task-d"];
+  q.itemState = {};
+  page._client.put("p", p);
+  page._client.put("q", q);
+  page.setData({ tab: "world", sort: "custom", sortIndex: 4 });
+  page._refresh();
+  page.syncQuietly = () => {};
+  page._scrollHeight = 1800;
+  const touch = (id, x, y) => ({
+    currentTarget: { dataset: { id } },
+    touches: [{ identifier: 0, clientX: x, clientY: y }],
+  });
+  return {
+    ...f,
+    touch,
+    start(id) {
+      const e = touch(id, 80, 90);
+      page.dragTouchStart(e);
+      page.startDrag(e);
+    },
+    move(x, y) {
+      page.dragTouchMove(touch(page.data.dragId, x, y));
+    },
+  };
+}
+test("two-column touch sorting replaces filtered slots, persists across restart, and suppresses release tap", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.setData({ kind: "task" });
+  p._refresh();
+  const before = worldView(p._client.records(), { sort: "custom" }).items.map(
+    (r) => r.id,
+  );
+  f.start("task-a");
+  assert.equal(p.data.dragId, "task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  const expected = before.map((id) =>
+    id === "task-a" ? "task-c" : id === "task-c" ? "task-a" : id,
+  );
+  const reopened = fixture({ store: f.store }).page;
+  assert.deepEqual(
+    worldView(reopened._client.records(), { sort: "custom" }).items.map(
+      (r) => r.id,
+    ),
+    expected,
+  );
+  p.openItem(event("task-a"));
+  assert.equal(p.data.selected, null);
+  assert.equal(p.data.sort, "custom");
+});
+test("swiping before long press stays scrolling; cancel and hide restore order without writes", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  p.dragTouchStart(f.touch("task-a", 80, 90));
+  f.move(80, 110);
+  p.startDrag(event("task-a"));
+  assert.equal(p.data.dragId, "");
+  f.start("task-a");
+  f.move(250, 90);
+  p.cancelDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  f.start("task-a");
+  f.move(250, 90);
+  p.onHide();
+  assert.equal(p.data.dragId, "");
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+test("drag edge scrolling advances native scroll-top and touch cancellation restores the list", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(80, 530);
+  p._dragTick();
+  assert.ok(p.data.dragScrollTop > 0);
+  p.cancelDrag();
+  assert.equal(p.data.dragGhost, null);
+});
+test("grouped touch sorting cannot cross groups or move hidden group slots", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p._changeItem("task-a", { group: "课程" });
+  p._changeItem("task-b", { group: "课程" });
+  p._changeItem("task-c", { group: "其他" });
+  p._changeItem("task-d", { group: "其他" });
+  p.setData({ grouped: true });
+  p._refresh();
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 320);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+test("updates arriving during drag abort persistence and refresh current records", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(250, 90);
+  p._client.put("p", { itemState: { "task-a": { starred: true } } });
+  p.finishDrag();
+  assert.match(p.data.error, /已更新/);
+  assert.equal(p._detail("task-a").starred, true);
+});
+test("DDL date partitions allow rank changes without changing dates, clocks, ranges or evidence", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.setData({ tab: "ddl", ddlShowOverdue: true });
+  p._refresh();
+  const before = p._client.records().map((r) => JSON.stringify(r.data.result));
+  f.start("task-a");
+  assert.equal(p.data.dragId, "task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  assert.deepEqual(
+    p._client.records().map((r) => JSON.stringify(r.data.result)),
+    before,
+  );
+  assert.deepEqual(
+    p.data.ddlOverdue.map((r) => r.id),
+    ["task-c", "task-a"],
+  );
+  const reopened = fixture({ store: f.store }).page;
+  assert.deepEqual(
+    reopened.data.ddlOverdue.map((r) => r.id),
+    ["task-c", "task-a"],
+  );
+  p._dragTapUntil = 0;
+  p._client.put("q", {
+    result: {
+      ...packet("q").result,
+      items: [
+        {
+          ...packet("q").result.items[0],
+          due: { date: "2026-10-23", time: "16:00" },
+        },
+        packet("q").result.items[1],
+      ],
+    },
+  });
+  p._refresh();
+  const snapshot = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), snapshot);
+});
+test("multi-packet order persistence is atomic on storage failure", () => {
+  let full = false;
+  const f = dragFixture({ failWrite: (key) => full && key === KEY }),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  full = true;
+  p.finishDrag();
+  assert.match(p.data.error, /disk full/);
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+const { createSyncClient } = require("../lib/sync-client");
+test("batched sync order stages every packet and leaves no partial queue on a rejected batch or failed disk", () => {
+  let saved,
+    fail = false,
+    writes = 0;
+  const client = createSyncClient({
+    read: () => saved,
+    write: (value) => {
+      if (fail) throw Error("disk full");
+      saved = value;
+      writes++;
+    },
+    request: async () => {
+      throw Error("not called");
+    },
+  });
+  client.put("p", { itemState: { "task-a": { order: 0 } } });
+  client.put("q", { itemState: { "task-c": { order: 1 } } });
+  const before = JSON.stringify(client.records()),
+    baseline = writes;
+  assert.throws(
+    () =>
+      client.putMany([
+        { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+        { id: "bad:id", patch: {} },
+      ]),
+    /ID/,
+  );
+  assert.equal(JSON.stringify(client.records()), before);
+  assert.equal(writes, baseline);
+  fail = true;
+  assert.throws(
+    () =>
+      client.putMany([
+        { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+        { id: "q", patch: { itemState: { "task-c": { order: 0 } } } },
+      ]),
+    /disk full/,
+  );
+  assert.equal(JSON.stringify(client.records()), before);
+  assert.equal(writes, baseline);
+  fail = false;
+  client.putMany([
+    { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+    { id: "q", patch: { itemState: { "task-c": { order: 0 } } } },
+  ]);
+  assert.equal(writes, baseline + 1);
+  const reopened = createSyncClient({
+    read: () => saved,
+    write: () => {},
+    request: async () => {
+      throw Error("not called");
+    },
+  });
+  assert.equal(
+    reopened.records().find((r) => r.id === "p").data.itemState["task-a"].order,
+    1,
+  );
+  assert.equal(
+    reopened.records().find((r) => r.id === "q").data.itemState["task-c"].order,
+    0,
+  );
+});
+
+test("dropping in the cancellation area and a second finger both restore original ranks", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  f.move(340, 580);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  f.start("task-a");
+  f.move(250, 90);
+  p.dragTouchStart({ touches: [{ identifier: 0 }, { identifier: 1 }] });
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  assert.equal(p.data.dragId, "");
+});
+test("card delete requires explicit confirmation and remains recoverable without deleting its source packet", () => {
+  const rejected = fixture({ modal: { confirm: false } }).page;
+  rejected._client.put("p", packet());
+  rejected._refresh();
+  rejected.confirmRemoveItem(event("task-a"));
+  assert.equal(rejected._detail("task-a").deleted, false);
+  const accepted = seeded().page;
+  accepted.confirmRemoveItem(event("task-a"));
+  assert.equal(accepted._detail("task-a").deleted, true);
+  assert.equal(accepted._record("p").deletedAt, null);
+  accepted.restoreItem(event("task-a"));
+  assert.equal(accepted._detail("task-a").deleted, false);
+});
+test("interleaved group reordering replaces only that group's slots", () => {
+  const { moveInGroup } = require("../lib/touch-order");
+  const groups = new Map([
+    ["a", "one"],
+    ["b", "two"],
+    ["c", "one"],
+    ["d", "two"],
+  ]);
+  assert.deepEqual(moveInGroup(["a", "b", "c", "d"], "a", "c", groups), [
+    "c",
+    "b",
+    "a",
+    "d",
+  ]);
 });

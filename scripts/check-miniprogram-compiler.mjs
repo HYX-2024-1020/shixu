@@ -102,6 +102,40 @@ assert.ok(
   !view().some((node) => node.attr?.bindchange === "setSort"),
   "advanced filters collapsed initially",
 );
+assert.ok(
+  view().some((node) => node.attr?.class === "world-grid"),
+  "native two-column grid exists",
+);
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.bindlongpress === "startDrag" &&
+      node.attr?.bindtouchmove === "dragTouchMove",
+  ),
+  "long press and tracked movement compiled",
+);
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.catchtap === "confirmRemoveItem" &&
+      node.attr?.catchtouchstart === "stopTap",
+  ),
+  "discoverable deletion cannot arm a parent drag",
+);
+const compactId = page.data.items[0].id;
+page.setData({
+  dragId: compactId,
+  dragGhost: { left: 20, top: 40, width: 180, title: "合成拖动" },
+});
+assert.ok(
+  view().some((node) => node.attr?.class?.includes("drag-placeholder")),
+  "drag placeholder compiled",
+);
+assert.ok(
+  view().some((node) => node.attr?.class === "drag-ghost"),
+  "drag preview compiled",
+);
+page.setData({ dragId: "", dragGhost: null });
 page.toggleFilters();
 assert.ok(
   view().some((node) => node.attr?.bindchange === "setSort"),
@@ -149,7 +183,9 @@ assert.ok(
   "DDL compiled cards render",
 );
 assert.ok(
-  view().some((node) => node.attr?.bindtap === "verifyDdl"),
+  view().some(
+    (node) => (node.attr?.bindtap || node.attr?.catchtap) === "verifyDdl",
+  ),
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
