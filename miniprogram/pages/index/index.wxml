@@ -270,36 +270,31 @@
   </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
-    ><view class="section-top"><text class="section-title">连接与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="section-top"><text class="section-title">激活与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
     ><view class="card-paper ai-connection"
-      ><text class="subheading">AI 连接 · 服务端配置</text>
-      <text class="settings-copy">{{!connected ? '请先填写下方服务地址和访问口令。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
-      <text class="settings-copy">AI 密钥由服务器统一保管，无需在手机重复填写。Windows 本机设置中的密钥不会自动上传到服务器。</text>
-      <view class="button-row"><button class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '如何接入 API'}}</button><button wx:if="{{connected}}" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
-      <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">1. 由服务维护者在服务器配置 DeepSeek 密钥并启用 AI，手机不填写模型密钥。</text><text class="settings-copy">2. 手机与 Windows 云同步版填写同一服务地址和访问口令，连接后刷新 AI 状态。</text><text class="settings-copy">3. 本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取；当前服务端只支持文字和 UTF-8 原件，图片、PDF 等暂可手动记事项。</text></view>
+      ><text class="subheading">服务端 AI</text><text class="settings-copy">{{accountAiState}}</text>
+      <text class="settings-copy">{{!connected ? '输入邀请码激活此微信身份；本地记录仍可使用。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
+      <text class="settings-copy">模型与密钥由服务器统一管理。AI 额度用完不影响记录和同步。</text>
+      <view class="button-row"><button class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '使用与隐私说明'}}</button><button wx:if="{{connected}}" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
+      <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">AI 整理与对话会将相关文本及可读取的 UTF-8 原件发送给模型服务商，统一密钥不消除隐私风险。</text><text class="settings-copy">同一邀请码绑定一个微信身份与一台 Windows 安装，两端共享独立账号资料。</text><text class="settings-copy">3. 本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取；当前服务端只支持文字和 UTF-8 原件，图片、PDF 等暂可手动记事项。</text></view>
       <view class="capability"><text>事项 AI 对话</text><text>{{!connected ? '未连接' : capabilities.itemChat ? '已可用' : '服务端未启用'}}</text></view>
       </view><view class="card-paper"
-      ><text class="subheading">个人同步服务</text
+      ><text class="subheading">邀请码激活</text><text class="settings-copy">{{activationState}}</text
       ><text class="settings-copy"
-        >本机资料单独保留，连接后可导入。使用同一服务的 Windows 云同步版与手机共用资料；已发行的 0.3.8 仍需升级。</text
-      ><view class="field-label">服务地址</view
-      ><input
-        value="{{serverUrl}}"
-        bindinput="onServer"
-        placeholder="https://你的服务域名"
-      /><view class="field-label">个人服务访问口令</view
+        >未激活仍可记录、查看和手动管理事项。激活打开独立账号空间，本机资料不自动上传。</text
+      ><view class="field-label">邀请码</view
       ><input
         value="{{password}}"
         bindinput="onPassword"
         password
-        placeholder="服务器访问口令，不是 AI 密钥"
+        placeholder="填写朋友内测邀请码"
       /><button
         class="primary"
         bindtap="connect"
         loading="{{connecting}}"
         disabled="{{connecting || syncing || !password.length}}"
       >
-        连接并保存设备授权</button
+        激活此微信身份</button
       ><view class="button-row"
         ><button
           wx:if="{{connected}}"
@@ -319,10 +314,10 @@
       >
         导入 {{localCount}} 次本机投递（保留原件）</button
       ><text class="settings-copy"
-        >口令不保留，设备授权保存在本机。不同服务使用独立资料空间。</text
+        >邀请码不保留，设备凭证保存在此微信项目。换身份或重装后需要管理员重置绑定。</text
       ></view
     ><view class="card-paper"
-      ><text class="subheading">当前能力</text
+      ><button wx:if="{{!connected}}" class="small-button" bindtap="resumeAccount">返回已激活账号</button><text class="subheading">当前能力</text
       ><view class="capability"
         ><text>文字与事项同步</text
         ><text>{{connected ? '已连接' : '未连接'}}</text></view

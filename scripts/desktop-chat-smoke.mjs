@@ -1,3 +1,4 @@
+import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { absoluteText } from "../shared/deadlines.mjs";
 import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, copyFile, rm, writeFile } from "node:fs/promises";
@@ -8,11 +9,9 @@ import { DesktopStore } from "../desktop/storage.cjs";
 const live = process.argv.includes("--live");
 const profile = await mkdtemp(path.join(tmpdir(), "shixu-chat-test-"));
 if (live)
-  for (const name of ["Local State", "api-key.enc"])
-    await copyFile(
-      path.join(process.env.APPDATA, "ShixuDesktop", name),
-      path.join(profile, name),
-    );
+  throw Error(
+    "Use a separately authorized server model test with an explicit budget",
+  );
 const source =
   "虚构课程通知：下周一和周二暂停课程，请相互转告。这是功能测试样本。";
 const item = {
@@ -43,7 +42,21 @@ await new DesktopStore(path.join(profile, "workspace")).call("savePackets", [
     itemIds: ["chat-i"],
   },
 ]);
-const env = { ...process.env, SHIXU_DATA_DIR: profile };
+let calls = 0,
+  mode = "normal";
+const fixture = await accountUIFixture({
+  chat: async (_packet, _itemId, instruction) => {
+    calls++;
+    if (mode === "invalid") throw Error("synthetic invalid model output");
+    return {
+      reply: "已按你的要求修改卡片。",
+      patch: instruction.includes("不是任务")
+        ? { kind: "notice", group: "人工智能" }
+        : { title: "课程调课通知", starred: true },
+    };
+  },
+});
+const env = { ...fixture.env, SHIXU_DATA_DIR: profile };
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
   executablePath: process.env.SHIXU_PACKAGED_EXE,
@@ -56,49 +69,9 @@ try {
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
     .waitFor();
-  let calls = 0,
-    mode = "normal";
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  if (!live) {
-    await page.evaluate(() => window.desktop.key("save", "dummy-chat-key"));
-    await page.route(
-      "https://api.deepseek.com/chat/completions",
-      async (route) => {
-        calls++;
-        const input = JSON.parse(
-          route.request().postDataJSON().messages[1].content,
-        );
-        const patch =
-          mode === "invalid"
-            ? { delete: true }
-            : input.instruction.includes("不是任务")
-              ? { kind: "notice", group: "人工智能" }
-              : { title: "课程调课通知", starred: true };
-        await route.fulfill({
-          json: {
-            model: "deepseek-flash",
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    reply: "已按你的要求修改卡片。",
-                    patch,
-                  }),
-                },
-              },
-            ],
-            usage: {
-              prompt_tokens: 30,
-              completion_tokens: 20,
-              total_tokens: 50,
-            },
-          },
-        });
-      },
-    );
-    await page.reload();
-  }
+  await fixture.activate(page, true);
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   const card = page.locator(".result-card").first();
   await card.getByLabel("更多事项操作").click();
@@ -214,6 +187,7 @@ try {
   );
 } finally {
   await app.close();
+  await fixture.close();
   if (live)
     for (const name of ["api-key.enc", "Local State"])
       await rm(path.join(profile, name), { force: true });

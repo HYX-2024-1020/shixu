@@ -4,11 +4,24 @@ import { DEFAULT_MODEL } from "../../shared/bucket-engine.mjs";
 import { exportPackets, serviceRequest, type Health } from "./service";
 import type { Packet } from "./types";
 import { getModels, KNOWN_MODELS, modelLabel } from "./model-api";
-import CloudConnection from "./CloudConnection";
+import AccountConnection from "./AccountConnection";
 import UsagePanel from "./UsagePanel";
 import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
-export default function Connection({
+export default function Connection(
+  props: Parameters<typeof LegacyConnection>[0],
+) {
+  return window.desktop ? (
+    <AccountConnection
+      canSwitch={props.canSwitchCloud}
+      onClose={props.onClose}
+      notify={props.notify}
+    />
+  ) : (
+    <LegacyConnection {...props} />
+  );
+}
+function LegacyConnection({
   canSwitchCloud,
   apiKey,
   model,
@@ -161,7 +174,6 @@ export default function Connection({
           <X size={20} />
         </button>
       </header>
-      {window.desktop && <CloudConnection canSwitch={canSwitchCloud} />}
       <form
         onSubmit={(e) => {
           e.preventDefault();

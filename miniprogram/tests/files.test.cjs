@@ -248,8 +248,21 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
   f.page._collectFiles([source(f)]);
   f.page.submit();
   const id = f.page.data.currentCaptureId;
-  f.page.setData({ serverUrl: base, password: "synthetic-file-ui-passphrase" });
-  await f.page.connect();
+  // This regression exercises the legacy attachment protocol directly; the
+  // product activation UI is covered separately against the account service.
+  const enroll = async (page) => {
+    const response = await fetch(base + "/api/v2/devices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: "synthetic-file-ui-passphrase",
+        name: "synthetic legacy file regression",
+      }),
+    });
+    page._activate({ ...(await response.json()), base });
+    await page.sync();
+  };
+  await enroll(f.page);
   assert.equal(f.page.data.connected, true);
   await f.page.importLocal();
   assert.equal(f.page.data.pendingFiles, 1);
@@ -278,7 +291,7 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
     serverUrl: base,
     password: "synthetic-file-ui-passphrase",
   });
-  await second.page.connect();
+  await enroll(second.page);
   await second.page.openAttachment({
     currentTarget: {
       dataset: { id: record.data.attachments[0].id, packet: id },
@@ -308,7 +321,7 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
     serverUrl: base,
     password: "synthetic-file-ui-passphrase",
   });
-  await third.page.connect();
+  await enroll(third.page);
   const inflight = third.page.openAttachment({
     currentTarget: {
       dataset: { id: record.data.attachments[0].id, packet: id },

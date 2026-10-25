@@ -75,10 +75,8 @@ try {
         error: "",
       },
     ]);
-    await window.desktop.key("save", "dummy-key-for-local-test");
-    if ((await window.desktop.key("read")) !== "dummy-key-for-local-test")
-      throw new Error("key round trip failed");
-    await window.desktop.key("remove");
+    if ((await window.desktop.key("read")) !== "")
+      throw Error("Client must not receive a model key");
   });
   console.log("Seed and key round trip saved");
   await page.reload();

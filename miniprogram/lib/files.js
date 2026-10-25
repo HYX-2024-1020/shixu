@@ -128,10 +128,12 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
       // A failed manifest write leaves purge references for another cleanup attempt.
       commit(remaining);
     },
-    assign(packetId, space) {
+    assign(packetId, space, draftSpace = "draft") {
       commit(
         entries.map((e) =>
-          e.packetId === packetId && e.space === "draft" ? { ...e, space } : e,
+          e.packetId === packetId && e.space === draftSpace
+            ? { ...e, space }
+            : e,
         ),
       );
     },
@@ -184,22 +186,31 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
       commit([...entries.filter((e) => key(e) !== key(entry)), entry]);
       return path;
     },
-    removeDraft(id, packetId) {
+    removeDraft(id, packetId, draftSpace = "draft") {
       // Only remove the manifest reference. Original bytes are retained for recovery.
       commit(
         entries.filter(
           (e) =>
-            !(e.id === id && e.packetId === packetId && e.space === "draft"),
+            !(e.id === id && e.packetId === packetId && e.space === draftSpace),
         ),
       );
     },
   };
 }
-function createFileTransport(base, getToken, runtime = wx) {
+function createFileTransport(
+  base,
+  getToken,
+  runtime = wx,
+  protocolVersion = 2,
+) {
   function request(method, url, data, header = {}) {
     return new Promise((resolve, reject) =>
       runtime.request({
-        url: base + url,
+        url:
+          base +
+          (protocolVersion === 3
+            ? url.replace(/^\/api\/v2\//, "/api/v3/")
+            : url),
         method,
         ...(data ? { data } : {}),
         responseType: method === "GET" ? "arraybuffer" : "text",
