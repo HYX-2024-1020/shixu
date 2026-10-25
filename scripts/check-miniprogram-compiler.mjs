@@ -23,7 +23,13 @@ execFileSync(
 );
 execFileSync(
   join(directory, "wcsc" + exe),
-  ["-o", join(temporary, "style.js"), "app.wxss", "pages/index/index.wxss"],
+  [
+    "-o",
+    join(temporary, "style.js"),
+    "app.wxss",
+    "lib/generated/client-ui.wxss",
+    "pages/index/index.wxss",
+  ],
   { cwd: mini, stdio: "pipe" },
 );
 let definition;
@@ -75,6 +81,23 @@ page.setData({ tab: "world" });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("item-card")),
   "item template rendered",
+);
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.bindtap === "selectCategory" &&
+      node.attr["data-kind"] === "task",
+  ),
+  "counted category rendered with stable key",
+);
+assert.ok(
+  !view().some((node) => node.attr?.bindchange === "setSort"),
+  "advanced filters collapsed initially",
+);
+page.toggleFilters();
+assert.ok(
+  view().some((node) => node.attr?.bindchange === "setSort"),
+  "sort picker rendered on demand",
 );
 const row = page.data.items[0];
 assert.ok(
@@ -149,6 +172,25 @@ assert.ok(
       node.attr?.size === "mini",
   ),
   "completed DDL retains compact native control and strokes",
+);
+page.switchTab({ currentTarget: { dataset: { tab: "capture" } } });
+page.interactSkin();
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.class?.includes("skin-mascot") &&
+      node.attr["data-motion"] === page.data.activeSkin.motion,
+  ),
+  "native mascot receives the shared active motion",
+);
+page._stopSkinInteraction();
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.class?.includes("skin-mascot") &&
+      node.attr["data-motion"] === "idle",
+  ),
+  "native mascot resets to idle",
 );
 page.openSkins();
 assert.equal(

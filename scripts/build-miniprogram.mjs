@@ -9,9 +9,74 @@ import { Resvg } from "@resvg/resvg-js";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const check = process.argv.includes("--check");
 const outputs = new Map();
+// These are the actual desktop rules, adapted only for native element names and units.
+// Keep the supported subset explicit: no browser-only hover/media selectors in WXSS.
+const motion = await readFile(
+  path.join(root, "src/bucket/skin-motion.css"),
+  "utf8",
+);
+const desktopStyle = await readFile(
+  path.join(root, "src/bucket/desktop.css"),
+  "utf8",
+).then((css) => css.replace(/\/\*[\s\S]*?\*\//g, ""));
+const sharedSelectors = new Map([
+  [".result-card", ".item-card"],
+  [".result-card.is-pinned", ".item-card.is-pinned"],
+  [".result-card:nth-child(4n + 2)", ".item-card.shadow-1"],
+  [".result-card:nth-child(4n + 4)", ".item-card.shadow-3"],
+  [".result-card:nth-child(4n + 3)", ".item-card.shadow-2"],
+  [".card-kind", ".item-card .kind-label"],
+  [".card-open h2", ".item-card .item-title"],
+  [".card-open p", ".item-card .item-summary"],
+  [".card-bottom", ".item-card .card-foot"],
+  [".card-source-link", ".item-card .card-source-link"],
+  [".world-heading h1", ".world .world-title"],
+  [".world-heading h1 span", ".world .hero-highlight"],
+]);
+// Exclude media blocks before selecting top-level rules; platform layout stays native.
+let depth = 0,
+  topLevel = "",
+  blockStart = 0;
+for (let i = 0; i < desktopStyle.length; i++) {
+  if (desktopStyle[i] === "{") depth++;
+  if (desktopStyle[i] === "}" && --depth === 0) {
+    const block = desktopStyle.slice(blockStart, i + 1).trim();
+    if (!block.startsWith("@")) topLevel += block + "\n";
+    blockStart = i + 1;
+  }
+}
+let visuals = "";
+const seen = new Set();
+for (const match of topLevel.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const selector of match[1].split(",").map((s) => s.trim())) {
+    if (sharedSelectors.has(selector)) {
+      seen.add(selector);
+      visuals += `.page ${sharedSelectors.get(selector)} {${match[2]}}\n`;
+    }
+  }
+}
+for (const selector of sharedSelectors.keys()) {
+  if (!seen.has(selector))
+    throw new Error(
+      `Desktop selector missing: ${selector}; update the native UI mapping.`,
+    );
+}
+// 1 CSS px maps to 2 rpx at the 375px phone design width.
+const nativeCSS = (motion + visuals)
+  .replace(/touch-action:\s*[^;]+;/g, "")
+  .replace(/[ \t]+$/gm, "")
+  .replace(/(-?[\d.]+)px\b/g, (_, n) => `${Number(n) * 2}rpx`);
+outputs.set(
+  "miniprogram/lib/generated/client-ui.wxss",
+  Buffer.from(
+    "/* Generated from Windows skin-motion.css and desktop.css. Run mini:build. */\n" +
+      nativeCSS,
+  ),
+);
 const bundled = await build({
   stdin: {
-    contents: `export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
+    contents: `export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
+    export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
     export { compareItems, habitCheckin } from './src/bucket/management';

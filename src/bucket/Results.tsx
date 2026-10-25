@@ -33,15 +33,8 @@ import {
   itemRef,
   removeGroupLinks,
 } from "../../shared/relations.mjs";
-export const categories: Record<BucketKind, string> = {
-  task: "任务",
-  event: "日程 / 活动",
-  idea: "灵感",
-  habit: "习惯",
-  notice: "通知",
-  note: "资料 / 笔记",
-  other: "其他",
-};
+import { categories } from "./client-ui";
+export { categories } from "./client-ui";
 function Results({
   skin,
   compact = false,

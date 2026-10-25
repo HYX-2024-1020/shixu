@@ -7,15 +7,7 @@ const {
   buildGroups,
   itemRef,
 } = require("./generated/desktop");
-const KINDS = {
-  task: "任务",
-  event: "日程 / 活动",
-  idea: "灵感",
-  habit: "习惯",
-  notice: "通知",
-  note: "资料 / 笔记",
-  other: "其他",
-};
+const { categories: KINDS } = require("./generated/desktop");
 const localDay = () => {
   const d = new Date(),
     pad = (v) => String(v).padStart(2, "0");
@@ -47,6 +39,8 @@ function itemsFor(records) {
           startTime: item.due?.startTime || "",
           id,
           packetId: p.id,
+          attachmentCount: (p.attachments || []).filter((a) => !a.deletedAt)
+            .length,
           index,
           title: copy.title,
           summary: copy.summary,
@@ -104,6 +98,21 @@ function worldView(records, options = {}) {
   const day = options.day || localDay(),
     scope = options.scope || "active";
   const all = itemsFor(records);
+  const scoped = all.filter((r) =>
+    scope === "trash"
+      ? r.deleted
+      : !r.deleted && (scope === "done" ? r.done : !r.done),
+  );
+  const categories = [
+    { key: "all", label: "全部", count: scoped.length },
+    ...Object.entries(KINDS)
+      .filter(([key]) => scoped.some((r) => r.kind === key))
+      .map(([key, label]) => ({
+        key,
+        label,
+        count: scoped.filter((r) => r.kind === key).length,
+      })),
+  ];
   const filtered = all.filter(
     (r) =>
       (scope === "trash"
@@ -128,6 +137,7 @@ function worldView(records, options = {}) {
   filtered.sort((a, b) => compareItems(a, b, options.sort || "priority", day));
   const limit = options.limit || 60;
   return {
+    categories,
     items: filtered.slice(0, limit),
     matched: filtered.length,
     total: all.filter((r) => !r.deleted).length,

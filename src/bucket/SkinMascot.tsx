@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SKIN_INTERACTION } from "./client-ui";
 import SkinArt from "./SkinArt";
 import type { Skin } from "./skins";
 
@@ -24,7 +25,10 @@ export default function SkinMascot({
     if (feedSignal === lastFeed.current) return;
     lastFeed.current = feedSignal;
     setEating(true);
-    const timeout = window.setTimeout(() => setEating(false), 2800);
+    const timeout = window.setTimeout(
+      () => setEating(false),
+      SKIN_INTERACTION.feedingMs,
+    );
     return () => clearTimeout(timeout);
   }, [feedSignal]);
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function SkinMascot({
     if (skin.art === "whale") {
       const sound = new Audio(import.meta.env.BASE_URL + "laugh.mp3");
       sound.preload = "auto";
-      sound.volume = 0.5;
+      sound.volume = SKIN_INTERACTION.volume;
       audio.current = sound;
     }
     return () => {
@@ -61,7 +65,11 @@ export default function SkinMascot({
       void sound.play().catch(() => {
         if (sound.paused) setHappy(false);
       });
-    } else timer.current = window.setTimeout(() => setHappy(false), 3200);
+    } else
+      timer.current = window.setTimeout(
+        () => setHappy(false),
+        SKIN_INTERACTION.greetingMs,
+      );
   }
   const feeding = state === "feeding" || eating;
   const bubble =

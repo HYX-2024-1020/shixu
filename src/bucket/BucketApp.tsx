@@ -66,6 +66,7 @@ import {
 } from "./skins";
 import "./bucket.css";
 import "./desktop.css";
+import "./skin-motion.css";
 import "./skins.css";
 import { ingestAttachment, supportedFiles, type Coverage } from "./ingest";
 

@@ -25,6 +25,7 @@ const {
   statePatch,
 } = require("../../lib/world");
 const {
+  SKIN_INTERACTION,
   BUILTIN_SKINS,
   SKIN_MOTIONS,
   parseSkinCollection,
@@ -377,6 +378,7 @@ Page({
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
+      categories: view.categories,
       items: view.items.map(this._cardView),
       sections: view.sections.map((s) => ({
         ...s,
@@ -624,10 +626,11 @@ Page({
   closeOriginal() {
     this.setData({ originalPreview: null });
   },
-  _cardView(row) {
+  _cardView(row, index = 0) {
     const { item, meta, search, ...view } = row;
     return {
       ...view,
+      shadowIndex: index % 4,
       title: row.title.slice(0, 150),
       summary: row.summary.slice(0, 220),
     };
@@ -975,6 +978,7 @@ Page({
         skinMessage: this.data.activeSkin.feeding,
         skinAnimating: true,
       });
+      this.feedSkin();
       this._refresh();
       this.syncQuietly();
     } catch (error) {
@@ -1123,7 +1127,25 @@ Page({
   },
   setScope(event) {
     const scope = event.currentTarget.dataset.scope;
-    this.setData({ scope, showDeleted: scope === "trash", limit: 60 });
+    this.setData({
+      scope,
+      kind: "all",
+      kindIndex: 0,
+      showDeleted: scope === "trash",
+      limit: 60,
+    });
+    this._refresh();
+  },
+  toggleFilters() {
+    this.setData({ filtersOpen: !this.data.filtersOpen });
+  },
+  selectCategory(event) {
+    const kind = event.currentTarget.dataset.kind;
+    this.setData({
+      kind,
+      kindIndex: this.data.kindKeys.indexOf(kind),
+      limit: 60,
+    });
     this._refresh();
   },
   setKind(event) {
@@ -1760,16 +1782,22 @@ Page({
       }
     } else
       this._skinTimer = setTimeout(
-        () => this.setData({ skinAnimating: false }),
-        3200,
+        () => this._finishSkinInteraction(),
+        SKIN_INTERACTION.greetingMs,
       );
+  },
+  _finishSkinInteraction() {
+    const skin = this.data.skinOpen
+      ? this.data.previewSkin
+      : this.data.activeSkin;
+    this.setData({ skinAnimating: false, skinMessage: skin.hello });
   },
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
     try {
       if (this._skinAudio) this._skinAudio.stop();
     } catch (_) {}
-    this.setData({ skinAnimating: false });
+    this._finishSkinInteraction();
   },
   _prepareSkinAudio() {
     if (this._skinAudio) return true;
@@ -1777,9 +1805,9 @@ Page({
     let audio;
     try {
       audio = wx.createInnerAudioContext();
-      audio.onEnded(() => this.setData({ skinAnimating: false }));
-      audio.onError(() => this.setData({ skinAnimating: false }));
-      audio.volume = 0.5;
+      audio.onEnded(() => this._finishSkinInteraction());
+      audio.onError(() => this._finishSkinInteraction());
+      audio.volume = SKIN_INTERACTION.volume;
       audio.src = "/assets/laugh.mp3";
       this._skinAudio = audio;
       return true;
@@ -1795,8 +1823,12 @@ Page({
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
     this.setData({
       skinMessage: s.feeding,
-      skinAnimating: !this.data.skinAnimating,
+      skinAnimating: true,
     });
+    this._skinTimer = setTimeout(
+      () => this._finishSkinInteraction(),
+      SKIN_INTERACTION.feedingMs,
+    );
   },
   _saveSkins(collection) {
     const raw = JSON.stringify(collection);

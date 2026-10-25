@@ -5,67 +5,21 @@
   </view>
 </template>
 <template name="itemCard">
-  <view
-    class="item-card kind-{{row.kind}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}"
-    data-id="{{row.id}}"
-    bindtap="openItem"
-  >
-    <view class="card-top"
-      ><text class="kind-label"
-        >{{row.kindLabel}} {{row.pinned ? '· 置顶' : ''}}</text
-      ><button
-        class="icon-button {{row.starred ? 'starred' : ''}}"
-        data-id="{{row.id}}"
-        catchtap="toggleStar"
-      >
-        {{row.starred ? '★' : '☆'}}
-      </button></view
-    >
-    <text class="item-title">{{row.title}}</text
-    ><text class="item-summary">{{row.summary}}</text
-    ><view class="card-meta"
-      ><text>{{row.timeLabel}}</text
-      ><text wx:if="{{row.group}}"># {{row.group}}</text
-      ><text wx:if="{{row.progress}}">进行中</text
-      ><text wx:if="{{row.conflict}}">需处理冲突</text></view
-    >
-    <view class="card-foot"
-      ><text
-        >{{row.kind === 'habit' ? (row.checked ? '今日已打卡' : '今日待打卡') + ' · 累计 ' + row.checkinCount + ' 天' : row.done ? '已完成' : row.importance === 2 ? '重要' : '慢慢来，一件件完成'}}</text
-      ><view class="card-actions"
-        ><button
-          wx:if="{{sort === 'custom' && !row.deleted}}"
-          class="icon-button"
-          data-id="{{row.id}}"
-          data-direction="-1"
-          catchtap="moveItem"
-        >
-          ↑</button
-        ><button
-          wx:if="{{sort === 'custom' && !row.deleted}}"
-          class="icon-button"
-          data-id="{{row.id}}"
-          data-direction="1"
-          catchtap="moveItem"
-        >
-          ↓</button
-        ><button
-          wx:if="{{row.deleted}}"
-          class="text-button"
-          data-id="{{row.id}}"
-          catchtap="restoreItem"
-        >
-          恢复</button
-        ><button
-          wx:else
-          size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}"
-          data-id="{{row.id}}"
-          catchtap="toggleDone"
-        >
-          <view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view>
-        </button></view
-      ></view
-    >
+  <view class="item-card shadow-{{row.shadowIndex}} kind-{{row.kind}} {{row.pinned ? 'is-pinned' : ''}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="openItem">
+    <view class="card-top">
+      <button wx:if="{{row.deleted}}" class="text-button" data-id="{{row.id}}" catchtap="restoreItem">恢复</button>
+      <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成 / 归档' : row.kind === 'task' ? '完成' : '归档'}}" data-id="{{row.id}}" catchtap="toggleDone"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></button>
+      <text class="kind-label">{{row.kindLabel}}{{row.progress ? ' · 正在做' : ''}}{{row.pinned ? ' · 置顶' : ''}}</text>
+      <button wx:if="{{!row.deleted}}" class="card-delete icon-button" aria-label="删除事项" data-id="{{row.id}}" catchtap="removeItem">×</button>
+      <button class="icon-button {{row.starred ? 'starred' : ''}}" aria-label="{{row.starred ? '取消星标' : '星标'}}" data-id="{{row.id}}" catchtap="toggleStar" disabled="{{row.deleted}}">{{row.starred ? '★' : '☆'}}</button>
+    </view>
+    <text class="item-title">{{row.title}}</text><text wx:if="{{row.summary}}" class="item-summary">{{row.summary}}</text>
+    <view class="card-meta"><text wx:if="{{row.timeLabel}}">{{row.timeLabel}}</text><text wx:if="{{row.group}}">{{row.group}}</text><text wx:if="{{row.conflict}}">需处理冲突</text></view>
+    <view class="card-foot">
+      <button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem">{{row.attachmentCount ? row.attachmentCount + ' 份同行材料' : '输入原文'}} ↗</button>
+      <text wx:if="{{row.kind === 'habit'}}">{{row.checked ? '今日已打卡' : '今日打卡'}} · 累计 {{row.checkinCount}} 天</text>
+      <view class="card-actions"><block wx:if="{{sort === 'custom' && !row.deleted}}"><button class="icon-button" aria-label="向前移动" data-id="{{row.id}}" data-direction="-1" catchtap="moveItem">↑</button><button class="icon-button" aria-label="向后移动" data-id="{{row.id}}" data-direction="1" catchtap="moveItem">↓</button></block><button class="icon-button" aria-label="更多事项操作" data-id="{{row.id}}" catchtap="openItem">···</button></view>
+    </view>
   </view>
 </template>
 <scroll-view scroll-y class="workspace-scroll"><view class="page">
@@ -81,7 +35,7 @@
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
-      <view class="bucket-drawing"><image class="mascot motion-{{activeSkin.motion}} {{skinAnimating ? 'animate' : ''}}" src="{{activeSkin.image}}" mode="aspectFit" bindtap="interactSkin"/><text class="skin-bubble">{{skinMessage}}</text></view>
+      <view class="bucket-drawing skin-mascot" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image class="mascot skin-body" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
       <button class="skin-home-change" bindtap="openSkins">{{activeSkin.name}} · 换个伙伴</button>
       <view class="count-line">它已经吃掉了 <text class="count-badge">{{count}}</text> 件</view>
     </view>
@@ -147,7 +101,7 @@
   <view wx:elif="{{tab === 'world'}}" class="world">
     <view class="world-heading"
       ><view
-        ><text class="world-title">这是你的<text class="hero-highlight">世界。</text></text
+        ><text class="world-title"><text class="line-break">消化完了，</text>这是你的<text class="hero-highlight">世界。</text></text
         ><text class="quiet"
           >{{activeCount}} 件待办，{{doneCount}} 件已经完成。</text
         ></view
@@ -157,12 +111,12 @@
         mode="aspectFit"
         bindtap="openSkins"
     /></view>
-    <view class="search-box"
+    <view class="world-records"><button class="small-button" bindtap="toggleRecords">整理记录</button></view><view class="search-box"
       ><text>⌕</text
       ><input
         value="{{query}}"
         bindinput="onQuery"
-        placeholder="搜索事项、原文和补充"
+        placeholder="搜索标题、原文或文件名"
     /></view>
     <view class="scope-tabs"
       ><button
@@ -176,7 +130,7 @@
         data-scope="done"
         bindtap="setScope"
       >
-        已完成</button
+        完成 / 归档</button
       ><button
         class="chip {{scope === 'trash' ? 'selected' : ''}}"
         data-scope="trash"
@@ -184,15 +138,13 @@
       >
         最近删除</button
       ><button
-        class="chip {{starOnly ? 'selected' : ''}}"
-        bindtap="toggleStarFilter"
+        class="chip {{filtersOpen ? 'selected' : ''}}"
+        bindtap="toggleFilters"
       >
-        ★ 星标
+        筛选与排序
       </button></view
     >
-    <view class="filter-bar"
-      ><picker range="{{kinds}}" value="{{kindIndex}}" bindchange="setKind"
-        ><view class="filter">{{kinds[kindIndex]}} ▾</view></picker
+    <view wx:if="{{filtersOpen}}" class="filter-bar"
       ><picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"
         ><view class="filter">{{dates[dateIndex]}} ▾</view></picker
       ><picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"
@@ -201,9 +153,10 @@
         class="filter {{grouped ? 'selected' : ''}}"
         bindtap="toggleGrouped"
       >
-        分组
-      </button></view
+        按分组查看
+      </button><button class="filter {{starOnly ? 'selected' : ''}}" bindtap="toggleStarFilter">★ 仅星标</button></view
     >
+    <scroll-view scroll-x class="category-nav"><button wx:for="{{categories}}" wx:key="key" class="category-button {{kind === item.key ? 'selected' : ''}}" data-kind="{{item.key}}" bindtap="selectCategory">{{item.label}} {{item.count}}</button></scroll-view>
     <scroll-view wx:if="{{groups.length}}" scroll-x class="group-strip"
       ><button
         class="chip {{!group ? 'selected' : ''}}"
@@ -635,13 +588,7 @@
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
         ><view class="skin-preview" style="background:{{previewSkin.color}}"
-          ><image
-            src="{{previewSkin.image}}"
-            mode="aspectFit"
-            class="preview-art motion-{{previewSkin.motion}} {{skinAnimating ? 'animate' : ''}}"
-            bindtap="interactSkin"
-          /><text class="skin-bubble">{{skinMessage}}</text
-          ><text class="subheading">{{previewSkin.name}}</text
+          ><view class="skin-preview-stage skin-mascot" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" class="preview-art skin-body"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><text class="quiet">{{previewSkin.description}}</text
           ><view class="button-row"
             ><button class="small-button" bindtap="feedSkin">试着喂一口</button
