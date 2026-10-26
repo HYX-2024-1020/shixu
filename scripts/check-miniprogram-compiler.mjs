@@ -28,19 +28,29 @@ execFileSync(
   ],
   { cwd: mini, stdio: "pipe" },
 );
-execFileSync(
-  join(directory, "wcsc" + exe),
-  [
-    "-o",
-    join(temporary, "style.js"),
-    "app.wxss",
-    "lib/generated/client-ui.wxss",
-    "pages/index/index.wxss",
-    "pages/index/cards.wxss",
-    "pages/index/card-visuals.wxss",
-  ],
-  { cwd: mini, stdio: "pipe" },
-);
+// wcsc compiles only its first positional input as the root without -pc.
+// Validate both actual roots, rather than assuming a list covers every page.
+for (const [name, rootStyle] of [
+  ["app", "app.wxss"],
+  ["page", "pages/index/index.wxss"],
+]) {
+  const output = join(temporary, `${name}.css`);
+  execFileSync(join(directory, "wcsc" + exe), ["-o", output, rootStyle], {
+    cwd: mini,
+    stdio: "pipe",
+  });
+  const css = readFileSync(output, "utf8");
+  assert.ok(css.length > 0, `${rootStyle} emitted CSS`);
+  if (name === "page") {
+    assert.ok(
+      !/@import\b/.test(readFileSync(join(mini, rootStyle), "utf8")),
+      "page has no runtime style imports",
+    );
+    for (const selector of ["ice-voices", "xc-card", "skin-motion-wiggle"])
+      assert.ok(css.includes(selector), `compiled page includes ${selector}`);
+  }
+}
+
 let definition;
 const store = new Map(),
   pageFile = join(mini, "pages/index/index.js");

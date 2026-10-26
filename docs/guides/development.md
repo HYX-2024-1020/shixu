@@ -48,3 +48,10 @@ npm run desktop:pack
 `scripts/desktop-live-*.mjs` 会使用已保存密钥、产生 API 费用，不属于默认验证，只有明确授权后运行。原生 QQ/微信拖入、iOS 系统入口也需真实环境。不要上传真实通知、密钥、个人 profile、数据库或备份。
 
 旧个人网页服务与 v2 同步服务是不同入口：当前同步工作使用 [deploy/sync](../../deploy/sync/README.md)，不要把旧 `/api` 当作当前桌面全量同步协议。
+
+
+## 小程序页面样式
+
+`miniprogram/pages/index/index.wxss` 是生成文件。原生页面规则编辑 `src/bucket/mini-page.wxss`，卡片规则编辑 `miniprogram/pages/index/cards.wxss` 和 `card-visuals.wxss`，共享规则仍取自桌面样式。运行 `npm run mini:build` 合成单一页面样式并更新 manifest，再用 `npm run mini:check` 校验；页面不使用运行时 @import，避免开发工具模块路径前缀不一致导致找不到导入样式。
+
+官方编译检查 `npm run mini:compile` 需要设置 `WECHAT_COMPILER_DIR`，分别编译全局和完整页面 WXSS，并验证输出。`npm run test:mini` 包含页面无运行时样式导入的回归。编译和 Node 测试不替代原生界面及手机真机验收。
