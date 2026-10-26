@@ -407,6 +407,13 @@ assert.equal(
 page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
 assert.equal(page.data.activeSkin.id, "ice", "card applies immediately");
 page.closeSkins();
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.src === "/assets/ice.png" && node.attr?.mode === "widthFix",
+  ),
+  "ice uses its natural image aspect without a fixed-height frame",
+);
 assert.equal(
   view().filter((node) => node.attr?.class?.includes("skin-spark")).length,
   0,

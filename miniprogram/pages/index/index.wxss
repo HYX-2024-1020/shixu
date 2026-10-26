@@ -3367,55 +3367,62 @@ page {
 }
 
 .home-character.with-voices {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20rpx;
+  position: relative;
+  display: block;
+  width: 300rpx;
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 .home-character.with-voices .bucket-drawing {
-  flex: 0 1 360rpx;
-  min-width: 0;
-  margin: 0;
+  width: 300rpx;
+  height: auto;
+  margin: 8rpx 0 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.home-character.with-voices .mascot {
+  width: 300rpx;
+  height: auto;
+  transform: scale(1.05) !important;
+  transform-origin: center;
 }
 .ice-home-voices {
+  position: absolute;
+  left: calc(100% + 16rpx);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 0;
-  flex: 0 0 auto;
-  align-self: center;
+  gap: 12rpx;
+  padding: 0;
+  margin: 0;
 }
 .ice-home-voices .small-button {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 112rpx;
   min-width: 0;
-  width: 120rpx;
-  height: 76rpx;
-  min-height: 76rpx;
-  padding: 0;
+  height: 56rpx;
+  min-height: 56rpx;
+  padding: 10rpx 8rpx;
   margin: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: #706a5f;
-  font-size: 20rpx;
-  line-height: 1;
-  border-radius: 0;
-}
-.ice-voice-label {
-  padding: 9rpx 10rpx;
-  border: 2rpx solid #aaa28e;
-  border-radius: 4rpx;
+  border: 2rpx solid #111;
+  border-radius: 6rpx;
   background: #fff9e6;
+  box-shadow: 2rpx 2rpx #111;
+  color: #3d382e;
+  font-size: 22rpx;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .ice-home-voices .voice-selected {
-  color: #4f493d;
-  background: transparent;
-}
-.ice-home-voices .voice-selected .ice-voice-label {
-  border-color: #746d5d;
-  background: #e4eff2;
+  background: #dceeff;
 }
 .is-plain-art {
   animation: none !important;
@@ -3424,19 +3431,18 @@ page {
   filter: none !important;
   box-shadow: none !important;
 }
-
-.home-character.with-voices {
-  gap: 12rpx;
+.home-character.with-voices .is-plain-art {
+  transform: scale(1.05) !important;
 }
-.home-character.with-voices .bucket-drawing {
-  flex-basis: 560rpx;
-  height: 520rpx;
+.skin-preview.is-plain-preview {
+  background: transparent !important;
+  border-color: transparent;
+  box-shadow: none;
 }
-.home-character.with-voices .mascot {
-  width: 100%;
-  height: 520rpx;
+.skin-preview-stage.is-plain-preview {
+  padding: 0;
 }
 .skin-preview-stage .preview-art.is-plain-art {
-  width: 360rpx;
-  height: 360rpx;
+  width: 300rpx;
+  height: auto;
 }

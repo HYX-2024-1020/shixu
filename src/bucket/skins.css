@@ -863,45 +863,45 @@
 }
 .skin-home-character.with-voices {
   order: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  position: relative;
+  display: block;
+  width: clamp(210px, 26vw, 300px);
   max-width: 100%;
+  margin: 0 auto;
 }
 .skin-home-character.with-voices .bucket-drawing {
-  flex: 0 1 260px;
-  min-width: 0;
+  width: 100%;
+  height: auto;
+  margin: 0;
 }
 .ice-home-voices {
-  order: 2;
-  flex: 0 0 auto;
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
   border: 0;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: row;
-  gap: 2px;
-  align-self: center;
+  flex-direction: column;
+  gap: 6px;
 }
 .ice-home-voices button {
-  position: relative;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  border-radius: 0;
-  padding: 8px;
-  color: #8a8474;
+  box-sizing: border-box;
+  width: 56px;
+  min-height: 28px;
+  border: 1px solid #111;
+  background: #fff9e6;
+  box-shadow: 1px 1px #111;
+  border-radius: 3px;
+  padding: 5px 4px;
+  color: #3d382e;
   font-size: 11px;
-  line-height: 1;
-  min-width: 28px;
-  min-height: 30px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .ice-home-voices button[aria-pressed="true"] {
-  color: #4f493d;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  background: transparent;
+  background: #dceeff;
 }
 .skin-mascot.is-plain,
 .skin-mascot.is-plain .skin-body,
@@ -912,27 +912,26 @@
   transition: none !important;
   box-shadow: none !important;
 }
+.bucket-drawing.skin-mascot.is-plain .skin-art {
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  transform: scale(1.05) !important;
+  transform-origin: center;
+}
 .world-skin-art:has(.is-plain-art) {
   filter: none;
 }
-
 .skin-preview-stage:has(.is-plain-art) {
   background-image: none;
+  background-color: transparent !important;
+  border-color: transparent;
 }
-
-/* Keep the market frame stable when switching between characters. */
 .skin-market {
   height: min(850px, calc(100dvh - 48px));
 }
 .skin-market-layout {
   flex: 1;
-}
-.skin-home-character.with-voices .bucket-drawing {
-  flex-basis: clamp(220px, 30vw, 340px);
-  max-width: 340px;
-}
-.bucket-drawing.skin-mascot.is-plain .skin-art {
-  max-height: min(360px, 38dvh);
 }
 @media (min-width: 621px) {
   .skin-preview-stage .skin-mascot.is-plain {
@@ -940,7 +939,14 @@
     height: 230px;
   }
 }
-
-.skin-home-character.with-voices {
-  width: min(420px, 100%);
+@media (max-width: 620px) {
+  .ice-home-voices {
+    left: calc(100% + 4px);
+  }
+  .ice-home-voices button {
+    width: 44px;
+    min-height: 26px;
+    font-size: 10px;
+    padding: 5px 2px;
+  }
 }

@@ -332,3 +332,21 @@ test("switching skins keeps the market frame stable and whale has no feed demo",
   expect(after!.height).toBeCloseTo(before!.height, 0);
   expect(after!.y).toBeCloseTo(before!.y, 0);
 });
+
+test("ice itself stays centered with voice buttons independently on the right", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await page.getByRole("button", { name: "使用冰冰冰" }).click();
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  const ice = await page.locator(".bucket-drawing .skin-art").boundingBox();
+  const hero = await page.locator(".bucket-intro").boundingBox();
+  const controls = await page.locator(".ice-home-voices").boundingBox();
+  expect(
+    Math.abs(ice!.x + ice!.width / 2 - hero!.x - hero!.width / 2),
+  ).toBeLessThan(1);
+  expect(controls!.x).toBeGreaterThan(ice!.x + ice!.width - 8);
+  expect(controls!.x + controls!.width).toBeLessThanOrEqual(
+    await page.evaluate(() => innerWidth),
+  );
+});

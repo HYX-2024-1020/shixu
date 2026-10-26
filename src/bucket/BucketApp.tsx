@@ -1833,7 +1833,7 @@ export default function BucketApp() {
                         }
                       }}
                     >
-                      {id === "voice-1" ? "1" : "2"}
+                      {label}
                     </button>
                   ))}
                 </fieldset>
