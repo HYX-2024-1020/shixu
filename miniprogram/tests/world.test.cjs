@@ -1417,3 +1417,75 @@ test("mini countdown covers every DDL section, retains interval clocks and refre
     page.onUnload();
   }
 });
+
+test("compact expansion is temporary, stars are independent and details refresh persisted state", () => {
+  const { page, store } = fixture();
+  page._client.put("p", packet());
+  page._refresh();
+  page.toggleCard(event("task-a"));
+  assert.equal(page.data.expandedCardId, "task-a");
+  page._dragTapUntil = Date.now() + 500;
+  let writes = 0;
+  const set = page.setData.bind(page);
+  page.setData = (...args) => {
+    writes++;
+    set(...args);
+  };
+  page.onCardActionStart();
+  assert.equal(
+    writes,
+    0,
+    "a fresh button touch must not rerender the button before native tap",
+  );
+  page.toggleStar(event("task-a"));
+  assert.equal(page._detail("task-a").starred, true);
+  assert.equal(page.data.selected, null);
+  assert.equal(page.data.expandedCardId, "task-a");
+  page.openItem(event("task-a"));
+  page.toggleStar(event("task-a"));
+  assert.equal(page.data.selected.starred, false);
+  page.closeItem();
+  page.switchTab(tabEvent("ddl"));
+  assert.equal(page.data.expandedCardId, "");
+  const reopened = fixture({ store }).page;
+  assert.equal(reopened.data.expandedCardId, "");
+  assert.equal(reopened._detail("task-a").starred, false);
+  page.onUnload();
+  reopened.onUnload();
+});
+
+test("single-column drag recomputes variable-height slots and can cancel back to original geometry", () => {
+  const f = dragFixture();
+  const p = f.page;
+  f.start("task-a");
+  const s = p._drag;
+  let top = 0;
+  s.initialRects = s.original.map((id, slot) => {
+    const height = slot === 0 ? 300 : 100;
+    const rect = {
+      dataset: { id },
+      slot,
+      left: 0,
+      right: 350,
+      width: 350,
+      top,
+      bottom: top + height,
+      height,
+    };
+    top += height + 12;
+    return rect;
+  });
+  s.rects = s.initialRects.map((r) => ({ ...r }));
+  s.origin = s.rects[0];
+  f.move(100, 350);
+  assert.notEqual(s.order[0], "task-a");
+  for (let i = 0; i < s.rects.length; i++) {
+    assert.equal(s.rects[i].dataset.id, s.order[i]);
+    assert.equal(s.rects[i].height, s.order[i] === "task-a" ? 300 : 100);
+    if (i) assert.equal(s.rects[i].top - s.rects[i - 1].bottom, 12);
+  }
+  p.cancelDrag({ type: "touchcancel" });
+  assert.equal(p.data.dragGhost.top, s.origin.top);
+  assert.equal(p.data.items[0].id, s.original[0]);
+  p.onUnload();
+});

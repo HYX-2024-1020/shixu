@@ -6,19 +6,20 @@
   </view>
 </template>
 <template name="itemCard">
-  <view style="{{row.dragStyle}}" class="item-card drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} shadow-{{row.shadowIndex}} kind-{{row.kind}} {{row.pinned ? 'is-pinned' : ''}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="openItem" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" hover-class="{{dragId ? 'none' : 'card-press'}}">
-    <view class="card-top">
-      <button wx:if="{{row.deleted}}" class="text-button" data-id="{{row.id}}" catchtap="restoreItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">恢复</button>
-      <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成 / 归档' : row.kind === 'task' ? '完成' : '归档'}}" data-id="{{row.id}}" catchtap="toggleDone" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="done-press" hover-stop-propagation="{{true}}"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button>
-      <text class="kind-label">{{row.kindLabel}}</text>
-      <button class="icon-button {{row.starred ? 'starred' : ''}}" aria-pressed="{{row.starred}}" aria-label="{{row.starred ? '取消星标' : '星标'}}" data-id="{{row.id}}" catchtap="toggleStar" disabled="{{row.deleted}}" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="icon-press" hover-stop-propagation="{{true}}">{{row.starred ? '★' : '☆'}}</button>
+  <view style="{{row.dragStyle}}" class="item-card compact-card drag-card {{expandedCardId === row.id ? 'is-expanded' : ''}} {{dragId === row.id ? 'drag-placeholder' : ''}} shadow-{{row.shadowIndex}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="toggleCard" hover-class="card-press">
+    <view class="card-top compact-top">
+      <button wx:if="{{row.deleted}}" class="text-button card-restore" data-id="{{row.id}}" catchtap="restoreItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">恢复</button>
+      <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成' : '完成 / 归档'}}" data-id="{{row.id}}" catchtap="toggleDone" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button>
+      <text class="item-title compact-title">{{row.title}}</text>
+      <button class="icon-button {{row.starred ? 'starred' : ''}}" aria-pressed="{{row.starred}}" aria-label="{{row.starred ? '取消星标' : '星标'}}" data-id="{{row.id}}" catchtap="toggleStar" disabled="{{row.deleted}}" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">{{row.starred ? '★' : '☆'}}</button>
+      <button class="card-chevron" aria-label="{{expandedCardId === row.id ? '收起卡片' : '展开卡片'}}" aria-expanded="{{expandedCardId === row.id}}" data-id="{{row.id}}" catchtap="toggleCard" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">{{expandedCardId === row.id ? '▾' : '▸'}}</button>
     </view>
-    <view class="card-content"><text class="item-title">{{row.title}}</text><text wx:if="{{row.summary}}" class="item-summary">{{row.summary}}</text></view>
-    <view wx:if="{{row.pinned || row.kind === 'habit' || row.timeLabel || row.group || row.conflict}}" class="card-meta"><view wx:if="{{row.timeLabel}}" class="card-deadline"><text class="card-meta-label">截止</text><text class="card-meta-value">{{row.timeLabel}}</text></view><view wx:if="{{row.pinned || row.kind === 'habit' || row.group || row.conflict}}" class="card-meta-notes"><text wx:if="{{row.pinned}}" class="pin-label card-tag">置顶</text><text wx:if="{{row.kind === 'habit'}}" class="card-habit">{{row.checked ? '今日已打卡' : '今日待打卡'}} · {{row.checkinCount}} 天</text><text wx:if="{{row.group}}" class="card-group">{{row.group}}</text><text wx:if="{{row.conflict}}" class="card-conflict">需处理冲突</text></view></view>
-    <view class="card-foot">
-      <button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}" aria-label="{{row.attachmentCount ? row.attachmentCount + '份材料与原文详情' : '原文与事项详情'}}">详情 ↗</button>
-      <text wx:if="{{row.kind === 'habit'}}">{{row.checked ? '今日已打卡' : '今日打卡'}} · 累计 {{row.checkinCount}} 天</text>
-      <view class="card-actions"><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">删除</button><view wx:if="{{!row.deleted && allowDrag}}" class="drag-grip" role="button" aria-label="长按移动事项" data-id="{{row.id}}" data-immediate="{{true}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" catchtouchstart="dragTouchStart" catchlongpress="startDrag" catchtouchmove="{{dragGesture.move}}" catchtouchend="{{dragGesture.end}}" catchtouchcancel="{{dragGesture.cancel}}" catchtap="stopTap">⠿</view></view>
+    <view class="compact-info"><text wx:if="{{row.timeLabel}}" class="compact-due {{row.countdownStatus === 'overdue' ? 'overdue' : ''}}">{{row.countdownStatus === 'overdue' ? row.countdown + ' · ' : ''}}截止 {{row.timeLabel}}</text><text wx:elif="{{row.kind === 'habit'}}" class="compact-habit">{{row.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{row.checkinCount}} 天</text><text wx:else class="compact-kind">{{row.kindLabel}}</text><text class="compact-preview">{{row.summary || '点开查看详情'}}{{row.pinned ? ' · 置顶' : ''}}{{row.conflict ? ' · 同步冲突' : ''}}</text></view>
+    <view wx:if="{{expandedCardId === row.id}}" class="compact-expanded" catchtap="stopTap">
+      <text class="compact-summary" selectable>{{row.summary}}</text>
+      <view class="compact-tags"><text>{{row.kindLabel}}</text><text wx:if="{{row.group}}">{{row.group}}</text><text wx:if="{{row.progress}}">正在做</text><text wx:if="{{row.pinned}}">置顶</text><text wx:if="{{row.conflict}}">需处理同步冲突</text></view>
+      <button wx:if="{{row.attachmentCount}}" class="card-attachment text-button" data-id="{{row.id}}" catchtap="openMaterials" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">打开附件 · {{row.attachmentCount}} 份 ↗</button>
+      <view class="card-foot"><button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">详情 ↗</button><view class="card-actions"><block wx:if="{{sort === 'custom' && !row.deleted}}"><button class="icon-button" aria-label="向前移动" data-id="{{row.id}}" data-direction="-1" catchtap="moveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">↑</button><button class="icon-button" aria-label="向后移动" data-id="{{row.id}}" data-direction="1" catchtap="moveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">↓</button></block><view wx:if="{{!row.deleted && allowDrag}}" class="drag-grip" role="button" aria-label="长按移动事项" data-id="{{row.id}}" data-immediate="{{true}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" catchtouchstart="dragTouchStart" catchlongpress="startDrag" catchtouchmove="{{dragGesture.move}}" catchtouchend="{{dragGesture.end}}" catchtouchcancel="{{dragGesture.cancel}}" catchtap="stopTap">⠿</view><button wx:if="{{!row.deleted}}" class="compact-delete" aria-label="删除事项" data-id="{{row.id}}" catchtap="confirmRemoveItem" catchtouchstart="onCardActionStart" catchtouchend="stopTap" catchtouchcancel="stopTap" catchlongpress="stopTap" hover-class="text-press" hover-stop-propagation="{{true}}">删除</button></view></view>
     </view>
   </view>
 </template>
@@ -95,7 +96,7 @@
           </button></view
         ></view
       ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
     ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
@@ -147,15 +148,15 @@
         查看投递记录 →
       </button></view
     >
-    <text class="drag-help">点开查看完整内容 · 长按卡片移动</text>
+    <text class="drag-help">点卡片展开 · 详情查看全文 · 展开后用 ⠿ 移动</text>
     <block wx:if="{{grouped}}"
       ><view wx:for="{{sections}}" wx:key="title"
         ><text class="group-title">{{item.title}} · {{item.items.length}}</text
         ><view class="world-grid"><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block></view></view></block
+          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block></view></view></block
     ><view wx:else class="world-grid"
       ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
     ></view>
     <button
       wx:if="{{matched > items.length}}"
@@ -351,10 +352,8 @@
 <view wx:if="{{selected}}" class="scrim detail-scrim" bindtap="closeItem"
   ><view class="sheet detail-sheet" catchtap="stopTap"
     ><view class="sheet-handle"></view><view class="section-top detail-toolbar"
-      ><text class="kind-label"
-        >{{selected.kindLabel}} {{selected.group ? '· ' + selected.group : ''}}</text
-      ><button class="icon-button detail-close" aria-label="关闭事项详情" bindtap="closeItem" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view
-    ><scroll-view scroll-y class="sheet-scroll">
+      ><view class="detail-heading"><text class="detail-kind">{{selected.kindLabel}}</text><text class="detail-group">{{selected.group}}</text></view><button class="icon-button detail-close" aria-label="关闭事项详情" bindtap="closeItem" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view
+    ><view wx:if="{{error || notice}}" class="detail-feedback"><view wx:if="{{error}}" class="error" selectable>{{error}}</view><view wx:if="{{notice}}" class="notice">{{notice}}</view></view><scroll-view scroll-y class="sheet-scroll" scroll-into-view="{{detailAnchor}}" scroll-top="{{detailScrollTop}}">
       <block wx:if="{{editing}}"
         ><view class="field-label">标题</view
         ><input
@@ -398,14 +397,14 @@
         ><text wx:if="{{selected.date}}" class="due-label"
           >{{selected.timeLabel || (selected.date + ' ' + selected.time)}}</text
         ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row detail-actions"
-          ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone" hover-class="chip-press" hover-stop-propagation="{{true}}">
+          ><button class="chip primary-action" data-id="{{selected.id}}" bindtap="toggleDone" hover-class="chip-press" hover-stop-propagation="{{true}}">
             {{selected.kind === 'habit' ? (selected.checked ? '撤销今日打卡' : '今日打卡') : selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
           ><button hover-class="chip-press" class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
             {{selected.starred ? '★ 已星标' : '☆ 星标'}}</button
           ><button hover-class="chip-press" class="chip" data-id="{{selected.id}}" bindtap="togglePin">
             {{selected.pinned ? '取消置顶' : '置顶'}}</button
           ><button class="small-button" bindtap="beginEdit" hover-class="btn-press" hover-stop-propagation="{{true}}">编辑</button
-          ><text wx:if="{{selected.kind === 'habit'}}" class="detail-habit-status">{{selected.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{selected.checkinCount}} 天</text></view
+          ><button wx:if="{{selected.attachments.length}}" class="small-button" bindtap="jumpToMaterials">打开附件 · {{selected.attachments.length}} 份</button><text wx:if="{{selected.kind === 'habit'}}" class="detail-habit-status">{{selected.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{selected.checkinCount}} 天</text></view
         >
         <view wx:if="{{selected.facts.length}}" class="detail-section"
           ><text class="subheading">原文要求</text
@@ -439,13 +438,11 @@
             ><text class="detail-line" selectable>“{{item.quote}}”</text></view
           ></view
         >
-        <view class="detail-section"
-          ><view class="section-top"
-            ><text class="subheading">同行材料</text
+        <view id="detail-materials" class="detail-section"><view class="section-top"><text class="subheading">文件附件与原文</text
             ><button hover-class="text-press" class="text-button" bindtap="copySource">
               复制原文
             </button></view
-          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">查看原件</button></view><text class="detail-line" selectable>{{selected.sourceText}}</text
+          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">{{filesBusy ? '正在打开…' : '打开附件 ↗'}}</button></view><text wx:if="{{!selected.attachments.length}}" class="quiet">这次投递没有文件附件，原文保留在下方。</text><text class="detail-line evidence" selectable>{{selected.sourceText}}</text
           ><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
@@ -469,7 +466,7 @@
             </button></block
           ></view
         >
-        <view wx:if="{{!selected.deleted}}" class="detail-section"
+        <view wx:if="{{!selected.deleted}}" class="detail-section detail-ai"
           ><text class="subheading">和 AI 说一声</text
           ><textarea
             class="edit-area"
@@ -501,7 +498,7 @@
             ></view
           ></view
         >
-        <view class="detail-section button-row"
+        <view class="detail-section button-row detail-danger"
           ><block wx:if="{{selected.deleted}}"
             ><button
               hover-class="btn-press" class="small-button"

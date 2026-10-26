@@ -61,8 +61,9 @@ vm.runInNewContext(readFileSync(pageFile, "utf8"), {
 const page = {
   ...definition,
   data: structuredClone(definition.data),
-  setData(value) {
+  setData(value, callback) {
     Object.assign(this.data, value);
+    callback?.();
   },
 };
 page.onLoad();
@@ -111,13 +112,14 @@ assert.ok(
 );
 assert.ok(
   view().some((node) => node.attr?.class === "world-grid"),
-  "native two-column grid exists",
+  "native single-column list container exists",
 );
+page.toggleCard({ currentTarget: { dataset: { id: page.data.items[0].id } } });
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.bindlongpress === "startDrag" &&
-      typeof node.attr?.["$wxs:bindtouchmove"] === "function",
+      node.attr?.catchlongpress === "startDrag" &&
+      typeof node.attr?.["$wxs:catchtouchmove"] === "function",
   ),
   "long press and tracked movement compiled",
 );
@@ -130,6 +132,51 @@ assert.ok(
   "discoverable deletion cannot arm a parent drag",
 );
 const compactId = page.data.items[0].id;
+const compactNode = view().find((n) => n.attr?.class?.includes("compact-card"));
+assert.equal(compactNode.attr.bindtap, "toggleCard");
+assert.equal(
+  compactNode.attr.bindtouchstart,
+  undefined,
+  "body taps must not arm dragging",
+);
+const starNode = view().find((n) => n.attr?.catchtap === "toggleStar");
+assert.equal(starNode.attr["data-id"], compactId);
+page[starNode.attr.catchtap]({ currentTarget: { dataset: { id: compactId } } });
+assert.equal(page._detail(compactId).starred, true);
+assert.equal(page.data.selected, null);
+const materialRow = page._detail(compactId);
+page._client.put(materialRow.packetId, {
+  attachments: [
+    {
+      id: "synthetic-file",
+      name: "合成.pdf",
+      size: 3,
+      type: "application/pdf",
+    },
+  ],
+});
+page._refresh();
+assert.ok(view().some((n) => n.attr?.catchtap === "openMaterials"));
+page.openMaterials({ currentTarget: { dataset: { id: compactId } } });
+assert.equal(page.data.detailAnchor, "detail-materials");
+assert.ok(view().some((n) => n.attr?.id === "detail-materials"));
+assert.ok(
+  view().some(
+    (n) =>
+      n.attr?.bindtap === "openAttachment" &&
+      n.attr["data-id"] === "synthetic-file" &&
+      n.attr["data-packet"] === materialRow.packetId,
+  ),
+);
+page.setData({ error: "合成附件打开失败" });
+assert.ok(
+  view().some(
+    (n) =>
+      n.attr?.class === "error" &&
+      JSON.stringify(n).includes("合成附件打开失败"),
+  ),
+);
+page.closeItem();
 page.setData({
   dragId: compactId,
   dragGhost: { left: 20, top: 40, width: 180, title: "合成拖动" },
@@ -152,7 +199,7 @@ const row = page.data.items[0];
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.bindtap === "openItem" && node.attr["data-id"] === row.id,
+      node.attr?.catchtap === "openItem" && node.attr["data-id"] === row.id,
   ),
   "template data/event IDs preserved",
 );
@@ -171,7 +218,7 @@ assert.ok(
 );
 assert.ok(
   view().some((node) => node.attr?.class?.includes("detail-actions")),
-  "consistent detail action grid compiled",
+  "wrapping detail actions compiled",
 );
 page.beginEdit();
 assert.ok(
@@ -208,16 +255,16 @@ assert.ok(
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
-page.setData({ tab: "world" });
+page.setData({ tab: "world", expandedCardId: ddlRow.id });
 const worldNodes = view();
 assert.ok(
-  worldNodes.some((node) => node.attr?.class === "card-content"),
+  worldNodes.some((node) => node.attr?.class?.includes("compact-title")),
   "native world renders the unified card text block",
 );
 assert.ok(
   worldNodes.some(
     (node) =>
-      node.attr?.class === "card-meta-value" &&
+      node.attr?.class?.includes("compact-due") &&
       JSON.stringify(node).includes(ddlRow.date),
   ),
   "deadline stays in its dedicated metadata strip",
@@ -227,7 +274,7 @@ assert.ok(
     (node) =>
       node.attr?.class?.includes("card-source-link") &&
       node.attr.catchtap === "openItem" &&
-      node.attr.ariaLabel,
+      node.attr["data-id"],
   ),
   "compact detail control retains the accessible original/material entry",
 );

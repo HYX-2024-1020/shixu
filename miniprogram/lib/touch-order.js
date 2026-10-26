@@ -98,7 +98,7 @@ function createTouchOrder(wx) {
       clearTimeout(this._dragHoldTimer);
       this._dragTouch = null;
       this._dragTapUntil = 0;
-      this._stopDragSettle();
+      if (this.data.dragSettling || this.data.dragGhost) this._stopDragSettle();
     },
     _stopDragSettle() {
       clearTimeout(this._dragSettleTimer);
@@ -267,6 +267,7 @@ function createTouchOrder(wx) {
           original: order.slice(),
           order,
           rects: slots.map((rect, slot) => ({ ...rect, slot })),
+          initialRects: slots.map((rect, slot) => ({ ...rect, slot })),
           tab: this.data.tab,
           baseline: this._scrollTop || 0,
           initialLists: {
@@ -340,18 +341,36 @@ function createTouchOrder(wx) {
       if (Object.keys(update).length) this.setData(update);
       if (next !== s.order) {
         const before = s.order;
+        const previousRects = s.rects;
         s.order = next;
-        this._previewDrag(before);
+        if (
+          s.tab === "world" &&
+          s.initialRects.every(
+            (r) => Math.abs(r.left - s.initialRects[0].left) < 4,
+          )
+        ) {
+          const byId = new Map(s.initialRects.map((r) => [r.dataset.id, r]));
+          let top = s.initialRects[0].top;
+          s.rects = next.map((id, slot) => {
+            const rect = byId.get(id);
+            if (slot)
+              top += s.initialRects[slot].top - s.initialRects[slot - 1].bottom;
+            const result = { ...rect, slot, top, bottom: top + rect.height };
+            top = result.bottom;
+            return result;
+          });
+        }
+        this._previewDrag(before, previousRects);
       }
     },
-    _previewDrag(before) {
+    _previewDrag(before, previousRects) {
       const s = this._drag,
         positions = new Map(s.order.map((id, i) => [id, i]));
       const old = new Map((before || s.order).map((id, i) => [id, i]));
       const sort = (rows) =>
         rows
           .map((row) => {
-            const from = s.rects[old.get(row.id)],
+            const from = (previousRects || s.rects)[old.get(row.id)],
               to = s.rects[positions.get(row.id)];
             return {
               ...row,
@@ -447,7 +466,7 @@ function createTouchOrder(wx) {
     },
     _settleDrag(s, restore) {
       const index = (restore ? s.original : s.order).indexOf(s.id);
-      const target = s.rects[index] || s.origin;
+      const target = (restore ? s.initialRects : s.rects)[index] || s.origin;
       this.setData({
         dragSettling: true,
         dragGhost: {

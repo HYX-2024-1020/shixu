@@ -107,6 +107,9 @@ Page({
     notice: "",
     showDeleted: false,
     expandedId: "",
+    expandedCardId: "",
+    detailAnchor: "",
+    detailScrollTop: 0,
     updateReady: false,
     scope: "active",
     scopeLabels: ["待处理", "完成 / 归档", "最近删除"],
@@ -576,7 +579,7 @@ Page({
   },
   async openAttachment(event) {
     if (this.data.filesBusy) return;
-    this.setData({ filesBusy: true });
+    this.setData({ filesBusy: true, error: "", notice: "" });
     try {
       const { id, packet } = event.currentTarget.dataset,
         row = this._record(packet);
@@ -667,11 +670,21 @@ Page({
   },
   _cardView(row, index = 0) {
     const { item, meta, search, ...view } = row;
+    const now = new Date();
+    const countdown = deadlineCountdown(
+      row.date || "",
+      localDay(),
+      row.time || "",
+      `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+      !!row.done,
+    );
     return {
       ...view,
-      shadowIndex: index % 4,
+      shadowIndex: index % 3,
+      countdown: countdown.label,
+      countdownStatus: countdown.status,
       title: row.title.slice(0, 150),
-      summary: row.summary.slice(0, 220),
+      summary: row.summary,
     };
   },
   _presentDetail(row) {
@@ -848,7 +861,7 @@ Page({
       this.setData({ settingsReturnTab: this.data.tab });
     }
     this._stopSkinInteraction();
-    this.setData({ tab: target, notice: "" });
+    this.setData({ tab: target, notice: "", expandedCardId: "" });
     this._refresh();
   },
   closeSettings() {
@@ -1037,7 +1050,7 @@ Page({
       ...row,
       sourceText: p.text || "",
       sources: p.sources || [],
-      attachments: p.attachments || [],
+      attachments: (p.attachments || []).filter((file) => !file.deletedAt),
       evidence: (row.item.evidence || []).map((e) => ({
         ...e,
         name:
@@ -1053,6 +1066,21 @@ Page({
       checked: (row.meta.checkins || []).includes(localDay()),
     };
   },
+  toggleCard(event) {
+    if (this._blockDragTap()) return;
+    const id = event.currentTarget.dataset.id;
+    this.setData({ expandedCardId: this.data.expandedCardId === id ? "" : id });
+  },
+  openMaterials(event) {
+    this.openItem(event);
+    if (this.data.selected?.id === event.currentTarget.dataset.id)
+      this.jumpToMaterials();
+  },
+  jumpToMaterials() {
+    this.setData({ detailAnchor: "" }, () =>
+      this.setData({ detailAnchor: "detail-materials" }),
+    );
+  },
   openItem(event) {
     if (this._blockDragTap()) return;
     this.setData({
@@ -1061,7 +1089,11 @@ Page({
       ),
       editing: false,
       addition: "",
+      chatInput: "",
+      detailAnchor: "",
+      detailScrollTop: 0,
       error: "",
+      notice: "",
     });
   },
   loadMoreDdl() {

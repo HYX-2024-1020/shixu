@@ -1607,10 +1607,7 @@ page {
   font-size: 20px;
   color: #9b927e;
 }
-/* The whole card opens details; use one explicit details link and a discoverable delete target. */
-.page .world .item-card .card-actions .icon-button {
-  display: none;
-}
+/* Expanded card actions retain explicit custom-order controls. */
 .page .world .item-card .card-foot > text {
   display: none;
 }
@@ -2306,4 +2303,332 @@ page {
 }
 .nav-button {
   min-height: 48px;
+}
+/* Card/detail redesign, based on the user-supplied 2026-10-26 reference. */
+.world-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.page .compact-card,
+.page .world .compact-card {
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 16rpx 20rpx;
+  margin: 0 8rpx 20rpx 0;
+  border: 6rpx solid #111;
+  border-radius: 10rpx;
+  background: #fff;
+  box-shadow: 8rpx 8rpx #ffd43b;
+  animation: none;
+}
+.page .compact-card.shadow-1 {
+  box-shadow: 8rpx 8rpx #7048e8;
+}
+.page .compact-card.shadow-2 {
+  box-shadow: 8rpx 8rpx #ff9fb2;
+}
+.page .compact-card .compact-top,
+.page .world .compact-card .compact-top {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  margin: 0;
+}
+.page .compact-card .compact-title,
+.page .world .compact-card .compact-title {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  -webkit-line-clamp: unset;
+}
+.page .compact-card .done-button,
+.page .world .compact-card .done-button,
+.page .compact-card .icon-button,
+.page .world .compact-card .icon-button,
+.page .compact-card .card-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  line-height: 1;
+}
+.page .compact-card .completion-orbit {
+  width: 64rpx;
+  height: 64rpx;
+  border: 3rpx solid #111;
+  border-radius: 50%;
+}
+.page .compact-card .checked {
+  background: transparent;
+}
+.page .compact-card .checked .completion-orbit {
+  background: #ffd43b;
+}
+.page .compact-card .icon-button {
+  font-size: 38rpx;
+}
+.page .compact-card .card-chevron {
+  font-size: 26rpx;
+  color: #777061;
+}
+.compact-info {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 36rpx;
+  margin-top: 6rpx;
+}
+.compact-due {
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  font-weight: 800;
+  background: #ffe89b;
+  border: 3rpx solid #111;
+  border-radius: 6rpx;
+  padding: 4rpx 10rpx;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.compact-due.overdue {
+  background: #ffe5ee;
+  border-color: #d6336c;
+}
+.compact-kind,
+.compact-habit {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #625c4c;
+}
+.compact-preview {
+  flex: 1;
+  min-width: 35rpx;
+  font-size: 24rpx;
+  color: #777061;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.compact-expanded {
+  border-top: 3rpx dashed #c9bfa7;
+  margin-top: 14rpx;
+  padding-top: 14rpx;
+  animation: compact-open 0.2s ease-out;
+}
+.compact-summary {
+  display: block;
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #4a4736;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.compact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 12rpx 0;
+}
+.compact-tags text {
+  font-size: 24rpx;
+  background: #eee8ff;
+  border: 3rpx solid #111;
+  border-radius: 6rpx;
+  padding: 2rpx 12rpx;
+}
+.page .compact-card .card-foot,
+.page .world .compact-card .card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 10rpx;
+  padding: 0;
+  border: 0;
+}
+.page .compact-card .card-source-link,
+.page .world .compact-card .card-source-link,
+.page .compact-card .card-attachment {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 4rpx;
+  margin: 0;
+  font-size: 30rpx;
+  color: #7048e8;
+  background: transparent;
+}
+.page .compact-card .card-actions,
+.page .world .compact-card .card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: auto;
+  gap: 0;
+}
+.page .compact-card .compact-delete {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 30rpx;
+  color: #994532;
+}
+.page .compact-card .card-restore {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  font-size: 24rpx;
+}
+.detail-scrim {
+  align-items: flex-end;
+  padding: 0;
+}
+.detail-sheet {
+  height: 88vh;
+  max-height: 92vh;
+  padding: 28rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
+  border: 6rpx solid #111;
+  border-bottom: 0;
+  border-radius: 28rpx 28rpx 0 0;
+  background: #fff;
+  box-shadow: none;
+}
+.detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+.detail-kind {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  font-weight: 800;
+  background: #ffd43b;
+  border: 3rpx solid #111;
+  border-radius: 6rpx;
+  padding: 6rpx 16rpx;
+}
+.detail-group {
+  font-size: 26rpx;
+  color: #777061;
+  overflow-wrap: anywhere;
+}
+.detail-sheet .detail-title {
+  font-size: 44rpx;
+  line-height: 1.4;
+  margin: 10rpx 0 16rpx;
+}
+.detail-sheet .detail-summary {
+  font-size: 28rpx;
+  line-height: 1.8;
+  color: #4a4736;
+}
+.detail-sheet .detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin: 20rpx 0 12rpx;
+}
+.detail-sheet .detail-actions button {
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 16rpx 24rpx;
+  font-size: 26rpx;
+  background: #fff;
+  box-shadow: none;
+  border: 3rpx solid #111;
+  border-radius: 8rpx;
+}
+.detail-sheet .detail-actions .primary-action {
+  background: #ffd43b;
+  box-shadow: 4rpx 4rpx #111;
+}
+.detail-sheet .detail-section {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 3rpx dashed #c9bfa7;
+}
+.detail-sheet .detail-section .subheading {
+  font-size: 30rpx;
+}
+.detail-sheet .evidence {
+  background: #f7f3e4;
+  border-left: 6rpx solid #c1ab6d;
+  color: #524b39;
+}
+.detail-sheet .draft-file {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.detail-sheet .draft-file > text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detail-sheet .draft-file button {
+  flex-shrink: 0;
+  min-height: 44px;
+  color: #7048e8;
+  font-size: 26rpx;
+}
+.detail-sheet .detail-ai {
+  background: #fff3c4;
+  border: 4rpx solid #111;
+  border-radius: 10rpx;
+  box-shadow: 8rpx 8rpx #111;
+  padding: 24rpx;
+  margin-right: 8rpx;
+}
+.detail-sheet .detail-danger {
+  justify-content: center;
+  margin-top: 40rpx;
+  padding-bottom: 24rpx;
+}
+.detail-sheet .detail-danger button,
+.detail-sheet .text-button,
+.detail-sheet .small-button {
+  min-height: 44px;
+}
+.detail-sheet .detail-habit-status {
+  flex-basis: 100%;
+}
+@keyframes compact-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compact-expanded {
+    animation: none;
+  }
 }
