@@ -87,7 +87,7 @@ test("mini deadline status bands stay legible at 320, 375 and 414 pixels", async
       (_, n) => `${(Number(n) * width) / 750}px`,
     );
     await page.setContent(
-      `<style>body{margin:0;background:#fff9e6}view,text{display:block} ${css}</style><view class="page">${["overdue", "today", "soon", "later", "unsure", "done"].map((state, i) => `<view class="ddl-item urgency-${state}"><view class="ddl-time"><text class="ddl-status">${["已逾期", "今天截止", "即将截止", "提前安排", "日期待确认", "已完成"][i]}</text><text>2026-10-26</text><text class="ddl-clock">18:30</text><text>核对时间 ↗</text></view><view class="ddl-row"><view class="ddl-copy"><text class="item-title">完成设计方案，保留完整要求</text><text class="quiet">合成样例 · 原文已保留</text></view></view></view>`).join("")}</view>`,
+      `<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;background:#fff9e6}view,text{display:block} ${css}</style><view class="page">${["overdue", "today", "soon", "later", "unsure", "done"].map((state, i) => `<view class="ddl-item urgency-${state}"><view class="ddl-time"><text class="ddl-status">${["已逾期", "今天截止", "即将截止", "提前安排", "日期待确认", "已完成"][i]}</text><text>2026-10-26</text><text class="ddl-clock">18:30</text><text>核对时间 ↗</text></view><view class="ddl-row"><view class="ddl-copy"><text class="item-title">完成设计方案，保留完整要求</text><text class="quiet">合成样例 · 原文已保留</text></view></view></view>`).join("")}</view>`,
     );
     const bands = page.locator(".ddl-time");
     const colors = [
