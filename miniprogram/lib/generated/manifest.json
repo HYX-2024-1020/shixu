@@ -2,16 +2,12 @@
   "source": "desktop/shared",
   "files": {
     "miniprogram/lib/generated/client-ui.wxss": "170f2b667331d3acbe8dc4304e594a9a58b6a92f9877b80c2a08067d346949d3",
-    "miniprogram/lib/generated/desktop.js": "7d913d329d136f2a40eec5fda7b61f75780e08b80d6e6c344bd3525205466acd",
+    "miniprogram/lib/generated/desktop.js": "bd7ad30238ca2e4467b457121d701b59374c103bd5ab5c74b29c6317df01bbea",
     "server/generated/ai-core.mjs": "ac5c2926c912299fced2000534a8e3e4a7365f1357df16483e5e5d73654cb611",
     "desktop/generated/sync-client.cjs": "9f320384bec65f80fcd4b028959a292b9e08a78a888ed90198ab69ec9ffd96bb",
-    "miniprogram/assets/skins/cat.png": "2c0492a3f4213ff42771384ea33b9c6b66b6031df7a0c47450e348905158dd7f",
-    "miniprogram/assets/skins/sprout.png": "b8dbf7a674bd5d9799e403d07c456c3f9254c41aee2f0a50954462716f87d423",
-    "miniprogram/assets/skins/robot.png": "7b5eb703951740d8e0c6a3cff472f6e141a9622f587e2065b94c130cccc0ce3c",
-    "miniprogram/assets/skins/ghost.png": "da074e8efaf2b03265338a59a46d6c0acd06cc5ef17b74e626867f275647f33d",
-    "miniprogram/assets/skins/rabbit.png": "19a5f2b2d0307c3bad0b83f44e55503c9676d286bbd831210b032a852d2bba28",
-    "miniprogram/assets/skins/planet.png": "f4e7859dad4dcec6cd52dcc06d89e7d33a283d0ceb2446a702c5335a84b1c9d0",
-    "miniprogram/assets/skins/pudding.png": "7c04ddea96a2c736befdde74abf08b997a8417e7c6efa1f3514a16c4ea0e5464",
+    "miniprogram/assets/ice.png": "f26e5f6a29006cc5017be0acf24fe08920bfc98c5874f00305ad4d5e3e1dc982",
+    "miniprogram/assets/ice-voice-1.mp3": "1d4354f9d16306cc9dab0589c3d11698004a291e4a6d53abbc12cb4b06608e42",
+    "miniprogram/assets/ice-voice-2.mp3": "c2b47d119ca2196c6ed9f7d5fed531374e4ba0dc1ebe9d0784039d98915cba27",
     "miniprogram/assets/mascot.png": "5eef9de3fbe25cc7e69e14a8953b0c301032e7fc9e2fb5fdaae56df99456fa51",
     "miniprogram/assets/laugh.mp3": "fdf73c75837977281a61c5b3aa24e581391e186ce42fe63e0030ea3ecc1a013b"
   }

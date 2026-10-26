@@ -364,7 +364,7 @@ test("full storage never acknowledges local mutation or changes persisted skin",
     undefined,
   );
   assert.match(f.page.data.error, /disk full/);
-  f.page.previewSkin({ currentTarget: { dataset: { id: "cat" } } });
+  f.page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
   f.page.applySkin();
   assert.equal(f.page.data.activeSkin.id, "whale");
 });
@@ -372,12 +372,12 @@ test("skin preview requires apply; selection and custom edits survive restart", 
   const f = fixture(),
     p = f.page;
   p.openSkins();
-  p.previewSkin(event("cat"));
+  p.previewSkin(event("ice"));
   p.feedSkin();
   assert.equal(p.data.skinMessage, desktop.BUILTIN_SKINS[1].feeding);
   assert.equal(p.data.activeSkin.id, "whale");
   p.applySkin();
-  assert.equal(fixture({ store: f.store }).page.data.activeSkin.id, "cat");
+  assert.equal(fixture({ store: f.store }).page.data.activeSkin.id, "ice");
   p.editSkin(event(""));
   p.setData({
     skinForm: { ...p.data.skinForm, image: "data:image/png;base64,YQ==" },
@@ -736,7 +736,7 @@ test("greeting and feeding restore idle copy and use shared durations", () => {
       clearTimeout() {},
     },
   });
-  page.previewSkin(event("cat"));
+  page.previewSkin(event("ice"));
   page.setData({ activeSkin: page.data.previewSkin });
   page.interactSkin();
   assert.equal(page.data.skinMessage, page.data.activeSkin.greeting);
@@ -1582,4 +1582,47 @@ test("a whole-card short touch routes actions, but the release from a lifted car
   });
   assert.equal(p._detail("task-a").starred, false);
   p.onUnload();
+});
+
+test("ice voices select distinct single-shot assets, stop before replay and persist", () => {
+  const calls = [];
+  let ended;
+  const audio = {
+    onEnded(fn) {
+      ended = fn;
+    },
+    onError() {},
+    play() {
+      calls.push(["play", this.src]);
+    },
+    stop() {
+      calls.push(["stop"]);
+    },
+    destroy() {},
+  };
+  const { page, store } = fixture({ audio });
+  page.openSkins();
+  assert.deepEqual(
+    Array.from(page.data.skins, (s) => s.id),
+    ["whale", "ice"],
+  );
+  page.previewSkin(event("ice"));
+  page.interactSkin();
+  assert.equal(audio.src, "/assets/ice-voice-1.mp3");
+  assert.equal(audio.loop, false);
+  ended();
+  assert.equal(page.data.skinAnimating, false);
+  page.changeIceVoice({ currentTarget: { dataset: { voice: "voice-2" } } });
+  assert.equal(page.data.previewSkin.id, "ice");
+  page.applySkin();
+  for (let i = 0; i < 3; i++) page.interactSkin();
+  assert.equal(audio.src, "/assets/ice-voice-2.mp3");
+  assert.equal(calls.filter((c) => c[0] === "play").length, 4);
+  for (let i = 0; i < calls.length; i++)
+    if (calls[i][0] === "play") assert.equal(calls[i - 1][0], "stop");
+  const reopened = fixture({ store }).page;
+  assert.equal(reopened.data.iceVoice, "voice-2");
+  assert.equal(reopened.data.activeSkin.id, "ice");
+  page.onUnload();
+  reopened.onUnload();
 });

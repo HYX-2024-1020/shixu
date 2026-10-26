@@ -94,34 +94,36 @@ try {
     .fill("皮肤升级验证草稿，仅合成资料");
   await page.evaluate(() => window.flushDesktopDraft());
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
-  await expect(page.locator(".skin-card")).toHaveCount(8);
-  await page.getByRole("button", { name: "预览摸鱼小橘" }).click();
+  await expect(page.locator(".skin-card")).toHaveCount(2);
+  await page.getByRole("button", { name: "预览冰冰冰" }).click();
+  await page.getByRole("button", { name: "声音二", exact: true }).click();
   await page.getByRole("button", { name: "试着喂一口" }).click();
   await expect(page.locator(".skin-market .skin-bubble")).toHaveText(
-    "啊呜，这口是小鱼干味的！",
+    "咔嚓，烦恼冻住啦！",
   );
   await page.getByRole("button", { name: "就选这个朋友" }).click();
   await page.screenshot({ path: "release/desktop-skin-market.png" });
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
-    "cat",
+    "ice",
   );
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
-  await expect(
-    page.locator(".world-skin-art [aria-label='摸鱼小橘']"),
-  ).toBeVisible();
+  await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
   await app.close();
   app = await launch();
   page = await pageForApp();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
-    "cat",
+    "ice",
   );
   await expect(page.getByLabel("往桶里放入内容", { exact: true })).toHaveValue(
     "皮肤升级验证草稿，仅合成资料",
   );
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await expect(
+    page.getByRole("button", { name: "声音二", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "自己做一个", exact: true }).click();
   // Synthetic PNG, never a user's image or profile.
   await page.getByLabel("上传皮肤图片", { exact: true }).setInputFiles({
@@ -175,7 +177,7 @@ try {
       ? "real MP3 decode with playback clock adapter (no physical output)"
       : "actual HTMLMediaElement playback",
     checks: [
-      "eight presets and feed preview",
+      "two presets and feed preview",
       "settings dismisses on the second header-position click and Escape",
       audioClock
         ? "real MP3 decoded; playback clock adapter verifies every-click restart, no 3.2s cutoff and natural-duration completion"

@@ -13,6 +13,7 @@ import SkinArt from "./SkinArt";
 import SkinMascot from "./SkinMascot";
 import {
   BUILTIN_SKINS,
+  ICE_VOICES,
   MAX_CUSTOM_SKINS,
   readSkinImage,
   SKIN_MOTIONS,
@@ -163,6 +164,7 @@ export default function SkinMarket({
   function remove(skin: Skin) {
     if (
       commit({
+        ...collection,
         selected:
           collection.selected === skin.id ? "whale" : collection.selected,
         custom: collection.custom.filter((s) => s.id !== skin.id),
@@ -232,6 +234,7 @@ export default function SkinMarket({
               <SkinMascot
                 key={preview.id}
                 skin={preview}
+                iceVoice={collection.iceVoice}
                 state={demoState}
                 compact
               />
@@ -246,6 +249,29 @@ export default function SkinMarket({
               {preview.art === "whale" ? " · 原版笑声" : " · 点击互动"}
             </span>
           </div>
+          {preview.art === "ice" && (
+            <fieldset className="skin-voice-options">
+              <legend>冰冰冰的声音</legend>
+              <div className="skin-motion-options">
+                {Object.entries(ICE_VOICES).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={(collection.iceVoice || "voice-1") === id}
+                    onClick={() =>
+                      commit({
+                        ...collection,
+                        iceVoice: id as keyof typeof ICE_VOICES,
+                      })
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <small>选择后戳一下，每次只说一声「冰冰冰」。</small>
+            </fieldset>
+          )}
           <button
             className="skin-button skin-feed-button"
             disabled={preview.art === "custom" && !preview.image}

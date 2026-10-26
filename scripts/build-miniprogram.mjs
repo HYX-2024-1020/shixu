@@ -3,8 +3,6 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { Resvg } from "@resvg/resvg-js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const check = process.argv.includes("--check");
@@ -128,7 +126,7 @@ const bundled = await build({
   stdin: {
     contents: `export const NATIVE_SKIN_MOTIONS = ${JSON.stringify(nativeSkinMotions)};
     export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
-    export { BUILTIN_SKINS, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
+    export { BUILTIN_SKINS, ICE_VOICES, skinSound, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
     export { deadlineCountdown } from './src/bucket/deadline-countdown';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
@@ -178,31 +176,11 @@ outputs.set(
   "desktop/generated/sync-client.cjs",
   await readFile(path.join(root, "miniprogram/lib/sync-client.js")),
 );
-const renderer = await build({
-  stdin: {
-    contents: `import React from 'react'; import { renderToStaticMarkup } from 'react-dom/server';
-    import SkinArt from './src/bucket/SkinArt'; import { BUILTIN_SKINS } from './src/bucket/skins';
-    module.exports = BUILTIN_SKINS.filter(s => s.art !== 'whale').map(s => [s.id, renderToStaticMarkup(React.createElement(SkinArt, {skin:s}))]);`,
-    resolveDir: root,
-  },
-  bundle: true,
-  write: false,
-  format: "cjs",
-  platform: "node",
-  jsx: "automatic",
-  external: ["react", "react-dom/server"],
-  define: { "import.meta.env.BASE_URL": '"/"' },
-});
-const module = { exports: {} };
-new Function("module", "exports", "require", renderer.outputFiles[0].text)(
-  module,
-  module.exports,
-  createRequire(import.meta.url),
-);
-for (const [id, svg] of module.exports)
+// Artwork and single-utterance audio are copied byte-for-byte from desktop assets.
+for (const name of ["ice.png", "ice-voice-1.mp3", "ice-voice-2.mp3"])
   outputs.set(
-    `miniprogram/assets/skins/${id}.png`,
-    new Resvg(svg).render().asPng(),
+    `miniprogram/assets/${name}`,
+    await readFile(path.join(root, "public", name)),
   );
 outputs.set(
   "miniprogram/assets/mascot.png",

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { SKIN_INTERACTION } from "./client-ui";
 import SkinArt from "./SkinArt";
-import type { Skin } from "./skins";
+import { skinSound, type Skin, type IceVoice } from "./skins";
 
 export default function SkinMascot({
   skin,
+  iceVoice,
   state = "idle",
   compact = false,
   suspended = false,
   feedSignal = 0,
 }: {
   skin: Skin;
+  iceVoice?: IceVoice;
   state?: "idle" | "drag" | "feeding";
   compact?: boolean;
   suspended?: boolean;
@@ -33,8 +35,10 @@ export default function SkinMascot({
   }, [feedSignal]);
   useEffect(() => {
     setHappy(false);
-    if (skin.art === "whale") {
-      const sound = new Audio(import.meta.env.BASE_URL + "laugh.mp3");
+    const source = skinSound(skin, iceVoice);
+    if (source) {
+      const sound = new Audio(import.meta.env.BASE_URL + source);
+      sound.loop = false;
       sound.preload = "auto";
       sound.volume = SKIN_INTERACTION.volume;
       audio.current = sound;
@@ -44,7 +48,7 @@ export default function SkinMascot({
       audio.current?.pause();
       audio.current = null;
     };
-  }, [skin.id]);
+  }, [skin.id, iceVoice]);
   useEffect(() => {
     if (state !== "idle" || suspended) {
       setHappy(false);
@@ -55,7 +59,7 @@ export default function SkinMascot({
   function greet() {
     setHappy(true);
     clearTimeout(timer.current);
-    if (skin.art === "whale" && audio.current) {
+    if (audio.current) {
       const sound = audio.current;
       sound.currentTime = 0;
       sound.onended = () => {

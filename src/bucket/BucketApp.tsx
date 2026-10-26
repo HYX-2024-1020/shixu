@@ -1798,6 +1798,7 @@ export default function BucketApp() {
             <SkinMascot
               key={activeSkin.id}
               skin={activeSkin}
+              iceVoice={skinCollection.iceVoice}
               state={
                 drag ? "drag" : submitting || workingId ? "feeding" : "idle"
               }
