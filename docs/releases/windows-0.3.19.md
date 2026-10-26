@@ -16,9 +16,9 @@
 
 ## 小程序现有工程
 
-现有工程 `shixu-ui-parity-ojIwyw` 的 26 个跟踪运行文件已同步；其中 9 个文件更新，随后逐字节一致性检查无差异。配置和本地资料不覆盖，不清空微信存储，不迁移资料。CLI open 返回成功，打开原工程。
+现有工程 `shixu-ui-parity-ojIwyw` 的 26 个跟踪运行文件已同步；其中 9 个文件更新，随后逐字节一致性检查无差异。配置和本地资料不覆盖，不清空微信存储，不迁移资料。CLI open 返回成功，但该返回值不证明 IDE 已切换活动工程。
 
-官方 WXML/WXSS/WXS 编译与模板渲染在该工程通过，验证商店有两个预设、两个声音选项及音色选中状态。IDE automation 在 Fetching AppID permissions 时返回 ECONNRESET；按项目 computer-use 限制停止该路径，不用界面自动化重试。已请用户手动编译并确认可见入口，待回复。尚未完成手机真机听音、原生手势或微信上传发布；不把官方编译和 Node 测试称为真机通过。
+官方 WXML/WXSS/WXS 编译与模板渲染在该工程通过，验证商店有两个预设、两个声音选项及音色选中状态。IDE automation 在 Fetching AppID permissions 时返回 ECONNRESET；按项目 computer-use 限制停止该路径，不用界面自动化重试。用户反馈「编译失败或界面未更新」。后续只读检查发现文件监听进程实际指向 `shixu-baseline/miniprogram`，不是已同步的预览工程；此前对当前工程的判断不成立。旧 checkout 有未提交的 project.config.json 修改，未覆盖或切换该 checkout。基于该新证据仅重试一次 CLI，直接打开 `shixu-ice-skin/miniprogram`；命令返回成功，监听路径仍未切换，已停止重试。请用户手动导入此新版工程并编译，当前仍待确认，不能宣称小程序原生交付完成。原工程配置及本地资料保留，不迁移测试数据。尚未完成手机真机听音、原生手势或微信上传发布；不把官方编译和 Node 测试称为真机通过。
 
 ## 验证与回滚
 
