@@ -1081,7 +1081,11 @@ Page({
     this._refresh();
   },
   onCardAction(event) {
-    if (this._drag) return;
+    if (
+      this._drag ||
+      (this._dragJustEndedAt && Date.now() - this._dragJustEndedAt < 350)
+    )
+      return;
     const { action, id } = event.currentTarget.dataset;
     const allowed = [
       "toggleCard",

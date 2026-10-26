@@ -1,3 +1,4 @@
+import CardFiles from "./CardFiles";
 import { itemDeadlineTime } from "../../shared/deadline-time.mjs";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -283,6 +284,7 @@ export default function DDL({
               </small>
             </button>
           </div>
+          <CardFiles attachments={p.attachments} onOpen={() => setOpen(id)} />
           {open === id && (
             <div className="ddl-panel">
               <h4>完整要求 · 时间依据</h4>

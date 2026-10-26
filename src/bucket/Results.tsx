@@ -1,3 +1,4 @@
+import CardFiles from "./CardFiles";
 import {
   absoluteItem,
   setDeadline,
@@ -620,6 +621,13 @@ function Results({
                       <span className="collection-tag">{meta.group}</span>
                     )}
                   </div>
+                  <CardFiles
+                    attachments={p.attachments}
+                    onOpen={() => {
+                      materialOrigin.current = id;
+                      setMaterials(p.id);
+                    }}
+                  />
                   <div className="card-bottom">
                     <button
                       className="card-source-link"
@@ -629,8 +637,9 @@ function Results({
                       }}
                     >
                       <Paperclip size={16} />
-                      {p.attachments.length
-                        ? p.attachments.length + " 份同行材料"
+                      {p.attachments.filter((a) => !a.deletedAt).length
+                        ? p.attachments.filter((a) => !a.deletedAt).length +
+                          " 份同行材料"
                         : "输入原文"}
                       <ArrowUpRight size={15} />
                     </button>
