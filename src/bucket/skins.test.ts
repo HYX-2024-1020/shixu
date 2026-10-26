@@ -7,6 +7,7 @@ import {
   parseSkinCollection,
   saveSkinCollection,
   skinStorageKey,
+  skinSound,
   type Skin,
 } from "./skins";
 
@@ -31,7 +32,24 @@ describe("skin collection persistence", () => {
     expect(parseSkinCollection(JSON.stringify(collection))).toEqual(collection);
     expect(
       parseSkinCollection(JSON.stringify({ selected: "planet" })).selected,
-    ).toBe("planet");
+    ).toBe("whale");
+  });
+  it("only offers whale and ice and validates the persisted voice", () => {
+    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(["whale", "ice"]);
+    for (const voice of ["voice-1", "voice-2"] as const) {
+      const saved = parseSkinCollection(
+        JSON.stringify({ selected: "ice", iceVoice: voice }),
+      );
+      expect(saved.iceVoice).toBe(voice);
+      expect(skinSound(BUILTIN_SKINS[1], saved.iceVoice)).toBe(
+        `ice-${voice}.mp3`,
+      );
+    }
+    expect(
+      parseSkinCollection('{"iceVoice":"constructor"}').iceVoice,
+    ).toBeUndefined();
+    expect(skinSound(BUILTIN_SKINS[0])).toBe("laugh.mp3");
+    expect(skinSound(custom)).toBeNull();
   });
   it("discards invalid images, unknown actions, forged builtins, duplicate ids and oversized fields", () => {
     const invalid = [

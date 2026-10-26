@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var stdin_exports = {};
 __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
+  ICE_VOICES: () => ICE_VOICES,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
   NATIVE_SKIN_MOTIONS: () => NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION: () => SKIN_INTERACTION,
@@ -41,7 +42,8 @@ __export(stdin_exports, {
   mergeCardOrder: () => mergeCardOrder,
   parseDeadline: () => parseDeadline,
   parseSkinCollection: () => parseSkinCollection,
-  setDeadline: () => setDeadline
+  setDeadline: () => setDeadline,
+  skinSound: () => skinSound
 });
 module.exports = __toCommonJS(stdin_exports);
 
@@ -81,83 +83,24 @@ var BUILTIN_SKINS = [
     feeding: "啊呜，让我慢慢消化！"
   },
   {
-    id: "cat",
-    name: "摸鱼小橘",
-    description: "接住烦恼，继续摸鱼。",
-    art: "cat",
-    color: "#ffe2b5",
+    id: "ice",
+    name: "冰冰冰",
+    description: "冰冰凉凉，烦恼冻住。",
+    art: "ice",
+    color: "#def3ff",
     motion: "wiggle",
-    hello: "喵，今天的烦恼归我了。",
-    greeting: "呼噜呼噜，摸到我啦！",
-    feeding: "啊呜，这口是小鱼干味的！"
-  },
-  {
-    id: "sprout",
-    name: "发芽计划",
-    description: "每个念头，都能长大。",
-    art: "sprout",
-    color: "#deedc9",
-    motion: "float",
-    hello: "把想法种在这里吧。",
-    greeting: "又长高了一点点！",
-    feeding: "收到新养分，正在发芽！"
-  },
-  {
-    id: "robot",
-    name: "罐头同学",
-    description: "认真接收一切奇思妙想。",
-    art: "robot",
-    color: "#e3ddff",
-    motion: "bounce",
-    hello: "哔——接收频道已开启。",
-    greeting: "检测到快乐，电量加满！",
-    feeding: "咔哒，正在拆解你的灵感。"
-  },
-  {
-    id: "ghost",
-    name: "幽幽",
-    description: "轻飘飘地，带走压力。",
-    art: "ghost",
-    color: "#ece4ff",
-    motion: "float",
-    hello: "烦恼交给我，你去放空。",
-    greeting: "被你发现啦，呜呼～",
-    feeding: "呼——烦恼被我吸走了！"
-  },
-  {
-    id: "rabbit",
-    name: "迟到小兔",
-    description: "事情很多，也不必着急。",
-    art: "rabbit",
-    color: "#ffdfe7",
-    motion: "bounce",
-    hello: "慢慢来，我一直在。",
-    greeting: "耳朵竖起来听你说！",
-    feeding: "咔嚓，像胡萝卜一样好吃。"
-  },
-  {
-    id: "planet",
-    name: "小小宇宙",
-    description: "装下天马行空的你。",
-    art: "planet",
-    color: "#dce7ff",
-    motion: "spin",
-    hello: "你的脑洞，这里装得下。",
-    greeting: "围着你的好心情转一圈！",
-    feeding: "新想法进入轨道！"
-  },
-  {
-    id: "pudding",
-    name: "布丁吨吨",
-    description: "软乎乎，但很能装。",
-    art: "pudding",
-    color: "#fff0b8",
-    motion: "wiggle",
-    hello: "让今天，软乎一点。",
-    greeting: "晃呀晃，快乐加倍！",
-    feeding: "吨吨吨，又吃掉一件事。"
+    hello: "冰冰冰，戳我听一声！",
+    greeting: "冰冰冰！",
+    feeding: "咔嚓，烦恼冻住啦！"
   }
 ];
+var ICE_VOICES = { "voice-1": "声音一", "voice-2": "声音二" };
+function skinSound(skin, voice = "voice-1") {
+  if (skin.art === "whale") return "laugh.mp3";
+  if (skin.art === "ice")
+    return `ice-${voice === "voice-2" ? "voice-2" : "voice-1"}.mp3`;
+  return null;
+}
 var MAX_CUSTOM_SKINS = 8;
 var MAX_IMAGE_LENGTH = 4e5;
 function isSkinImage(value) {
@@ -185,7 +128,11 @@ function parseSkinCollection(raw) {
     const selected = [...BUILTIN_SKINS, ...custom].some(
       (s) => s.id === value.selected
     ) ? value.selected : "whale";
-    return { selected, custom };
+    return {
+      selected,
+      custom,
+      ...Object.prototype.hasOwnProperty.call(ICE_VOICES, value.iceVoice) ? { iceVoice: value.iceVoice } : {}
+    };
   } catch (e) {
     return { selected: "whale", custom: [] };
   }

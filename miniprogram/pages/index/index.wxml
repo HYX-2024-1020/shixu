@@ -552,6 +552,7 @@
         ><view class="skin-preview" style="background:{{previewSkin.color}}"
           ><view class="skin-preview-stage skin-mascot {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" animation="{{skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}}"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><text class="quiet">{{previewSkin.description}}</text
+          ><view wx:if="{{previewSkin.id === 'ice'}}" class="ice-voices"><text>冰冰冰的声音</text><view class="button-row"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}">{{item.label}}{{iceVoice === item.id ? ' ✓' : ''}}</button></view><text class="quiet">选择后戳一下，每次只说一声「冰冰冰」。</text></view
           ><view class="button-row"
             ><button hover-class="btn-press" class="small-button" bindtap="feedSkin">试着喂一口</button
             ><button hover-class="btn-press" class="primary" bindtap="applySkin">

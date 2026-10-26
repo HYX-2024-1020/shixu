@@ -2436,3 +2436,11 @@ page {
     animation: none;
   }
 }
+
+.ice-voices {
+  margin: 24rpx 0;
+}
+.ice-voices .voice-selected {
+  background: #b9e7ff;
+  border-color: #202022;
+}

@@ -21,30 +21,29 @@ test("preview, interact, apply and persist a preset without touching the draft",
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   const market = page.getByRole("dialog", { name: "给你的桶，换个新朋友" });
   await expect(market).toBeVisible();
-  await expect(page.locator(".skin-card")).toHaveCount(8);
-  await page.getByRole("button", { name: "预览摸鱼小橘" }).click();
+  await expect(page.locator(".skin-card")).toHaveCount(2);
+  await page.getByRole("button", { name: "预览冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
     "whale",
   );
-  await market.getByRole("button", { name: "和摸鱼小橘打个招呼" }).click();
-  await expect(market.locator(".skin-bubble")).toHaveText(
-    "呼噜呼噜，摸到我啦！",
-  );
+  await page.evaluate(() => {
+    HTMLMediaElement.prototype.play = async function () {};
+  });
+  await market.getByRole("button", { name: "和冰冰冰打个招呼" }).click();
+  await expect(market.locator(".skin-bubble")).toHaveText("冰冰冰！");
   await expect(market.locator(".skin-mascot")).toHaveAttribute(
     "data-motion",
     "wiggle",
   );
   await market.getByRole("button", { name: "试着喂一口" }).click();
-  await expect(market.locator(".skin-bubble")).toHaveText(
-    "啊呜，这口是小鱼干味的！",
-  );
+  await expect(market.locator(".skin-bubble")).toHaveText("咔嚓，烦恼冻住啦！");
   await market.getByRole("button", { name: "就选这个朋友" }).click();
   await expect(
     market.getByRole("button", { name: "正在陪伴你" }),
   ).toBeDisabled();
   await expect(
-    market.getByRole("button", { name: "预览摸鱼小橘" }),
+    market.getByRole("button", { name: "预览冰冰冰" }),
   ).toContainText("使用中");
   await page.evaluate(() => document.fonts.ready);
   await market.screenshot({
@@ -75,7 +74,7 @@ test("preview, interact, apply and persist a preset without touching the draft",
   await page.reload();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
-    "cat",
+    "ice",
   );
   await expect(
     page.getByRole("textbox", { name: "往桶里放入内容" }),
@@ -88,9 +87,7 @@ test("preview, interact, apply and persist a preset without touching the draft",
     fullPage: true,
   });
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
-  await expect(
-    page.locator(".world-skin-art [aria-label='摸鱼小橘']"),
-  ).toBeVisible();
+  await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -171,7 +168,7 @@ test("storage errors keep the applied skin and example space stays isolated", as
   page,
 }) => {
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
-  await page.getByRole("button", { name: "预览小小宇宙" }).click();
+  await page.getByRole("button", { name: "预览冰冰冰" }).click();
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -188,7 +185,7 @@ test("storage errors keep the applied skin and example space stays isolated", as
   );
   await page.reload();
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
-  await page.getByRole("button", { name: "预览小小宇宙" }).click();
+  await page.getByRole("button", { name: "预览冰冰冰" }).click();
   await page.getByRole("button", { name: "就选这个朋友" }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -200,7 +197,7 @@ test("storage errors keep the applied skin and example space stays isolated", as
   await page.goto("/");
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
-    "planet",
+    "ice",
   );
 });
 
@@ -215,16 +212,7 @@ test("all presets work on a narrow screen, reduced motion and actual delivery", 
   ).toBe(true);
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   const market = page.getByRole("dialog");
-  for (const name of [
-    "小鲸鱼",
-    "摸鱼小橘",
-    "发芽计划",
-    "罐头同学",
-    "幽幽",
-    "迟到小兔",
-    "小小宇宙",
-    "布丁吨吨",
-  ]) {
+  for (const name of ["小鲸鱼", "冰冰冰"]) {
     await page.getByRole("button", { name: `预览${name}` }).click();
     await expect(
       page
@@ -238,9 +226,9 @@ test("all presets work on a narrow screen, reduced motion and actual delivery", 
   await page.getByRole("button", { name: "就选这个朋友" }).click();
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("button", { name: "和布丁吨吨打个招呼" }).click();
+  await page.getByRole("button", { name: "和冰冰冰打个招呼" }).click();
   await expect(page.locator(".bucket-drawing .skin-bubble")).toHaveText(
-    "晃呀晃，快乐加倍！",
+    "冰冰冰！",
   );
   expect(
     await page
@@ -253,7 +241,62 @@ test("all presets work on a narrow screen, reduced motion and actual delivery", 
   await page.getByRole("button", { name: "丢进去", exact: true }).click();
   await page.getByRole("button", { name: "关闭设置" }).click();
   await expect(page.locator(".bucket-drawing .skin-bubble")).toHaveText(
-    "吨吨吨，又吃掉一件事。",
+    "咔嚓，烦恼冻住啦！",
   );
   await expect(page.locator(".count-line b")).toHaveText("1");
+});
+
+test("ice voices decode as single short utterances, switch and persist with no overlap", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    (window as any).__plays = [];
+    HTMLMediaElement.prototype.play = async function () {
+      (window as any).__plays.push({
+        src: this.src,
+        time: this.currentTime,
+        loop: this.loop,
+      });
+    };
+  });
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await page.getByRole("button", { name: "预览冰冰冰" }).click();
+  const tap = page.getByRole("button", { name: "和冰冰冰打个招呼" }).last();
+  await tap.click();
+  await page.getByRole("button", { name: "声音二", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "声音二", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await tap.click();
+  await tap.click();
+  const plays = await page.evaluate(() => (window as any).__plays);
+  expect(plays.map((p: any) => p.src.split("/").at(-1))).toEqual([
+    "ice-voice-1.mp3",
+    "ice-voice-2.mp3",
+    "ice-voice-2.mp3",
+  ]);
+  expect(plays.every((p: any) => p.time === 0 && !p.loop)).toBe(true);
+  const durations = await page.evaluate(async () => {
+    const ctx = new OfflineAudioContext(1, 1, 44100);
+    return Promise.all(
+      ["ice-voice-1.mp3", "ice-voice-2.mp3"].map(async (name) => {
+        const response = await fetch("/" + name);
+        return (await ctx.decodeAudioData(await response.arrayBuffer()))
+          .duration;
+      }),
+    );
+  });
+  expect(durations[0]).toBeCloseTo(1, 1);
+  expect(durations[1]).toBeCloseTo(0.73, 1);
+  await page.getByRole("button", { name: "就选这个朋友" }).click();
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  await page.reload();
+  await expect(page.locator(".bucket-drawing")).toHaveAttribute(
+    "data-skin",
+    "ice",
+  );
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await expect(
+    page.getByRole("button", { name: "声音二", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

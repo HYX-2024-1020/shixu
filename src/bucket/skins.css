@@ -847,3 +847,13 @@
     transition: none !important;
   }
 }
+
+.skin-voice-options {
+  border: 0;
+  padding: 0;
+  margin: 16px 0;
+}
+.skin-voice-options small {
+  display: block;
+  margin-top: 8px;
+}

@@ -28,6 +28,8 @@ const {
   NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION,
   BUILTIN_SKINS,
+  ICE_VOICES,
+  skinSound,
   SKIN_MOTIONS,
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
@@ -1863,12 +1865,17 @@ Page({
           ? this._skinPath(s)
           : s.art === "whale"
             ? "/assets/mascot.png"
-            : `/assets/skins/${s.id}.png`,
+            : "/assets/ice.png",
     }));
     const activeSkin =
       skins.find((s) => s.id === collection.selected) || skins[0];
     this.setData({
       skins,
+      iceVoices: Object.entries(ICE_VOICES).map(([id, label]) => ({
+        id,
+        label,
+      })),
+      iceVoice: collection.iceVoice || "voice-1",
       activeSkin,
       previewSkin: activeSkin,
       skinMessage: activeSkin.hello,
@@ -1920,7 +1927,7 @@ Page({
       skinAnimating: true,
     });
     this._startSkinMotion(s);
-    if (s.art === "whale" && this._prepareSkinAudio()) {
+    if (skinSound(s, this.data.iceVoice) && this._prepareSkinAudio(s)) {
       try {
         this._skinAudio.play();
       } catch (_) {
@@ -1995,8 +2002,26 @@ Page({
     } catch (_) {}
     this._finishSkinInteraction();
   },
-  _prepareSkinAudio() {
-    if (this._skinAudio) return true;
+  changeIceVoice(event) {
+    const voice = event.currentTarget.dataset.voice;
+    if (!Object.prototype.hasOwnProperty.call(ICE_VOICES, voice)) return;
+    this._stopSkinInteraction();
+    const previewId = this.data.previewSkin.id;
+    try {
+      this._saveSkins({ ...this._skinCollection, iceVoice: voice });
+      this.previewSkin({ currentTarget: { dataset: { id: previewId } } });
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  _prepareSkinAudio(skin = this.data.activeSkin) {
+    const file = skinSound(skin, this.data.iceVoice);
+    if (!file) return false;
+    const source = "/assets/" + file;
+    if (this._skinAudio) {
+      if (this._skinAudio.src !== source) this._skinAudio.src = source;
+      return true;
+    }
     if (!wx.createInnerAudioContext) return false;
     let audio;
     try {
@@ -2004,7 +2029,8 @@ Page({
       audio.onEnded(() => this._finishSkinInteraction());
       audio.onError(() => this._finishSkinInteraction());
       audio.volume = SKIN_INTERACTION.volume;
-      audio.src = "/assets/laugh.mp3";
+      audio.loop = false;
+      audio.src = source;
       this._skinAudio = audio;
       return true;
     } catch (_) {
@@ -2120,7 +2146,11 @@ Page({
         );
       if (custom.length >= MAX_CUSTOM_SKINS)
         throw new Error("最多收藏 8 款自定义皮肤");
-      const candidate = { selected: skin.id, custom: [...custom, skin] },
+      const candidate = {
+          ...this._skinCollection,
+          selected: skin.id,
+          custom: [...custom, skin],
+        },
         parsed = parseSkinCollection(JSON.stringify(candidate));
       if (!parsed.custom.some((s) => s.id === skin.id))
         throw new Error("请添加图片，名称不超过 20 字，台词应为 1 至 40 字");
@@ -2139,6 +2169,7 @@ Page({
         if (!answer.confirm) return;
         try {
           this._saveSkins({
+            ...this._skinCollection,
             selected:
               this._skinCollection.selected === id
                 ? "whale"

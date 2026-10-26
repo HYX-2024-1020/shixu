@@ -117,7 +117,11 @@ assert.ok(
   "native single-column list container exists",
 );
 assert.ok(
-  view().some((n) => n.attr?.class?.includes("xc-card") && n.attr?.class?.includes("kind-task")),
+  view().some(
+    (n) =>
+      n.attr?.class?.includes("xc-card") &&
+      n.attr?.class?.includes("kind-task"),
+  ),
   "native card carries its semantic palette",
 );
 assert.ok(
@@ -324,9 +328,9 @@ assert.equal(
   "all dock icons compile",
 );
 const activeSkin = page.data.activeSkin;
-page.setData({ activeSkin: { ...activeSkin, image: "/assets/skins/cat.png" } });
+page.setData({ activeSkin: { ...activeSkin, image: "/assets/ice.png" } });
 assert.ok(
-  view().some((node) => node.attr?.src === "/assets/skins/cat.png"),
+  view().some((node) => node.attr?.src === "/assets/ice.png"),
   "DDL header follows the selected skin",
 );
 page.setData({ activeSkin });
@@ -387,11 +391,26 @@ assert.ok(
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,
-  8,
+  2,
   "all desktop presets rendered",
 );
+page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
+assert.equal(
+  view().filter((node) => node.attr?.bindtap === "changeIceVoice").length,
+  2,
+  "both voice controls render for ice",
+);
+page.changeIceVoice({ currentTarget: { dataset: { voice: "voice-2" } } });
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.["data-voice"] === "voice-2" &&
+      node.attr?.class?.includes("voice-selected"),
+  ),
+  "selected voice is visible in the compiled native template",
+);
 console.log(
-  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 8 skins). Not an IDE or real-device test.",
+  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 2 presets). Not an IDE or real-device test.",
 );
 console.log(`Compiled source project: ${mini}`);
 console.log(`Compiler output: ${resolve(temporary)}`);
