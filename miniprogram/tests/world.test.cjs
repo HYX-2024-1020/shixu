@@ -1583,6 +1583,43 @@ test("a whole-card short touch routes actions, but the release from a lifted car
   p.onUnload();
 });
 
+test("bunny plays its timeline once, restarts cleanly, stops on hide and persists selection", () => {
+  let now = 0, ended, playing, next = 0;
+  const tasks = new Map(), calls = [];
+  class Clock extends Date { static now() { return now; } }
+  const audio = {
+    onEnded(fn) { ended = fn; },
+    onPlay(fn) { playing = fn; },
+    onError() {},
+    play() { calls.push("play"); playing(); },
+    stop() { calls.push("stop"); },
+    destroy() {},
+  };
+  const f = fixture({ audio, date: Clock, clock: {
+    setTimeout(fn) { tasks.set(++next, fn); return next; },
+    clearTimeout(id) { tasks.delete(id); },
+  } });
+  const p = f.page;
+  p.openSkins(); p.previewSkin(event("bunny")); p.interactSkin();
+  assert.equal(audio.src, "/assets/bunny-voice.mp3");
+  assert.equal(p.data.skinAnimating, true);
+  assert.equal(p.data.bunnySheet, "/assets/bunny-motion-00.png");
+  now = 1400; tasks.get(p._bunnyTimer)();
+  assert.equal(p.data.bunnySheet, "/assets/bunny-motion-01.png");
+  assert.equal(p.data.bunnyPosition, "left:-100%;top:0%");
+  p.interactSkin();
+  assert.deepEqual(calls.slice(-2), ["stop", "play"]);
+  assert.equal(p.data.bunnyPosition, "left:0%;top:0%");
+  ended(); assert.equal(p.data.skinAnimating, false);
+  p.interactSkin(); p.onHide();
+  assert.equal(p.data.skinAnimating, false);
+  assert.equal(calls.at(-1), "stop");
+  const reopened = fixture({store: f.store}).page;
+  assert.equal(reopened.data.activeSkin.id, "bunny");
+  assert.equal(reopened.data.activeSkin.image, "/assets/bunny.png");
+  p.onUnload(); reopened.onUnload();
+});
+
 test("ice voices select distinct single-shot assets, stop before replay and persist", () => {
   const calls = [];
   let ended;
@@ -1603,7 +1640,7 @@ test("ice voices select distinct single-shot assets, stop before replay and pers
   page.openSkins();
   assert.deepEqual(
     Array.from(page.data.skins, (s) => s.id),
-    ["whale", "ice"],
+    ["whale", "ice", "bunny"],
   );
   page.previewSkin(event("ice"));
   page.interactSkin();

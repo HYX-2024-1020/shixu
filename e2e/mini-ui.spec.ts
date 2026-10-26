@@ -84,7 +84,9 @@ async function render(page: any, width: number, template: string, row: any) {
           color: "#dcecff",
         },
         skinOpen: false,
-        skinAnimating: false,
+        skinAnimating: !!row.playing,
+        bunnySheet: row.sheet || "",
+        bunnyPosition: row.position || "left:0%;top:0%",
         skinNativeMotion: false,
         skinAnimation: null,
         skinMessage: "hello",
@@ -175,6 +177,40 @@ async function render(page: any, width: number, template: string, row: any) {
     { source, row },
   );
 }
+
+test("native bunny timeline keeps the same crop in home and market", async ({
+  page,
+}, info) => {
+  const sheet =
+    "data:image/png;base64," +
+    readFileSync("public/bunny-motion-01.png").toString("base64");
+  const image =
+    "data:image/png;base64," +
+    readFileSync("public/bunny.png").toString("base64");
+  for (const template of ["home", "market"]) {
+    await render(page, 375, template, {
+      skin: "bunny",
+      image,
+      sheet,
+      playing: true,
+      position: "left:-100%;top:0%",
+    });
+    const viewport = page.locator(".bunny-window");
+    await expect(viewport).toBeVisible();
+    await expect(viewport).toHaveCSS("overflow", "hidden");
+    const box = await viewport.boundingBox();
+    expect(box!.width / box!.height).toBeCloseTo(160 / 232, 2);
+    const inner = await page.locator(".bunny-sheet").boundingBox();
+    expect(inner!.width / box!.width).toBeCloseTo(5, 1);
+    expect(inner!.height / box!.height).toBeCloseTo(4, 1);
+    await expect(page.locator(".skin-bubble,.skin-spark")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    await page.screenshot({
+      path: info.outputPath(`native-bunny-${template}.png`),
+      fullPage: true,
+    });
+  }
+});
 
 for (const width of [320, 375, 414]) {
   test(`native sticker world keeps readable title and independent actions at ${width}px`, async ({

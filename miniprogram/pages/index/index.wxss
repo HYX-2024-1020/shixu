@@ -1025,6 +1025,28 @@
   height: 300rpx;
   margin-top: 8rpx;
 }
+.bunny-window {
+  position: relative;
+  overflow: hidden;
+  width: 206.8966rpx;
+  height: 300rpx;
+  margin: 0 auto;
+}
+.bunny-window .bunny-sheet {
+  position: absolute;
+  width: 500%;
+  height: 400%;
+  max-width: none;
+  filter: none;
+}
+.bunny-preload {
+  position: fixed;
+  width: 1rpx;
+  height: 1rpx;
+  opacity: 0;
+  pointer-events: none;
+  left: -100rpx;
+}
 .mascot {
   display: block;
   width: 300rpx;

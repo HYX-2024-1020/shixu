@@ -30,6 +30,8 @@ const {
   BUILTIN_SKINS,
   ICE_VOICES,
   skinSound,
+  BUNNY_CLIP,
+  bunnyFrame,
   SKIN_MOTIONS,
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
@@ -163,6 +165,12 @@ Page({
     previewSkin: BUILTIN_SKINS[0],
     skinMessage: BUILTIN_SKINS[0].hello,
     skinAnimating: false,
+    bunnySheet: "/assets/bunny-motion-00.png",
+    bunnyPosition: "left:0%;top:0%",
+    bunnySheets: Array.from(
+      { length: 6 },
+      (_, i) => `/assets/bunny-motion-${String(i).padStart(2, "0")}.png`,
+    ),
     skinEditor: false,
     skinForm: {},
     motionLabels: Object.values(SKIN_MOTIONS),
@@ -1865,7 +1873,9 @@ Page({
           ? this._skinPath(s)
           : s.art === "whale"
             ? "/assets/mascot.png"
-            : "/assets/ice.png",
+            : s.art === "bunny"
+              ? "/assets/bunny.png"
+              : "/assets/ice.png",
     }));
     const activeSkin =
       skins.find((s) => s.id === collection.selected) || skins[0];
@@ -1926,10 +1936,12 @@ Page({
       skinMessage: s.greeting,
       skinAnimating: s.art !== "ice",
     });
-    this._startSkinMotion(s);
+    if (s.art !== "bunny") this._startSkinMotion(s);
     if (skinSound(s, this.data.iceVoice) && this._prepareSkinAudio(s)) {
       try {
         this._skinAudio.play();
+        if (s.art === "bunny" && !this._skinAudio.onPlay)
+          this._startBunnyClip();
       } catch (_) {
         this.setData({
           skinAnimating: false,
@@ -1942,8 +1954,30 @@ Page({
         SKIN_INTERACTION.greetingMs,
       );
   },
+  _startBunnyClip() {
+    clearTimeout(this._bunnyTimer);
+    const generation = (this._bunnyGeneration || 0) + 1;
+    this._bunnyGeneration = generation;
+    const started = Date.now();
+    const advance = () => {
+      if (generation !== this._bunnyGeneration || !this.data.skinAnimating)
+        return;
+      const time = (Date.now() - started) / 1000;
+      if (time >= BUNNY_CLIP.duration) {
+        this._stopSkinInteraction();
+        return;
+      }
+      const frame = bunnyFrame(time);
+      this.setData({
+        bunnySheet: "/assets/" + frame.image,
+        bunnyPosition: `left:${-frame.x * 4}%;top:${-frame.y * 3}%`,
+      });
+      this._bunnyTimer = setTimeout(advance, 1000 / BUNNY_CLIP.fps);
+    };
+    advance();
+  },
   _startSkinMotion(skin) {
-    if (skin.art === "ice") return;
+    if (skin.art === "ice" || skin.art === "bunny") return;
     if (!wx.createAnimation) return;
     const motion = NATIVE_SKIN_MOTIONS[skin.motion];
     if (!motion) return;
@@ -1983,6 +2017,8 @@ Page({
     advance();
   },
   _finishSkinInteraction() {
+    clearTimeout(this._bunnyTimer);
+    this._bunnyGeneration = (this._bunnyGeneration || 0) + 1;
     const skin = this.data.skinOpen
       ? this.data.previewSkin
       : this.data.activeSkin;
@@ -1992,6 +2028,8 @@ Page({
     if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
     this.setData({
       skinAnimating: false,
+      bunnySheet: "/assets/bunny-motion-00.png",
+      bunnyPosition: "left:0%;top:0%",
       skinMessage: skin.hello,
       ...(reset ? { skinAnimation: reset.export() } : {}),
     });
@@ -2026,6 +2064,14 @@ Page({
     try {
       audio = wx.createInnerAudioContext();
       audio.onEnded(() => this._finishSkinInteraction());
+      if (audio.onPlay)
+        audio.onPlay(() => {
+          const s = this.data.skinOpen
+            ? this.data.previewSkin
+            : this.data.activeSkin;
+          if (s.art === "bunny" && this.data.skinAnimating)
+            this._startBunnyClip();
+        });
       audio.onError(() => {
         this._finishSkinInteraction();
         this.setData({ notice: "声音播放失败，请重试" });

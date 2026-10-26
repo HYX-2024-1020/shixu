@@ -246,7 +246,10 @@ export default function SkinMarket({
             <p>{preview.description}</p>
             {preview.art !== "ice" && (
               <span className="skin-motion-label">
-                ✧ {SKIN_MOTIONS[preview.motion]}
+                ✧{" "}
+                {preview.art === "bunny"
+                  ? "原片动作"
+                  : SKIN_MOTIONS[preview.motion]}
                 {preview.art === "whale" ? " · 原版笑声" : " · 点击互动"}
               </span>
             )}
@@ -492,9 +495,11 @@ export default function SkinMarket({
                       <strong>{skin.name}</strong>
                       <small>{skin.description}</small>
                       <span>
-                        {skin.art === "ice"
-                          ? "点击发声"
-                          : SKIN_MOTIONS[skin.motion]}{" "}
+                        {skin.art === "bunny"
+                          ? "点击播放"
+                          : skin.art === "ice"
+                            ? "点击发声"
+                            : SKIN_MOTIONS[skin.motion]}{" "}
                         <span>↗</span>
                       </span>
                     </span>

@@ -147,7 +147,7 @@ const bundled = await build({
   stdin: {
     contents: `export const NATIVE_SKIN_MOTIONS = ${JSON.stringify(nativeSkinMotions)};
     export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
-    export { BUILTIN_SKINS, ICE_VOICES, skinSound, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
+    export { BUILTIN_SKINS, ICE_VOICES, skinSound, BUNNY_CLIP, bunnyFrame, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
     export { deadlineCountdown } from './src/bucket/deadline-countdown';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
@@ -198,7 +198,17 @@ outputs.set(
   await readFile(path.join(root, "miniprogram/lib/sync-client.js")),
 );
 // Artwork and single-utterance audio are copied byte-for-byte from desktop assets.
-for (const name of ["ice.png", "ice-voice-1.mp3", "ice-voice-2.mp3"])
+for (const name of [
+  "ice.png",
+  "ice-voice-1.mp3",
+  "ice-voice-2.mp3",
+  "bunny.png",
+  "bunny-voice.mp3",
+  ...Array.from(
+    { length: 6 },
+    (_, i) => `bunny-motion-${String(i).padStart(2, "0")}.png`,
+  ),
+])
   outputs.set(
     `miniprogram/assets/${name}`,
     await readFile(path.join(root, "public", name)),

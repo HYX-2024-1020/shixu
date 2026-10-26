@@ -401,7 +401,7 @@ assert.ok(
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,
-  2,
+  page.data.skins.length,
   "all desktop presets rendered",
 );
 page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
@@ -433,8 +433,30 @@ assert.ok(
   ),
   "selected voice is visible in the compiled native template",
 );
+page.openSkins();
+page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
+assert.equal(page.data.activeSkin.id, "bunny");
+page.setData({
+  skinAnimating: true,
+  bunnySheet: "/assets/bunny-motion-01.png",
+  bunnyPosition: "left:-100%;top:0%",
+});
+assert.ok(
+  view().some((node) => node.attr?.class === "bunny-window"),
+  "native bunny viewport renders",
+);
+assert.ok(
+  view().some(
+    (node) =>
+      node.attr?.src === "/assets/bunny-motion-01.png" &&
+      node.attr?.style === "left:-100%;top:0%",
+  ),
+  "native timeline sheet and cell render",
+);
+page.closeSkins();
+assert.equal(page.data.skinAnimating, false);
 console.log(
-  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 2 presets). Not an IDE or real-device test.",
+  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 3 presets and bunny timeline). Not an IDE or real-device test.",
 );
 console.log(`Compiled source project: ${mini}`);
 console.log(`Compiler output: ${resolve(temporary)}`);

@@ -21,7 +21,7 @@ test("card tap applies and persists immediately without touching the draft", asy
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   const market = page.getByRole("dialog", { name: "给你的桶，换个新朋友" });
   await expect(market).toBeVisible();
-  await expect(page.locator(".skin-card")).toHaveCount(2);
+  await expect(page.locator(".skin-card")).toHaveCount(3);
   await page.getByRole("button", { name: "使用冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",

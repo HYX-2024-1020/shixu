@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var stdin_exports = {};
 __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
+  BUNNY_CLIP: () => BUNNY_CLIP,
   ICE_VOICES: () => ICE_VOICES,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
   NATIVE_SKIN_MOTIONS: () => NATIVE_SKIN_MOTIONS,
@@ -29,6 +30,7 @@ __export(stdin_exports, {
   absoluteItem: () => absoluteItem,
   absoluteText: () => absoluteText,
   buildGroups: () => buildGroups,
+  bunnyFrame: () => bunnyFrame,
   cardCopy: () => cardCopy,
   categories: () => categories,
   compareItems: () => compareItems,
@@ -92,11 +94,47 @@ var BUILTIN_SKINS = [
     hello: "冰冰冰，戳我听一声！",
     greeting: "冰冰冰！",
     feeding: "咔嚓，烦恼冻住啦！"
+  },
+  {
+    id: "bunny",
+    name: "兔耳小桃",
+    description: "戳一下，听她说。",
+    art: "bunny",
+    color: "#f7dce9",
+    motion: "wiggle",
+    hello: "",
+    greeting: "",
+    feeding: ""
   }
 ];
+var BUNNY_CLIP = {
+  fps: 15,
+  frames: 110,
+  columns: 5,
+  rows: 4,
+  width: 160,
+  height: 232,
+  duration: 220 / 30
+};
+function bunnyFrame(time) {
+  const frame = Math.min(
+    BUNNY_CLIP.frames - 1,
+    Math.max(
+      0,
+      Math.floor((Number.isFinite(time) ? time : 0) * BUNNY_CLIP.fps)
+    )
+  );
+  const cell = frame % (BUNNY_CLIP.columns * BUNNY_CLIP.rows);
+  return {
+    image: `bunny-motion-${String(Math.floor(frame / 20)).padStart(2, "0")}.png`,
+    x: cell % BUNNY_CLIP.columns * 100 / (BUNNY_CLIP.columns - 1),
+    y: Math.floor(cell / BUNNY_CLIP.columns) * 100 / (BUNNY_CLIP.rows - 1)
+  };
+}
 var ICE_VOICES = { "voice-1": "声音一", "voice-2": "声音二" };
 function skinSound(skin, voice = "voice-1") {
   if (skin.art === "whale") return "laugh.mp3";
+  if (skin.art === "bunny") return "bunny-voice.mp3";
   if (skin.art === "ice")
     return `ice-${voice === "voice-2" ? "voice-2" : "voice-1"}.mp3`;
   return null;
