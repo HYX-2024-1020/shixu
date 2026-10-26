@@ -2441,3 +2441,35 @@ page {
   background: #b9e7ff;
   border-color: #202022;
 }
+
+.home-character.with-voices {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+}
+.home-character.with-voices .bucket-drawing {
+  flex: 0 1 360rpx;
+  min-width: 0;
+  margin: 0;
+}
+.ice-home-voices {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  flex: 0 0 auto;
+  font-size: 24rpx;
+}
+.ice-home-voices .small-button {
+  min-width: 120rpx;
+}
+.ice-home-voices .voice-selected {
+  background: #b9e7ff;
+}
+.is-plain-art {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}

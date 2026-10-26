@@ -95,18 +95,49 @@ try {
   await page.evaluate(() => window.flushDesktopDraft());
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await expect(page.locator(".skin-card")).toHaveCount(2);
-  await page.getByRole("button", { name: "预览冰冰冰" }).click();
-  await page.getByRole("button", { name: "声音二", exact: true }).click();
-  await page.getByRole("button", { name: "试着喂一口" }).click();
-  await expect(page.locator(".skin-market .skin-bubble")).toHaveText(
-    "咔嚓，烦恼冻住啦！",
-  );
-  await page.getByRole("button", { name: "就选这个朋友" }).click();
-  await page.screenshot({ path: "release/desktop-skin-market.png" });
-  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  await page.getByRole("button", { name: "使用冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
     "ice",
+  );
+  await page.screenshot({ path: "release/desktop-skin-market.png" });
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  for (const voice of ["声音一", "声音二"]) {
+    await page.getByRole("button", { name: voice, exact: true }).click();
+    await page.locator(".bucket-drawing").click();
+    await expect
+      .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+      .toBeGreaterThan(0.1);
+    await expect
+      .poll(() => page.evaluate(() => window.__greetingAudio.ended), {
+        timeout: 5000,
+      })
+      .toBe(true);
+  }
+  await expect(
+    page.locator(".bucket-drawing .skin-bubble,.bucket-drawing .skin-spark"),
+  ).toHaveCount(0);
+  await expect(page.locator(".bucket-drawing")).toHaveAttribute(
+    "data-motion",
+    "idle",
+  );
+  const levels = await page.evaluate(async () => {
+    const ctx = new OfflineAudioContext(1, 1, 44100);
+    return Promise.all(
+      ["ice-voice-1.mp3", "ice-voice-2.mp3"].map(async (name) => {
+        const buffer = await ctx.decodeAudioData(
+          await (await fetch("/" + name)).arrayBuffer(),
+        );
+        const samples = buffer.getChannelData(0);
+        let sum = 0;
+        for (const x of samples) sum += x * x;
+        return Math.sqrt(sum / samples.length);
+      }),
+    );
+  });
+  assert.ok(
+    levels.every((level) => level > 0.01),
+    "both bundled ice voices contain audible signal",
   );
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
@@ -120,10 +151,10 @@ try {
   await expect(page.getByLabel("往桶里放入内容", { exact: true })).toHaveValue(
     "皮肤升级验证草稿，仅合成资料",
   );
-  await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await expect(
     page.getByRole("button", { name: "声音二", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await page.getByRole("button", { name: "自己做一个", exact: true }).click();
   // Synthetic PNG, never a user's image or profile.
   await page.getByLabel("上传皮肤图片", { exact: true }).setInputFiles({
@@ -140,7 +171,7 @@ try {
   await page.getByLabel("被戳到时说什么", { exact: true }).fill("转一圈！");
   await page.getByLabel("吃到东西时说什么", { exact: true }).fill("接住啦！");
   await page.getByRole("button", { name: "保存到我的收藏" }).click();
-  await page.getByRole("button", { name: "就选这个朋友" }).click();
+  await page.getByRole("button", { name: "使用桌面测试伙伴" }).click();
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   await app.close();
   app = await launch();
@@ -160,7 +191,7 @@ try {
   await page.getByLabel("伙伴的名字", { exact: true }).fill("改名后的桌面伙伴");
   await page.getByRole("button", { name: "保存到我的收藏" }).click();
   await expect(
-    page.getByRole("button", { name: "预览改名后的桌面伙伴" }),
+    page.getByRole("button", { name: "使用改名后的桌面伙伴" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "删除", exact: true }).click();
   await page.getByRole("button", { name: "确认删除", exact: true }).click();
@@ -177,12 +208,13 @@ try {
       ? "real MP3 decode with playback clock adapter (no physical output)"
       : "actual HTMLMediaElement playback",
     checks: [
-      "two presets and feed preview",
+      "one-tap skin selection, home voice controls and plain ice artwork",
       "settings dismisses on the second header-position click and Escape",
       audioClock
         ? "real MP3 decoded; playback clock adapter verifies every-click restart, no 3.2s cutoff and natural-duration completion"
         : "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
+      "both ice voices contain non-silent decoded PCM and play to natural completion",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",
       "custom edit/delete restores whale",

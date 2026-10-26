@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Check,
-  CheckCheck,
   Palette,
   Plus,
   Trash2,
@@ -13,7 +12,6 @@ import SkinArt from "./SkinArt";
 import SkinMascot from "./SkinMascot";
 import {
   BUILTIN_SKINS,
-  ICE_VOICES,
   MAX_CUSTOM_SKINS,
   readSkinImage,
   SKIN_MOTIONS,
@@ -239,61 +237,27 @@ export default function SkinMarket({
                 compact
               />
             )}
-            <span className="skin-stage-label">HELLO, NEW FRIEND.</span>
+            {preview.art !== "ice" && (
+              <span className="skin-stage-label">HELLO, NEW FRIEND.</span>
+            )}
           </div>
           <div className="skin-preview-copy">
             <h3>{preview.name || "还没起名的小伙伴"}</h3>
             <p>{preview.description}</p>
-            <span className="skin-motion-label">
-              ✧ {SKIN_MOTIONS[preview.motion]}
-              {preview.art === "whale" ? " · 原版笑声" : " · 点击互动"}
-            </span>
+            {preview.art !== "ice" && (
+              <span className="skin-motion-label">
+                ✧ {SKIN_MOTIONS[preview.motion]}
+                {preview.art === "whale" ? " · 原版笑声" : " · 点击互动"}
+              </span>
+            )}
           </div>
-          {preview.art === "ice" && (
-            <fieldset className="skin-voice-options">
-              <legend>冰冰冰的声音</legend>
-              <div className="skin-motion-options">
-                {Object.entries(ICE_VOICES).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={(collection.iceVoice || "voice-1") === id}
-                    onClick={() =>
-                      commit({
-                        ...collection,
-                        iceVoice: id as keyof typeof ICE_VOICES,
-                      })
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <small>选择后戳一下，每次只说一声「冰冰冰」。</small>
-            </fieldset>
-          )}
-          <button
-            className="skin-button skin-feed-button"
-            disabled={preview.art === "custom" && !preview.image}
-            onClick={feed}
-          >
-            试着喂一口 <span>↘</span>
-          </button>
-          {!editing && (
+          {preview.art !== "ice" && (
             <button
-              className={`skin-button skin-apply ${collection.selected === preview.id ? "is-applied" : ""}`}
-              onClick={() => commit({ ...collection, selected: preview.id })}
-              disabled={collection.selected === preview.id}
+              className="skin-button skin-feed-button"
+              disabled={preview.art === "custom" && !preview.image}
+              onClick={feed}
             >
-              {collection.selected === preview.id ? (
-                <>
-                  <CheckCheck size={17} /> 正在陪伴你
-                </>
-              ) : (
-                <>
-                  就选这个朋友 <Check size={17} />
-                </>
-              )}
+              试着喂一口 <span>↘</span>
             </button>
           )}
           {!editing && preview.art === "custom" && (
@@ -499,11 +463,13 @@ export default function SkinMarket({
                   <button
                     className="skin-card"
                     key={skin.id}
-                    aria-label={`预览${skin.name}`}
-                    aria-pressed={preview.id === skin.id}
+                    aria-label={`使用${skin.name}`}
+                    aria-pressed={collection.selected === skin.id}
                     onClick={() => {
-                      setPreviewId(skin.id);
-                      resetInteraction();
+                      if (commit({ ...collection, selected: skin.id })) {
+                        setPreviewId(skin.id);
+                        resetInteraction();
+                      }
                     }}
                   >
                     <span
@@ -526,7 +492,10 @@ export default function SkinMarket({
                       <strong>{skin.name}</strong>
                       <small>{skin.description}</small>
                       <span>
-                        {SKIN_MOTIONS[skin.motion]} <span>↗</span>
+                        {skin.art === "ice"
+                          ? "点击发声"
+                          : SKIN_MOTIONS[skin.motion]}{" "}
+                        <span>↗</span>
                       </span>
                     </span>
                   </button>

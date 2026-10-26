@@ -405,6 +405,13 @@ assert.equal(
   "all desktop presets rendered",
 );
 page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
+assert.equal(page.data.activeSkin.id, "ice", "card applies immediately");
+page.closeSkins();
+assert.equal(
+  view().filter((node) => node.attr?.class?.includes("skin-spark")).length,
+  0,
+  "ice has no decorative sparks",
+);
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "changeIceVoice").length,
   2,

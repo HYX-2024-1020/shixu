@@ -857,3 +857,60 @@
   display: block;
   margin-top: 8px;
 }
+
+.skin-home-character.is-default {
+  display: contents;
+}
+.skin-home-character.with-voices {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 100%;
+}
+.skin-home-character.with-voices .bucket-drawing {
+  flex: 0 1 260px;
+  min-width: 0;
+}
+.ice-home-voices {
+  order: 2;
+  flex: 0 0 auto;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ice-home-voices legend {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.ice-home-voices button {
+  border: 2px solid #111;
+  background: #fff9e6;
+  border-radius: 4px;
+  padding: 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ice-home-voices button[aria-pressed="true"] {
+  background: #b9e7ff;
+}
+.skin-mascot.is-plain,
+.skin-mascot.is-plain .skin-body,
+.skin-art.is-plain-art {
+  filter: none !important;
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+  box-shadow: none !important;
+}
+.world-skin-art:has(.is-plain-art) {
+  filter: none;
+}
+
+.skin-preview-stage:has(.is-plain-art) {
+  background-image: none;
+}
