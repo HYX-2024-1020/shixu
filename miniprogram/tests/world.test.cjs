@@ -17,6 +17,8 @@ function fixture({
   date = Date,
   selectorQuery,
   failAudio = false,
+  loadSubpackage = (o) => o.success(),
+  getImageInfo = (o) => o.success(),
   clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
@@ -42,6 +44,8 @@ function fixture({
             },
           }
         : {}),
+      loadSubpackage,
+      getImageInfo,
       getStorageSync: (key) => store.get(key),
       setStorageSync: (key, value) => {
         if (failWrite(key, value)) throw Error("disk full");
@@ -1583,6 +1587,21 @@ test("a whole-card short touch routes actions, but the release from a lifted car
   p.onUnload();
 });
 
+test("fox waits for its decoded resource package and ignores a late load after switching skins", () => {
+  let load, plays = 0;
+  const audio = {onEnded(){},onError(){},play(){plays++;},stop(){},destroy(){}};
+  const p = fixture({audio, loadSubpackage(o){load=o;}}).page;
+  p.openSkins(); p.previewSkin(event("bunny")); p.interactSkin();
+  assert.equal(plays,0);
+  assert.equal(load.name,"fox-skin");
+  p.previewSkin(event("ice")); load.success();
+  assert.equal(plays,0);
+  assert.equal(p.data.skinAnimating,false);
+  p.previewSkin(event("bunny")); p.interactSkin();
+  assert.equal(plays,1);
+  p.onUnload();
+});
+
 test("bunny plays its timeline once, restarts cleanly, stops on hide and persists selection", () => {
   let now = 0, ended, playing, next = 0;
   const tasks = new Map(), calls = [];
@@ -1603,10 +1622,10 @@ test("bunny plays its timeline once, restarts cleanly, stops on hide and persist
   p.openSkins(); p.previewSkin(event("bunny")); p.interactSkin();
   assert.equal(audio.src, "/assets/bunny-voice.mp3");
   assert.equal(p.data.skinAnimating, true);
-  assert.equal(p.data.bunnySheet, "/assets/bunny-motion-00.png");
+  assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
   now = 1400; tasks.get(p._bunnyTimer)();
-  assert.equal(p.data.bunnySheet, "/assets/bunny-motion-01.png");
-  assert.equal(p.data.bunnyPosition, "left:-100%;top:0%");
+  assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
+  assert.equal(p.data.bunnyPosition, "left:-100%;top:-200%");
   p.interactSkin();
   assert.deepEqual(calls.slice(-2), ["stop", "play"]);
   assert.equal(p.data.bunnyPosition, "left:0%;top:0%");

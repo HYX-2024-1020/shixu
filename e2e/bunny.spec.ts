@@ -13,18 +13,18 @@ for (const width of [375, 810, 1440]) {
     await page.getByRole("button", { name: "使用绯樱狐" }).click();
     const stage = await page.locator(".skin-preview-stage").boundingBox();
     const preview = await page
-      .locator(".skin-preview-stage img.bunny-art")
+      .locator(".skin-preview-stage .bunny-art")
       .boundingBox();
     expect(preview!.height).toBeLessThan(stage!.height);
     await page.getByRole("button", { name: "关闭皮肤市场" }).click();
     const mascot = page.locator(".bucket-drawing");
-    const before = await mascot.locator("img.bunny-art").boundingBox();
+    const before = await mascot.locator(".bunny-art").boundingBox();
     const change = page.locator(".skin-home-change");
     const button = await change.boundingBox();
     expect(button!.y - before!.y - before!.height).toBeGreaterThanOrEqual(14);
     await mascot.click();
-    await expect(mascot.locator(".bunny-frame")).toBeVisible();
-    const playing = await mascot.locator(".bunny-frame").boundingBox();
+    await expect(mascot.locator("video.bunny-video")).toBeVisible();
+    const playing = await mascot.locator("video.bunny-video").boundingBox();
     expect(playing!.height).toBeGreaterThan(200);
     expect(Math.abs(playing!.height - before!.height)).toBeLessThan(1);
     expect(Math.abs(playing!.width - before!.width)).toBeLessThan(1);
@@ -67,7 +67,7 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
   await page.addInitScript(() => {
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
-      (window as any).__bunnyAudio = this;
+      if (this.tagName === "AUDIO") (window as any).__bunnyAudio = this;
       return play.call(this);
     };
   });
@@ -75,14 +75,41 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await page.getByRole("button", { name: "使用绯樱狐" }).click();
   const mascot = page.locator(".skin-market .skin-mascot");
+  await mascot.locator("video").evaluate((v: HTMLVideoElement) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 48;
+    canvas.height = 69;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    (window as any).__foxFrames = [];
+    const sample = () => {
+      if (!v.paused && v.readyState >= 2) {
+        ctx.clearRect(0, 0, 48, 69);
+        ctx.drawImage(v, 0, 0, 48, 69);
+        const rgba = ctx.getImageData(0, 0, 48, 69).data;
+        let visible = 0,
+          clear = 0;
+        for (let i = 3; i < rgba.length; i += 4) {
+          if (rgba[i] > 200) visible++;
+          if (rgba[i] === 0) clear++;
+        }
+        (window as any).__foxFrames.push({ visible, clear });
+      }
+      if (v.isConnected) v.requestVideoFrameCallback(sample);
+    };
+    v.requestVideoFrameCallback(sample);
+  });
   await mascot.click();
-  await expect(mascot.locator(".bunny-frame")).toBeVisible();
+  await expect(mascot.locator("video.bunny-video")).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => (window as any).__bunnyAudio.currentTime))
     .toBeGreaterThan(1.4);
   await expect
-    .poll(() => mascot.locator(".bunny-frame").getAttribute("style"))
-    .toMatch(/bunny-motion-01/);
+    .poll(() =>
+      mascot
+        .locator("video.bunny-video")
+        .evaluate((v: HTMLVideoElement) => v.currentTime),
+    )
+    .toBeGreaterThan(1.4);
   await page
     .locator(".skin-market")
     .screenshot({ path: info.outputPath("bunny-market.png") });
@@ -95,8 +122,19 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
       timeout: 12000,
     })
     .toBe(true);
-  await expect(mascot.locator("img.bunny-art")).toBeVisible();
-  await expect(mascot.locator(".bunny-frame")).toHaveCount(0);
+  await expect(mascot.locator(".bunny-art")).toBeVisible();
+  const samples = await page.evaluate(() => (window as any).__foxFrames);
+  expect(samples.length).toBeGreaterThan(60);
+  expect(samples.every((s: any) => s.visible > 300 && s.clear > 300)).toBe(
+    true,
+  );
+  await expect
+    .poll(() =>
+      mascot
+        .locator("video.bunny-video")
+        .evaluate((v: HTMLVideoElement) => v.paused),
+    )
+    .toBe(true);
   await mascot.click();
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   expect(await page.evaluate(() => (window as any).__bunnyAudio.paused)).toBe(

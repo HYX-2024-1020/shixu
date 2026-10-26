@@ -1,4 +1,3 @@
-<image wx:for="{{bunnySheets}}" wx:key="*this" class="bunny-preload" src="{{item}}" aria-hidden="true"/>
 <wxs module="dragGesture" src="../../lib/drag-gesture.wxs"/>
 <template name="ddlCard">
   <view style="{{row.dragStyle}}" class="ddl-item urgency-{{row.urgency}} drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}">

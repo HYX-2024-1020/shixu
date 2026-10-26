@@ -23,27 +23,8 @@ export default function SkinMascot({
   const lastFeed = useRef(feedSignal);
   const timer = useRef<number>(0);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const [clipTime, setClipTime] = useState(0);
-  const frameRequest = useRef(0);
+  const [playSignal, setPlaySignal] = useState(0);
   const plain = skin.art === "ice" || skin.art === "bunny";
-  useEffect(() => {
-    if (!happy || skin.art !== "bunny" || suspended) return;
-    const advance = () => {
-      setClipTime(Math.floor((audio.current?.currentTime || 0) * 15) / 15);
-      frameRequest.current = requestAnimationFrame(advance);
-    };
-    advance();
-    return () => cancelAnimationFrame(frameRequest.current);
-  }, [happy, skin.art, suspended]);
-  useEffect(() => {
-    if (skin.art !== "bunny") return;
-    for (let i = 0; i < 6; i++) {
-      const image = new Image();
-      image.src =
-        import.meta.env.BASE_URL +
-        `bunny-motion-${String(i).padStart(2, "0")}.png`;
-    }
-  }, [skin.art]);
   useEffect(() => {
     const hide = () => {
       if (document.hidden) {
@@ -89,7 +70,7 @@ export default function SkinMascot({
   }, [state, suspended]);
   function greet() {
     if (suspended || state !== "idle") return;
-    setClipTime(0);
+    setPlaySignal((value) => value + 1);
     setHappy(true);
     clearTimeout(timer.current);
     if (audio.current) {
@@ -136,7 +117,9 @@ export default function SkinMascot({
       <span className="skin-body">
         <SkinArt
           skin={skin}
-          time={skin.art === "bunny" && happy && !suspended ? clipTime : -1}
+          animate={skin.art === "bunny"}
+          playing={happy && !suspended}
+          playSignal={playSignal}
         />
       </span>
       {!plain && (

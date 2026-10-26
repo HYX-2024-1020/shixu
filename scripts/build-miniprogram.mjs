@@ -204,15 +204,15 @@ for (const name of [
   "ice-voice-2.mp3",
   "bunny.png",
   "bunny-voice.mp3",
-  ...Array.from(
-    { length: 6 },
-    (_, i) => `bunny-motion-${String(i).padStart(2, "0")}.png`,
-  ),
 ])
   outputs.set(
     `miniprogram/assets/${name}`,
     await readFile(path.join(root, "public", name)),
   );
+outputs.set(
+  "miniprogram/assets/fox/atlas.webp",
+  await readFile(path.join(root, "public/fox-atlas.webp")),
+);
 outputs.set(
   "miniprogram/assets/mascot.png",
   await readFile(path.join(root, "public/mascot.png")),

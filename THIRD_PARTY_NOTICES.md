@@ -2,9 +2,9 @@
 
 ## 绯樱狐素材（2026-10-27，Issue #65）
 
-`public/bunny.png`、`public/bunny-motion-00.png` 至 `bunny-motion-05.png` 和 `public/bunny-voice.mp3` 来自用户在本次对话提供的 `10月26日.mp4`。用户明确要求在 Windows 与小程序皮肤市场使用。原视频 SHA-256：`0625640e95b9f5773a8a2de5247d2ea2e62f8e1911185c3a17b858356e1748d3`，原视频本身不入库。原作者及开放许可未提供；这些角色和音频不按项目 MIT 重新授权，不授权其他用途再分发。
+`public/bunny.png`、`public/bunny-motion.webm`、`public/fox-atlas.webp` 和 `public/bunny-voice.mp3` 来自用户在本次对话提供的 `10月26日.mp4`。用户明确要求在 Windows 与小程序皮肤市场使用。原视频 SHA-256：`0625640e95b9f5773a8a2de5247d2ea2e62f8e1911185c3a17b858356e1748d3`，原视频本身不入库。原作者及开放许可未提供；这些角色和音频不按项目 MIT 重新授权，不授权其他用途再分发。
 
-使用 BiRefNet Full 本地去背景，原视频横向裁剪 x=802..1758；不生成画面外内容。30fps 源帧每两帧取一帧，得到 110 帧 / 15fps / 7.33 秒；单帧 160×232，5 列×4 行 PNG 图集，保留 alpha，量化 128 色以满足手机主包体积。待机图 240px 范围、240 色透明 PNG。音轨保留整段原声并提升 10dB，不变调；不含推理模型、工具代码或运行时。`miniprogram/assets/bunny*` 是逐字节生成副本。
+使用 BiRefNet Full 本地去背景，原视频横向裁剪 x=802..1758；不生成画面外内容。桌面视频为480×694、220帧/30fps、VP9 CRF18透明WebM，静音轨；原声由独立MP3播放。待机图恢复原抠图480px RGBA PNG，不使用索引色。手机图集取偶数源帧得到110帧/15fps，单帧240×348，10列×11行，真彩WebP质量85；alpha<=16置0、>=240置255，去除极低透明背景与接近不透明内部的轻微alpha波动，保留其余边缘过渡，不绘制或改造人物。替换原128色/160px六图集以减少色块和换图闪烁。音轨保留整段原声并提升10dB，不变调；不含模型、工具代码或运行时。`miniprogram/assets/bunny*`及`assets/fox/atlas.webp`是同源逐字节副本；手机图集放入fox-skin资源分包。
 
 项目原创代码采用根目录 [MIT License](LICENSE)。第三方依赖、字体和样本保留其各自许可；MIT 不替代它们的授权条件。
 

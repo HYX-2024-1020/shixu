@@ -1,23 +1,39 @@
-import { bunnyFrame, type Skin } from "./skins";
+import { useEffect, useRef } from "react";
+import type { Skin } from "./skins";
 
 export default function SkinArt({
   skin,
-  time = -1,
+  animate = false,
+  playing = false,
+  playSignal = 0,
 }: {
   skin: Skin;
-  time?: number;
+  animate?: boolean;
+  playing?: boolean;
+  playSignal?: number;
 }) {
-  if (skin.art === "bunny" && time >= 0) {
-    const frame = bunnyFrame(time);
+  const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    element.pause();
+    element.currentTime = 0;
+    if (playing) void element.play().catch(() => {});
+    return () => element.pause();
+  }, [playing, playSignal, animate, skin.art]);
+  if (skin.art === "bunny" && animate) {
     return (
-      <span
-        className="skin-art bunny-art bunny-frame"
+      <video
+        ref={video}
+        className="skin-art bunny-art bunny-video"
         role="img"
         aria-label={skin.name}
-        style={{
-          backgroundImage: `url("${import.meta.env.BASE_URL}${frame.image}")`,
-          backgroundPosition: `${frame.x}% ${frame.y}%`,
-        }}
+        src={import.meta.env.BASE_URL + "bunny-motion.webm"}
+        poster={import.meta.env.BASE_URL + "bunny.png"}
+        muted
+        playsInline
+        preload="auto"
+        data-playing={playing}
       />
     );
   }

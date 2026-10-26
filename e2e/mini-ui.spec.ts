@@ -183,8 +183,8 @@ test("native bunny timeline keeps the same crop in home and market", async ({
   page,
 }, info) => {
   const sheet =
-    "data:image/png;base64," +
-    readFileSync("public/bunny-motion-01.png").toString("base64");
+    "data:image/webp;base64," +
+    readFileSync("public/fox-atlas.webp").toString("base64");
   const image =
     "data:image/png;base64," +
     readFileSync("public/bunny.png").toString("base64");
@@ -194,7 +194,7 @@ test("native bunny timeline keeps the same crop in home and market", async ({
       image,
       sheet,
       playing: true,
-      position: "left:-100%;top:0%",
+      position: "left:-100%;top:-200%",
     });
     const viewport = page.locator(".bunny-window");
     await expect(viewport).toBeVisible();
@@ -202,8 +202,8 @@ test("native bunny timeline keeps the same crop in home and market", async ({
     const box = await viewport.boundingBox();
     expect(box!.width / box!.height).toBeCloseTo(160 / 232, 2);
     const inner = await page.locator(".bunny-sheet").boundingBox();
-    expect(inner!.width / box!.width).toBeCloseTo(5, 1);
-    expect(inner!.height / box!.height).toBeCloseTo(4, 1);
+    expect(inner!.width / box!.width).toBeCloseTo(10, 1);
+    expect(inner!.height / box!.height).toBeCloseTo(11, 1);
     if (template === "home") {
       const button = await page.locator(".skin-home-change").boundingBox();
       expect(button!.y - box!.y - box!.height).toBeGreaterThanOrEqual(14);

@@ -165,12 +165,8 @@ Page({
     previewSkin: BUILTIN_SKINS[0],
     skinMessage: BUILTIN_SKINS[0].hello,
     skinAnimating: false,
-    bunnySheet: "/assets/bunny-motion-00.png",
+    bunnySheet: "/assets/fox/atlas.webp",
     bunnyPosition: "left:0%;top:0%",
-    bunnySheets: Array.from(
-      { length: 6 },
-      (_, i) => `/assets/bunny-motion-${String(i).padStart(2, "0")}.png`,
-    ),
     skinEditor: false,
     skinForm: {},
     motionLabels: Object.values(SKIN_MOTIONS),
@@ -1931,6 +1927,37 @@ Page({
   },
   interactSkin() {
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
+    if (s.art === "bunny" && !this._foxReady) {
+      if (this._foxLoading) return;
+      this._stopSkinInteraction();
+      const generation = this._foxLoadGeneration;
+      this._foxLoading = true;
+      const failure = () => {
+        this._foxLoading = false;
+        if (generation === this._foxLoadGeneration)
+          this.setData({ notice: "绯樱狐暂时未能加载，请再点一次" });
+      };
+      const ready = () => {
+        this._foxLoading = false;
+        this._foxReady = true;
+        if (generation === this._foxLoadGeneration) this.interactSkin();
+      };
+      if (!wx.loadSubpackage || !wx.getImageInfo) {
+        failure();
+        return;
+      }
+      wx.loadSubpackage({
+        name: "fox-skin",
+        success: () =>
+          wx.getImageInfo({
+            src: "/assets/fox/atlas.webp",
+            success: ready,
+            fail: failure,
+          }),
+        fail: failure,
+      });
+      return;
+    }
     this._stopSkinInteraction();
     this.setData({
       skinMessage: s.greeting,
@@ -1969,8 +1996,7 @@ Page({
       }
       const frame = bunnyFrame(time);
       this.setData({
-        bunnySheet: "/assets/" + frame.image,
-        bunnyPosition: `left:${-frame.x * 4}%;top:${-frame.y * 3}%`,
+        bunnyPosition: `left:${-frame.x * (BUNNY_CLIP.columns - 1)}%;top:${-frame.y * (BUNNY_CLIP.rows - 1)}%`,
       });
       this._bunnyTimer = setTimeout(advance, 1000 / BUNNY_CLIP.fps);
     };
@@ -2028,13 +2054,14 @@ Page({
     if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
     this.setData({
       skinAnimating: false,
-      bunnySheet: "/assets/bunny-motion-00.png",
+      bunnySheet: "/assets/fox/atlas.webp",
       bunnyPosition: "left:0%;top:0%",
       skinMessage: skin.hello,
       ...(reset ? { skinAnimation: reset.export() } : {}),
     });
   },
   _stopSkinInteraction() {
+    this._foxLoadGeneration = (this._foxLoadGeneration || 0) + 1;
     clearTimeout(this._skinTimer);
     try {
       if (this._skinAudio) this._skinAudio.stop();

@@ -1,5 +1,8 @@
 {
   "pages": ["pages/index/index"],
+  "subPackages": [
+    { "root": "assets/fox", "name": "fox-skin", "pages": ["entry"] }
+  ],
   "window": {
     "navigationBarTitleText": "拾序",
     "navigationBarBackgroundColor": "#fff9e6",

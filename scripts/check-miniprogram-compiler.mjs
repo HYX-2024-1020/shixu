@@ -18,6 +18,8 @@ const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
     ? resolve(process.env.WECHAT_PROJECT_DIR)
     : join(root, "miniprogram");
 const exe = process.platform === "win32" ? ".exe" : "";
+execFileSync(join(directory, "wcc" + exe), ["-o", join(temporary, "fox-resource.js"), "assets/fox/entry.wxml"], {cwd: mini, stdio: "pipe"});
+execFileSync(join(directory, "wcsc" + exe), ["-o", join(temporary, "fox-resource.css"), "assets/fox/entry.wxss"], {cwd: mini, stdio: "pipe"});
 execFileSync(
   join(directory, "wcc" + exe),
   [
@@ -438,8 +440,8 @@ page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
 assert.equal(page.data.activeSkin.id, "bunny");
 page.setData({
   skinAnimating: true,
-  bunnySheet: "/assets/bunny-motion-01.png",
-  bunnyPosition: "left:-100%;top:0%",
+  bunnySheet: "/assets/fox/atlas.webp",
+  bunnyPosition: "left:-100%;top:-200%",
 });
 assert.ok(
   view().some((node) => node.attr?.class === "bunny-window"),
@@ -448,8 +450,8 @@ assert.ok(
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.src === "/assets/bunny-motion-01.png" &&
-      node.attr?.style === "left:-100%;top:0%",
+      node.attr?.src === "/assets/fox/atlas.webp" &&
+      node.attr?.style === "left:-100%;top:-200%",
   ),
   "native timeline sheet and cell render",
 );

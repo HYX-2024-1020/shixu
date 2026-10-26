@@ -25,15 +25,13 @@ describe("skin collection persistence", () => {
   it("persists the bunny and maps the whole audio timeline to valid atlas cells", () => {
     expect(parseSkinCollection('{"selected":"bunny"}').selected).toBe("bunny");
     expect(skinSound(BUILTIN_SKINS[2])).toBe("bunny-voice.mp3");
-    expect(bunnyFrame(0)).toEqual({ image: "bunny-motion-00.png", x: 0, y: 0 });
+    expect(bunnyFrame(0)).toEqual({ image: "fox/atlas.webp", x: 0, y: 0 });
     expect(bunnyFrame(20 / 15)).toEqual({
-      image: "bunny-motion-01.png",
+      image: "fox/atlas.webp",
       x: 0,
-      y: 0,
+      y: 20,
     });
-    expect(bunnyFrame(BUNNY_CLIP.duration + 99).image).toBe(
-      "bunny-motion-05.png",
-    );
+    expect(bunnyFrame(BUNNY_CLIP.duration + 99).image).toBe("fox/atlas.webp");
     for (const time of [-1, NaN, 0, 1, 4, 7, 100]) {
       const frame = bunnyFrame(time);
       expect(frame.x).toBeGreaterThanOrEqual(0);

@@ -51,9 +51,8 @@
   aspect-ratio: 160 / 232;
   object-fit: contain;
 }
-.bunny-frame {
-  background-size: 500% 400%;
-  background-repeat: no-repeat;
+.bunny-video {
+  transition: none !important;
 }
 .bucket-drawing.skin-mascot.bunny-mascot .bunny-art {
   width: 179.31px;

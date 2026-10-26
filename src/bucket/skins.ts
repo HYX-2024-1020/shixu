@@ -56,10 +56,10 @@ export const BUILTIN_SKINS: Skin[] = [
 export const BUNNY_CLIP = {
   fps: 15,
   frames: 110,
-  columns: 5,
-  rows: 4,
-  width: 160,
-  height: 232,
+  columns: 10,
+  rows: 11,
+  width: 240,
+  height: 348,
   duration: 220 / 30,
 } as const;
 export function bunnyFrame(time: number) {
@@ -72,7 +72,7 @@ export function bunnyFrame(time: number) {
   );
   const cell = frame % (BUNNY_CLIP.columns * BUNNY_CLIP.rows);
   return {
-    image: `bunny-motion-${String(Math.floor(frame / 20)).padStart(2, "0")}.png`,
+    image: "fox/atlas.webp",
     x: ((cell % BUNNY_CLIP.columns) * 100) / (BUNNY_CLIP.columns - 1),
     y: (Math.floor(cell / BUNNY_CLIP.columns) * 100) / (BUNNY_CLIP.rows - 1),
   };
