@@ -22,6 +22,7 @@ var stdin_exports = {};
 __export(stdin_exports, {
   BUILTIN_SKINS: () => BUILTIN_SKINS,
   MAX_CUSTOM_SKINS: () => MAX_CUSTOM_SKINS,
+  NATIVE_SKIN_MOTIONS: () => NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION: () => SKIN_INTERACTION,
   SKIN_MOTIONS: () => SKIN_MOTIONS,
   absoluteItem: () => absoluteItem,
@@ -30,6 +31,7 @@ __export(stdin_exports, {
   cardCopy: () => cardCopy,
   categories: () => categories,
   compareItems: () => compareItems,
+  deadlineCountdown: () => deadlineCountdown,
   deadlineLabel: () => deadlineLabel,
   deadlineSections: () => deadlineSections,
   habitCheckin: () => habitCheckin,
@@ -187,6 +189,22 @@ function parseSkinCollection(raw) {
   } catch (e) {
     return { selected: "whale", custom: [] };
   }
+}
+
+// src/bucket/deadline-countdown.ts
+function calendarDay(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+  const date = /* @__PURE__ */ new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() / 864e5 : NaN;
+}
+function deadlineCountdown(date, day, time, clock2, done = false) {
+  if (done) return { label: "已完成", status: "done" };
+  const days = calendarDay(date) - calendarDay(day);
+  if (!Number.isFinite(days)) return { label: "日期待确认", status: "unsure" };
+  if (days < 0) return { label: `已逾期 ${-days} 天`, status: "overdue" };
+  if (days > 0) return { label: `还剩 ${days} 天`, status: "future" };
+  if (time && time < clock2) return { label: "今天已逾期", status: "overdue" };
+  return { label: "今天截止", status: "today" };
 }
 
 // shared/deadline-time.mjs
@@ -919,3 +937,6 @@ function buildGroups(packets) {
     };
   }).sort((a, b) => b.latestAt.localeCompare(a.latestAt));
 }
+
+// <stdin>
+var NATIVE_SKIN_MOTIONS = { "bounce": { "duration": 550, "frames": [{ "at": 0, "commands": [["translateY", 0], ["scale", 1.04, 0.96]] }, { "at": 50, "commands": [["translateY", -16], ["scale", 0.96, 1.04]] }, { "at": 100, "commands": [["translateY", 0], ["scale", 1.04, 0.96]] }] }, "wiggle": { "duration": 650, "frames": [{ "at": 0, "commands": [["rotate", -7]] }, { "at": 50, "commands": [["rotate", 7]] }, { "at": 100, "commands": [["rotate", -7]] }] }, "spin": { "duration": 1400, "frames": [{ "at": 0, "commands": [["rotate", 0]] }, { "at": 100, "commands": [["rotate", 360]] }] }, "float": { "duration": 1500, "frames": [{ "at": 0, "commands": [["translateY", 0], ["rotate", -3]] }, { "at": 50, "commands": [["translateY", -17], ["rotate", 3]] }, { "at": 100, "commands": [["translateY", 0], ["rotate", -3]] }] } };

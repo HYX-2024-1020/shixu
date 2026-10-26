@@ -12,7 +12,7 @@
     "url": "https://github.com/HYX-2024-1020/shixu/issues"
   },
   "private": true,
-  "version": "0.3.15",
+  "version": "0.3.17",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -27,7 +27,7 @@
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",
     "test:desktop": "node --test desktop/*.test.cjs",
-    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs && node scripts/desktop-spatial-smoke.mjs && node scripts/desktop-skins-smoke.mjs && node scripts/desktop-cloud-smoke.mjs && node scripts/desktop-ddl-smoke.mjs && node scripts/desktop-ddl-time-smoke.mjs && node scripts/desktop-completion-smoke.mjs",
+    "test:desktop:ui": "node scripts/desktop-smoke.mjs && node scripts/desktop-management-smoke.mjs && node scripts/desktop-ingest-smoke.mjs && node scripts/desktop-recovery-smoke.mjs && node scripts/desktop-upgrade-smoke.mjs && node scripts/desktop-performance-smoke.mjs && node scripts/desktop-preview-smoke.mjs && node scripts/desktop-chat-smoke.mjs && node scripts/desktop-polish-smoke.mjs && node scripts/desktop-motion-smoke.mjs && node scripts/desktop-spatial-smoke.mjs && node scripts/desktop-skins-smoke.mjs && node scripts/desktop-cloud-smoke.mjs && node scripts/desktop-ddl-smoke.mjs && node scripts/desktop-ddl-time-smoke.mjs && node scripts/desktop-completion-smoke.mjs && node scripts/desktop-sticker-smoke.mjs",
     "sync:start": "node --env-file-if-exists=.env.sync server/sync-server.mjs",
     "test:sync": "node --test server/sync.test.mjs server/sync-files.test.mjs server/sync-accounts.test.mjs server/sync-provider.test.mjs miniprogram/tests/*.test.cjs",
     "sync:accounts": "node --env-file-if-exists=.env.sync server/sync-multi-user.mjs",
@@ -37,7 +37,8 @@
     "mini:build": "node scripts/build-miniprogram.mjs",
     "mini:check": "node scripts/build-miniprogram.mjs --check",
     "mini:compile": "node scripts/check-miniprogram-compiler.mjs",
-    "test:mini": "node --test miniprogram/tests/*.test.cjs"
+    "test:mini": "node --test miniprogram/tests/*.test.cjs",
+    "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs"
   },
   "dependencies": {
     "7zip-bin-full": "^26.4.1",

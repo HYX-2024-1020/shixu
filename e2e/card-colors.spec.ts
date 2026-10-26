@@ -67,13 +67,13 @@ test("type colors survive filtering and carry through to the detail dialog", asy
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   const task = page.locator(".result-card.kind-task");
   const idea = page.locator(".result-card.kind-idea");
-  await expect(task.locator(".card-topline")).toHaveCSS(
+  await expect(task.locator(".card-open h2")).toHaveCSS(
     "background-color",
-    "rgb(255, 212, 59)",
+    "rgb(255, 218, 50)",
   );
-  await expect(idea.locator(".card-topline")).toHaveCSS(
+  await expect(idea.locator(".card-open h2")).toHaveCSS(
     "background-color",
-    "rgb(255, 143, 171)",
+    "rgb(255, 165, 180)",
   );
   for (const card of await page.locator(".result-card").all()) {
     const { left, right, width } = await card.evaluate((el) => {
@@ -92,14 +92,14 @@ test("type colors survive filtering and carry through to the detail dialog", asy
     .getByRole("navigation", { name: "内容分类" })
     .getByRole("button", { name: /灵感/ })
     .click();
-  await expect(idea.locator(".card-topline")).toHaveCSS(
+  await expect(idea.locator(".card-open h2")).toHaveCSS(
     "background-color",
-    "rgb(255, 143, 171)",
+    "rgb(255, 165, 180)",
   );
   await idea.locator(".card-open").click();
   await expect(page.getByRole("dialog").locator(".result-heading")).toHaveCSS(
     "background-color",
-    "rgb(255, 143, 171)",
+    "rgb(255, 165, 180)",
   );
   await expect(page.getByRole("dialog")).not.toHaveAttribute(
     "data-motion-state",
@@ -118,22 +118,22 @@ test("DDL status colors preserve clock verification and completion", async ({
   const today = page
     .locator(".ddl-item.urgency-today")
     .filter({ hasText: "完成品牌提案" });
-  await expect(today.locator(".ddl-status")).toHaveText("今天截止");
-  await expect(today.locator(".time-rail")).toHaveCSS(
+  await expect(today.locator(".ddl-countdown")).toHaveText("今天截止");
+  await expect(today.locator(".ddl-countdown")).toHaveCSS(
     "background-color",
-    "rgb(255, 212, 59)",
+    "rgb(255, 218, 50)",
   );
-  await expect(page.locator(".urgency-soon .time-rail")).toHaveCSS(
+  await expect(page.locator(".urgency-soon .ddl-countdown")).toHaveCSS(
     "background-color",
-    "rgb(181, 152, 255)",
+    "rgb(195, 176, 255)",
   );
   await page.locator(".ddl-overdue > summary").click();
-  await expect(page.locator(".urgency-overdue .ddl-status")).toHaveText(
-    "已逾期",
+  await expect(page.locator(".urgency-overdue .ddl-countdown")).toHaveText(
+    "已逾期 1 天",
   );
-  await expect(page.locator(".urgency-overdue .time-rail")).toHaveCSS(
+  await expect(page.locator(".urgency-overdue .ddl-countdown")).toHaveCSS(
     "background-color",
-    "rgb(255, 143, 171)",
+    "rgb(255, 165, 180)",
   );
   await page.screenshot({
     path: info.outputPath("ddl.png"),
@@ -153,6 +153,6 @@ test("DDL status colors preserve clock verification and completion", async ({
     page
       .locator(".urgency-done")
       .filter({ hasText: "完成品牌提案" })
-      .locator(".time-rail"),
-  ).toHaveCSS("background-color", "rgb(96, 214, 170)");
+      .locator(".ddl-countdown"),
+  ).toHaveCSS("background-color", "rgb(163, 223, 191)");
 });

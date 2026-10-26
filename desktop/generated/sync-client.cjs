@@ -262,6 +262,20 @@ function createSyncClient({
   }
   return {
     newId: makeId,
+    putMany(entries) {
+      let staged;
+      const client = createSyncClient({
+        read: () => state,
+        write: (value) => {
+          staged = value;
+        },
+        request,
+        makeId,
+        protocolVersion,
+      });
+      for (const { id, patch } of entries) client.put(id, patch);
+      if (staged) commit(staged);
+    },
     put: (id, data) => enqueue("put", id, data),
     remove: (id) => enqueue("delete", id),
     restore: (id) => enqueue("restore", id),

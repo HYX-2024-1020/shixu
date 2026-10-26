@@ -1,42 +1,52 @@
+<wxs module="dragGesture" src="../../lib/drag-gesture.wxs"/>
 <template name="ddlCard">
-  <view class="ddl-item urgency-{{row.urgency}} {{leavingId === row.id ? 'is-leaving' : ''}}">
-    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text class="ddl-status">{{row.urgencyLabel}}</text><text wx:if="{{row.startDate}}">时间段 · {{row.startDate}} {{row.startTime}} →</text><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
-    <view class="ddl-row"><button size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
+  <view style="{{row.dragStyle}}" class="ddl-item urgency-{{row.urgency}} drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}">
+    <view class="ddl-time"><text class="ddl-countdown cd-{{row.countdownStatus}}">{{row.countdown}}</text><text class="ddl-date">{{row.date || '待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><button class="ddl-verify-button" aria-label="核对截止时间" data-id="{{row.id}}" data-action="verifyDdl" bindtap="onCardAction" hover-class="text-press" hover-stop-propagation="{{true}}">核对时间 ↗</button></view>
+    <view class="ddl-row"><button size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? '今日打卡 / 撤销打卡' : row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" data-action="toggleDone" bindtap="onCardAction" hover-class="done-press" hover-stop-propagation="{{true}}"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" hover-class="row-press"><text class="item-title">{{row.title}}</text><text class="ddl-status">{{row.kind === 'habit' ? (row.checked ? '今日已打卡' : '今日待打卡') : row.done ? '已完成' : '待完成'}}{{row.group ? ' · ' + row.group : ''}}{{row.startDate ? ' · 时间区间' : ''}} · 详情 ↗</text></view></view>
+    <view class="ddl-footer"><text>{{row.done ? '已完成' : '待完成'}}</text><view class="ddl-footer-actions"><button class="compact-delete" data-id="{{row.id}}" data-action="confirmRemoveItem" bindtap="onCardAction" aria-label="删除事项" hover-class="text-press" hover-stop-propagation="{{true}}">删除</button><button class="ddl-detail-button" data-id="{{row.id}}" data-action="openItem" bindtap="onCardAction" hover-class="text-press">查看详情 ↗</button></view></view>
   </view>
 </template>
 <template name="itemCard">
-  <view class="item-card shadow-{{row.shadowIndex}} kind-{{row.kind}} {{row.pinned ? 'is-pinned' : ''}} {{row.done ? 'done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtap="openItem">
-    <view class="card-top">
-      <button wx:if="{{row.deleted}}" class="text-button" data-id="{{row.id}}" catchtap="restoreItem">恢复</button>
-      <button wx:else size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成 / 归档' : row.kind === 'task' ? '完成' : '归档'}}" data-id="{{row.id}}" catchtap="toggleDone"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></button>
-      <text class="kind-label">{{row.kindLabel}}{{row.progress ? ' · 正在做' : ''}}{{row.pinned ? ' · 置顶' : ''}}</text>
-      <button wx:if="{{!row.deleted}}" class="card-delete icon-button" aria-label="删除事项" data-id="{{row.id}}" catchtap="removeItem">×</button>
-      <button class="icon-button {{row.starred ? 'starred' : ''}}" aria-label="{{row.starred ? '取消星标' : '星标'}}" data-id="{{row.id}}" catchtap="toggleStar" disabled="{{row.deleted}}">{{row.starred ? '★' : '☆'}}</button>
+  <view style="{{row.dragStyle}}" class="xc-card kind-{{row.kind}} drag-card xc-shadow-{{row.shadowIndex}} {{dragId === row.id ? 'drag-placeholder' : ''}} {{row.done ? 'xc-done-card' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}">
+    <view class="xc-row xc-top">
+      <view wx:if="{{row.deleted}}" class="xc-restore xc-hit" role="button" aria-label="恢复事项" data-action="restoreItem" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">恢复</view>
+      <view wx:else class="xc-complete xc-hit {{checkingId === row.id ? 'is-checking' : ''}}" role="button" aria-label="{{row.kind === 'habit' ? (row.checked ? '撤销今日打卡' : '今日打卡') : row.done ? '撤销完成' : '完成或归档'}}" data-action="toggleDone" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press"><view class="xc-circle {{row.done || (row.kind === 'habit' && row.checked) ? 'xc-checked' : ''}}"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></view>
+      <text class="xc-kind-label">{{row.kindLabel}}</text><text wx:if="{{row.group}}" class="xc-project">{{row.group}}</text>
+
+      <view class="xc-star xc-hit {{row.starred ? 'xc-starred' : ''}} {{row.deleted ? 'xc-disabled' : ''}}" role="button" aria-label="{{row.starred ? '取消星标' : '星标'}}" aria-pressed="{{row.starred}}" data-action="toggleStar" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">{{row.starred ? '★' : '☆'}}</view>
+      <view class="xc-chevron xc-hit" role="button" aria-label="{{expandedCardId === row.id ? '收起卡片' : '展开卡片'}}" aria-expanded="{{expandedCardId === row.id}}" data-action="toggleCard" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">{{expandedCardId === row.id ? '▾' : '▸'}}</view>
     </view>
-    <text class="item-title">{{row.title}}</text><text wx:if="{{row.summary}}" class="item-summary">{{row.summary}}</text>
-    <view class="card-meta"><text wx:if="{{row.timeLabel}}">{{row.timeLabel}}</text><text wx:if="{{row.group}}">{{row.group}}</text><text wx:if="{{row.conflict}}">需处理冲突</text></view>
-    <view class="card-foot">
-      <button class="card-source-link text-button" data-id="{{row.id}}" catchtap="openItem">{{row.attachmentCount ? row.attachmentCount + ' 份同行材料' : '输入原文'}} ↗</button>
-      <text wx:if="{{row.kind === 'habit'}}">{{row.checked ? '今日已打卡' : '今日打卡'}} · 累计 {{row.checkinCount}} 天</text>
-      <view class="card-actions"><block wx:if="{{sort === 'custom' && !row.deleted}}"><button class="icon-button" aria-label="向前移动" data-id="{{row.id}}" data-direction="-1" catchtap="moveItem">↑</button><button class="icon-button" aria-label="向后移动" data-id="{{row.id}}" data-direction="1" catchtap="moveItem">↓</button></block><button class="icon-button" aria-label="更多事项操作" data-id="{{row.id}}" catchtap="openItem">···</button></view>
+      <view class="xc-title-touch" data-id="{{row.id}}" bindtap="toggleCard" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}"><text class="xc-title">{{row.title}}</text></view>
+    <view class="xc-row xc-info" data-id="{{row.id}}" bindtap="toggleCard" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}">
+<text wx:if="{{row.kind === 'habit'}}" class="xc-preview">{{row.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{row.checkinCount}} 天</text>
+      <text wx:elif="{{row.timeLabel}}" class="xc-due {{row.countdownStatus === 'overdue' ? 'xc-overdue' : ''}}">{{row.countdownStatus === 'overdue' ? row.countdown + ' · ' : ''}}截止 {{row.compactTimeLabel}}</text>
+      <text wx:else class="xc-kind-chip">{{row.kindLabel}}</text>
+      <text wx:if="{{row.kind !== 'habit' && row.summary}}" class="xc-preview">{{row.summary}}</text>
     </view>
+    <view wx:if="{{expandedCardId === row.id}}" class="xc-expanded">
+      <text wx:if="{{row.summary}}" class="xc-summary" selectable>{{row.summary}}</text>
+      <view wx:if="{{row.group || row.pinned || row.conflict}}" class="xc-tags"><text wx:if="{{row.group}}">{{row.group}}</text><text wx:if="{{row.pinned}}">置顶</text><text wx:if="{{row.conflict}}">需处理同步冲突</text></view>
+      <view wx:if="{{row.attachmentCount}}" class="xc-attachment xc-link" role="button" data-action="openMaterials" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">打开附件 · {{row.attachmentCount}} 份 ↗</view>
+
+    </view>
+      <view class="xc-footer"><view class="xc-link xc-detail" role="button" aria-label="打开事项详情" data-action="openItem" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">查看详情 ↗</view><view wx:if="{{!row.deleted}}" class="xc-link xc-delete" role="button" aria-label="删除事项" data-action="confirmRemoveItem" data-id="{{row.id}}" bindtap="onCardAction" hover-class="xc-press">删除</view></view>
   </view>
 </template>
-<scroll-view scroll-y class="workspace-scroll"><view class="page">
+<scroll-view scroll-y="{{true}}" enhanced="{{true}}" enable-passive="{{false}}" scroll-top="{{dragScrollTop}}" bindscroll="onWorkspaceScroll" class="workspace-scroll"><view class="page">
   <view class="heading">
     <view class="brand"><text class="brand-mark">拾</text><text>拾序</text><text class="brand-en">SHIXU</text></view>
-    <view class="header-actions"><button class="small-button market-button" bindtap="openSkins">皮肤市场</button><button class="small-button" data-tab="settings" bindtap="switchTab">{{tab === 'settings' ? '关闭设置' : '连接设置'}}</button></view>
+    <view class="header-actions"><button hover-class="btn-press" class="small-button market-button" bindtap="openSkins">皮肤市场</button><button hover-class="btn-press" class="small-button" data-tab="settings" bindtap="switchTab">{{tab === 'settings' ? '关闭设置' : '连接设置'}}</button></view>
   </view>
-  <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate"
+  <view wx:if="{{updateReady}}" class="update-banner" bindtap="applyUpdate" hover-class="row-press"
     >新版本已就绪，保存后更新 →</view
   ><view wx:if="{{error}}" class="error" selectable>{{error}}</view
   ><view wx:if="{{notice}}" class="notice">{{notice}}</view>
   <view wx:if="{{tab === 'capture'}}" class="capture">
-    <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button class="text-button" bindtap="openAiSettings">AI 连接</button></view>
+    <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button hover-class="text-press" class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
-      <view class="bucket-drawing skin-mascot" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image class="mascot skin-body" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
-      <button class="skin-home-change" bindtap="openSkins">{{activeSkin.name}} · 换个伙伴</button>
+      <view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image animation="{{skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
+      <button class="skin-home-change" bindtap="openSkins" hover-class="text-press" hover-stop-propagation="{{true}}">{{activeSkin.name}} · 换个伙伴</button>
       <view class="count-line">它已经吃掉了 <text class="count-badge">{{count}}</text> 件</view>
     </view>
     <view class="editor">
@@ -52,17 +62,17 @@
         ><text>草稿自动保存</text><text>{{draft.length}} / 60000</text></view
       ></view
     >
-    <view class="button-row"><button class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信文件</button><button class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view><view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
+    <view class="button-row"><button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信文件</button><button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view><view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
       ><text class="quiet"
         >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
-      ><button class="primary" bindtap="submit" disabled="{{filesBusy || (!draft.length && !draftFiles.length)}}">
+      ><button hover-class="btn-press" class="primary" bindtap="submit" disabled="{{filesBusy || (!draft.length && !draftFiles.length)}}">
         喂！
       </button></view
     >
     <view class="section-top delivery-heading"
       ><text class="section-title"
         >{{currentCaptureId ? '本次投喂' : '给想法一个落脚处'}}</text
-      ><button class="text-button" bindtap="toggleRecords">
+      ><button hover-class="text-press" class="text-button" bindtap="toggleRecords">
         投递记录 · {{count}}
       </button></view
     >
@@ -75,19 +85,19 @@
         ><text class="badge"
           >{{item.status === 'ready' ? '已记录' : '原文已保存'}}</text
         ><text class="source-preview" selectable>{{item.text}}</text
-        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy}}">查看原件</button></view><text class="item-summary">{{item.summary}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button hover-class="text-press" class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy}}">查看原件</button></view><text class="item-summary">{{item.summary}}</text
         ><text wx:if="{{item.error}}" class="error">{{item.error}}</text
         ><view class="button-row"
           ><button
             wx:if="{{!item.summary}}"
-            class="small-button"
+            hover-class="btn-press" class="small-button"
             data-id="{{item.id}}"
             bindtap="organizeRecord"
             disabled="{{jobBusy}}"
           >
             AI 整理</button
           ><button
-            class="text-button"
+            hover-class="text-press" class="text-button"
             data-id="{{item.id}}"
             bindtap="createManual"
           >
@@ -95,7 +105,7 @@
           </button></view
         ></view
       ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
     ></view>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
@@ -111,124 +121,84 @@
         mode="aspectFit"
         bindtap="openSkins"
     /></view>
-    <view class="world-records"><button class="small-button" bindtap="toggleRecords">整理记录</button></view><view class="search-box"
+<view class="search-box"
       ><text>⌕</text
       ><input
         value="{{query}}"
         bindinput="onQuery"
         placeholder="搜索标题、原文或文件名"
     /></view>
-    <view class="scope-tabs"
-      ><button
-        class="chip {{scope === 'active' ? 'selected' : ''}}"
-        data-scope="active"
-        bindtap="setScope"
-      >
-        待处理</button
-      ><button
-        class="chip {{scope === 'done' ? 'selected' : ''}}"
-        data-scope="done"
-        bindtap="setScope"
-      >
-        完成 / 归档</button
-      ><button
-        class="chip {{scope === 'trash' ? 'selected' : ''}}"
-        data-scope="trash"
-        bindtap="setScope"
-      >
-        最近删除</button
-      ><button
-        class="chip {{filtersOpen ? 'selected' : ''}}"
-        bindtap="toggleFilters"
-      >
-        筛选与排序
-      </button></view
-    >
-    <view wx:if="{{filtersOpen}}" class="filter-bar"
-      ><picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"
-        ><view class="filter">{{dates[dateIndex]}} ▾</view></picker
-      ><picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"
-        ><view class="filter">{{sorts[sortIndex]}} ▾</view></picker
-      ><button
-        class="filter {{grouped ? 'selected' : ''}}"
-        bindtap="toggleGrouped"
-      >
-        按分组查看
-      </button><button class="filter {{starOnly ? 'selected' : ''}}" bindtap="toggleStarFilter">★ 仅星标</button></view
-    >
-    <scroll-view scroll-x class="category-nav"><button wx:for="{{categories}}" wx:key="key" class="category-button kind-{{item.key}} {{kind === item.key ? 'selected' : ''}}" data-kind="{{item.key}}" bindtap="selectCategory">{{item.label}} {{item.count}}</button></scroll-view>
-    <scroll-view wx:if="{{groups.length}}" scroll-x class="group-strip"
-      ><button
-        class="chip {{!group ? 'selected' : ''}}"
-        data-group=""
-        bindtap="setGroup"
-      >
-        全部分组</button
-      ><button
-        wx:for="{{groups}}"
-        wx:key="*this"
-        class="chip {{group === item ? 'selected' : ''}}"
-        data-group="{{item}}"
-        bindtap="setGroup"
-      >
-        {{item}}
-      </button></scroll-view
-    >
+    <view class="world-controls">
+      <picker class="scope-picker" range="{{scopeLabels}}" value="{{scopeIndex}}" bindchange="chooseScope"><view class="scope-control" hover-class="chip-press"><text>{{scopeLabels[scopeIndex]}}</text><text>⌄</text></view></picker>
+      <button class="filter-trigger {{filtersOpen ? 'is-open' : ''}}" bindtap="toggleFilters" hover-class="chip-press" hover-stop-propagation="{{true}}">筛选与排序</button>
+    </view>
+    <view wx:if="{{filtersOpen}}" class="touch-filters">
+      <picker range="{{kinds}}" value="{{kindIndex}}" bindchange="setKind"><view class="filter-field"><text>类型</text><text>{{kinds[kindIndex]}} ⌄</text></view></picker>
+      <picker range="{{dates}}" value="{{dateIndex}}" bindchange="setDate"><view class="filter-field"><text>日期</text><text>{{dates[dateIndex]}} ⌄</text></view></picker>
+      <picker range="{{sorts}}" value="{{sortIndex}}" bindchange="setSort"><view class="filter-field"><text>排序</text><text>{{sorts[sortIndex]}} ⌄</text></view></picker>
+      <picker wx:if="{{groups.length}}" range="{{groupChoices}}" value="{{groupIndex}}" bindchange="chooseGroup"><view class="filter-field"><text>分组</text><text>{{groupChoices[groupIndex]}} ⌄</text></view></picker>
+      <view class="filter-field"><text>仅星标</text><switch checked="{{starOnly}}" bindchange="toggleStarFilter" color="#7048e8"/></view>
+      <view class="filter-field"><text>按分组查看</text><switch checked="{{grouped}}" bindchange="toggleGrouped" color="#7048e8"/></view>
+      <button class="filter-done" bindtap="toggleFilters" hover-class="btn-press" hover-stop-propagation="{{true}}">收起筛选</button>
+    </view>
     <view class="sync-line"
       ><text
         >{{localMode ? '资料保存在本机' : syncing ? '正在同步…' : pending ? pending + ' 个操作待同步' : '已连接个人服务'}} · {{matched}}
         张卡片</text
-      ><button class="text-button" bindtap="toggleRecords">
+      ><button hover-class="text-press" class="text-button" bindtap="toggleRecords">
         投递记录
       </button></view
     >
+    <scroll-view scroll-x class="xc-categories"><view wx:for="{{categories}}" wx:key="key" role="button" class="xc-category kind-{{item.key}} {{kind === item.key ? 'xc-category-on' : ''}}" data-kind="{{item.key}}" bindtap="selectCardCategory" hover-class="xc-press">{{item.label}} {{item.count}}</view></scroll-view>
     <view wx:if="{{!items.length}}" class="empty card-paper"
       ><text class="empty-title"
         >{{scope === 'done' ? '完成的事情，会留在这里。' : scope === 'trash' ? '这里还没有删除的事项。' : '给世界留一点生长的空间。'}}</text
       ><text>尚未整理的文字可在投递记录中查看或手动记成事项。</text
-      ><button class="text-button" bindtap="toggleRecords">
+      ><button hover-class="text-press" class="text-button" bindtap="toggleRecords">
         查看投递记录 →
       </button></view
     >
+    <text class="drag-help">点标题展开 · 长按标题或时间拖动</text>
     <block wx:if="{{grouped}}"
       ><view wx:for="{{sections}}" wx:key="title"
         ><text class="group-title">{{item.title}} · {{item.items.length}}</text
-        ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-          ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block></view></block
-    ><block wx:else
+        ><view class="world-grid"><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
+          ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block></view></view></block
+    ><view wx:else class="world-grid"
       ><block wx:for="{{items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId}}" /></block
-    ></block>
+        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
+    ></view>
     <button
       wx:if="{{matched > items.length}}"
-      class="small-button more-button"
+      hover-class="btn-press" class="small-button more-button"
       bindtap="loadMore"
     >
       再看一些 · {{matched - items.length}} 张
     </button>
   </view>
   <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
-    <view class="ddl-head"><image src="/assets/mascot.png" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
+    <view class="ddl-head"><image src="{{activeSkin.image}}" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
+    <text class="drag-help">长按标题移动 · 仅限同一日期分区，不改截止时间</text>
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
     <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><view class="ddl-slider" role="slider" aria-label="未来时间窗"><view class="ddl-slider-rail"><view class="ddl-slider-square" style="left: {{ddlIndex * 25}}%"></view></view><slider class="ddl-native-slider" min="0" max="4" step="1" block-size="32" value="{{ddlIndex}}" bindchanging="previewDdlWindow" bindchange="setDdlWindow"/></view><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this" class="{{index === ddlIndex ? 'selected' : ''}}" data-index="{{index}}" bindtap="chooseDdlWindow">{{item}} 天</text></view></view>
-    <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
-    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block>
-    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></view>
+    <view wx:if="{{ddlOverdue.length}}" class="ddl-subbar overdue" data-field="ddlShowOverdue" bindtap="toggleDdl" hover-class="row-press">已逾期 · {{ddlOverdueTotal}} 项 · {{ddlShowOverdue ? '收起' : '点开看看'}}</view>
+    <block wx:if="{{ddlShowOverdue}}"><template wx:for="{{ddlOverdue}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block>
+    <view wx:for="{{ddlSections}}" wx:for-item="section" wx:key="title"><view class="ddl-section-title">{{section.title}} · {{section.rows.length}} 项</view><template wx:for="{{section.rows}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></view>
     <view wx:if="{{!ddlSections.length}}" class="ddl-empty">{{ddlCount ? '这个时间窗里没有待交事项。' : ddlDone.length ? '全都完成了，轻松一下。' : '还没有截止事项，把通知丢进桶里，或在下方补充。'}}</view>
-    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block></view>
-    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId}}"/></block></view>
-    <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl">再看一些 DDL</button>
-    <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl">＋ 自己补充一项 DDL</view>
-    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl">添加 DDL</button></view>
+    <view wx:if="{{ddlUnsure.length}}"><view class="ddl-subbar" data-field="ddlShowUnsure" bindtap="toggleDdl" hover-class="row-press">日期待确认 · {{ddlUnsureTotal}} 项 ▾</view><block wx:if="{{ddlShowUnsure}}"><template wx:for="{{ddlUnsure}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block></view>
+    <view wx:if="{{ddlDone.length}}"><view class="ddl-subbar" data-field="ddlShowDone" bindtap="toggleDdl" hover-class="row-press">已完成 · {{ddlDoneTotal}} 项 · 可捞回来 ▾</view><block wx:if="{{ddlShowDone}}"><template wx:for="{{ddlDone}}" wx:for-item="row" wx:key="id" is="ddlCard" data="{{row, checkingId, leavingId, dragId, dragView}}"/></block></view>
+    <button wx:if="{{ddlHasMore}}" class="small-button more-button" bindtap="loadMoreDdl" hover-class="btn-press" hover-stop-propagation="{{true}}">再看一些 DDL</button>
+    <view class="ddl-subbar" data-field="ddlAddOpen" bindtap="toggleDdl" hover-class="row-press">＋ 自己补充一项 DDL</view>
+    <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl" hover-class="btn-press" hover-stop-propagation="{{true}}">添加 DDL</button></view>
   </view>
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
-    ><view class="section-top"><text class="section-title">激活与设置</text><button class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="section-top"><text class="section-title">激活与设置</text><button hover-class="btn-press" class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
     ><view class="card-paper ai-connection"
       ><text class="subheading">服务端 AI</text><text class="settings-copy">{{accountAiState}}</text>
       <text class="settings-copy">{{!connected ? '输入邀请码激活此微信身份；本地记录仍可使用。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
       <text class="settings-copy">模型与密钥由服务器统一管理。AI 额度用完不影响记录和同步。</text>
-      <view class="button-row"><button class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '使用与隐私说明'}}</button><button wx:if="{{connected}}" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
+      <view class="button-row"><button hover-class="btn-press" class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '使用与隐私说明'}}</button><button wx:if="{{connected}}" hover-class="btn-press" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
       <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">AI 整理与对话会将相关文本及可读取的 UTF-8 原件发送给模型服务商，统一密钥不消除隐私风险。</text><text class="settings-copy">同一邀请码绑定一个微信身份与一台 Windows 安装，两端共享独立账号资料。</text><text class="settings-copy">3. 本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取；当前服务端只支持文字和 UTF-8 原件，图片、PDF 等暂可手动记事项。</text></view>
       <view class="capability"><text>事项 AI 对话</text><text>{{!connected ? '未连接' : capabilities.itemChat ? '已可用' : '服务端未启用'}}</text></view>
       </view><view class="card-paper"
@@ -242,7 +212,7 @@
         password
         placeholder="填写朋友内测邀请码"
       /><button
-        class="primary"
+        hover-class="btn-press" class="primary"
         bindtap="connect"
         loading="{{connecting}}"
         disabled="{{connecting || syncing || !password.length}}"
@@ -251,17 +221,17 @@
       ><view class="button-row"
         ><button
           wx:if="{{connected}}"
-          class="small-button"
+          hover-class="btn-press" class="small-button"
           bindtap="sync"
           disabled="{{syncing}}"
         >
           {{syncing ? '正在同步' : '立即同步'}}</button
-        ><button wx:if="{{connected}}" class="small-button" bindtap="useLocal">
+        ><button wx:if="{{connected}}" hover-class="btn-press" class="small-button" bindtap="useLocal">
           返回本机资料
         </button></view
       ><button
         wx:if="{{connected && localCount}}"
-        class="small-button"
+        hover-class="btn-press" class="small-button"
         bindtap="importLocal"
         disabled="{{syncing}}"
       >
@@ -270,7 +240,7 @@
         >邀请码不保留，设备凭证保存在此微信项目。换身份或重装后需要管理员重置绑定。</text
       ></view
     ><view class="card-paper"
-      ><button wx:if="{{!connected}}" class="small-button" bindtap="resumeAccount">返回已激活账号</button><text class="subheading">当前能力</text
+      ><button wx:if="{{!connected}}" hover-class="btn-press" class="small-button" bindtap="resumeAccount">返回已激活账号</button><text class="subheading">当前能力</text
       ><view class="capability"
         ><text>文字与事项同步</text
         ><text>{{connected ? '已连接' : '未连接'}}</text></view
@@ -294,15 +264,19 @@
       class="nav-button {{tab === 'capture' ? 'active' : ''}}"
       data-tab="capture"
       bindtap="switchTab"
+      hover-class="nav-press"
+      aria-label="桶，投喂入口"
     >
-      桶 <text class="nav-badge">{{count}}</text></button
+      <text class="nav-icon">✎</text><text class="nav-label">桶</text><text class="nav-badge">{{count}}</text></button
     ><button
       class="nav-button {{tab === 'world' ? 'active' : ''}}"
       data-tab="world"
       bindtap="switchTab"
+      hover-class="nav-press"
+      aria-label="世界，已整理事项"
     >
-      世界 <text class="nav-badge">✦</text>
-    </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab">DDL <text class="nav-badge">{{ddlCount}}</text></button></view
+      <text class="nav-icon">✦</text><text class="nav-label">世界</text>
+    </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab" hover-class="nav-press" aria-label="DDL，截止事项"><text class="nav-icon">◷</text><text class="nav-label">DDL</text><text wx:if="{{ddlCount}}" class="nav-badge">{{ddlCount}}</text></button></view
   >
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
@@ -310,7 +284,7 @@
     ><text wx:if="{{item.error}}">{{item.error}}</text
     ><button
       wx:if="{{item.hasOutput}}"
-      class="text-button"
+      hover-class="text-press" class="text-button"
       data-id="{{item.id}}"
       bindtap="copyJobResult"
     >
@@ -319,13 +293,14 @@
   ></view
 ><view wx:if="{{recordsOpen}}" class="scrim" bindtap="toggleRecords"
   ><view class="sheet" catchtap="stopTap"
+    ><view class="sheet-handle"></view
     ><view class="section-top"
       ><text class="section-title">投递记录</text
-      ><button class="icon-button" bindtap="toggleRecords">×</button></view
-    ><button class="chip" bindtap="toggleDeleted">
+      ><button hover-class="icon-press" class="icon-button" bindtap="toggleRecords">×</button></view
+    ><button hover-class="chip-press" class="chip" bindtap="toggleDeleted">
       {{showDeleted ? '查看未删除' : '查看最近删除'}}</button
     ><scroll-view scroll-y class="sheet-scroll"
-      ><view class="button-row"><button class="small-button" data-step="-1" bindtap="recordPage" disabled="{{recordPage === 0}}">上一页</button><text class="quiet">第 {{recordPage + 1}} 页 · {{recordTotal}} 次投递</text><button class="small-button" data-step="1" bindtap="recordPage" disabled="{{(recordPage + 1) * 30 >= recordTotal}}">下一页</button></view><view wx:if="{{!rows.length}}" class="empty">这里还没有投递。</view
+      ><view class="button-row"><button hover-class="btn-press" class="small-button" data-step="-1" bindtap="recordPage" disabled="{{recordPage === 0}}">上一页</button><text class="quiet">第 {{recordPage + 1}} 页 · {{recordTotal}} 次投递</text><button hover-class="btn-press" class="small-button" data-step="1" bindtap="recordPage" disabled="{{(recordPage + 1) * 30 >= recordTotal}}">下一页</button></view><view wx:if="{{!rows.length}}" class="empty">这里还没有投递。</view
       ><view wx:for="{{rows}}" wx:key="id" class="card-paper"
         ><view class="card-top"
           ><text class="card-title">{{item.title}}</text
@@ -333,24 +308,24 @@
             >{{localMode ? '本机保存' : item.state}}</text
           ></view
         ><text class="source-preview" selectable>{{item.text}}</text
-        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy || item.deleted}}">查看原件</button></view><text class="quiet">{{item.date}}</text
+        ><view wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" class="draft-file"><text>{{file.name}}</text><button hover-class="text-press" class="text-button" data-id="{{file.id}}" data-packet="{{item.id}}" bindtap="openAttachment" disabled="{{filesBusy || item.deleted}}">查看原件</button></view><text class="quiet">{{item.date}}</text
         ><view class="button-row"
           ><button
             wx:if="{{item.conflict}}"
-            class="small-button"
+            hover-class="btn-press" class="small-button"
             data-id="{{item.id}}"
             bindtap="resolveConflict"
           >
             处理冲突</button
           ><block wx:elif="{{item.deleted}}"
             ><button
-              class="small-button"
+              hover-class="btn-press" class="small-button"
               data-id="{{item.id}}"
               bindtap="restore"
             >
               恢复投递</button
             ><button
-              class="text-button danger"
+              hover-class="text-press" class="text-button danger"
               data-id="{{item.id}}"
               bindtap="purgePacket"
             >
@@ -359,20 +334,20 @@
           ><block wx:else
             ><button
               wx:if="{{!item.hasResult}}"
-              class="small-button"
+              hover-class="btn-press" class="small-button"
               data-id="{{item.id}}"
               bindtap="organizeRecord"
               disabled="{{jobBusy}}"
             >
               AI 整理</button
             ><button
-              class="small-button"
+              hover-class="btn-press" class="small-button"
               data-id="{{item.id}}"
               bindtap="createManual"
             >
               记成事项</button
             ><button
-              class="text-button danger"
+              hover-class="text-press" class="text-button danger"
               data-id="{{item.id}}"
               bindtap="remove"
             >
@@ -386,11 +361,9 @@
 >
 <view wx:if="{{selected}}" class="scrim detail-scrim" bindtap="closeItem"
   ><view class="sheet detail-sheet kind-{{selected.item.kind}}" catchtap="stopTap"
-    ><view class="section-top"
-      ><text class="kind-label"
-        >{{selected.kindLabel}} {{selected.group ? '· ' + selected.group : ''}}</text
-      ><button class="icon-button" bindtap="closeItem">×</button></view
-    ><scroll-view scroll-y class="sheet-scroll">
+    ><view class="sheet-handle"></view><view class="section-top detail-toolbar"
+      ><view class="detail-heading"><text class="detail-kind">{{selected.kindLabel}}</text><text class="detail-group">{{selected.group}}</text></view><button class="icon-button detail-close" aria-label="关闭事项详情" bindtap="closeItem" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view
+    ><view wx:if="{{error || notice}}" class="detail-feedback"><view wx:if="{{error}}" class="error" selectable>{{error}}</view><view wx:if="{{notice}}" class="notice">{{notice}}</view></view><scroll-view scroll-y class="sheet-scroll" scroll-into-view="{{detailAnchor}}" scroll-top="{{detailScrollTop}}">
       <block wx:if="{{editing}}"
         ><view class="field-label">标题</view
         ><input
@@ -410,7 +383,7 @@
           range="{{editKinds}}"
           value="{{editKind}}"
           bindchange="onEditKind"
-          ><view class="filter">{{editKinds[editKind]}} ▾</view></picker
+          ><view hover-class="chip-press" class="filter">{{editKinds[editKind]}} ▾</view></picker
         ><view class="field-label">分组（留空拆出分组）</view
         ><input
           value="{{editGroup}}"
@@ -424,37 +397,24 @@
           bindinput="onEdit"
           placeholder="明天下午三点 / YYYY-MM-DD"
         /><view class="field-label">时刻（留空按 23:59 安排）</view><input value="{{editTime}}" data-field="editTime" bindinput="onEdit" placeholder="HH:mm"/><view class="button-row"
-          ><button class="primary" bindtap="saveEdit">保存修改</button
-          ><button class="small-button" bindtap="cancelEdit">取消</button></view
+          ><button hover-class="btn-press" class="primary" bindtap="saveEdit">保存修改</button
+          ><button hover-class="btn-press" class="small-button" bindtap="cancelEdit">取消</button></view
         ></block
       >
       <block wx:else
-        ><text class="detail-title">{{selected.item.title}}</text
-        ><text class="detail-summary" selectable>{{selected.item.summary}}</text
+        ><text class="detail-title">{{selected.title}}</text
+        ><text class="detail-summary" selectable>{{selected.summary}}</text
         ><text wx:if="{{selected.date}}" class="due-label"
-          >{{selected.date}} {{selected.time}}</text
-        ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row"
-          ><button class="chip" data-id="{{selected.id}}" bindtap="toggleDone">
+          >{{selected.timeLabel || (selected.date + ' ' + selected.time)}}</text
+        ><text wx:if="{{selected.clockInfo.timeInferred}}" class="detail-line">安排时刻：{{selected.clockInfo.timeReason}}</text><view wx:if="{{!selected.deleted}}" class="button-row detail-actions"
+          ><button class="chip primary-action" data-id="{{selected.id}}" bindtap="toggleDone" hover-class="chip-press" hover-stop-propagation="{{true}}">
             {{selected.kind === 'habit' ? (selected.checked ? '撤销今日打卡' : '今日打卡') : selected.done ? '✓ 已完成 · 撤回' : '○ 标记完成'}}</button
-          ><button class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
+          ><button hover-class="chip-press" class="chip" data-id="{{selected.id}}" bindtap="toggleStar">
             {{selected.starred ? '★ 已星标' : '☆ 星标'}}</button
-          ><button class="chip" data-id="{{selected.id}}" bindtap="togglePin">
+          ><button hover-class="chip-press" class="chip" data-id="{{selected.id}}" bindtap="togglePin">
             {{selected.pinned ? '取消置顶' : '置顶'}}</button
-          ><button class="small-button" bindtap="beginEdit">编辑</button
-          ><button
-            class="small-button"
-            data-id="{{selected.id}}"
-            bindtap="progressItem"
-          >
-            {{selected.progress ? '取消进行中' : '开始处理'}}</button
-          ><button
-            wx:if="{{selected.kind === 'habit'}}"
-            class="small-button"
-            data-id="{{selected.id}}"
-            bindtap="checkin"
-          >
-            {{selected.checked ? '今日已打卡 · 再点撤销' : '今日打卡'}} · 累计 {{selected.checkinCount}} 天
-          </button></view
+          ><button class="small-button" bindtap="beginEdit" hover-class="btn-press" hover-stop-propagation="{{true}}">编辑</button
+          ><button wx:if="{{selected.attachments.length}}" class="small-button" bindtap="jumpToMaterials">打开附件 · {{selected.attachments.length}} 份</button><text wx:if="{{selected.kind === 'habit'}}" class="detail-habit-status">{{selected.checked ? '今日已打卡' : '今日待打卡'}} · 累计 {{selected.checkinCount}} 天</text></view
         >
         <view wx:if="{{selected.facts.length}}" class="detail-section"
           ><text class="subheading">原文要求</text
@@ -488,13 +448,11 @@
             ><text class="detail-line" selectable>“{{item.quote}}”</text></view
           ></view
         >
-        <view class="detail-section"
-          ><view class="section-top"
-            ><text class="subheading">同行材料</text
-            ><button class="text-button" bindtap="copySource">
+        <view id="detail-materials" class="detail-section"><view class="section-top"><text class="subheading">文件附件与原文</text
+            ><button hover-class="text-press" class="text-button" bindtap="copySource">
               复制原文
             </button></view
-          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">查看原件</button></view><text class="detail-line" selectable>{{selected.sourceText}}</text
+          ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">{{filesBusy ? '正在打开…' : '打开附件 ↗'}}</button></view><text wx:if="{{!selected.attachments.length}}" class="quiet">这次投递没有文件附件，原文保留在下方。</text><text class="detail-line evidence" selectable>{{selected.sourceText}}</text
           ><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
@@ -513,12 +471,12 @@
               bindinput="onEdit"
               maxlength="4000"
               placeholder="补充进展，保留原文依据"
-            /><button class="small-button" bindtap="addNote">
+            /><button hover-class="btn-press" class="small-button" bindtap="addNote">
               保存补充
             </button></block
           ></view
         >
-        <view wx:if="{{!selected.deleted}}" class="detail-section"
+        <view wx:if="{{!selected.deleted}}" class="detail-section detail-ai"
           ><text class="subheading">和 AI 说一声</text
           ><textarea
             class="edit-area"
@@ -529,7 +487,7 @@
             placeholder="只针对当前事项提问或修改"
           /><text class="quiet">使用服务端配置的模型，发送会产生调用费用。</text
           ><button
-            class="small-button"
+            hover-class="btn-press" class="small-button"
             bindtap="chatWithItem"
             disabled="{{jobBusy || !chatInput.length}}"
           >
@@ -550,16 +508,16 @@
             ></view
           ></view
         >
-        <view class="detail-section button-row"
+        <view class="detail-section button-row detail-danger"
           ><block wx:if="{{selected.deleted}}"
             ><button
-              class="small-button"
+              hover-class="btn-press" class="small-button"
               data-id="{{selected.id}}"
               bindtap="restoreItem"
             >
               恢复事项</button
             ><button
-              class="text-button danger"
+              hover-class="text-press" class="text-button danger"
               data-id="{{selected.id}}"
               bindtap="purgeItem"
             >
@@ -567,9 +525,9 @@
             </button></block
           ><button
             wx:else
-            class="text-button danger"
+            hover-class="text-press" class="text-button danger"
             data-id="{{selected.id}}"
-            bindtap="removeItem"
+            bindtap="confirmRemoveItem"
           >
             移入最近删除（保留同行事项）
           </button></view
@@ -580,19 +538,20 @@
 >
 <view wx:if="{{skinOpen}}" class="scrim skin-scrim" bindtap="closeSkins"
   ><view class="sheet" catchtap="stopTap"
+    ><view class="sheet-handle"></view
     ><view class="section-top"
       ><view
         ><text class="eyebrow">A LITTLE COMPANY</text
         ><text class="section-title">皮肤市场</text></view
-      ><button class="icon-button" bindtap="closeSkins">×</button></view
+      ><button hover-class="icon-press" class="icon-button" bindtap="closeSkins">×</button></view
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
         ><view class="skin-preview" style="background:{{previewSkin.color}}"
-          ><view class="skin-preview-stage skin-mascot" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" class="preview-art skin-body"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
+          ><view class="skin-preview-stage skin-mascot {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" animation="{{skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}}"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><text class="quiet">{{previewSkin.description}}</text
           ><view class="button-row"
-            ><button class="small-button" bindtap="feedSkin">试着喂一口</button
-            ><button class="primary" bindtap="applySkin">
+            ><button hover-class="btn-press" class="small-button" bindtap="feedSkin">试着喂一口</button
+            ><button hover-class="btn-press" class="primary" bindtap="applySkin">
               {{activeSkin.id === previewSkin.id ? '正在陪着你 ✓' : '就选这个朋友'}}
             </button></view
           ></view
@@ -600,7 +559,7 @@
           ><view
             wx:for="{{skins}}"
             wx:key="id"
-            class="skin-card {{previewSkin.id === item.id ? 'selected' : ''}}"
+            hover-class="card-press" class="skin-card {{previewSkin.id === item.id ? 'selected' : ''}}"
             data-id="{{item.id}}"
             bindtap="previewSkin"
             style="background:{{item.color}}"
@@ -610,13 +569,13 @@
             ><text class="quiet">{{item.description}}</text
             ><view wx:if="{{item.art === 'custom'}}" class="button-row"
               ><button
-                class="text-button"
+                hover-class="text-press" class="text-button"
                 data-id="{{item.id}}"
                 catchtap="editSkin"
               >
                 编辑</button
               ><button
-                class="text-button danger"
+                hover-class="text-press" class="text-button danger"
                 data-id="{{item.id}}"
                 catchtap="deleteCustomSkin"
               >
@@ -624,7 +583,7 @@
               </button></view
             ></view
           ></view
-        ><button class="small-button more-button" bindtap="editSkin">
+        ><button hover-class="btn-press" class="small-button more-button" bindtap="editSkin">
           ＋ 自己做一个</button
         ><text class="settings-copy"
           >共用桌面预设与原画。自定义收藏只保存在当前设备，不随事项同步。</text
@@ -635,7 +594,7 @@
           class="preview-art"
           src="{{skinForm.image}}"
           mode="aspectFit"
-        /><button class="small-button" bindtap="chooseSkinImage">
+        /><button hover-class="btn-press" class="small-button" bindtap="chooseSkinImage">
           选择角色图片</button
         ><text class="field-label">名字</text
         ><input
@@ -672,8 +631,8 @@
           range="{{motionLabels}}"
           value="{{motionIndex}}"
           bindchange="onMotion"
-          ><view class="filter">{{motionLabels[motionIndex]}} ▾</view></picker
-        ><button class="primary" bindtap="saveCustomSkin">
+          ><view hover-class="chip-press" class="filter">{{motionLabels[motionIndex]}} ▾</view></picker
+        ><button hover-class="btn-press" class="primary" bindtap="saveCustomSkin">
           保存并使用
         </button></block
       ></scroll-view
@@ -681,4 +640,7 @@
   ></view
 >
 
-<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal">×</button></view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>
+<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="sheet-handle"></view><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>
+
+<view wx:if="{{dragGhost}}" id="drag-ghost" class="drag-ghost {{dragSettling ? 'is-settling' : ''}}" style="transform: {{dragGhost.transform || 'scale(1.025)'}}; height: {{dragGhost.height}}px; left: {{dragGhost.left}}px; top: {{dragGhost.top}}px; width: {{dragGhost.width}}px;"><text class="drag-ghost-label">移动中 · 松手放下</text><text class="drag-ghost-title">{{dragGhost.title}}</text><text class="drag-ghost-summary">{{dragGhost.summary}}</text></view>
+<view wx:if="{{dragId}}" class="drag-toolbar"><text>{{dragNotice}}</text><button bindtap="cancelDrag" hover-class="btn-press" hover-stop-propagation="{{true}}">取消移动</button></view>

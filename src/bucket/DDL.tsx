@@ -15,6 +15,7 @@ import { leaveCard, resetCard } from "./motion";
 import { useCardMotion } from "./useCardMotion";
 import { useCardDrag } from "./useCardDrag";
 import { mergeCardOrder } from "./card-order";
+import { deadlineCountdown } from "./deadline-countdown";
 import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
@@ -205,6 +206,13 @@ export default function DDL({
   }
   function card(row: Row, urgency: string) {
     const { item, p, id } = row;
+    const countdown = deadlineCountdown(
+      row.date,
+      day,
+      row.time,
+      clock,
+      row.done,
+    );
     return (
       <article
         className={"ddl-item urgency-" + urgency}
@@ -218,18 +226,12 @@ export default function DDL({
           aria-label={`核对截止时间：${item.title}`}
           onClick={() => setOpen(open === id ? "" : id)}
         >
-          <span className="ddl-status">
-            {
-              {
-                overdue: "已逾期",
-                today: "今天截止",
-                soon: "即将截止",
-                later: "提前安排",
-                unsure: "日期待确认",
-                done: "已完成",
-              }[urgency]
-            }
-          </span>
+          <strong
+            className="ddl-countdown"
+            data-deadline-status={countdown.status}
+          >
+            {countdown.label}
+          </strong>
           {item.due?.startDate && (
             <>
               <span>时间段 · 开始</span>
@@ -354,6 +356,12 @@ export default function DDL({
               <DeliverySources packet={p} save={save} notify={notify} />
             </div>
           )}
+        </div>
+        <div className="ddl-footer">
+          <span>{row.done ? "已完成" : "待完成"}</span>
+          <button onClick={() => setOpen(open === id ? "" : id)}>
+            查看要求 ↗
+          </button>
         </div>
       </article>
     );

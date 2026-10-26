@@ -93,8 +93,9 @@ function fixture({
   const page = {
     ...definition,
     data: structuredClone(definition.data),
-    setData(value) {
+    setData(value, callback) {
       Object.assign(this.data, value);
+      callback?.();
     },
   };
   page.onLoad();
@@ -391,4 +392,32 @@ test("permanent cache cleanup preserves an explicitly retained copy in another w
   library.forgetPacket(id, "local");
   assert.equal(f.fs.data.has(original.path), false);
   assert.equal(library.entries(id).length, 0);
+});
+
+test("card material entry anchors visible attachments, opens local originals, and reports failures inside details", async () => {
+  const f = fixture();
+  const p = f.page;
+  p._collectFiles([source(f)]);
+  p.submit();
+  const packetId = p.data.currentCaptureId;
+  p.createManual({ currentTarget: { dataset: { id: packetId } } });
+  const row = p.data.currentRows[0].items[0];
+  const e = { currentTarget: { dataset: { id: row.id } } };
+  p.openMaterials(e);
+  assert.equal(p.data.selected.id, row.id);
+  assert.equal(p.data.detailAnchor, "detail-materials");
+  const file = p.data.selected.attachments[0];
+  const open = {
+    currentTarget: { dataset: { id: file.id, packet: packetId } },
+  };
+  await p.openAttachment(open);
+  assert.equal(p.data.originalPreview.text, "合成原件");
+  p.closeOriginal();
+  const entry = p._library().entries(packetId, "local")[0];
+  f.fs.data.delete(entry.path);
+  await p.openAttachment(open);
+  assert.match(p.data.error, /本机原件缺失/);
+  assert.equal(p.data.selected.id, row.id);
+  assert.equal(p.data.filesBusy, false);
+  p.onUnload();
 });

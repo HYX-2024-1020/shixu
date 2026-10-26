@@ -644,3 +644,60 @@ test("a late provider rejection after purge does not crash the queue", async (t)
     (e) => e.status === 404,
   );
 });
+
+test("mobile batched card ranks reach the desktop queue without changing dates or evidence, and survive restart", async (t) => {
+  const f = await fixture(t),
+    mobileDevice = await f.device("排序手机合成端"),
+    desktopDevice = await f.device("排序桌面合成端");
+  const mobile = f.client(mobileDevice.token);
+  const a = packet("packet-a"),
+    b = packet("packet-b");
+  a.result.items[0].due = { date: "2026-10-28", time: "14:00" };
+  b.itemIds = ["task-2"];
+  b.itemState = { "task-2": { order: 1 } };
+  b.result.items[0].due = { date: "2026-10-28", time: "18:00" };
+  mobile.instance.put("packet-a", a);
+  mobile.instance.put("packet-b", b);
+  await mobile.instance.sync();
+  mobile.instance.putMany([
+    { id: "packet-a", patch: { itemState: { "task-1": { order: 1 } } } },
+    { id: "packet-b", patch: { itemState: { "task-2": { order: 0 } } } },
+  ]);
+  await mobile.instance.sync();
+  const desktopQueue = createRequire(import.meta.url)(
+    "../desktop/generated/sync-client.cjs",
+  );
+  let saved;
+  const desktop = desktopQueue.createSyncClient({
+    read: () => saved,
+    write: (value) => {
+      saved = value;
+    },
+    request: (method, path, data) =>
+      f.request(desktopDevice.token, method, path, data),
+  });
+  await desktop.sync();
+  const rows = desktop.records();
+  assert.equal(
+    rows.find((r) => r.id === "packet-a").data.itemState["task-1"].order,
+    1,
+  );
+  assert.equal(
+    rows.find((r) => r.id === "packet-b").data.itemState["task-2"].order,
+    0,
+  );
+  for (const original of [a, b]) {
+    const actual = rows.find((r) => r.id === original.id).data;
+    assert.deepEqual(actual.result, original.result);
+    assert.deepEqual(actual.sources, original.sources);
+  }
+  await f.restart();
+  const reopened = f.client(mobileDevice.token, mobile.saved);
+  await reopened.instance.sync();
+  assert.equal(
+    reopened.instance.records().find((r) => r.id === "packet-b").data.itemState[
+      "task-2"
+    ].order,
+    0,
+  );
+});
