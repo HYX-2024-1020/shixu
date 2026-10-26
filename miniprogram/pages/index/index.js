@@ -681,6 +681,10 @@ Page({
     return {
       ...view,
       shadowIndex: index % 3,
+      compactTimeLabel: (row.timeLabel || "").replace(
+        new RegExp(`${now.getFullYear()}-`, "g"),
+        "",
+      ),
       countdown: countdown.label,
       countdownStatus: countdown.status,
       title: row.title.slice(0, 150),
@@ -1065,6 +1069,37 @@ Page({
       chat: row.meta.chat || [],
       checked: (row.meta.checkins || []).includes(localDay()),
     };
+  },
+  selectCardCategory(event) {
+    const kind = event.currentTarget.dataset.kind;
+    const kindIndex = this.data.kindKeys.indexOf(kind);
+    if (kindIndex < 0) return;
+    this.setData({ kind, kindIndex, expandedCardId: "", limit: 60 });
+    this._refresh();
+  },
+  onCardAction(event) {
+    if (this._drag) return;
+    const { action, id } = event.currentTarget.dataset;
+    const allowed = [
+      "toggleCard",
+      "toggleStar",
+      "toggleDone",
+      "openItem",
+      "openMaterials",
+      "confirmRemoveItem",
+      "restoreItem",
+      "verifyDdl",
+    ];
+    if (!allowed.includes(action)) return;
+    const row = this._detail(id);
+    if (
+      !row ||
+      (row.deleted &&
+        ["toggleStar", "toggleDone", "confirmRemoveItem"].includes(action))
+    )
+      return;
+    this.onCardActionStart();
+    return this[action](event);
   },
   toggleCard(event) {
     if (this._blockDragTap()) return;

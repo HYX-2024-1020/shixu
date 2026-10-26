@@ -36,6 +36,7 @@ execFileSync(
     "app.wxss",
     "lib/generated/client-ui.wxss",
     "pages/index/index.wxss",
+    "pages/index/cards.wxss",
   ],
   { cwd: mini, stdio: "pipe" },
 );
@@ -87,7 +88,7 @@ function view() {
 }
 page.setData({ tab: "world" });
 assert.ok(
-  view().some((node) => node.attr?.class?.includes("item-card")),
+  view().some((node) => node.attr?.class?.includes("xc-card")),
   "item template rendered",
 );
 assert.ok(
@@ -118,30 +119,40 @@ page.toggleCard({ currentTarget: { dataset: { id: page.data.items[0].id } } });
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.catchlongpress === "startDrag" &&
-      typeof node.attr?.["$wxs:catchtouchmove"] === "function",
+      node.attr?.bindlongpress === "startDrag" &&
+      typeof node.attr?.["$wxs:bindtouchmove"] === "function",
   ),
   "long press and tracked movement compiled",
 );
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.catchtap === "confirmRemoveItem" &&
-      node.attr?.catchtouchstart === "onCardActionStart",
+      node.attr?.["data-action"] === "confirmRemoveItem" &&
+      node.attr?.bindtap === "onCardAction",
   ),
   "discoverable deletion cannot arm a parent drag",
 );
 const compactId = page.data.items[0].id;
-const compactNode = view().find((n) => n.attr?.class?.includes("compact-card"));
-assert.equal(compactNode.attr.bindtap, "toggleCard");
+const compactNode = view().find((n) => n.attr?.class?.includes("xc-card"));
+assert.equal(compactNode.attr.bindtap, undefined);
 assert.equal(
   compactNode.attr.bindtouchstart,
   undefined,
   "body taps must not arm dragging",
 );
-const starNode = view().find((n) => n.attr?.catchtap === "toggleStar");
+for (const node of view().filter((n) => n.attr?.bindtap === "onCardAction")) {
+  assert.equal(node.attr.catchtouchend, undefined);
+  assert.equal(node.attr.catchtouchstart, undefined);
+  assert.equal(node.attr.catchlongpress, undefined);
+}
+assert.ok(!view().some((n) => n.attr?.["data-direction"]));
+const starNode = view().find((n) => n.attr?.["data-action"] === "toggleStar");
 assert.equal(starNode.attr["data-id"], compactId);
-page[starNode.attr.catchtap]({ currentTarget: { dataset: { id: compactId } } });
+page[starNode.attr.bindtap]({
+  currentTarget: {
+    dataset: { id: compactId, action: starNode.attr["data-action"] },
+  },
+});
 assert.equal(page._detail(compactId).starred, true);
 assert.equal(page.data.selected, null);
 const materialRow = page._detail(compactId);
@@ -156,7 +167,7 @@ page._client.put(materialRow.packetId, {
   ],
 });
 page._refresh();
-assert.ok(view().some((n) => n.attr?.catchtap === "openMaterials"));
+assert.ok(view().some((n) => n.attr?.["data-action"] === "openMaterials"));
 page.openMaterials({ currentTarget: { dataset: { id: compactId } } });
 assert.equal(page.data.detailAnchor, "detail-materials");
 assert.ok(view().some((n) => n.attr?.id === "detail-materials"));
@@ -199,7 +210,8 @@ const row = page.data.items[0];
 assert.ok(
   view().some(
     (node) =>
-      node.attr?.catchtap === "openItem" && node.attr["data-id"] === row.id,
+      node.attr?.["data-action"] === "openItem" &&
+      node.attr["data-id"] === row.id,
   ),
   "template data/event IDs preserved",
 );
@@ -249,31 +261,29 @@ assert.ok(
   "DDL compiled cards render",
 );
 assert.ok(
-  view().some(
-    (node) => (node.attr?.bindtap || node.attr?.catchtap) === "verifyDdl",
-  ),
+  view().some((node) => node.attr?.["data-action"] === "verifyDdl"),
   "DDL verification action compiled",
 );
 const ddlRow = page.data.ddlSections.flatMap((section) => section.rows)[0];
 page.setData({ tab: "world", expandedCardId: ddlRow.id });
 const worldNodes = view();
 assert.ok(
-  worldNodes.some((node) => node.attr?.class?.includes("compact-title")),
+  worldNodes.some((node) => node.attr?.class?.includes("xc-title")),
   "native world renders the unified card text block",
 );
 assert.ok(
   worldNodes.some(
     (node) =>
-      node.attr?.class?.includes("compact-due") &&
-      JSON.stringify(node).includes(ddlRow.date),
+      node.attr?.class?.includes("xc-due") &&
+      JSON.stringify(node).includes(ddlRow.date.slice(5)),
   ),
   "deadline stays in its dedicated metadata strip",
 );
 assert.ok(
   worldNodes.some(
     (node) =>
-      node.attr?.class?.includes("card-source-link") &&
-      node.attr.catchtap === "openItem" &&
+      node.attr?.class?.includes("xc-detail") &&
+      node.attr["data-action"] === "openItem" &&
       node.attr["data-id"],
   ),
   "compact detail control retains the accessible original/material entry",
@@ -305,7 +315,7 @@ assert.ok(
 page.setData({ activeSkin });
 const verify = view().find((node) => node.attr?.class === "ddl-verify-button");
 assert.ok(
-  verify && verify.attr.catchtap === "verifyDdl",
+  verify && verify.attr["data-action"] === "verifyDdl",
   "explicit native time verification button exists",
 );
 page.verifyDdl({ currentTarget: { dataset: { id: ddlRow.id } } });

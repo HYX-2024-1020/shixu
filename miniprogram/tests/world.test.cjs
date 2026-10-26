@@ -1489,3 +1489,45 @@ test("single-column drag recomputes variable-height slots and can cancel back to
   assert.equal(p.data.items[0].id, s.original[0]);
   p.onUnload();
 });
+
+test("rendered card action routing bypasses stale drag suppression and isolates deleted records", async () => {
+  const f = dragFixture();
+  const p = f.page;
+  const act = (action, id = "task-a") =>
+    p.onCardAction({ currentTarget: { dataset: { action, id } } });
+  p._dragTapUntil = Date.now() + 500;
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, true);
+  assert.equal(p.data.selected, null);
+  act("openItem");
+  assert.equal(p.data.selected.id, "task-a");
+  act("toggleStar");
+  assert.equal(p.data.selected.starred, false);
+  act("confirmRemoveItem");
+  assert.equal(p._detail("task-a").deleted, true);
+  assert.equal(p.data.selected, null);
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, false);
+  act("restoreItem");
+  assert.equal(p._detail("task-a").deleted, false);
+  await act("toggleDone");
+  assert.equal(p._detail("task-a").done, true);
+  p._drag = {};
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, false);
+  p._drag = null;
+  p.onUnload();
+});
+
+test("compact category strip changes kind and resets temporary expansion without changing stored dates", () => {
+  const { page: p } = fixture();
+  p._client.put("p", packet());
+  p._refresh();
+  const before = p._client.records()[0].data;
+  p.setData({ expandedCardId: "task-a" });
+  p.selectCardCategory({ currentTarget: { dataset: { kind: "task" } } });
+  assert.equal(p.data.kind, "task");
+  assert.equal(p.data.expandedCardId, "");
+  assert.deepEqual(p._client.records()[0].data, before);
+  p.onUnload();
+});

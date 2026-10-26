@@ -116,25 +116,30 @@ for (const width of [320, 375, 414, 427]) {
     await page.setViewportSize({ width, height: 812 });
     const css = (
       readFileSync("miniprogram/app.wxss", "utf8") +
-      readFileSync("miniprogram/pages/index/index.wxss", "utf8").replace(
-        '@import "../../lib/generated/client-ui.wxss";',
-        readFileSync("miniprogram/lib/generated/client-ui.wxss", "utf8"),
-      )
+      readFileSync("miniprogram/pages/index/index.wxss", "utf8")
+        .replace(
+          '@import "./cards.wxss";',
+          readFileSync("miniprogram/pages/index/cards.wxss", "utf8"),
+        )
+        .replace(
+          '@import "../../lib/generated/client-ui.wxss";',
+          readFileSync("miniprogram/lib/generated/client-ui.wxss", "utf8"),
+        )
     ).replace(/(-?[\d.]+)rpx/g, (_, n) => `${(Number(n) * width) / 750}px`);
     const title = "人工智能课程调整通知与一段很长很长的事项名称";
     const full = "完整摘要与要求，展开后应自然换行显示，不省略。".repeat(15);
     const card = (i: number) =>
-      `<view class="item-card compact-card shadow-${i}"><view class="card-top compact-top"><button size="mini" class="done-button" aria-label="完成"><view class="completion-orbit"></view></button><text class="item-title compact-title">${title}</text><button class="icon-button" aria-label="星标">☆</button><button class="card-chevron" aria-label="展开">▸</button></view><view class="compact-info"><text class="compact-due">截止 2026-11-01 23:59</text><text class="compact-preview">${full}</text></view><view class="compact-expanded" hidden><text class="compact-summary">${full}</text><view class="compact-tags"><text>任务</text><text>课程</text></view><button class="card-attachment text-button">打开附件 · 1 份 ↗</button><view class="card-foot"><button class="card-source-link text-button">详情 ↗</button><view class="card-actions"><button class="icon-button" aria-label="向前移动">↑</button><button class="icon-button" aria-label="向后移动">↓</button><button class="compact-delete">删除</button><view class="drag-grip">⠿</view></view></view></view></view>`;
+      `<view class="xc-card xc-shadow-${i}"><view class="xc-row xc-top"><view role="button" class="xc-complete xc-hit" aria-label="完成"><view class="xc-circle"></view></view><view class="xc-title-touch"><text class="xc-title">${title}</text></view><view role="button" class="xc-star xc-hit" aria-label="星标">☆</view><view role="button" class="xc-chevron xc-hit" aria-label="展开">▸</view></view><view class="xc-row xc-info"><text class="xc-due">截止 11-01 23:59</text><text class="xc-preview">${full}</text></view><view class="xc-expanded" hidden><text class="xc-summary">${full}</text><view role="button" class="xc-attachment xc-link">打开附件 · 1 份 ↗</view><view class="xc-footer"><view role="button" class="xc-link xc-detail">详情 ↗</view><view role="button" class="xc-link xc-delete">删除</view></view></view></view>`;
     await page.setContent(
       `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#fff9e6}view,text{display:block}button{box-sizing:border-box;border:0;background:transparent}[hidden]{display:none!important}${css}</style><view class="page"><view class="world"><view class="world-grid">${[0, 1, 2].map(card).join("")}</view></view></view>`,
     );
-    const cards = page.locator(".compact-card");
+    const cards = page.locator(".xc-card");
     const boxes = await Promise.all(
       [0, 1, 2].map((i) => cards.nth(i).boundingBox()),
     );
     expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height);
     expect(boxes[0]!.height).toBeLessThan(120);
-    const topButtons = cards.first().locator(".compact-top button");
+    const topButtons = cards.first().locator(".xc-top [role=button]");
     const targets = await Promise.all(
       (await topButtons.all()).map((el) => el.boundingBox()),
     );
@@ -149,7 +154,7 @@ for (const width of [320, 375, 414, 427]) {
         ({ x, y }) =>
           document
             .elementFromPoint(x, y)
-            ?.closest("button")
+            ?.closest("[role=button]")
             ?.getAttribute("aria-label"),
         { x: targets[i]!.x + 22, y: targets[i]!.y + 22 },
       );
@@ -157,22 +162,22 @@ for (const width of [320, 375, 414, 427]) {
     }
     const titleSize = await cards
       .first()
-      .locator(".compact-title")
+      .locator(".xc-title")
       .evaluate((el) => ({ width: el.clientWidth, scroll: el.scrollWidth }));
     expect(titleSize.scroll).toBeGreaterThan(titleSize.width);
     await cards
       .first()
-      .locator(".compact-expanded")
+      .locator(".xc-expanded")
       .evaluate((el) => el.removeAttribute("hidden"));
-    await expect(cards.first().locator(".compact-summary")).toHaveText(full);
+    await expect(cards.first().locator(".xc-summary")).toHaveText(full);
     const textBox = await cards
       .first()
-      .locator(".compact-summary")
+      .locator(".xc-summary")
       .evaluate((el) => ({ height: el.clientHeight, scroll: el.scrollHeight }));
     expect(textBox.scroll).toBeLessThanOrEqual(textBox.height + 1);
     for (const el of await cards
       .first()
-      .locator(".card-foot button,.card-attachment,.drag-grip")
+      .locator(".xc-footer [role=button],.xc-attachment")
       .all()) {
       const box = (await el.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(43.9);
@@ -183,12 +188,91 @@ for (const width of [320, 375, 414, 427]) {
     ).toBeLessThanOrEqual(width);
     await cards
       .first()
-      .locator(".compact-expanded")
+      .locator(".xc-expanded")
       .evaluate(async (el) => {
         await Promise.all(
           el.getAnimations().map((a) => a.finished.catch(() => {})),
         );
       });
+    await expect(cards.first().locator(".xc-delete")).toHaveCSS(
+      "color",
+      "rgb(153, 69, 50)",
+    );
+    await expect(cards.first().locator(".xc-detail")).toHaveCSS(
+      "color",
+      "rgb(112, 72, 232)",
+    );
+    await expect(cards.first().locator(".xc-detail")).toHaveCSS(
+      "white-space",
+      "nowrap",
+    );
+    const footerTargets = await Promise.all(
+      [".xc-detail", ".xc-delete"].map((selector) =>
+        cards.first().locator(selector).boundingBox(),
+      ),
+    );
+    expect(footerTargets[0]!.y).toBeCloseTo(footerTargets[1]!.y, 1);
+    expect(footerTargets[0]!.x + footerTargets[0]!.width).toBeLessThan(
+      footerTargets[1]!.x,
+    );
+    // Use the reference's short sample text for visual comparison after the stress checks.
+    await cards
+      .nth(0)
+      .locator(".xc-title")
+      .evaluate((el) => (el.textContent = "把练字纳入日常练习"));
+    await cards
+      .nth(0)
+      .locator(".xc-summary")
+      .evaluate(
+        (el) =>
+          (el.textContent =
+            "原文只留下“练字”，更像是一个想持续练习书写的意愿；练习频率、字体和目标都还没说明。"),
+      );
+    await cards
+      .nth(0)
+      .locator(".xc-circle")
+      .evaluate((el) => {
+        el.classList.add("xc-checked");
+        el.innerHTML =
+          '<view class="completion-check"><view class="check-short"></view><view class="check-long"></view></view>';
+      });
+    await cards
+      .nth(0)
+      .locator(".xc-info")
+      .evaluate(
+        (el) =>
+          (el.innerHTML =
+            '<text class="xc-kind-chip">习惯</text><text class="xc-preview">今日已打卡 · 累计 2 天</text>'),
+      );
+    await cards
+      .nth(1)
+      .locator(".xc-title")
+      .evaluate((el) => (el.textContent = "人工智能导论课停课调至第 11 周"));
+    await cards
+      .nth(1)
+      .locator(".xc-preview")
+      .evaluate(
+        (el) => (el.textContent = "教师因出差暂停下周课程，调到第 11 周…"),
+      );
+    await cards
+      .nth(2)
+      .locator(".xc-title")
+      .evaluate((el) => (el.textContent = "奖学金申请材料提交"));
+    await cards
+      .nth(2)
+      .locator(".xc-star")
+      .evaluate((el) => {
+        el.textContent = "★";
+        el.classList.add("xc-starred");
+      });
+    await cards
+      .nth(2)
+      .locator(".xc-info")
+      .evaluate(
+        (el) =>
+          (el.innerHTML =
+            '<text class="xc-due xc-overdue">已逾期 2 天 · 截止 10-24 18:00</text>'),
+      );
     await page.screenshot({
       path: `test-results/mini-reference-${width}-${test.info().project.name}.png`,
       fullPage: true,
@@ -203,10 +287,15 @@ for (const width of [320, 375, 414]) {
     await page.setViewportSize({ width, height: 812 });
     const css = (
       readFileSync("miniprogram/app.wxss", "utf8") +
-      readFileSync("miniprogram/pages/index/index.wxss", "utf8").replace(
-        '@import "../../lib/generated/client-ui.wxss";',
-        readFileSync("miniprogram/lib/generated/client-ui.wxss", "utf8"),
-      )
+      readFileSync("miniprogram/pages/index/index.wxss", "utf8")
+        .replace(
+          '@import "./cards.wxss";',
+          readFileSync("miniprogram/pages/index/cards.wxss", "utf8"),
+        )
+        .replace(
+          '@import "../../lib/generated/client-ui.wxss";',
+          readFileSync("miniprogram/lib/generated/client-ui.wxss", "utf8"),
+        )
     ).replace(/(-?[\d.]+)rpx/g, (_, n) => `${(Number(n) * width) / 750}px`);
     await page.setContent(
       `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}view,text{display:block}button{box-sizing:border-box}${css}</style><view class="page"><view class="ddl-workspace"><view class="ddl-item"><view class="ddl-time"><text class="ddl-countdown cd-future">还剩 13 天</text><text class="ddl-date">2026-11-08</text><text class="ddl-clock">23:59</text><button class="ddl-verify-button">核对时间 ↗</button></view><view class="ddl-row"><button size="mini" class="done-button"><view class="completion-orbit"></view></button><view class="ddl-copy"><text class="item-title">很长的合成事项标题需要自然换行而不能挤住操作</text><text class="ddl-status">待完成 · 时间区间 · 详情 ↗</text></view><button class="compact-delete">删除</button></view></view></view></view>`,
