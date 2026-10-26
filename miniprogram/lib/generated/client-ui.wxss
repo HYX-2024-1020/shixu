@@ -1,19 +1,19 @@
 /* Generated from Windows skin-motion.css and desktop.css. Run mini:build. */
 /* Shared by Windows and the generated WeChat stylesheet. */
-.skin-mascot:not([data-motion="idle"]) .skin-spark {
+.skin-mascot.skin-interacting .skin-spark {
   animation: skin-twinkle 0.75s ease-in-out infinite alternate;
 }
-.skin-mascot[data-motion="bounce"] .skin-body {
+.skin-body.skin-motion-bounce {
   animation: skin-bounce 0.55s ease-in-out infinite;
 }
-.skin-mascot[data-motion="wiggle"] .skin-body {
+.skin-body.skin-motion-wiggle {
   animation: skin-wiggle 0.65s ease-in-out infinite;
 }
-.skin-mascot[data-motion="spin"] .skin-body {
+.skin-body.skin-motion-spin {
   animation: skin-spin 1.4s ease-in-out infinite;
   transform-origin: center;
 }
-.skin-mascot[data-motion="float"] .skin-body {
+.skin-body.skin-motion-float {
   animation: skin-float 1.5s ease-in-out infinite;
 }
 @keyframes skin-bounce {

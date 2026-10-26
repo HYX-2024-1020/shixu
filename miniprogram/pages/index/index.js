@@ -25,18 +25,20 @@ const {
   statePatch,
 } = require("../../lib/world");
 const {
+  NATIVE_SKIN_MOTIONS,
   SKIN_INTERACTION,
   BUILTIN_SKINS,
   SKIN_MOTIONS,
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
   mergeCardOrder,
-  deadlineSections,
+  deadlineCountdown,
   parseDeadline,
   absoluteItem,
   setDeadline,
   habitCheckin,
 } = require("../../lib/generated/desktop");
+const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
 const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
 const jobsKey = (base) => `shixu:mini:jobs:v1:${base}`;
@@ -52,8 +54,15 @@ function dateInfo() {
   };
 }
 Page({
+  ...createTouchOrder(wx),
   data: {
     tab: "capture",
+    dragId: "",
+    dragView: null,
+    dragGhost: null,
+    dragSettling: false,
+    dragScrollTop: 0,
+    dragNotice: "",
     ddlDays: [1, 3, 7, 14, 30],
     ddlIndex: 2,
     ddlLimit: 60,
@@ -98,8 +107,14 @@ Page({
     notice: "",
     showDeleted: false,
     expandedId: "",
+    expandedCardId: "",
+    detailAnchor: "",
+    detailScrollTop: 0,
     updateReady: false,
     scope: "active",
+    scopeLabels: ["待处理", "完成 / 归档", "最近删除"],
+    scopeIndex: 0,
+    filtersOpen: false,
     query: "",
     kind: "all",
     sort: "priority",
@@ -222,10 +237,12 @@ Page({
     }, 8000);
   },
   onHide() {
+    this.cancelDrag();
     clearInterval(this._timer);
     this._stopSkinInteraction();
   },
   onUnload() {
+    this.cancelDrag();
     clearInterval(this._timer);
     this._stopSkinInteraction();
     if (this._skinAudio) this._skinAudio.destroy();
@@ -277,6 +294,7 @@ Page({
     this._refresh();
   },
   _refresh() {
+    if (this._drag || this._completionLock) return;
     if (!this._client) return;
     try {
       const library = this._library();
@@ -319,12 +337,29 @@ Page({
       }));
     const view = worldView(this._client.records(), this.data);
     const clock = new Date();
-    const ddl = deadlineSections(
+    const day = `${clock.getFullYear()}-${String(clock.getMonth() + 1).padStart(2, "0")}-${String(clock.getDate()).padStart(2, "0")}`;
+    const clockText = `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`;
+    const ddl = ddlLists(
       itemsFor(this._client.records()),
-      localDay(),
-      `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`,
+      day,
+      clockText,
       this.data.ddlDays[this.data.ddlIndex],
     );
+    const ddlCard = (row, index) => {
+      const card = this._cardView(row, index);
+      const countdown = deadlineCountdown(
+        card.date || "",
+        day,
+        card.time || "",
+        clockText,
+        !!card.done,
+      );
+      return {
+        ...card,
+        countdown: countdown.label,
+        countdownStatus: countdown.status,
+      };
+    };
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
@@ -344,23 +379,28 @@ Page({
                   !this._record(e.packetId).deletedAt,
               ).length
           : 0,
-      ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(this._cardView),
-      ddlUnsure: ddl.unsure.slice(0, this.data.ddlLimit).map(this._cardView),
-      ddlDone: ddl.done.slice(0, this.data.ddlLimit).map(this._cardView),
+      ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(ddlCard),
+      ddlUnsure: ddl.unsure.slice(0, this.data.ddlLimit).map(ddlCard),
+      ddlDone: ddl.done.slice(0, this.data.ddlLimit).map(ddlCard),
       ddlSections: [
         {
           title: "今天截止",
-          rows: ddl.today.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.today.slice(0, this.data.ddlLimit).map(ddlCard),
         },
         {
           title: `未来 ${this.data.ddlDays[this.data.ddlIndex]} 天`,
-          rows: ddl.soon.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.soon.slice(0, this.data.ddlLimit).map(ddlCard),
         },
         {
           title: `${this.data.ddlDays[this.data.ddlIndex]} 天之后`,
-          rows: ddl.later.slice(0, this.data.ddlLimit).map(this._cardView),
+          rows: ddl.later.slice(0, this.data.ddlLimit).map(ddlCard),
         },
-      ].filter((s) => s.rows.length),
+      ].flatMap((section) =>
+        [...new Set(section.rows.map((row) => row.date))].map((date) => ({
+          title: `${section.title} · ${date || "日期待确认"}`,
+          rows: section.rows.filter((row) => row.date === date),
+        })),
+      ),
       ddlCount:
         ddl.overdue.length +
         ddl.today.length +
@@ -378,6 +418,8 @@ Page({
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
+      groupChoices: ["全部分组", ...view.groups],
+      groupIndex: view.groups.indexOf(this.data.group) + 1,
       categories: view.categories,
       items: view.items.map(this._cardView),
       sections: view.sections.map((s) => ({
@@ -537,7 +579,7 @@ Page({
   },
   async openAttachment(event) {
     if (this.data.filesBusy) return;
-    this.setData({ filesBusy: true });
+    this.setData({ filesBusy: true, error: "", notice: "" });
     try {
       const { id, packet } = event.currentTarget.dataset,
         row = this._record(packet);
@@ -628,11 +670,25 @@ Page({
   },
   _cardView(row, index = 0) {
     const { item, meta, search, ...view } = row;
+    const now = new Date();
+    const countdown = deadlineCountdown(
+      row.date || "",
+      localDay(),
+      row.time || "",
+      `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+      !!row.done,
+    );
     return {
       ...view,
-      shadowIndex: index % 4,
+      shadowIndex: index % 3,
+      compactTimeLabel: (row.timeLabel || "").replace(
+        new RegExp(`${now.getFullYear()}-`, "g"),
+        "",
+      ),
+      countdown: countdown.label,
+      countdownStatus: countdown.status,
       title: row.title.slice(0, 150),
-      summary: row.summary.slice(0, 220),
+      summary: row.summary,
     };
   },
   _presentDetail(row) {
@@ -802,13 +858,14 @@ Page({
     this.setData({ password: event.detail.value });
   },
   switchTab(event) {
+    this.cancelDrag();
     const target = event.currentTarget.dataset.tab;
     if (target === "settings") {
       if (this.data.tab === "settings") return this.closeSettings();
       this.setData({ settingsReturnTab: this.data.tab });
     }
     this._stopSkinInteraction();
-    this.setData({ tab: target, notice: "" });
+    this.setData({ tab: target, notice: "", expandedCardId: "" });
     this._refresh();
   },
   closeSettings() {
@@ -997,7 +1054,7 @@ Page({
       ...row,
       sourceText: p.text || "",
       sources: p.sources || [],
-      attachments: p.attachments || [],
+      attachments: (p.attachments || []).filter((file) => !file.deletedAt),
       evidence: (row.item.evidence || []).map((e) => ({
         ...e,
         name:
@@ -1013,14 +1070,65 @@ Page({
       checked: (row.meta.checkins || []).includes(localDay()),
     };
   },
+  selectCardCategory(event) {
+    const kind = event.currentTarget.dataset.kind;
+    const kindIndex = this.data.kindKeys.indexOf(kind);
+    if (kindIndex < 0) return;
+    this.setData({ kind, kindIndex, expandedCardId: "", limit: 60 });
+    this._refresh();
+  },
+  onCardAction(event) {
+    if (this._drag) return;
+    const { action, id } = event.currentTarget.dataset;
+    const allowed = [
+      "toggleCard",
+      "toggleStar",
+      "toggleDone",
+      "openItem",
+      "openMaterials",
+      "confirmRemoveItem",
+      "restoreItem",
+      "verifyDdl",
+    ];
+    if (!allowed.includes(action)) return;
+    const row = this._detail(id);
+    if (
+      !row ||
+      (row.deleted &&
+        ["toggleStar", "toggleDone", "confirmRemoveItem"].includes(action))
+    )
+      return;
+    this.onCardActionStart();
+    return this[action](event);
+  },
+  toggleCard(event) {
+    if (this._blockDragTap()) return;
+    const id = event.currentTarget.dataset.id;
+    this.setData({ expandedCardId: this.data.expandedCardId === id ? "" : id });
+  },
+  openMaterials(event) {
+    this.openItem(event);
+    if (this.data.selected?.id === event.currentTarget.dataset.id)
+      this.jumpToMaterials();
+  },
+  jumpToMaterials() {
+    this.setData({ detailAnchor: "" }, () =>
+      this.setData({ detailAnchor: "detail-materials" }),
+    );
+  },
   openItem(event) {
+    if (this._blockDragTap()) return;
     this.setData({
       selected: this._presentDetail(
         this._detail(event.currentTarget.dataset.id),
       ),
       editing: false,
       addition: "",
+      chatInput: "",
+      detailAnchor: "",
+      detailScrollTop: 0,
       error: "",
+      notice: "",
     });
   },
   loadMoreDdl() {
@@ -1056,8 +1164,21 @@ Page({
       this.setData({ [field]: event.detail.value });
   },
   verifyDdl(event) {
-    this.openItem(event);
-    this.beginEdit();
+    if (this._drag || this._completionLock) return;
+    try {
+      const row = this._presentDetail(
+        this._detail(event.currentTarget.dataset.id),
+      );
+      if (!row || row.deleted) throw Error("事项已更新，请重新打开");
+      this.setData({
+        selected: row,
+        addition: "",
+        error: "",
+        ...this._editFields(row),
+      });
+    } catch (error) {
+      this._error(error);
+    }
   },
   addDdl() {
     try {
@@ -1125,10 +1246,20 @@ Page({
     this.setData({ query: event.detail.value, limit: 60 });
     this._refresh();
   },
+  chooseScope(event) {
+    const scope = ["active", "done", "trash"][Number(event.detail.value)];
+    if (scope) this.setScope({ currentTarget: { dataset: { scope } } });
+  },
+  chooseGroup(event) {
+    const group = this.data.groupChoices[Number(event.detail.value)];
+    this.setData({ group: group === "全部分组" ? "" : group, limit: 60 });
+    this._refresh();
+  },
   setScope(event) {
     const scope = event.currentTarget.dataset.scope;
     this.setData({
       scope,
+      scopeIndex: ["active", "done", "trash"].indexOf(scope),
       kind: "all",
       kindIndex: 0,
       showDeleted: scope === "trash",
@@ -1138,15 +1269,6 @@ Page({
   },
   toggleFilters() {
     this.setData({ filtersOpen: !this.data.filtersOpen });
-  },
-  selectCategory(event) {
-    const kind = event.currentTarget.dataset.kind;
-    this.setData({
-      kind,
-      kindIndex: this.data.kindKeys.indexOf(kind),
-      limit: 60,
-    });
-    this._refresh();
   },
   setKind(event) {
     const i = Number(event.detail.value);
@@ -1198,7 +1320,7 @@ Page({
     this.setData({ recordPage: next });
     this._refresh();
   },
-  _changeItem(id, changes) {
+  _changeItem(id, changes, deferRefresh = false) {
     const row = itemsFor(this._client.records()).find((r) => r.id === id);
     if (!row || row.packetDeleted) throw new Error("请先恢复整次投递");
     const patch = statePatch(this._record(row.packetId).data, row, changes);
@@ -1211,42 +1333,43 @@ Page({
       this.setData({
         selected: { ...this.data.selected, id: patch.itemIds[row.index] },
       });
-    this._refresh();
+    if (!deferRefresh) this._refresh();
     this.syncQuietly();
   },
   async toggleDone(event) {
+    if (this._blockDragTap()) return;
     if (this._completionLock) return;
     this._completionLock = true;
     try {
       const row = this._detail(event.currentTarget.dataset.id);
       if (!row || row.deleted) return;
-      if (!(row.kind === "habit" ? row.checked : row.done)) {
-        this.setData({ checkingId: row.id });
-        await new Promise((resolve) => setTimeout(resolve, 230));
-      }
-      if (row.kind !== "habit") {
-        this.setData({ leavingId: row.id });
-        await new Promise((resolve) => setTimeout(resolve, 170));
-      }
-      const current = this._detail(row.id);
-      if (!current || current.deleted) return;
+      // Persist first: a missed animation or interrupted page must not lose the action.
       this._changeItem(
         row.id,
-        current.kind === "habit"
-          ? habitCheckin(current.meta, localDay())
+        row.kind === "habit"
+          ? habitCheckin(row.meta, localDay())
           : {
-              status: current.done ? "active" : "done",
-              completedAt: current.done ? "" : new Date().toISOString(),
+              status: row.done ? "active" : "done",
+              completedAt: row.done ? "" : new Date().toISOString(),
             },
+        true,
       );
+      this.setData({ checkingId: row.id });
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      if (row.kind !== "habit") {
+        this.setData({ leavingId: row.id });
+        await new Promise((resolve) => setTimeout(resolve, 160));
+      }
     } catch (error) {
       this._error(error);
     } finally {
       this.setData({ checkingId: "", leavingId: "" });
       this._completionLock = false;
+      this._refresh();
     }
   },
   toggleStar(event) {
+    if (this._blockDragTap()) return;
     try {
       const row = this._detail(event.currentTarget.dataset.id);
       this._changeItem(row.id, { starred: !row.starred });
@@ -1257,7 +1380,13 @@ Page({
   togglePin(event) {
     try {
       const row = this._detail(event.currentTarget.dataset.id);
+      if (this._blockDragTap()) return;
+      wx.setStorageSync(FILTERS, { sort: "priority" });
+      this.setData({ sort: "priority", sortIndex: 0 });
       this._changeItem(row.id, { pinned: !row.pinned });
+      this.setData({
+        notice: row.pinned ? "已取消置顶" : "已置顶，世界已切换为优先处理",
+      });
     } catch (error) {
       this._error(error);
     }
@@ -1271,6 +1400,16 @@ Page({
     } catch (error) {
       this._error(error);
     }
+  },
+  confirmRemoveItem(event) {
+    if (this._blockDragTap()) return;
+    wx.showModal({
+      title: "将这项移入最近删除？",
+      content: "可以在世界的最近删除中恢复，原文及其他事项会保留。",
+      success: (answer) => {
+        if (answer.confirm) this.removeItem(event);
+      },
+    });
   },
   removeItem(event) {
     try {
@@ -1334,10 +1473,8 @@ Page({
       },
     });
   },
-  beginEdit() {
-    const row = this.data.selected;
-    if (!row || row.deleted) return;
-    this.setData({
+  _editFields(row) {
+    return {
       editing: true,
       editTitle: row.item.title,
       editSummary: row.item.summary || "",
@@ -1345,7 +1482,11 @@ Page({
       editDate: row.startDate ? row.timeLabel.replace(" → ", " 至 ") : row.date,
       editTime: row.startDate ? "" : row.time,
       editKind: Object.keys(KINDS).indexOf(row.kind),
-    });
+    };
+  },
+  beginEdit() {
+    const row = this.data.selected;
+    if (row && !row.deleted) this.setData(this._editFields(row));
   },
   onEdit(event) {
     const field = event.currentTarget.dataset.field;
@@ -1771,6 +1912,7 @@ Page({
       skinMessage: s.greeting,
       skinAnimating: true,
     });
+    this._startSkinMotion(s);
     if (s.art === "whale" && this._prepareSkinAudio()) {
       try {
         this._skinAudio.play();
@@ -1786,11 +1928,58 @@ Page({
         SKIN_INTERACTION.greetingMs,
       );
   },
+  _startSkinMotion(skin) {
+    if (!wx.createAnimation) return;
+    const motion = NATIVE_SKIN_MOTIONS[skin.motion];
+    if (!motion) return;
+    clearTimeout(this._skinMotionTimer);
+    const generation = (this._skinMotionGeneration || 0) + 1;
+    this._skinMotionGeneration = generation;
+    this.setData({ skinNativeMotion: true });
+    let index = 1,
+      turns = 0;
+    const advance = () => {
+      if (!this.data.skinAnimating || generation !== this._skinMotionGeneration)
+        return;
+      const frame = motion.frames[index];
+      const duration =
+        ((frame.at - motion.frames[index - 1].at) * motion.duration) / 100;
+      // Send one changed target per render. Re-exporting identical whole cycles
+      // can be deduplicated by the native view after the first cycle.
+      const animation = wx.createAnimation({
+        duration,
+        transformOrigin: "50% 83%",
+        timingFunction: "ease-in-out",
+      });
+      for (const [method, ...args] of frame.commands) {
+        if (skin.motion === "spin" && method === "rotate")
+          animation.rotate(args[0] + 360 * turns);
+        else animation[method](...args);
+      }
+      animation.step({ duration });
+      this.setData({ skinAnimation: animation.export() });
+      index++;
+      if (index === motion.frames.length) {
+        index = 1;
+        turns++;
+      }
+      this._skinMotionTimer = setTimeout(advance, duration + 16);
+    };
+    advance();
+  },
   _finishSkinInteraction() {
     const skin = this.data.skinOpen
       ? this.data.previewSkin
       : this.data.activeSkin;
-    this.setData({ skinAnimating: false, skinMessage: skin.hello });
+    clearTimeout(this._skinMotionTimer);
+    this._skinMotionGeneration = (this._skinMotionGeneration || 0) + 1;
+    const reset = wx.createAnimation && wx.createAnimation({ duration: 100 });
+    if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
+    this.setData({
+      skinAnimating: false,
+      skinMessage: skin.hello,
+      ...(reset ? { skinAnimation: reset.export() } : {}),
+    });
   },
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
@@ -1825,6 +2014,7 @@ Page({
       skinMessage: s.feeding,
       skinAnimating: true,
     });
+    this._startSkinMotion(s);
     this._skinTimer = setTimeout(
       () => this._finishSkinInteraction(),
       SKIN_INTERACTION.feedingMs,
