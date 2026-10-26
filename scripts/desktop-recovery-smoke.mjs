@@ -40,13 +40,22 @@ try {
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
     .waitFor();
   assert.equal(calls, 1);
-  const [packet] = await page.evaluate(() => window.desktop.store("packets"));
-  await page.evaluate(async (p) => {
-    await window.desktop.store("savePackets", [
-      { ...p, text: p.text + "，人工补充应保留", status: "pending" },
-    ]);
+  await waitForPageState(page, async () => {
+    // Flush the activation/reload acknowledgement before capturing the version
+    // for this synthetic edit. A background sync can still land between IPCs.
     await window.desktop.cloud("sync");
-  }, packet);
+    const [p] = await window.desktop.store("packets");
+    try {
+      await window.desktop.store("savePackets", [
+        { ...p, text: p.text + "，人工补充应保留", status: "pending" },
+      ]);
+    } catch (error) {
+      if (String(error.message).includes("云端已有新修改")) return false;
+      throw error;
+    }
+    await window.desktop.cloud("sync");
+    return true;
+  });
   finish();
   await waitForPageState(page, async () => {
     await window.desktop.cloud("sync");
