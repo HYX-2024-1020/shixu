@@ -540,13 +540,13 @@
   ></view
 >
 <view wx:if="{{skinOpen}}" class="scrim skin-scrim" bindtap="closeSkins"
-  ><view class="sheet" catchtap="stopTap"
+  ><view class="sheet skin-market-sheet" catchtap="stopTap"
     ><view class="sheet-handle"></view
-    ><view class="section-top"
+    ><view class="section-top skin-market-header"
       ><view
         ><text class="eyebrow">A LITTLE COMPANY</text
         ><text class="section-title">皮肤市场</text></view
-      ><button hover-class="icon-press" class="icon-button" bindtap="closeSkins">×</button></view
+      ><button hover-class="icon-press" class="icon-button skin-market-close" aria-label="关闭皮肤市场" bindtap="closeSkins">×</button></view
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
         ><view class="skin-preview {{previewSkin.id === 'ice' ? 'is-plain-preview' : ''}}" style="background:{{previewSkin.color}}"

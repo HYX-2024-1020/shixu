@@ -924,8 +924,6 @@
 }
 .skin-preview-stage:has(.is-plain-art) {
   background-image: none;
-  background-color: transparent !important;
-  border-color: transparent;
 }
 .skin-market {
   height: min(850px, calc(100dvh - 48px));

@@ -28,6 +28,10 @@ test("card tap applies and persists immediately without touching the draft", asy
     "ice",
   );
   await expect(market.locator(".skin-bubble,.skin-spark")).toHaveCount(0);
+  await expect(market.locator(".skin-preview-stage")).toHaveCSS(
+    "background-color",
+    "rgb(222, 243, 255)",
+  );
   await expect(market.locator(".skin-mascot")).toHaveAttribute(
     "data-motion",
     "idle",
@@ -78,6 +82,17 @@ test("card tap applies and persists immediately without touching the draft", asy
   });
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  await expect(page.locator(".ddl-head img")).toHaveAttribute("alt", "冰冰冰");
+  await expect(page.locator(".ddl-head img")).toHaveAttribute(
+    "src",
+    /ice\.png$/,
+  );
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await page.getByRole("button", { name: "使用小鲸鱼" }).click();
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  await expect(page.locator(".ddl-head img")).toHaveAttribute("alt", "小鲸鱼");
+
   expect(errors).toEqual([]);
 });
 

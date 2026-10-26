@@ -1760,6 +1760,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "ddl"}>
           <DDL
+            skin={activeSkin}
             reorder={reorderCards}
             active={workspace === "ddl"}
             packets={packets}

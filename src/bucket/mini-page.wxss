@@ -2510,15 +2510,30 @@ page {
 .home-character.with-voices .is-plain-art {
   transform: scale(1.05) !important;
 }
-.skin-preview.is-plain-preview {
-  background: transparent !important;
-  border-color: transparent;
-  box-shadow: none;
-}
 .skin-preview-stage.is-plain-preview {
   padding: 0;
 }
 .skin-preview-stage .preview-art.is-plain-art {
   width: 300rpx;
   height: auto;
+}
+
+.skin-market-header {
+  position: relative;
+  min-height: 76rpx;
+  padding-right: 88rpx;
+}
+.skin-market-header > view {
+  min-width: 0;
+}
+.skin-market-header .skin-market-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 72rpx;
+  min-width: 72rpx;
+  height: 72rpx;
+  min-height: 72rpx;
+  padding: 0;
+  margin: 0;
 }

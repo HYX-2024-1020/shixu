@@ -23,18 +23,44 @@ const cssAt = (width: number) =>
 // Native routing and WXS compilation are separately checked by mini:compile.
 async function render(page: any, width: number, template: string, row: any) {
   const wxml = read("miniprogram/pages/index/index.wxml");
+  const marketStart = wxml.indexOf('<view wx:if="{{skinOpen}}"');
+  const marketHeadStart = wxml.indexOf(
+    '    ><view class="section-top skin-market-header"',
+    marketStart,
+  );
+  const marketHeadEnd = wxml.indexOf(
+    '    ><scroll-view scroll-y class="sheet-scroll"',
+    marketHeadStart,
+  );
+  const marketPreviewStart = wxml.indexOf(
+    '        ><view class="skin-preview ',
+    marketHeadEnd,
+  );
+  const marketPreviewEnd = wxml.indexOf(
+    '        ><view class="skin-grid"',
+    marketPreviewStart,
+  );
   const source =
     template === "home"
       ? wxml.slice(
           wxml.indexOf('      <view class="home-character'),
           wxml.indexOf('      <button class="skin-home-change'),
         )
-      : wxml.split(`<template name="${template}">`)[1].split("</template>")[0];
+      : template === "market"
+        ? wxml.slice(marketHeadStart, marketHeadEnd).trim().slice(1) +
+          ">" +
+          wxml.slice(marketPreviewStart, marketPreviewEnd).trim().slice(1) +
+          ">"
+        : wxml
+            .split(`<template name="${template}">`)[1]
+            .split("</template>")[0];
   await page.setViewportSize({ width, height: 900 });
   const host =
     template === "home"
       ? '<view class="page"><view class="hero" id="cards"></view></view>'
-      : '<view class="page"><view class="world"><view class="world-grid" id="cards"></view></view></view>';
+      : template === "market"
+        ? '<view class="sheet skin-market-sheet" id="cards"></view>'
+        : '<view class="page"><view class="world"><view class="world-grid" id="cards"></view></view></view>';
   await page.setContent(
     `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#fff6dc}view,text{display:block}button{box-sizing:border-box}${cssAt(width)}</style>${host}`,
   );
@@ -47,6 +73,15 @@ async function render(page: any, width: number, template: string, row: any) {
           image: row.image,
           motion: "wiggle",
           hello: "hello",
+        },
+        previewSkin: {
+          id: row.skin || "ice",
+          image: row.image,
+          art: row.skin || "ice",
+          motion: "wiggle",
+          name: row.skin || "ice",
+          description: "合成预览",
+          color: "#dcecff",
         },
         skinOpen: false,
         skinAnimating: false,
@@ -300,5 +335,43 @@ for (const width of [320, 375, 414]) {
     await page
       .locator(".hero")
       .screenshot({ path: info.outputPath("native-ice-home.png") });
+  });
+}
+
+for (const width of [320, 375, 414]) {
+  test(`native market shares preview frames and keeps close at top right at ${width}px`, async ({
+    page,
+  }, info) => {
+    for (const skin of ["whale", "ice"]) {
+      const image =
+        "data:image/png;base64," +
+        readFileSync(
+          `public/${skin === "ice" ? "ice" : "mascot"}.png`,
+        ).toString("base64");
+      await render(page, width, "market", { skin, image });
+      const sheet = await page.locator(".skin-market-sheet").boundingBox();
+      const close = await page
+        .getByRole("button", { name: "关闭皮肤市场" })
+        .boundingBox();
+      expect(sheet!.x + sheet!.width - close!.x - close!.width).toBeLessThan(
+        23,
+      );
+      expect(close!.x).toBeGreaterThan(width * 0.75);
+      await expect(page.locator(".skin-preview")).toHaveCSS(
+        "background-color",
+        "rgb(220, 236, 255)",
+      );
+      await expect(page.locator(".skin-preview")).toHaveCSS(
+        "border-top-style",
+        "solid",
+      );
+      await expect(page.locator(".skin-preview")).not.toHaveCSS(
+        "box-shadow",
+        "none",
+      );
+    }
+    await page
+      .locator(".skin-market-sheet")
+      .screenshot({ path: info.outputPath("native-skin-market.png") });
   });
 }

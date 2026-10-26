@@ -141,6 +141,9 @@ try {
   );
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
+  await page.getByRole("button", { name: "DDL", exact: true }).click();
+  await expect(page.locator(".ddl-head img")).toHaveAttribute("alt", "冰冰冰");
+
   await app.close();
   app = await launch();
   page = await pageForApp();
