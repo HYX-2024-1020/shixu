@@ -117,7 +117,7 @@ assert.ok(
   "native single-column list container exists",
 );
 assert.ok(
-  view().some((n) => n.attr?.class?.includes("xc-card kind-task")),
+  view().some((n) => n.attr?.class?.includes("xc-card") && n.attr?.class?.includes("kind-task")),
   "native card carries its semantic palette",
 );
 assert.ok(
@@ -139,15 +139,16 @@ assert.ok(
       node.attr?.["data-action"] === "confirmRemoveItem" &&
       node.attr?.bindtap === "onCardAction",
   ),
-  "discoverable deletion cannot arm a parent drag",
+  "discoverable deletion keeps an independent tap route",
 );
 const compactId = page.data.items[0].id;
 const compactNode = view().find((n) => n.attr?.class?.includes("xc-card"));
 assert.equal(compactNode.attr.bindtap, undefined);
+assert.equal(compactNode.attr.bindlongpress, "startDrag");
 assert.equal(
   compactNode.attr.bindtouchstart,
-  undefined,
-  "body taps must not arm dragging",
+  "dragTouchStart",
+  "whole card arms a hold candidate without intercepting taps",
 );
 for (const node of view().filter((n) => n.attr?.bindtap === "onCardAction")) {
   assert.equal(node.attr.catchtouchend, undefined);
@@ -176,6 +177,13 @@ page._client.put(materialRow.packetId, {
   ],
 });
 page._refresh();
+assert.ok(
+  view().some(
+    (n) =>
+      n.attr?.class === "card-file" && JSON.stringify(n).includes("合成.pdf"),
+  ),
+  "attachment filenames remain on the card surface",
+);
 assert.ok(view().some((n) => n.attr?.["data-action"] === "openMaterials"));
 page.openMaterials({ currentTarget: { dataset: { id: compactId } } });
 assert.equal(page.data.detailAnchor, "detail-materials");

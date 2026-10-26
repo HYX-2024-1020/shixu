@@ -39,6 +39,15 @@ function itemsFor(records) {
           startTime: item.due?.startTime || "",
           id,
           packetId: p.id,
+          cardFiles: (p.attachments || [])
+            .filter((a) => !a.deletedAt)
+            .map((a) => ({
+              id: a.id,
+              name: a.name,
+              extension: a.name.includes(".")
+                ? a.name.split(".").pop().slice(0, 5).toUpperCase()
+                : "FILE",
+            })),
           attachmentCount: (p.attachments || []).filter((a) => !a.deletedAt)
             .length,
           index,

@@ -482,6 +482,7 @@ function createTouchOrder(wx) {
       this._dragSettleTimer = setTimeout(() => this._stopDragSettle(), 260);
     },
     finishDrag(event) {
+      if (this._drag) this._dragJustEndedAt = Date.now();
       if (event?.touches?.length) {
         this.cancelDrag();
         return;

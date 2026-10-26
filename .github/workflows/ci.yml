@@ -87,6 +87,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Use official Ubuntu mirror for browser dependencies
+        shell: bash
+        run: |
+          # Hosted runner's Azure mirror timed out before browser tests started.
+          # Keep the Ubuntu suite and signed indexes; change only this runner's mirror list.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            echo 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt
+          fi
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

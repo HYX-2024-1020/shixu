@@ -20,7 +20,30 @@ const packet = {
   sources: [
     { id: "input", name: "合成通知", text: "2026年10月28日18:30提交品牌提案" },
   ],
-  attachments: [],
+  attachments: [
+    {
+      id: "brief",
+      name: "项目要求.md",
+      type: "text/markdown",
+      size: 18,
+      bytes: Uint8Array.from(Buffer.from("合成项目要求")).buffer,
+    },
+    {
+      id: "reference",
+      name: "参考资料-很长的文件名用于验证换行不丢失.txt",
+      type: "text/plain",
+      size: 9,
+      bytes: Uint8Array.from(Buffer.from("合成参考")).buffer,
+    },
+    {
+      id: "removed",
+      name: "已删除文件.txt",
+      bytes: Uint8Array.from(Buffer.from("old")).buffer,
+      type: "text/plain",
+      size: 3,
+      deletedAt: "2026-10-26T12:00:00Z",
+    },
+  ],
   capturedAt: "2026-10-26T12:00:00Z",
   captureDate: "2026-10-26",
   updatedAt: "2026-10-26T12:00:00Z",
@@ -34,6 +57,7 @@ const packet = {
     warnings: [],
     items: kinds.map((kind, i) => ({
       kind,
+      group: "品牌设计",
       title: titles[i],
       summary: "整理核心概念与三张主视觉，准备下一轮评审。",
       facts: ["原文完整保留"],
@@ -89,24 +113,57 @@ try {
   await expect(
     task.getByRole("button", { name: "取消星标", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await mkdir("test-results", { recursive: true });
+  await expect(task.locator(".collection-tag")).toHaveText("品牌设计");
+  await expect(task.locator(".deadline")).toContainText("18:30");
+  await expect(task.locator(".card-file")).toHaveCount(2);
+  await expect(task.locator(".card-files")).not.toContainText("已删除文件");
+  await task.locator(".card-file").first().click();
+  await expect(page.getByRole("dialog", { name: "同行材料" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "项目要求.md", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭同行材料" }).click();
+  const gradients = await task.evaluate((el) =>
+    [el, ...el.querySelectorAll("*")].some((n) =>
+      [null, "::before", "::after"].some((p) =>
+        /gradient/.test(getComputedStyle(n, p).backgroundImage),
+      ),
+    ),
+  );
+  expect(gradients).toBe(false);
+  for (const width of [720, 1360, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const overflow = await task
+      .locator(".card-file")
+      .evaluateAll((nodes) =>
+        nodes.some((el) => el.getBoundingClientRect().right > innerWidth),
+      );
+    expect(overflow).toBe(false);
+  }
+  await page.setViewportSize({ width: 1360, height: 1000 });
+  await mkdir("release/cel-evidence", { recursive: true });
   const label = process.env.SHIXU_VISUAL_LABEL || "source";
   await page.screenshot({
-    path: `test-results/sticker-${label}-world.png`,
+    path: `release/cel-evidence/sticker-${label}-world.png`,
     animations: "disabled",
   });
   await task.getByRole("button", { name: "查看详情" }).click();
   await expect(page.getByRole("dialog", { name: "事项详情" })).toBeVisible();
+  await page.screenshot({
+    path: `release/cel-evidence/sticker-${label}-detail.png`,
+    animations: "disabled",
+  });
   await page.getByRole("button", { name: "关闭事项详情" }).click();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
   const ddl = page.locator(".ddl-item").filter({ hasText: "完成品牌提案" });
   await expect(ddl.locator(".ddl-countdown")).toHaveText("还剩 2 天");
+  await expect(ddl.locator(".card-file")).toHaveCount(2);
   await expect(ddl.locator(".ddl-footer")).toHaveCSS(
     "background-color",
     "rgb(195, 176, 255)",
   );
   await page.screenshot({
-    path: `test-results/sticker-${label}-ddl.png`,
+    path: `release/cel-evidence/sticker-${label}-ddl.png`,
     animations: "disabled",
   });
   await ddl.getByRole("button", { name: /标记完成：/ }).click();

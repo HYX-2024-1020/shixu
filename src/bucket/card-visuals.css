@@ -268,3 +268,173 @@
   font-weight: 900;
   min-height: 36px;
 }
+
+/* Cel treatment: flat paper, a black keyline and a second hard color plane. */
+.result-card[class*="kind-"] {
+  border-radius: 3px;
+  box-shadow:
+    5px 5px #171713,
+    10px 10px var(--card-accent);
+}
+.result-card[class*="kind-"]:hover {
+  box-shadow:
+    7px 7px #171713,
+    12px 12px var(--card-accent);
+}
+.result-card .card-topline {
+  background: var(--card-paper);
+  border-bottom: 2px solid #171713;
+  margin: -22px -24px 20px;
+  padding: 12px 20px;
+}
+.result-card .card-kind {
+  background: var(--card-accent);
+  border: 1.5px solid #171713;
+  padding: 3px 7px;
+}
+.result-card .card-open h2 {
+  transform: none;
+  border-left: 7px solid #171713;
+  box-shadow:
+    3px 3px #171713,
+    inset 0 2px #fffef8;
+}
+.result-card.kind-idea .card-open h2 {
+  transform: rotate(-0.6deg);
+}
+.result-card .card-context {
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.result-card .deadline {
+  background: #ffda32;
+  border: 1.5px solid #171713;
+  padding: 5px 7px;
+  box-shadow: 2px 2px #171713;
+  font-size: 12px;
+}
+.result-card .deadline.is-overdue {
+  background: #ffa5b4;
+}
+.result-card .collection-tag {
+  background: #eee8ff;
+  color: #302653;
+  border: 1px solid #51446b;
+  padding: 4px 7px;
+  font-weight: 800;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.result-card .card-bottom {
+  background: var(--card-accent);
+  box-shadow: inset 0 3px #fffef8;
+}
+.card-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 6px;
+  min-width: 0;
+}
+.card-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 2px solid #171713;
+  background: #fffef8;
+  box-shadow: 2px 2px #171713;
+  color: #171713;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.card-file b {
+  color: #6542b4;
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  flex-shrink: 0;
+}
+.card-file > span:first-of-type {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.card-file:hover {
+  background: #fff6ce;
+}
+.ddl-item[class*="urgency-"] {
+  box-shadow:
+    5px 5px #171713,
+    10px 10px var(--card-accent);
+}
+.ddl-item[class*="urgency-"] .time-rail {
+  background: var(--card-paper);
+  border-right: 3px solid #171713;
+}
+.ddl-item .ddl-countdown {
+  transform: none;
+  box-shadow:
+    3px 3px #171713,
+    inset 0 2px #fffef8;
+}
+.ddl-item .ddl-copy h3 {
+  background: #ffda32;
+  border-left: 6px solid #171713;
+  box-shadow:
+    3px 3px #171713,
+    inset 0 2px #fffef8;
+}
+.ddl-item .ddl-course {
+  border: 1px solid #51446b;
+  background: #eee8ff;
+  padding: 3px 7px;
+  font-weight: 800;
+}
+.ddl-item .card-files {
+  padding: 0 20px 16px;
+}
+.result-body[class*="kind-"] .result-heading {
+  position: relative;
+  background: var(--card-accent);
+  border-left: 9px solid #171713;
+  box-shadow:
+    5px 5px #171713,
+    9px 9px var(--card-paper);
+}
+.result-body .result-heading h2 {
+  font-weight: 900;
+  line-height: 1.45;
+}
+.result-body .delivery-sources,
+.ddl-panel .delivery-sources {
+  border-color: #171713;
+}
+.result-body .source-file,
+.ddl-panel .source-file {
+  border: 2px solid #171713;
+  background: #fffef8;
+  box-shadow: 2px 2px #171713;
+}
+.result-body blockquote,
+.ddl-panel blockquote {
+  border-left: 5px solid #7960ba;
+  background: #f2edff;
+  color: #373243;
+}
+.result-body .item-chat {
+  background: #fff6ce;
+  border: 2px solid #171713;
+}
+@media (max-width: 760px) {
+  .ddl-item[class*="urgency-"] .time-rail {
+    border-right: 0;
+    border-bottom: 3px solid #171713;
+  }
+  .card-file {
+    min-height: 44px;
+  }
+}

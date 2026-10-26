@@ -61,6 +61,23 @@ async function render(page: any, width: number, template: string, row: any) {
             continue;
           }
           if (!(node instanceof Element)) continue;
+          if (node.hasAttribute("wx:for")) {
+            const values = evaluate(node.getAttribute("wx:for")!) || [];
+            const key = node.getAttribute("wx:for-item") || "item";
+            const saved = data[key];
+            for (const value of values) {
+              data[key] = value;
+              const copy = node.cloneNode(true) as Element;
+              copy.removeAttribute("wx:for");
+              const wrapper = document.createElement("div");
+              wrapper.append(copy);
+              walk(wrapper);
+              node.before(...wrapper.childNodes);
+            }
+            data[key] = saved;
+            node.remove();
+            continue;
+          }
           if (node.hasAttribute("wx:if")) {
             matched = !!evaluate(node.getAttribute("wx:if")!);
             if (!matched) {
@@ -164,6 +181,13 @@ for (const width of [320, 375, 414]) {
   }, info) => {
     await render(page, width, "ddlCard", {
       id: "ddl",
+      cardFiles: [
+        {
+          id: "f",
+          name: "完整交付清单-长文件名用于手机换行测试.pdf",
+          extension: "PDF",
+        },
+      ],
       kind: "task",
       urgency: "today",
       title: "完成品牌提案",
@@ -173,6 +197,7 @@ for (const width of [320, 375, 414]) {
       time: "18:30",
       group: "品牌设计",
     });
+    await expect(page.locator(".card-file")).toContainText("完整交付清单");
     await expect(page.locator(".ddl-countdown")).toHaveText("今天截止");
     await expect(page.locator(".ddl-countdown")).toHaveCSS(
       "background-color",

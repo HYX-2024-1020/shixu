@@ -1531,3 +1531,55 @@ test("compact category strip changes kind and resets temporary expansion without
   assert.deepEqual(p._client.records()[0].data, before);
   p.onUnload();
 });
+
+test("card filenames preserve active originals and metadata while hiding soft-deleted attachments", () => {
+  const p = packet();
+  p.attachments = [
+    { id: "one", name: "实验要求.pdf", size: 3, type: "application/pdf" },
+    { id: "two", name: "会议记录", size: 2, type: "text/plain" },
+    {
+      id: "deleted",
+      name: "已删除.png",
+      deletedAt: "2026-10-26",
+      size: 1,
+      type: "image/png",
+    },
+  ];
+  const rows = itemsFor([{ id: p.id, data: p }]);
+  assert.equal(rows[0].attachmentCount, 2);
+  assert.deepEqual(
+    rows[0].cardFiles.map((f) => [f.name, f.extension]),
+    [
+      ["实验要求.pdf", "PDF"],
+      ["会议记录", "FILE"],
+    ],
+  );
+  assert.ok(rows[0].item);
+});
+
+test("a whole-card short touch routes actions, but the release from a lifted card cannot activate a control", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.setData({ tab: "world" });
+  const e = f.touch("task-a", 80, 90);
+  p.dragTouchStart(e);
+  p.onCardAction({
+    currentTarget: { dataset: { action: "toggleStar", id: "task-a" } },
+  });
+  assert.equal(p._detail("task-a").starred, true);
+  assert.equal(p._dragTouch, null);
+  p.dragTouchStart(e);
+  p.startDrag(e);
+  assert.ok(p._drag);
+  p.finishDrag({ touches: [] });
+  p.onCardAction({
+    currentTarget: { dataset: { action: "toggleStar", id: "task-a" } },
+  });
+  assert.equal(p._detail("task-a").starred, true);
+  p._dragJustEndedAt = Date.now() - 500;
+  p.onCardAction({
+    currentTarget: { dataset: { action: "toggleStar", id: "task-a" } },
+  });
+  assert.equal(p._detail("task-a").starred, false);
+  p.onUnload();
+});
