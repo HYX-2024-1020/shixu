@@ -62,7 +62,11 @@ for (const selector of sharedSelectors.keys()) {
     );
 }
 // 1 CSS px maps to 2 rpx at the 375px phone design width.
-const nativeCSS = (motion + visuals)
+const palette = await readFile(
+  path.join(root, "src/bucket/card-palette.css"),
+  "utf8",
+);
+const nativeCSS = (motion + visuals + palette)
   .replace(/touch-action:\s*[^;]+;/g, "")
   .replace(/[ \t]+$/gm, "")
   .replace(/(-?[\d.]+)px\b/g, (_, n) => `${Number(n) * 2}rpx`);

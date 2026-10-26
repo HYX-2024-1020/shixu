@@ -1,6 +1,6 @@
 <template name="ddlCard">
-  <view class="ddl-item {{leavingId === row.id ? 'is-leaving' : ''}}">
-    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text wx:if="{{row.startDate}}">时间段 · {{row.startDate}} {{row.startTime}} →</text><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
+  <view class="ddl-item urgency-{{row.urgency}} {{leavingId === row.id ? 'is-leaving' : ''}}">
+    <view class="ddl-time" data-id="{{row.id}}" bindtap="verifyDdl"><text class="ddl-status">{{row.urgencyLabel}}</text><text wx:if="{{row.startDate}}">时间段 · {{row.startDate}} {{row.startTime}} →</text><text>{{row.date || '日期待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><text>核对时间 ↗</text></view>
     <view class="ddl-row"><button size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" catchtap="toggleDone"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></button><view class="ddl-copy" data-id="{{row.id}}" bindtap="openItem"><text class="item-title">{{row.title}}</text><text wx:if="{{row.group}}" class="ddl-course">{{row.group}}</text><text class="item-summary">交付 · {{row.summary}}</text><text class="quiet">点开查看完整要求 · 原文已保留</text></view></view>
   </view>
 </template>
@@ -156,7 +156,7 @@
         按分组查看
       </button><button class="filter {{starOnly ? 'selected' : ''}}" bindtap="toggleStarFilter">★ 仅星标</button></view
     >
-    <scroll-view scroll-x class="category-nav"><button wx:for="{{categories}}" wx:key="key" class="category-button {{kind === item.key ? 'selected' : ''}}" data-kind="{{item.key}}" bindtap="selectCategory">{{item.label}} {{item.count}}</button></scroll-view>
+    <scroll-view scroll-x class="category-nav"><button wx:for="{{categories}}" wx:key="key" class="category-button kind-{{item.key}} {{kind === item.key ? 'selected' : ''}}" data-kind="{{item.key}}" bindtap="selectCategory">{{item.label}} {{item.count}}</button></scroll-view>
     <scroll-view wx:if="{{groups.length}}" scroll-x class="group-strip"
       ><button
         class="chip {{!group ? 'selected' : ''}}"
@@ -385,7 +385,7 @@
   ></view
 >
 <view wx:if="{{selected}}" class="scrim detail-scrim" bindtap="closeItem"
-  ><view class="sheet detail-sheet" catchtap="stopTap"
+  ><view class="sheet detail-sheet kind-{{selected.item.kind}}" catchtap="stopTap"
     ><view class="section-top"
       ><text class="kind-label"
         >{{selected.kindLabel}} {{selected.group ? '· ' + selected.group : ''}}</text

@@ -66,6 +66,8 @@ import {
 } from "./skins";
 import "./bucket.css";
 import "./desktop.css";
+import "./card-palette.css";
+import "./card-visuals.css";
 import "./skin-motion.css";
 import "./skins.css";
 import { ingestAttachment, supportedFiles, type Coverage } from "./ingest";

@@ -418,6 +418,7 @@ function Results({
               {kinds.map((k) => (
                 <button
                   key={k}
+                  className={"kind-" + k}
                   aria-pressed={kind === k}
                   onClick={() => setKind(k)}
                 >
@@ -680,7 +681,7 @@ function Results({
                         </p>
                       )}
                       <fieldset
-                        className="result-body"
+                        className={"result-body kind-" + item.kind}
                         disabled={p.status !== "ready"}
                       >
                         <div className="result-heading">

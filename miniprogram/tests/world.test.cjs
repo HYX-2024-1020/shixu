@@ -756,3 +756,54 @@ test("world categories count the current scope and changing scope resets a hidde
   assert.equal(page.data.categories[0].count, 0);
   page.onUnload();
 });
+
+test("DDL card urgency follows deadline sections and preserves world types", () => {
+  const { page } = fixture();
+  try {
+    page.onDraft({ detail: { value: "合成配色测试" } });
+    page.submit();
+    const record = page._client.records()[0];
+    const base = {
+      kind: "task",
+      title: "合成配色",
+      summary: "固定验收说明",
+      facts: [],
+      nextSteps: [],
+      uncertainties: [],
+      evidence: [],
+      sourceIds: [],
+    };
+    const day = require("../lib/world").localDay();
+    const dates = [day, "2000-01-01", "2099-12-31", "", "2000-01-01"];
+    page._client.put(record.id, {
+      result: {
+        summary: "",
+        warnings: [],
+        items: dates.map((date, i) => ({
+          ...base,
+          title: `配色 ${i}`,
+          due: date
+            ? { date, time: "23:59", anchor: date, sourceId: "manual" }
+            : null,
+        })),
+      },
+      itemIds: dates.map((_, i) => `color-${i}`),
+      itemState: { "color-4": { status: "done" } },
+      doneIds: [4],
+      status: "ready",
+    });
+    page._refresh();
+    assert.equal(
+      page.data.ddlSections.find((s) => s.title === "今天截止").rows[0].urgency,
+      "today",
+    );
+    assert.equal(page.data.ddlOverdue[0].urgency, "overdue");
+    assert.equal(page.data.ddlDone[0].urgency, "done");
+    assert.equal(page.data.ddlUnsure[0].urgency, "unsure");
+    assert.equal(page.data.ddlUnsure[0].urgencyLabel, "日期待确认");
+    assert.equal(page.data.ddlSections.at(-1).rows[0].urgency, "later");
+    assert.equal(page.data.items.find((r) => r.id === "color-0").kind, "task");
+  } finally {
+    page.onUnload();
+  }
+});

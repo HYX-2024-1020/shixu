@@ -65,6 +65,8 @@ const app = await electron.launch({
 });
 try {
   const page = await app.firstWindow();
+  // Relative edits and the synthetic capture must use the same calendar day.
+  await page.clock.setFixedTime(new Date("2026-10-23T12:00:00"));
   page.setDefaultTimeout(20000);
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })

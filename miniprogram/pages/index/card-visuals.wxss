@@ -1,0 +1,38 @@
+/* Palette variables are generated from the Windows card-palette.css. */
+.page .item-card[class*="kind-"] {
+  background: linear-gradient(140deg, #fff 40%, var(--card-paper)) !important;
+  border: 6rpx solid #111;
+  box-shadow: 10rpx 10rpx var(--card-accent), 14rpx 14rpx #111;
+  padding: 28rpx;
+}
+.page .item-card .card-top {
+  margin: -28rpx -28rpx 24rpx;
+  padding: 16rpx 20rpx;
+  background: var(--card-accent);
+  border-bottom: 6rpx solid #111;
+  gap: 10rpx;
+}
+.page .item-card .kind-label { color: #111; font-weight: 900; font-size: 26rpx; }
+.page .item-card .item-title { font-size: 40rpx; line-height: 1.4; }
+.page .item-card .item-summary { color: #3e3a33; }
+.page .item-card .done-button { background: #fff; }
+.page .item-card .done-button.checked { background: #111; color: #fff; }
+.page .item-card .checked .check-short,
+.page .item-card .checked .check-long { background: #fff; }
+.page .item-card .starred { color: #111; background: #fff; border-radius: 6rpx; }
+.page .item-card .card-foot { border-color: #1114; }
+.page .item-card.done-card .item-title { text-decoration: line-through; }
+.page .category-button { border-bottom: 8rpx solid var(--card-accent, #111); }
+.page .category-button.selected { background: var(--card-accent, #ffd43b); color: #111; }
+.page .ddl-item { background: var(--card-paper); box-shadow: 10rpx 10rpx var(--card-accent), 14rpx 14rpx #111; }
+.page .ddl-item .ddl-time { background: var(--card-accent); color: #111; gap: 14rpx; }
+.page .ddl-time .ddl-status { font-size: 29rpx; font-weight: 900; border-bottom: 4rpx solid #111; padding-bottom: 4rpx; }
+.page .ddl-time .ddl-clock { font-size: 44rpx; font-variant-numeric: tabular-nums; }
+.page .ddl-time text:last-child { color: #111; font-weight: 800; text-decoration: underline; }
+.page .ddl-copy .item-title { font-size: 36rpx; }
+.page .ddl-course { background: #fff; }
+.sheet.detail-sheet { border-top: 16rpx solid var(--card-accent, #ffd43b); background: var(--card-paper, #fff); }
+.detail-sheet > .section-top { background: var(--card-accent, #ffd43b); border: 4rpx solid #111; padding: 14rpx; }
+.detail-sheet .kind-label { color: #111; font-weight: 900; }
+.detail-sheet .detail-title { font-size: 46rpx; line-height: 1.4; }
+.detail-sheet .detail-section { background: #fff; padding: 18rpx; border-radius: 6rpx; }
