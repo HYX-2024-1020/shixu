@@ -1,3 +1,5 @@
+import SkinArt from "./SkinArt";
+import type { Skin } from "./skins";
 import CardFiles from "./CardFiles";
 import { itemDeadlineTime } from "../../shared/deadline-time.mjs";
 import { Check } from "lucide-react";
@@ -21,12 +23,14 @@ import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
 export default function DDL({
+  skin,
   packets,
   save,
   reorder,
   notify,
   active: isActive,
 }: {
+  skin: Skin;
   packets: Packet[];
   active: boolean;
   save: (p: Packet) => Promise<void>;
@@ -388,7 +392,7 @@ export default function DDL({
         {drag.announcement}
       </span>
       <header className="ddl-head">
-        <img src={`${import.meta.env.BASE_URL}mascot.png`} alt="" />
+        <SkinArt skin={skin} />
         <div>
           <h1>
             最近要交什么，

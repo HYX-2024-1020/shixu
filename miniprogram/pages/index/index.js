@@ -1912,19 +1912,19 @@ Page({
     const s = this.data.skins.find(
       (s) => s.id === event.currentTarget.dataset.id,
     );
-    if (s)
-      this.setData({
-        previewSkin: s,
-        skinMessage: s.hello,
-        skinAnimating: false,
-      });
+    if (!s) return;
+    try {
+      this._saveSkins({ ...this._skinCollection, selected: s.id });
+    } catch (error) {
+      this._error(error);
+    }
   },
   interactSkin() {
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
     this._stopSkinInteraction();
     this.setData({
       skinMessage: s.greeting,
-      skinAnimating: true,
+      skinAnimating: s.art !== "ice",
     });
     this._startSkinMotion(s);
     if (skinSound(s, this.data.iceVoice) && this._prepareSkinAudio(s)) {
@@ -1943,6 +1943,7 @@ Page({
       );
   },
   _startSkinMotion(skin) {
+    if (skin.art === "ice") return;
     if (!wx.createAnimation) return;
     const motion = NATIVE_SKIN_MOTIONS[skin.motion];
     if (!motion) return;
@@ -2006,10 +2007,8 @@ Page({
     const voice = event.currentTarget.dataset.voice;
     if (!Object.prototype.hasOwnProperty.call(ICE_VOICES, voice)) return;
     this._stopSkinInteraction();
-    const previewId = this.data.previewSkin.id;
     try {
       this._saveSkins({ ...this._skinCollection, iceVoice: voice });
-      this.previewSkin({ currentTarget: { dataset: { id: previewId } } });
     } catch (error) {
       this._error(error);
     }
@@ -2027,7 +2026,11 @@ Page({
     try {
       audio = wx.createInnerAudioContext();
       audio.onEnded(() => this._finishSkinInteraction());
-      audio.onError(() => this._finishSkinInteraction());
+      audio.onError(() => {
+        this._finishSkinInteraction();
+        this.setData({ notice: "声音播放失败，请重试" });
+      });
+      audio.obeyMuteSwitch = false;
       audio.volume = SKIN_INTERACTION.volume;
       audio.loop = false;
       audio.src = source;
@@ -2045,7 +2048,7 @@ Page({
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
     this.setData({
       skinMessage: s.feeding,
-      skinAnimating: true,
+      skinAnimating: s.art !== "ice",
     });
     this._startSkinMotion(s);
     this._skinTimer = setTimeout(

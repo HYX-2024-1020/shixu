@@ -59,6 +59,8 @@ import SkinMarket from "./SkinMarket";
 import SkinMascot from "./SkinMascot";
 import {
   BUILTIN_SKINS,
+  ICE_VOICES,
+  type IceVoice,
   loadSkinCollection,
   saveSkinCollection,
   skinStorageKey,
@@ -1758,6 +1760,7 @@ export default function BucketApp() {
       <main className="bucket-main">
         <div hidden={workspace !== "ddl"}>
           <DDL
+            skin={activeSkin}
             reorder={reorderCards}
             active={workspace === "ddl"}
             packets={packets}
@@ -1795,16 +1798,48 @@ export default function BucketApp() {
               <br />
               <span className="hero-highlight">喂给它。</span>
             </h1>
-            <SkinMascot
-              key={activeSkin.id}
-              skin={activeSkin}
-              iceVoice={skinCollection.iceVoice}
-              state={
-                drag ? "drag" : submitting || workingId ? "feeding" : "idle"
-              }
-              suspended={skinMarket || settings || workspace !== "capture"}
-              feedSignal={feedSignal}
-            />
+            <div
+              className={`skin-home-character ${activeSkin.art === "ice" ? "with-voices" : "is-default"}`}
+            >
+              <SkinMascot
+                key={activeSkin.id}
+                skin={activeSkin}
+                iceVoice={skinCollection.iceVoice}
+                state={
+                  drag ? "drag" : submitting || workingId ? "feeding" : "idle"
+                }
+                suspended={skinMarket || settings || workspace !== "capture"}
+                feedSignal={feedSignal}
+              />
+              {activeSkin.art === "ice" && (
+                <fieldset className="ice-home-voices" aria-label="冰冰冰的声音">
+                  {Object.entries(ICE_VOICES).map(([id, label]) => (
+                    <button
+                      type="button"
+                      key={id}
+                      aria-label={label}
+                      aria-pressed={
+                        (skinCollection.iceVoice || "voice-1") === id
+                      }
+                      onClick={() => {
+                        try {
+                          changeSkins({
+                            ...skinCollection,
+                            iceVoice: id as IceVoice,
+                          });
+                        } catch (e) {
+                          notify(
+                            e instanceof Error ? e.message : "声音保存失败",
+                          );
+                        }
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </fieldset>
+              )}
+            </div>
             <button
               className="skin-home-change"
               onClick={() => setSkinMarket(true)}

@@ -368,15 +368,14 @@ test("full storage never acknowledges local mutation or changes persisted skin",
   f.page.applySkin();
   assert.equal(f.page.data.activeSkin.id, "whale");
 });
-test("skin preview requires apply; selection and custom edits survive restart", () => {
+test("skin cards apply immediately; selection and custom edits survive restart", () => {
   const f = fixture(),
     p = f.page;
   p.openSkins();
   p.previewSkin(event("ice"));
   p.feedSkin();
   assert.equal(p.data.skinMessage, desktop.BUILTIN_SKINS[1].feeding);
-  assert.equal(p.data.activeSkin.id, "whale");
-  p.applySkin();
+  assert.equal(p.data.activeSkin.id, "ice");
   assert.equal(fixture({ store: f.store }).page.data.activeSkin.id, "ice");
   p.editSkin(event(""));
   p.setData({
@@ -736,7 +735,7 @@ test("greeting and feeding restore idle copy and use shared durations", () => {
       clearTimeout() {},
     },
   });
-  page.previewSkin(event("ice"));
+  page.previewSkin(event("whale"));
   page.setData({ activeSkin: page.data.previewSkin });
   page.interactSkin();
   assert.equal(page.data.skinMessage, page.data.activeSkin.greeting);
@@ -1610,6 +1609,9 @@ test("ice voices select distinct single-shot assets, stop before replay and pers
   page.interactSkin();
   assert.equal(audio.src, "/assets/ice-voice-1.mp3");
   assert.equal(audio.loop, false);
+  assert.equal(audio.obeyMuteSwitch, false);
+  assert.equal(page.data.skinAnimating, false);
+  assert.equal(page._skinMotionTimer, undefined);
   ended();
   assert.equal(page.data.skinAnimating, false);
   page.changeIceVoice({ currentTarget: { dataset: { voice: "voice-2" } } });

@@ -4,15 +4,23 @@
 export async function installAudioClock(page) {
   await page.addInitScript(() => {
     window.__syntheticAudio = true;
-    const duration = fetch("/laugh.mp3")
-      .then((response) => {
-        if (!response.ok) throw Error("Bundled greeting MP3 is missing");
-        return response.arrayBuffer();
-      })
-      .then((bytes) =>
-        new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes),
-      )
-      .then((buffer) => buffer.duration);
+    const durations = new Map();
+    const durationFor = (src) => {
+      if (!durations.has(src))
+        durations.set(
+          src,
+          fetch(src)
+            .then((r) => {
+              if (!r.ok) throw Error("Bundled audio missing");
+              return r.arrayBuffer();
+            })
+            .then((bytes) =>
+              new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes),
+            )
+            .then((buffer) => buffer.duration),
+        );
+      return durations.get(src);
+    };
     // Install synchronously, before React preloads the greeting element.
     window.Audio = class extends EventTarget {
       constructor(src) {
@@ -43,7 +51,7 @@ export async function installAudioClock(page) {
         window.__greetingAudio = this;
         window.__mediaPlays++;
         const generation = this.generation;
-        this.duration = await duration;
+        this.duration = await durationFor(this.src);
         if (generation !== this.generation) return;
         if (this.paused) this.started = performance.now();
         this.paused = false;

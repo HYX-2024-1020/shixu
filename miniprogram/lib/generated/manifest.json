@@ -2,13 +2,13 @@
   "source": "desktop/shared",
   "files": {
     "miniprogram/lib/generated/client-ui.wxss": "170f2b667331d3acbe8dc4304e594a9a58b6a92f9877b80c2a08067d346949d3",
-    "miniprogram/pages/index/index.wxss": "c3f8a29eb7268d9b4eb939eae03f8f8dd2d5600c37c2598f9f8c661623387979",
+    "miniprogram/pages/index/index.wxss": "bc9b320708495aa632cb0c5ad9ecbcc0f8fc2d94471a50cc6a15b1e2f9c77c67",
     "miniprogram/lib/generated/desktop.js": "bd7ad30238ca2e4467b457121d701b59374c103bd5ab5c74b29c6317df01bbea",
     "server/generated/ai-core.mjs": "ac5c2926c912299fced2000534a8e3e4a7365f1357df16483e5e5d73654cb611",
     "desktop/generated/sync-client.cjs": "9f320384bec65f80fcd4b028959a292b9e08a78a888ed90198ab69ec9ffd96bb",
     "miniprogram/assets/ice.png": "f26e5f6a29006cc5017be0acf24fe08920bfc98c5874f00305ad4d5e3e1dc982",
-    "miniprogram/assets/ice-voice-1.mp3": "1d4354f9d16306cc9dab0589c3d11698004a291e4a6d53abbc12cb4b06608e42",
-    "miniprogram/assets/ice-voice-2.mp3": "c2b47d119ca2196c6ed9f7d5fed531374e4ba0dc1ebe9d0784039d98915cba27",
+    "miniprogram/assets/ice-voice-1.mp3": "c2d01d6640f93656ee292bb83272369e471a445b0ae796c8bc99f91fd737af8c",
+    "miniprogram/assets/ice-voice-2.mp3": "f34e6417beab2aab820d1f2d16822402c80cad96e5d2d5e87d8d66147e675a8d",
     "miniprogram/assets/mascot.png": "5eef9de3fbe25cc7e69e14a8953b0c301032e7fc9e2fb5fdaae56df99456fa51",
     "miniprogram/assets/laugh.mp3": "fdf73c75837977281a61c5b3aa24e581391e186ce42fe63e0030ea3ecc1a013b"
   }

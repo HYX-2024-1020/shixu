@@ -3,7 +3,7 @@ import type { Skin } from "./skins";
 export default function SkinArt({ skin }: { skin: Skin }) {
   return (
     <img
-      className="skin-art"
+      className={`skin-art ${skin.art === "ice" ? "is-plain-art" : ""}`}
       src={
         skin.art === "custom"
           ? skin.image

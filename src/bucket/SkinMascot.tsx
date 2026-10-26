@@ -87,24 +87,34 @@ export default function SkinMascot({
   return (
     <button
       type="button"
-      className={`skin-mascot ${compact ? "is-compact" : "bucket-drawing"}`}
-      data-motion={!suspended && (happy || feeding) ? skin.motion : "idle"}
+      className={`skin-mascot ${compact ? "is-compact" : "bucket-drawing"} ${skin.art === "ice" ? "is-plain" : ""}`}
+      data-motion={
+        skin.art !== "ice" && !suspended && (happy || feeding)
+          ? skin.motion
+          : "idle"
+      }
       data-skin={skin.id}
       aria-label={`和${skin.name}打个招呼`}
       onClick={greet}
     >
-      <span className="skin-bubble" aria-live="polite">
-        {bubble}
-      </span>
+      {skin.art !== "ice" && (
+        <span className="skin-bubble" aria-live="polite">
+          {bubble}
+        </span>
+      )}
       <span className="skin-body">
         <SkinArt skin={skin} />
       </span>
-      <span className="skin-spark skin-spark-one" aria-hidden="true">
-        ✦
-      </span>
-      <span className="skin-spark skin-spark-two" aria-hidden="true">
-        ✧
-      </span>
+      {skin.art !== "ice" && (
+        <>
+          <span className="skin-spark skin-spark-one" aria-hidden="true">
+            ✦
+          </span>
+          <span className="skin-spark skin-spark-two" aria-hidden="true">
+            ✧
+          </span>
+        </>
+      )}
     </button>
   );
 }

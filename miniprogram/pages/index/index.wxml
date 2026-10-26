@@ -48,7 +48,7 @@
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button hover-class="text-press" class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
-      <view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image animation="{{skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" src="{{activeSkin.image}}" mode="aspectFit"/><text class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view>
+      <view class="home-character {{activeSkin.id === 'ice' ? 'with-voices' : ''}}"><view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image animation="{{activeSkin.id === 'ice' || skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}} {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="{{activeSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}"/><text wx:if="{{activeSkin.id !== 'ice'}}" class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text wx:if="{{activeSkin.id !== 'ice'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{activeSkin.id !== 'ice'}}" class="skin-spark skin-spark-two">✧</text></view><view wx:if="{{activeSkin.id === 'ice'}}" class="ice-home-voices"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}"><text class="ice-voice-label">{{item.label}}</text></button></view></view>
       <button class="skin-home-change" bindtap="openSkins" hover-class="text-press" hover-stop-propagation="{{true}}">{{activeSkin.name}} · 换个伙伴</button>
       <view class="count-line">它已经吃掉了 <text class="count-badge">{{count}}</text> 件</view>
     </view>
@@ -119,7 +119,7 @@
           >{{activeCount}} 件待办，{{doneCount}} 件已经完成。</text
         ></view
       ><image
-        class="world-mascot"
+        class="world-mascot {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}"
         src="{{activeSkin.image}}"
         mode="aspectFit"
         bindtap="openSkins"
@@ -180,7 +180,7 @@
     </button>
   </view>
   <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
-    <view class="ddl-head"><image src="{{activeSkin.image}}" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
+    <view class="ddl-head"><image class="{{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text><text class="quiet">优先采用原文时刻；未写时刻也会安排，点时间可核对。</text></view></view>
     <text class="drag-help">长按标题移动 · 仅限同一日期分区，不改截止时间</text>
     <view class="ddl-stats"><text>{{ddlCount}} 项待办</text><text>{{ddlToday}} 项今天截止</text><text>{{ddlOverdueTotal}} 项已逾期</text></view>
     <view class="ddl-timeline"><text class="subheading">TIME WINDOW · 看未来 {{ddlDays[ddlIndex]}} 天</text><view class="ddl-slider" role="slider" aria-label="未来时间窗"><view class="ddl-slider-rail"><view class="ddl-slider-square" style="left: {{ddlIndex * 25}}%"></view></view><slider class="ddl-native-slider" min="0" max="4" step="1" block-size="32" value="{{ddlIndex}}" bindchanging="previewDdlWindow" bindchange="setDdlWindow"/></view><view class="ddl-stops"><text wx:for="{{ddlDays}}" wx:key="*this" class="{{index === ddlIndex ? 'selected' : ''}}" data-index="{{index}}" bindtap="chooseDdlWindow">{{item}} 天</text></view></view>
@@ -540,30 +540,25 @@
   ></view
 >
 <view wx:if="{{skinOpen}}" class="scrim skin-scrim" bindtap="closeSkins"
-  ><view class="sheet" catchtap="stopTap"
+  ><view class="sheet skin-market-sheet" catchtap="stopTap"
     ><view class="sheet-handle"></view
-    ><view class="section-top"
+    ><view class="section-top skin-market-header"
       ><view
         ><text class="eyebrow">A LITTLE COMPANY</text
         ><text class="section-title">皮肤市场</text></view
-      ><button hover-class="icon-press" class="icon-button" bindtap="closeSkins">×</button></view
+      ><button hover-class="icon-press" class="icon-button skin-market-close" aria-label="关闭皮肤市场" bindtap="closeSkins">×</button></view
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
-        ><view class="skin-preview" style="background:{{previewSkin.color}}"
-          ><view class="skin-preview-stage skin-mascot {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="aspectFit" animation="{{skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}}"/><text class="skin-bubble">{{skinMessage}}</text><text class="skin-spark skin-spark-one">✦</text><text class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
+        ><view class="skin-preview {{previewSkin.id === 'ice' ? 'is-plain-preview' : ''}}" style="background:{{previewSkin.color}}"
+          ><view class="skin-preview-stage skin-mascot {{previewSkin.id === 'ice' ? 'is-plain-preview' : ''}} {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image src="{{previewSkin.image}}" mode="{{previewSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}" animation="{{previewSkin.id === 'ice' ? null : skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}} {{previewSkin.id === 'ice' ? 'is-plain-art' : ''}}"/><text wx:if="{{previewSkin.id !== 'ice'}}" class="skin-bubble">{{skinMessage}}</text><text wx:if="{{previewSkin.id !== 'ice'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{previewSkin.id !== 'ice'}}" class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><text class="quiet">{{previewSkin.description}}</text
-          ><view wx:if="{{previewSkin.id === 'ice'}}" class="ice-voices"><text>冰冰冰的声音</text><view class="button-row"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}">{{item.label}}{{iceVoice === item.id ? ' ✓' : ''}}</button></view><text class="quiet">选择后戳一下，每次只说一声「冰冰冰」。</text></view
-          ><view class="button-row"
-            ><button hover-class="btn-press" class="small-button" bindtap="feedSkin">试着喂一口</button
-            ><button hover-class="btn-press" class="primary" bindtap="applySkin">
-              {{activeSkin.id === previewSkin.id ? '正在陪着你 ✓' : '就选这个朋友'}}
-            </button></view
+          ><view wx:if="{{previewSkin.art === 'custom'}}" class="button-row"><button hover-class="btn-press" class="small-button" bindtap="feedSkin">试着喂一口</button></view
           ></view
         ><view class="skin-grid"
           ><view
             wx:for="{{skins}}"
             wx:key="id"
-            hover-class="card-press" class="skin-card {{previewSkin.id === item.id ? 'selected' : ''}}"
+            hover-class="card-press" class="skin-card {{activeSkin.id === item.id ? 'selected' : ''}}"
             data-id="{{item.id}}"
             bindtap="previewSkin"
             style="background:{{item.color}}"
