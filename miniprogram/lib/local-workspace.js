@@ -17,6 +17,17 @@ function createLocalWorkspace(read, write) {
     return id;
   };
   return {
+    putMany(entries) {
+      let staged;
+      const workspace = createLocalWorkspace(
+        () => ({ version: 1, records }),
+        (value) => {
+          staged = value;
+        },
+      );
+      for (const { id, patch } of entries) workspace.put(id, patch);
+      if (staged) commit(staged.records);
+    },
     newId: makeId,
     records: () => JSON.parse(JSON.stringify(records)),
     put(id, patch) {

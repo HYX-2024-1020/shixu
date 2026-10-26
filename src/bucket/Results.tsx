@@ -646,6 +646,15 @@ function Results({
                         · 累计 {new Set(meta.checkins || []).size} 天
                       </button>
                     )}
+                    <button
+                      className="card-detail-link"
+                      onClick={() => {
+                        setEditing(false);
+                        setSelected(id);
+                      }}
+                    >
+                      查看详情 <ArrowUpRight size={16} />
+                    </button>
                     <details className="card-menu">
                       <summary aria-label="更多事项操作">
                         <MoreHorizontal size={23} />

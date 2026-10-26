@@ -1,16 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-
-// Browser geometry/CSS regression for native adapters, not a WeChat runtime test.
-test("mini uses Windows looping motion, card palette and readable narrow world header", async ({
-  page,
-}) => {
-  const width = 375;
-  await page.setViewportSize({ width, height: 812 });
-  const read = (file: string) => readFileSync(file, "utf8");
-  const css = (
+const read = (p: string) => readFileSync(p, "utf8");
+const cssAt = (width: number) =>
+  (
     read("miniprogram/app.wxss") +
     read("miniprogram/pages/index/index.wxss")
+      .replace(
+        '@import "./cards.wxss";',
+        read("miniprogram/pages/index/cards.wxss"),
+      )
       .replace(
         '@import "../../lib/generated/client-ui.wxss";',
         read("miniprogram/lib/generated/client-ui.wxss"),
@@ -20,86 +18,192 @@ test("mini uses Windows looping motion, card palette and readable narrow world h
         read("miniprogram/pages/index/card-visuals.wxss"),
       )
   ).replace(/(-?[\d.]+)rpx/g, (_, n) => `${(Number(n) * width) / 750}px`);
-  await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><style>body {margin:0;background:#fff9e6} view,text {display:block} button {box-sizing:border-box} ${css}</style>
-    <view class="page"><view class="world">
-      <view class="world-heading"><view><text class="world-title"><text class="line-break">消化完了，</text>这是你的<text class="hero-highlight">世界。</text></text></view></view>
-      ${["task", "event", "idea", "habit"].map((kind, i) => `<view class="item-card kind-${kind} shadow-${i}"><view class="card-top"><button size="mini" class="done-button"></button><text class="kind-label">${["任务", "日程 / 活动", "灵感", "习惯"][i]}</text></view><text class="item-title">合成事项 ${i}</text><text class="item-summary">保留原文与完整要求</text><view class="card-foot">输入原文 ↗</view></view>`).join("")}
-      <view class="skin-mascot" data-motion="bounce"><view class="skin-body">角色</view><text class="skin-spark">✦</text></view>
-    </view></view>`);
-  const art = page.locator(".skin-body");
-  await expect(art).toHaveCSS("animation-iteration-count", "infinite");
-  await expect(art).toHaveCSS("animation-duration", "0.55s");
-  const matrix = await art.evaluate((el) => {
-    const animation = el.getAnimations()[0];
-    animation.pause();
-    animation.currentTime = 1375; // midpoint of third cycle
-    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
-    return { y: m.m42, xScale: m.a, yScale: m.d };
-  });
-  expect(matrix.y).toBeCloseTo(-16);
-  expect(matrix.xScale).toBeCloseTo(0.96);
-  expect(matrix.yScale).toBeCloseTo(1.04);
-  const cards = page.locator(".item-card");
-  for (const [i, color] of [
-    "rgb(255, 212, 59)",
-    "rgb(115, 156, 255)",
-    "rgb(255, 143, 171)",
-    "rgb(96, 214, 170)",
-  ].entries()) {
-    await expect(cards.nth(i).locator(".card-top")).toHaveCSS(
-      "background-color",
-      color,
-    );
-    await expect(cards.nth(i)).toHaveCSS(
-      "box-shadow",
-      `${color} 5px 5px 0px 0px, rgb(17, 17, 17) 7px 7px 0px 0px`,
-    );
-  }
-  expect(
-    await page.evaluate(() => document.documentElement.scrollWidth),
-  ).toBeLessThanOrEqual(width);
-  await page.screenshot({
-    path: `test-results/mini-ui-${test.info().project.name}.png`,
-    fullPage: true,
-    animations: "disabled",
-  });
-});
 
-test("mini deadline status bands stay legible at 320, 375 and 414 pixels", async ({
-  page,
-}, info) => {
-  const read = (file: string) => readFileSync(file, "utf8");
-  const native =
-    read("miniprogram/app.wxss") +
-    read("miniprogram/pages/index/index.wxss")
-      .replace(
-        '@import "../../lib/generated/client-ui.wxss";',
-        read("miniprogram/lib/generated/client-ui.wxss"),
+// Render the actual WXML card subtrees with synthetic data for browser geometry.
+// Native routing and WXS compilation are separately checked by mini:compile.
+async function render(page: any, width: number, template: string, row: any) {
+  const source = read("miniprogram/pages/index/index.wxml")
+    .split(`<template name="${template}">`)[1]
+    .split("</template>")[0];
+  await page.setViewportSize({ width, height: 900 });
+  await page.setContent(
+    `<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#fff6dc}view,text{display:block}button{box-sizing:border-box}${cssAt(width)}</style><view class="page"><view class="world"><view class="world-grid" id="cards"></view></view></view>`,
+  );
+  await page.evaluate(
+    ({ source, row }: any) => {
+      const data: any = {
+        row,
+        expandedCardId: "",
+        checkingId: "",
+        leavingId: "",
+        dragId: "",
+        dragView: {},
+      };
+      const evaluate = (s: string) => {
+        try {
+          return Function(
+            ...Object.keys(data),
+            `return (${s.replace(/^\{\{|\}\}$/g, "")})`,
+          )(...Object.values(data));
+        } catch {
+          return "";
+        }
+      };
+      const fill = (s: string) =>
+        s.replace(/\{\{([\s\S]*?)\}\}/g, (_, e) => String(evaluate(e) ?? ""));
+      const holder = document.createElement("div");
+      holder.innerHTML = source;
+      function walk(parent: Element) {
+        let matched = false;
+        for (const node of [...parent.childNodes]) {
+          if (node.nodeType === 3) {
+            node.textContent = fill(node.textContent || "");
+            continue;
+          }
+          if (!(node instanceof Element)) continue;
+          if (node.hasAttribute("wx:if")) {
+            matched = !!evaluate(node.getAttribute("wx:if")!);
+            if (!matched) {
+              node.remove();
+              continue;
+            }
+          } else if (node.hasAttribute("wx:elif")) {
+            if (matched || !evaluate(node.getAttribute("wx:elif")!)) {
+              node.remove();
+              continue;
+            }
+            matched = true;
+          } else if (node.hasAttribute("wx:else")) {
+            if (matched) {
+              node.remove();
+              continue;
+            }
+            matched = true;
+          } else matched = false;
+          for (const attr of [...node.attributes]) {
+            if (
+              attr.name.startsWith("wx:") ||
+              attr.name.startsWith("bind") ||
+              attr.name.startsWith("catch")
+            )
+              node.removeAttribute(attr.name);
+            else node.setAttribute(attr.name, fill(attr.value));
+          }
+          walk(node);
+        }
+      }
+      walk(holder);
+      document.querySelector("#cards")!.innerHTML = holder.innerHTML;
+    },
+    { source, row },
+  );
+}
+
+for (const width of [320, 375, 414]) {
+  test(`native sticker world keeps readable title and independent actions at ${width}px`, async ({
+    page,
+  }, info) => {
+    const row = {
+      id: "card",
+      kind: "task",
+      kindLabel: "任务",
+      title: "完成品牌提案",
+      summary: "整理核心概念与三张主视觉，准备下一轮评审。",
+      timeLabel: "10-28 18:30",
+      compactTimeLabel: "10-28 18:30",
+      group: "品牌设计",
+      shadowIndex: 1,
+    };
+    await render(page, width, "itemCard", row);
+    await expect(page.locator(".xc-title")).toHaveCSS(
+      "background-color",
+      "rgb(255, 218, 50)",
+    );
+    await expect(page.locator(".xc-footer")).toHaveCSS(
+      "background-color",
+      "rgb(255, 218, 50)",
+    );
+    const shadow = await page
+      .locator(".xc-card")
+      .evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(shadow).toContain("rgb(23, 23, 19)");
+    expect(shadow).toContain("0px 0px");
+    for (const target of await page
+      .locator(".xc-hit,.xc-detail,.xc-delete")
+      .all()) {
+      const r = await target.boundingBox();
+      expect(r!.width).toBeGreaterThanOrEqual(43.9);
+      expect(r!.height).toBeGreaterThanOrEqual(43.9);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: info.outputPath(`mini-world-${width}.png`),
+      fullPage: true,
+      animations: "disabled",
+    });
+    await render(page, width, "itemCard", {
+      ...row,
+      kind: "event",
+      kindLabel: "日程 / 活动",
+      title:
+        "很长的事项标题需要完整换行并保持足够的行距与清晰的阅读区域".repeat(3),
+      group: "很长的课程分组名称",
+    });
+    await expect(page.locator(".xc-title")).toHaveCSS(
+      "background-color",
+      "rgb(195, 176, 255)",
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+  });
+  test(`native sticker DDL keeps countdown, date and actions inside ${width}px`, async ({
+    page,
+  }, info) => {
+    await render(page, width, "ddlCard", {
+      id: "ddl",
+      kind: "task",
+      urgency: "today",
+      title: "完成品牌提案",
+      countdown: "今天截止",
+      countdownStatus: "today",
+      date: "2026-10-26",
+      time: "18:30",
+      group: "品牌设计",
+    });
+    await expect(page.locator(".ddl-countdown")).toHaveText("今天截止");
+    await expect(page.locator(".ddl-countdown")).toHaveCSS(
+      "background-color",
+      "rgb(255, 218, 50)",
+    );
+    for (const target of await page
+      .locator(
+        ".ddl-verify-button,.ddl-detail-button,.compact-delete,.done-button",
       )
-      .replace(
-        '@import "./card-visuals.wxss";',
-        read("miniprogram/pages/index/card-visuals.wxss"),
-      );
-  for (const width of [320, 375, 414]) {
-    await page.setViewportSize({ width, height: 812 });
-    const css = native.replace(
-      /(-?[\d.]+)rpx/g,
-      (_, n) => `${(Number(n) * width) / 750}px`,
+      .all()) {
+      const r = await target.boundingBox();
+      expect(r!.width).toBeGreaterThanOrEqual(43.9);
+      expect(r!.height).toBeGreaterThanOrEqual(43.9);
+    }
+    const positions = await page.locator(".ddl-time > *").evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, right: r.right, bottom: r.bottom };
+      }),
     );
-    await page.setContent(
-      `<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;background:#fff9e6}view,text{display:block} ${css}</style><view class="page">${["overdue", "today", "soon", "later", "unsure", "done"].map((state, i) => `<view class="ddl-item urgency-${state}"><view class="ddl-time"><text class="ddl-status">${["已逾期", "今天截止", "即将截止", "提前安排", "日期待确认", "已完成"][i]}</text><text>2026-10-26</text><text class="ddl-clock">18:30</text><text>核对时间 ↗</text></view><view class="ddl-row"><view class="ddl-copy"><text class="item-title">完成设计方案，保留完整要求</text><text class="quiet">合成样例 · 原文已保留</text></view></view></view>`).join("")}</view>`,
-    );
-    const bands = page.locator(".ddl-time");
-    const colors = [
-      "rgb(255, 143, 171)",
-      "rgb(255, 212, 59)",
-      "rgb(181, 152, 255)",
-      "rgb(115, 156, 255)",
-      "rgb(255, 174, 98)",
-      "rgb(96, 214, 170)",
-    ];
-    for (let i = 0; i < colors.length; i++)
-      await expect(bands.nth(i)).toHaveCSS("background-color", colors[i]);
+    for (let i = 0; i < positions.length; i++)
+      for (let j = i + 1; j < positions.length; j++) {
+        const a = positions[i],
+          b = positions[j];
+        expect(
+          a.right <= b.x + 0.5 ||
+            b.right <= a.x + 0.5 ||
+            a.bottom <= b.y + 0.5 ||
+            b.bottom <= a.y + 0.5,
+        ).toBe(true);
+      }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);
@@ -108,5 +212,5 @@ test("mini deadline status bands stay legible at 320, 375 and 414 pixels", async
       fullPage: true,
       animations: "disabled",
     });
-  }
-});
+  });
+}

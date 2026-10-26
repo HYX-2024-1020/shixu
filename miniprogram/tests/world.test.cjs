@@ -13,11 +13,15 @@ function fixture({
   failWrite = () => false,
   modal = { confirm: true, content: "手动事项" },
   audio = null,
+  createAnimation,
+  date = Date,
+  selectorQuery,
   failAudio = false,
   clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
   const context = {
+    Date: date,
     Page: (value) => {
       definition = value;
     },
@@ -28,6 +32,8 @@ function fixture({
     setTimeout: clock.setTimeout,
     clearTimeout: clock.clearTimeout,
     wx: {
+      ...(selectorQuery ? { createSelectorQuery: selectorQuery } : {}),
+      ...(createAnimation ? { createAnimation } : {}),
       ...(audio || failAudio
         ? {
             createInnerAudioContext: () => {
@@ -55,8 +61,9 @@ function fixture({
   );
   const page = Object.assign({}, definition, {
     data: structuredClone(definition.data),
-    setData(value) {
+    setData(value, callback) {
       Object.assign(this.data, value);
+      if (callback) callback();
     },
   });
   page.onLoad();
@@ -415,10 +422,13 @@ test("every WXML event resolves to an actual page handler", () => {
   assert.equal(xml.includes("<span"), false);
   for (const expression of xml.matchAll(/\{\{([\s\S]*?)\}\}/g)) {
     // HTML formatters can insert a newline inside WXML string literals.
-    assert.doesNotThrow(
-      () => new vm.Script(`(${expression[1]})`),
-      expression[1],
-    );
+    assert.doesNotThrow(() => {
+      try {
+        new vm.Script(`(${expression[1]})`);
+      } catch {
+        new vm.Script(`({${expression[1]}})`);
+      }
+    }, expression[1]);
   }
 });
 test("lost AI acknowledgement persists a stable request and retries it after page restart", async () => {
@@ -743,67 +753,781 @@ test("greeting and feeding restore idle copy and use shared durations", () => {
   page.onUnload();
 });
 
-test("world categories count the current scope and changing scope resets a hidden category", () => {
+test("native scope and kind pickers filter cards without exposing separate scope buttons", () => {
   const { page } = fixture();
   page._client.put("p", packet());
   page._refresh();
   assert.equal(page.data.categories.find((c) => c.key === "task").count, 1);
-  page.selectCategory({ currentTarget: { dataset: { kind: "idea" } } });
+  page.setKind({ detail: { value: page.data.kindKeys.indexOf("idea") } });
   assert.equal(page.data.items.length, 1);
   assert.equal(page.data.items[0].kind, "idea");
-  page.setScope({ currentTarget: { dataset: { scope: "done" } } });
+  page.chooseScope({ detail: { value: 1 } });
+  assert.equal(page.data.scopeIndex, 1);
+  assert.equal(page.data.scope, "done");
   assert.equal(page.data.kind, "all");
   assert.equal(page.data.categories[0].count, 0);
   page.onUnload();
 });
 
-test("DDL card urgency follows deadline sections and preserves world types", () => {
-  const { page } = fixture();
+test("native motion sends alternating targets beyond one cycle and stops on hide", () => {
+  const timers = new Map();
+  let next = 0;
+  const { page } = fixture({
+    audio: { onEnded() {}, onError() {}, play() {}, stop() {}, destroy() {} },
+    clock: {
+      setTimeout(fn, ms) {
+        const id = ++next;
+        timers.set(id, { fn, ms });
+        return id;
+      },
+      clearTimeout(id) {
+        timers.delete(id);
+      },
+    },
+    createAnimation(options) {
+      const commands = [];
+      const a = {
+        step(value) {
+          commands.push(["step", value]);
+          return a;
+        },
+        export() {
+          return { options, commands };
+        },
+      };
+      for (const method of ["translateY", "scale", "rotate"])
+        a[method] = (...args) => {
+          commands.push([method, ...args]);
+          return a;
+        };
+      return a;
+    },
+  });
+  page.interactSkin();
+  const targets = [];
+  for (let i = 0; i < 6; i++) {
+    const value = page.data.skinAnimation;
+    targets.push(JSON.stringify(value));
+    assert.equal(value.commands.filter((c) => c[0] === "step").length, 1);
+    const id = page._skinMotionTimer,
+      timer = timers.get(id);
+    assert.equal(timer.ms, 291);
+    timers.delete(id);
+    timer.fn();
+  }
+  for (let i = 1; i < targets.length; i++)
+    assert.notEqual(
+      targets[i],
+      targets[i - 1],
+      "each native update must contain a different target",
+    );
+  page.onHide();
+  assert.equal(page.data.skinAnimating, false);
+  assert.equal(timers.size, 0);
+});
+
+// Synthetic native rectangles exercise the real page gesture handlers; no IDE control.
+function dragFixture(options = {}) {
+  let page;
+  const f = fixture({
+    ...options,
+    selectorQuery: () => ({
+      in() {
+        return this;
+      },
+      select() {
+        return this;
+      },
+      selectAll() {
+        return this;
+      },
+      boundingClientRect() {
+        return this;
+      },
+      fields() {
+        return this;
+      },
+      exec(callback) {
+        const rows =
+          page.data.tab === "ddl"
+            ? [
+                ...(page.data.ddlShowOverdue ? page.data.ddlOverdue : []),
+                ...page.data.ddlSections.flatMap((s) => s.rows),
+              ]
+            : page.data.items;
+        callback([
+          { left: 0, right: 375, top: 0, bottom: 600, width: 375, height: 600 },
+          rows.map((r, i) => ({
+            dataset: { id: r.id },
+            left: (i % 2) * 175,
+            right: (i % 2) * 175 + 165,
+            top: Math.floor(i / 2) * 230,
+            bottom: Math.floor(i / 2) * 230 + 220,
+            width: 165,
+            height: 220,
+          })),
+        ]);
+      },
+    }),
+  });
+  page = f.page;
+  const p = packet(),
+    q = packet("q");
+  q.itemIds = ["task-c", "task-d"];
+  q.itemState = {};
+  page._client.put("p", p);
+  page._client.put("q", q);
+  page.setData({ tab: "world", sort: "custom", sortIndex: 4 });
+  page._refresh();
+  page.syncQuietly = () => {};
+  page._scrollHeight = 1800;
+  const touch = (id, x, y) => ({
+    currentTarget: { dataset: { id } },
+    touches: [{ identifier: 0, clientX: x, clientY: y }],
+  });
+  return {
+    ...f,
+    touch,
+    start(id) {
+      const e = touch(id, 80, 90);
+      page.dragTouchStart(e);
+      page.startDrag(e);
+    },
+    move(x, y) {
+      page.dragTouchMove(touch(page.data.dragId, x, y));
+    },
+  };
+}
+test("two-column touch sorting replaces filtered slots, persists across restart, and suppresses release tap", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.setData({ kind: "task" });
+  p._refresh();
+  const before = worldView(p._client.records(), { sort: "custom" }).items.map(
+    (r) => r.id,
+  );
+  f.start("task-a");
+  assert.equal(p.data.dragId, "task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  const expected = before.map((id) =>
+    id === "task-a" ? "task-c" : id === "task-c" ? "task-a" : id,
+  );
+  const reopened = fixture({ store: f.store }).page;
+  assert.deepEqual(
+    worldView(reopened._client.records(), { sort: "custom" }).items.map(
+      (r) => r.id,
+    ),
+    expected,
+  );
+  p.openItem(event("task-a"));
+  assert.equal(p.data.selected, null);
+  assert.equal(p.data.sort, "custom");
+});
+test("swiping before long press stays scrolling; cancel and hide restore order without writes", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  p.dragTouchStart(f.touch("task-a", 80, 90));
+  f.move(80, 110);
+  p.startDrag(event("task-a"));
+  assert.equal(p.data.dragId, "");
+  f.start("task-a");
+  f.move(250, 90);
+  p.cancelDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  f.start("task-a");
+  f.move(250, 90);
+  p.onHide();
+  assert.equal(p.data.dragId, "");
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+test("drag edge scrolling advances native scroll-top and touch cancellation restores the list", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(80, 530);
+  p._dragTick();
+  assert.ok(p.data.dragScrollTop > 0);
+  p.cancelDrag();
+  assert.equal(p.data.dragGhost, null);
+});
+test("grouped touch sorting cannot cross groups or move hidden group slots", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p._changeItem("task-a", { group: "课程" });
+  p._changeItem("task-b", { group: "课程" });
+  p._changeItem("task-c", { group: "其他" });
+  p._changeItem("task-d", { group: "其他" });
+  p.setData({ grouped: true });
+  p._refresh();
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 320);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+test("updates arriving during drag abort persistence and refresh current records", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(250, 90);
+  p._client.put("p", { itemState: { "task-a": { starred: true } } });
+  p.finishDrag();
+  assert.match(p.data.error, /已更新/);
+  assert.equal(p._detail("task-a").starred, true);
+});
+test("DDL date partitions allow rank changes without changing dates, clocks, ranges or evidence", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.setData({ tab: "ddl", ddlShowOverdue: true });
+  p._refresh();
+  const before = p._client.records().map((r) => JSON.stringify(r.data.result));
+  f.start("task-a");
+  assert.equal(p.data.dragId, "task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  assert.deepEqual(
+    p._client.records().map((r) => JSON.stringify(r.data.result)),
+    before,
+  );
+  assert.deepEqual(
+    p.data.ddlOverdue.map((r) => r.id),
+    ["task-c", "task-a"],
+  );
+  const reopened = fixture({ store: f.store }).page;
+  assert.deepEqual(
+    reopened.data.ddlOverdue.map((r) => r.id),
+    ["task-c", "task-a"],
+  );
+  p._dragTapUntil = 0;
+  p._client.put("q", {
+    result: {
+      ...packet("q").result,
+      items: [
+        {
+          ...packet("q").result.items[0],
+          due: { date: "2026-10-23", time: "16:00" },
+        },
+        packet("q").result.items[1],
+      ],
+    },
+  });
+  p._refresh();
+  const snapshot = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), snapshot);
+});
+test("multi-packet order persistence is atomic on storage failure", () => {
+  let full = false;
+  const f = dragFixture({ failWrite: (key) => full && key === KEY }),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  full = true;
+  p.finishDrag();
+  assert.match(p.data.error, /disk full/);
+  assert.equal(JSON.stringify(p._client.records()), before);
+});
+const { createSyncClient } = require("../lib/sync-client");
+test("batched sync order stages every packet and leaves no partial queue on a rejected batch or failed disk", () => {
+  let saved,
+    fail = false,
+    writes = 0;
+  const client = createSyncClient({
+    read: () => saved,
+    write: (value) => {
+      if (fail) throw Error("disk full");
+      saved = value;
+      writes++;
+    },
+    request: async () => {
+      throw Error("not called");
+    },
+  });
+  client.put("p", { itemState: { "task-a": { order: 0 } } });
+  client.put("q", { itemState: { "task-c": { order: 1 } } });
+  const before = JSON.stringify(client.records()),
+    baseline = writes;
+  assert.throws(
+    () =>
+      client.putMany([
+        { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+        { id: "bad:id", patch: {} },
+      ]),
+    /ID/,
+  );
+  assert.equal(JSON.stringify(client.records()), before);
+  assert.equal(writes, baseline);
+  fail = true;
+  assert.throws(
+    () =>
+      client.putMany([
+        { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+        { id: "q", patch: { itemState: { "task-c": { order: 0 } } } },
+      ]),
+    /disk full/,
+  );
+  assert.equal(JSON.stringify(client.records()), before);
+  assert.equal(writes, baseline);
+  fail = false;
+  client.putMany([
+    { id: "p", patch: { itemState: { "task-a": { order: 1 } } } },
+    { id: "q", patch: { itemState: { "task-c": { order: 0 } } } },
+  ]);
+  assert.equal(writes, baseline + 1);
+  const reopened = createSyncClient({
+    read: () => saved,
+    write: () => {},
+    request: async () => {
+      throw Error("not called");
+    },
+  });
+  assert.equal(
+    reopened.records().find((r) => r.id === "p").data.itemState["task-a"].order,
+    1,
+  );
+  assert.equal(
+    reopened.records().find((r) => r.id === "q").data.itemState["task-c"].order,
+    0,
+  );
+});
+
+test("dropping in the cancellation area and a second finger both restore original ranks", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  f.move(340, 580);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  f.start("task-a");
+  f.move(250, 90);
+  p.dragTouchStart({ touches: [{ identifier: 0 }, { identifier: 1 }] });
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  assert.equal(p.data.dragId, "");
+});
+test("card delete requires explicit confirmation and remains recoverable without deleting its source packet", () => {
+  const rejected = fixture({ modal: { confirm: false } }).page;
+  rejected._client.put("p", packet());
+  rejected._refresh();
+  rejected.confirmRemoveItem(event("task-a"));
+  assert.equal(rejected._detail("task-a").deleted, false);
+  const accepted = seeded().page;
+  accepted.confirmRemoveItem(event("task-a"));
+  assert.equal(accepted._detail("task-a").deleted, true);
+  assert.equal(accepted._record("p").deletedAt, null);
+  accepted.restoreItem(event("task-a"));
+  assert.equal(accepted._detail("task-a").deleted, false);
+});
+test("interleaved group reordering replaces only that group's slots", () => {
+  const { moveInGroup } = require("../lib/touch-order");
+  const groups = new Map([
+    ["a", "one"],
+    ["b", "two"],
+    ["c", "one"],
+    ["d", "two"],
+  ]);
+  assert.deepEqual(moveInGroup(["a", "b", "c", "d"], "a", "c", groups), [
+    "c",
+    "b",
+    "a",
+    "d",
+  ]);
+});
+
+test("releasing outside a slot after a valid preview returns all ranks to their original positions", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const before = JSON.stringify(p._client.records());
+  f.start("task-a");
+  f.move(250, 90);
+  assert.equal(p._drag.validDrop, true);
+  f.move(420, 90);
+  assert.equal(p._drag.validDrop, false);
+  p.finishDrag();
+  assert.equal(JSON.stringify(p._client.records()), before);
+  assert.equal(p.data.dragSettling, true);
+  assert.equal(p.data.dragGhost.left, 0);
+  p.cancelDrag();
+});
+test("completion persists before animation, fresh control touches bypass only stale release suppression, and state survives restart", async () => {
+  const f = seeded(),
+    p = f.page;
+  p._dragTapUntil = Date.now() + 1000;
+  p.onCardActionStart();
+  const animation = p.toggleDone(event("task-a"));
+  assert.equal(p._detail("task-a").done, true);
+  assert.equal(p.data.checkingId, "task-a");
+  await animation;
+  assert.equal(fixture({ store: f.store }).page._detail("task-a").done, true);
+});
+test("pinning after drag selects Windows priority ranking and brings the item to the top on reopen", () => {
+  const f = dragFixture(),
+    p = f.page;
+  p.onCardActionStart();
+  p.togglePin(event("task-d"));
+  assert.equal(p.data.sort, "priority");
+  assert.equal(p.data.items[0].id, "task-d");
+  assert.equal(fixture({ store: f.store }).page.data.items[0].id, "task-d");
+});
+test("FLIP preview animates sibling slots and clears the inverse transform before settling", async () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  f.move(250, 90);
+  assert.ok(p.data.items.some((row) => /translate/.test(row.dragStyle)));
+  await new Promise((resolve) => setTimeout(resolve, 45));
+  assert.ok(p.data.items.every((row) => !row.dragStyle));
+  p.cancelDrag();
+});
+test("view-layer drag gate allows ordinary scroll, blocks finger scroll while lifted, and forwards touch coordinates", () => {
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(
+    readFileSync(resolve(__dirname, "../lib/drag-gesture.wxs"), "utf8"),
+    context,
+  );
+  const calls = [],
+    owner = { callMethod: (...args) => calls.push(args) };
+  const e = {
+    touches: [{ identifier: 0, clientX: 20, clientY: 400 }],
+    currentTarget: { dataset: { dragging: false } },
+  };
+  assert.equal(context.module.exports.move(e, owner), undefined);
+  e.currentTarget.dataset.dragging = true;
+  assert.equal(context.module.exports.move(e, owner), false);
+  assert.equal(calls[1][0], "dragTouchMove");
+  assert.equal(calls[1][1].touches[0].clientY, 400);
+});
+
+test("generous drop inference covers gutters, an empty final column and list end margins", () => {
+  const { nearestSlot } = require("../lib/touch-order");
+  const rects = [
+    { left: 16, right: 176, top: 100, width: 160, height: 200, slot: 0 },
+    { left: 190, right: 350, top: 100, width: 160, height: 200, slot: 1 },
+    { left: 16, right: 176, top: 324, width: 160, height: 200, slot: 2 },
+  ];
+  assert.equal(nearestSlot(rects, 185, 200, 0), 1); // column gutter
+  assert.equal(nearestSlot(rects, 250, 315, 0), 2); // row gap, nearest lower row
+  assert.equal(nearestSlot(rects, 320, 400, 0), 2); // empty second column of final row
+  assert.equal(nearestSlot(rects, 100, 65, 0), 0); // before first row
+  assert.equal(nearestSlot(rects, 280, 570, 0), 2); // after last row
+  assert.equal(nearestSlot(rects, 320, 200, 200), 2); // scrolling shifts every drop band
+  assert.equal(nearestSlot(rects, 440, 400, 0), undefined);
+  assert.equal(nearestSlot(rects, 100, 700, 0), undefined);
+});
+test("drop inference resists midpoint jitter and cannot snap through a foreign group", () => {
+  const { nearestSlot } = require("../lib/touch-order");
+  const rects = [
+    { left: 0, right: 160, top: 0, width: 160, height: 200, slot: 0 },
+    { left: 180, right: 340, top: 0, width: 160, height: 200, slot: 1 },
+  ];
+  assert.equal(nearestSlot(rects, 173, 100, 0, 0), 0);
+  assert.equal(nearestSlot(rects, 195, 100, 0, 0), 1);
+  const f = dragFixture(),
+    p = f.page;
+  p._changeItem("task-c", { group: "other" });
+  p.setData({ grouped: true });
+  p._refresh();
+  f.start("task-a");
+  f.move(250, 90);
+  assert.equal(p._drag.validDrop, false);
+  p.cancelDrag();
+});
+
+test("DDL verify is an independent action that opens grounded clock editing even immediately after a drag", () => {
+  const f = seeded(),
+    p = f.page;
+  p._dragTapUntil = Date.now() + 1000;
+  p.verifyDdl(event("task-a"));
+  assert.equal(p.data.selected.id, "task-a");
+  assert.equal(p.data.editing, true);
+  assert.equal(p.data.editTime, "15:00");
+  assert.equal(p.data.editDate, "2026-10-24");
+});
+test("grip starts on movement without waiting for a long-press event", () => {
+  const f = dragFixture(),
+    p = f.page;
+  const e = f.touch("task-a", 80, 90);
+  e.currentTarget.dataset.immediate = true;
+  p.dragTouchStart(e);
+  assert.equal(p.data.dragId, "");
+  f.move(90, 100);
+  assert.equal(p.data.dragId, "task-a");
+  p.cancelDrag();
+});
+test("view-thread following paints every move while throttling bridge work, and bakes the exact final pointer on release", () => {
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(
+    readFileSync(resolve(__dirname, "../lib/drag-gesture.wxs"), "utf8"),
+    context,
+  );
+  const styles = [],
+    calls = [],
+    ghost = { setStyle: (value) => styles.push(value) };
+  const owner = {
+    selectComponent: (id) => {
+      assert.equal(id, "#drag-ghost");
+      return ghost;
+    },
+    callMethod: (...args) => calls.push(args),
+  };
+  for (let i = 1; i <= 8; i++)
+    context.module.exports.move(
+      {
+        timeStamp: i * 8,
+        touches: [{ clientX: 100 + i, clientY: 200 + i }],
+        currentTarget: {
+          dataset: {
+            dragging: true,
+            follow: { x: 100, y: 200, left: 20, top: 40, token: 1 },
+          },
+        },
+      },
+      owner,
+    );
+  assert.equal(styles.length, 8);
+  assert.ok(calls.length < 4);
+  assert.match(styles[7].transform, /8px,8px/);
+  context.module.exports.end(
+    {
+      touches: [],
+      changedTouches: [{ clientX: 150, clientY: 260 }],
+      currentTarget: {
+        dataset: {
+          dragging: true,
+          follow: { x: 100, y: 200, left: 20, top: 40, token: 1 },
+        },
+      },
+    },
+    owner,
+  );
+  assert.equal(styles[8].left, "70px");
+  assert.equal(styles[8].top, "100px");
+  assert.equal(calls[calls.length - 1][0], "finishDrag");
+  assert.equal(calls[calls.length - 1][1].changedTouches[0].clientY, 260);
+});
+test("view-follow hit testing does not resend ghost positions over setData for every move", () => {
+  const f = dragFixture(),
+    p = f.page;
+  f.start("task-a");
+  const writes = [],
+    original = p.setData;
+  p.setData = function (value, callback) {
+    writes.push(value);
+    original.call(this, value, callback);
+  };
+  p.dragTouchMove({ ...f.touch("task-a", 85, 95), viewFollow: true });
+  assert.equal(writes.filter((value) => value.dragGhost).length, 0);
+  p.cancelDrag();
+});
+
+test("mini countdown covers every DDL section, retains interval clocks and refreshes across midnight", async () => {
+  let now = "2026-10-26T15:00:00";
+  class Clock extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [now]));
+    }
+  }
+  const { page, store } = fixture({ date: Clock });
   try {
-    page.onDraft({ detail: { value: "合成配色测试" } });
-    page.submit();
-    const record = page._client.records()[0];
-    const base = {
+    const data = packet("countdown");
+    data.itemIds = [
+      "past",
+      "today",
+      "soon",
+      "later",
+      "unsure",
+      "done",
+      "range",
+    ];
+    data.itemState = { done: { status: "done" } };
+    data.doneIds = [5];
+    const dates = [
+      "2026-10-25",
+      "2026-10-26",
+      "2026-10-30",
+      "2026-11-08",
+      "",
+      "2026-10-24",
+      "2026-10-28",
+    ];
+    data.result.items = dates.map((date, i) => ({
       kind: "task",
-      title: "合成配色",
-      summary: "固定验收说明",
+      title: `合成事项${i}`,
+      summary: "保留原文",
       facts: [],
       nextSteps: [],
       uncertainties: [],
-      evidence: [],
       sourceIds: [],
-    };
-    const day = require("../lib/world").localDay();
-    const dates = [day, "2000-01-01", "2099-12-31", "", "2000-01-01"];
-    page._client.put(record.id, {
-      result: {
-        summary: "",
-        warnings: [],
-        items: dates.map((date, i) => ({
-          ...base,
-          title: `配色 ${i}`,
-          due: date
-            ? { date, time: "23:59", anchor: date, sourceId: "manual" }
-            : null,
-        })),
-      },
-      itemIds: dates.map((_, i) => `color-${i}`),
-      itemState: { "color-4": { status: "done" } },
-      doneIds: [4],
-      status: "ready",
-    });
+      evidence: [],
+      due: date
+        ? {
+            date,
+            time: "16:00",
+            ...(i === 6 ? { startDate: "2026-10-26", startTime: "14:00" } : {}),
+          }
+        : null,
+    }));
+    data.result.items[4].dueCleared = true;
+    page._client.put(data.id, data);
     page._refresh();
-    assert.equal(
-      page.data.ddlSections.find((s) => s.title === "今天截止").rows[0].urgency,
-      "today",
-    );
-    assert.equal(page.data.ddlOverdue[0].urgency, "overdue");
-    assert.equal(page.data.ddlDone[0].urgency, "done");
-    assert.equal(page.data.ddlUnsure[0].urgency, "unsure");
-    assert.equal(page.data.ddlUnsure[0].urgencyLabel, "日期待确认");
-    assert.equal(page.data.ddlSections.at(-1).rows[0].urgency, "later");
-    assert.equal(page.data.items.find((r) => r.id === "color-0").kind, "task");
+    const rows = () => [
+      ...page.data.ddlOverdue,
+      ...page.data.ddlSections.flatMap((s) => s.rows),
+      ...page.data.ddlUnsure,
+      ...page.data.ddlDone,
+    ];
+    const row = (id) => rows().find((r) => r.id === id);
+    assert.equal(row("past").countdown, "已逾期 1 天");
+    assert.equal(row("today").countdown, "今天截止");
+    assert.equal(row("soon").countdown, "还剩 4 天");
+    assert.equal(row("later").countdown, "还剩 13 天");
+    assert.equal(row("unsure").countdownStatus, "unsure");
+    assert.equal(row("done").countdownStatus, "done");
+    assert.equal(row("range").countdown, "还剩 2 天");
+    assert.equal(row("range").startTime, "14:00");
+    assert.equal(row("range").time, "16:00");
+    now = "2026-10-26T16:01:00";
+    page._refresh();
+    assert.equal(row("today").countdown, "今天已逾期");
+    now = "2026-10-27T00:01:00";
+    page._refresh();
+    assert.equal(row("today").countdown, "已逾期 1 天");
+    assert.equal(row("soon").countdown, "还剩 3 天");
+    await page.toggleDone(event("soon"));
+    assert.equal(row("soon").countdown, "已完成");
+    const reopened = fixture({ store, date: Clock }).page;
+    try {
+      assert.equal(
+        reopened.data.ddlDone.find((r) => r.id === "soon").countdown,
+        "已完成",
+      );
+    } finally {
+      reopened.onUnload();
+    }
+    await page.toggleDone(event("soon"));
+    assert.equal(row("soon").countdown, "还剩 3 天");
   } finally {
     page.onUnload();
   }
+});
+
+test("compact expansion is temporary, stars are independent and details refresh persisted state", () => {
+  const { page, store } = fixture();
+  page._client.put("p", packet());
+  page._refresh();
+  page.toggleCard(event("task-a"));
+  assert.equal(page.data.expandedCardId, "task-a");
+  page._dragTapUntil = Date.now() + 500;
+  let writes = 0;
+  const set = page.setData.bind(page);
+  page.setData = (...args) => {
+    writes++;
+    set(...args);
+  };
+  page.onCardActionStart();
+  assert.equal(
+    writes,
+    0,
+    "a fresh button touch must not rerender the button before native tap",
+  );
+  page.toggleStar(event("task-a"));
+  assert.equal(page._detail("task-a").starred, true);
+  assert.equal(page.data.selected, null);
+  assert.equal(page.data.expandedCardId, "task-a");
+  page.openItem(event("task-a"));
+  page.toggleStar(event("task-a"));
+  assert.equal(page.data.selected.starred, false);
+  page.closeItem();
+  page.switchTab(tabEvent("ddl"));
+  assert.equal(page.data.expandedCardId, "");
+  const reopened = fixture({ store }).page;
+  assert.equal(reopened.data.expandedCardId, "");
+  assert.equal(reopened._detail("task-a").starred, false);
+  page.onUnload();
+  reopened.onUnload();
+});
+
+test("single-column drag recomputes variable-height slots and can cancel back to original geometry", () => {
+  const f = dragFixture();
+  const p = f.page;
+  f.start("task-a");
+  const s = p._drag;
+  let top = 0;
+  s.initialRects = s.original.map((id, slot) => {
+    const height = slot === 0 ? 300 : 100;
+    const rect = {
+      dataset: { id },
+      slot,
+      left: 0,
+      right: 350,
+      width: 350,
+      top,
+      bottom: top + height,
+      height,
+    };
+    top += height + 12;
+    return rect;
+  });
+  s.rects = s.initialRects.map((r) => ({ ...r }));
+  s.origin = s.rects[0];
+  f.move(100, 350);
+  assert.notEqual(s.order[0], "task-a");
+  for (let i = 0; i < s.rects.length; i++) {
+    assert.equal(s.rects[i].dataset.id, s.order[i]);
+    assert.equal(s.rects[i].height, s.order[i] === "task-a" ? 300 : 100);
+    if (i) assert.equal(s.rects[i].top - s.rects[i - 1].bottom, 12);
+  }
+  p.cancelDrag({ type: "touchcancel" });
+  assert.equal(p.data.dragGhost.top, s.origin.top);
+  assert.equal(p.data.items[0].id, s.original[0]);
+  p.onUnload();
+});
+
+test("rendered card action routing bypasses stale drag suppression and isolates deleted records", async () => {
+  const f = dragFixture();
+  const p = f.page;
+  const act = (action, id = "task-a") =>
+    p.onCardAction({ currentTarget: { dataset: { action, id } } });
+  p._dragTapUntil = Date.now() + 500;
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, true);
+  assert.equal(p.data.selected, null);
+  act("openItem");
+  assert.equal(p.data.selected.id, "task-a");
+  act("toggleStar");
+  assert.equal(p.data.selected.starred, false);
+  act("confirmRemoveItem");
+  assert.equal(p._detail("task-a").deleted, true);
+  assert.equal(p.data.selected, null);
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, false);
+  act("restoreItem");
+  assert.equal(p._detail("task-a").deleted, false);
+  await act("toggleDone");
+  assert.equal(p._detail("task-a").done, true);
+  p._drag = {};
+  act("toggleStar");
+  assert.equal(p._detail("task-a").starred, false);
+  p._drag = null;
+  p.onUnload();
+});
+
+test("compact category strip changes kind and resets temporary expansion without changing stored dates", () => {
+  const { page: p } = fixture();
+  p._client.put("p", packet());
+  p._refresh();
+  const before = p._client.records()[0].data;
+  p.setData({ expandedCardId: "task-a" });
+  p.selectCardCategory({ currentTarget: { dataset: { kind: "task" } } });
+  assert.equal(p.data.kind, "task");
+  assert.equal(p.data.expandedCardId, "");
+  assert.deepEqual(p._client.records()[0].data, before);
+  p.onUnload();
 });
