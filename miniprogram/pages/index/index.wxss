@@ -1744,6 +1744,9 @@ input {
   line-height: 1.6;
   box-shadow: 4rpx 4rpx #111;
 }
+.skin-home-change.with-bunny {
+  margin-top: 28rpx;
+}
 .count-line {
   display: flex;
   align-items: center;

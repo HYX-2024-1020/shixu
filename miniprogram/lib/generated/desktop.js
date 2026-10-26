@@ -97,7 +97,7 @@ var BUILTIN_SKINS = [
   },
   {
     id: "bunny",
-    name: "兔耳小桃",
+    name: "绯樱狐",
     description: "戳一下，听她说。",
     art: "bunny",
     color: "#f7dce9",

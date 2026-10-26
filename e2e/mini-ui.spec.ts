@@ -44,7 +44,7 @@ async function render(page: any, width: number, template: string, row: any) {
     template === "home"
       ? wxml.slice(
           wxml.indexOf('      <view class="home-character'),
-          wxml.indexOf('      <button class="skin-home-change'),
+          wxml.indexOf('      <view class="count-line'),
         )
       : template === "market"
         ? wxml.slice(marketHeadStart, marketHeadEnd).trim().slice(1) +
@@ -70,6 +70,7 @@ async function render(page: any, width: number, template: string, row: any) {
         row,
         activeSkin: {
           id: row.skin || "ice",
+          name: row.skin === "bunny" ? "绯樱狐" : row.skin || "ice",
           image: row.image,
           motion: "wiggle",
           hello: "hello",
@@ -203,6 +204,11 @@ test("native bunny timeline keeps the same crop in home and market", async ({
     const inner = await page.locator(".bunny-sheet").boundingBox();
     expect(inner!.width / box!.width).toBeCloseTo(5, 1);
     expect(inner!.height / box!.height).toBeCloseTo(4, 1);
+    if (template === "home") {
+      const button = await page.locator(".skin-home-change").boundingBox();
+      expect(button!.y - box!.y - box!.height).toBeGreaterThanOrEqual(14);
+      await expect(page.locator(".skin-home-change")).toContainText("绯樱狐");
+    }
     await expect(page.locator(".skin-bubble,.skin-spark")).toHaveCount(0);
     await page.waitForTimeout(500);
     await page.screenshot({

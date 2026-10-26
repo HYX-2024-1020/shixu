@@ -1841,7 +1841,7 @@ export default function BucketApp() {
               )}
             </div>
             <button
-              className="skin-home-change"
+              className={`skin-home-change ${activeSkin.art === "bunny" ? "with-bunny" : ""}`}
               onClick={() => setSkinMarket(true)}
             >
               <Palette size={12} />

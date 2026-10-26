@@ -66,10 +66,14 @@
 .bunny-mascot .skin-body {
   height: 100%;
 }
-.is-compact.bunny-mascot .bunny-art {
+.skin-preview-stage .skin-mascot.is-compact.bunny-mascot {
   width: 151.72px;
   height: 220px;
   max-width: 100%;
+}
+.is-compact.bunny-mascot .bunny-art {
+  width: 100%;
+  height: 100%;
   margin: auto;
 }
 .bucket-drawing.skin-mascot .skin-art {
@@ -369,9 +373,7 @@
   scrollbar-width: thin;
 }
 .skin-collection-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  position: static;
   background: #fffaf0;
   padding: 8px 0;
   display: flex;
@@ -937,7 +939,7 @@
   transition: none !important;
   box-shadow: none !important;
 }
-.bucket-drawing.skin-mascot.is-plain .skin-art {
+.bucket-drawing.skin-mascot.is-plain .skin-art.is-plain-art {
   height: auto;
   max-height: none;
   aspect-ratio: auto;
@@ -956,6 +958,9 @@
 .skin-market-layout {
   flex: 1;
 }
+.skin-home-change.with-bunny {
+  margin-top: 16px;
+}
 @media (min-width: 621px) {
   .skin-preview-stage .skin-mascot.is-plain {
     width: 230px;
@@ -963,6 +968,10 @@
   }
 }
 @media (max-width: 620px) {
+  .skin-preview-stage .skin-mascot.is-compact.bunny-mascot {
+    width: 89.66px;
+    height: 130px;
+  }
   .ice-home-voices {
     left: calc(100% + 4px);
   }

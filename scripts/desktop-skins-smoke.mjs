@@ -140,7 +140,7 @@ try {
     "bundled ice and bunny voices contain audible signal",
   );
   await page.getByRole("button", {name:"打开皮肤市场"}).click();
-  await page.getByRole("button", {name:"使用兔耳小桃"}).click();
+  await page.getByRole("button", {name:"使用绯樱狐"}).click();
   const bunny = page.locator(".skin-market .skin-mascot");
   await bunny.click();
   await expect(bunny.locator(".bunny-frame")).toBeVisible();
@@ -152,6 +152,18 @@ try {
   await expect.poll(() => page.evaluate(() => window.__greetingAudio.ended), {timeout:12000}).toBe(true);
   await expect(bunny.locator(".bunny-frame")).toHaveCount(0);
   await expect(bunny.locator("img.bunny-art")).toBeVisible();
+  await page.getByRole("button", {name:"关闭皮肤市场"}).click();
+  const homeFox = page.locator(".bucket-drawing[data-skin='bunny']");
+  const idleBox = await homeFox.locator("img.bunny-art").boundingBox();
+  const changeBox = await page.locator(".skin-home-change").boundingBox();
+  assert.ok(changeBox.y - idleBox.y - idleBox.height >= 14, "change button has space below the feet");
+  await homeFox.click();
+  await expect(homeFox.locator(".bunny-frame")).toBeVisible();
+  const playingBox = await homeFox.locator(".bunny-frame").boundingBox();
+  assert.ok(playingBox.height > 200, "home animation retains a real height");
+  assert.ok(Math.abs(playingBox.height - idleBox.height) < 1, "home playback does not collapse the layout");
+  await page.screenshot({path:"release/desktop-fox-home.png"});
+  await page.getByRole("button", {name:"打开皮肤市场"}).click();
   await bunny.click();
   await page.getByRole("button", {name:"使用冰冰冰"}).click();
   assert.equal(await page.evaluate(() => window.__greetingAudio.paused),true);
