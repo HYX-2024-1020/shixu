@@ -1,3 +1,4 @@
+console.info("[拾序启动] 首页模块开始加载");
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const {
@@ -55,6 +56,7 @@ function dateInfo() {
     captureDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
   };
 }
+console.info("[拾序启动] 首页依赖加载完成");
 Page({
   ...createTouchOrder(wx),
   data: {
@@ -189,6 +191,7 @@ Page({
     },
   },
   onLoad() {
+    console.info("[拾序启动] Page.onLoad 已进入");
     try {
       this._skinCollection = parseSkinCollection(
         wx.getStorageSync(SKINS) || null,
@@ -227,8 +230,10 @@ Page({
     };
     wx.onNetworkStatusChange(this._network);
     this._prepareSkinAudio();
+    console.info("[拾序启动] Page.onLoad 已返回");
   },
   onShow() {
+    console.info("[拾序启动] Page.onShow 已进入");
     this.setData({ updateReady: getApp().globalData.updateReady });
     this._refresh();
     this.syncQuietly();
@@ -237,6 +242,8 @@ Page({
       this._refresh();
       this.syncQuietly();
     }, 8000);
+    this.setData({}, () => console.info("[拾序启动] 首页渲染通信已返回"));
+    console.info("[拾序启动] Page.onShow 已返回");
   },
   onHide() {
     this.cancelDrag();
