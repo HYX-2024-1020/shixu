@@ -1,0 +1,53 @@
+/* Semantic colors shared with native WXSS by build-miniprogram.mjs. */
+.kind-task {
+  --card-accent: #ffd43b;
+  --card-paper: #fff6ce;
+}
+.kind-event {
+  --card-accent: #739cff;
+  --card-paper: #eaf0ff;
+}
+.kind-idea {
+  --card-accent: #ff8fab;
+  --card-paper: #fff0f4;
+}
+.kind-habit {
+  --card-accent: #60d6aa;
+  --card-paper: #e3f9ef;
+}
+.kind-notice {
+  --card-accent: #ffae62;
+  --card-paper: #fff0df;
+}
+.kind-note {
+  --card-accent: #b598ff;
+  --card-paper: #f1ebff;
+}
+.kind-other {
+  --card-accent: #c5ccda;
+  --card-paper: #f0f2f6;
+}
+.urgency-overdue {
+  --card-accent: #ff8fab;
+  --card-paper: #fff0f4;
+}
+.urgency-today {
+  --card-accent: #ffd43b;
+  --card-paper: #fff6ce;
+}
+.urgency-soon {
+  --card-accent: #b598ff;
+  --card-paper: #f1ebff;
+}
+.urgency-later {
+  --card-accent: #739cff;
+  --card-paper: #eaf0ff;
+}
+.urgency-unsure {
+  --card-accent: #ffae62;
+  --card-paper: #fff0df;
+}
+.urgency-done {
+  --card-accent: #60d6aa;
+  --card-paper: #e3f9ef;
+}

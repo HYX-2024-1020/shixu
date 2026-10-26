@@ -203,11 +203,11 @@ export default function DDL({
       setBusy(false);
     }
   }
-  function card(row: Row) {
+  function card(row: Row, urgency: string) {
     const { item, p, id } = row;
     return (
       <article
-        className="ddl-item"
+        className={"ddl-item urgency-" + urgency}
         key={id}
         data-motion-id={id}
         onPointerDown={drag.onPointerDown}
@@ -218,6 +218,18 @@ export default function DDL({
           aria-label={`核对截止时间：${item.title}`}
           onClick={() => setOpen(open === id ? "" : id)}
         >
+          <span className="ddl-status">
+            {
+              {
+                overdue: "已逾期",
+                today: "今天截止",
+                soon: "即将截止",
+                later: "提前安排",
+                unsure: "日期待确认",
+                done: "已完成",
+              }[urgency]
+            }
+          </span>
           {item.due?.startDate && (
             <>
               <span>时间段 · 开始</span>
@@ -346,14 +358,14 @@ export default function DDL({
       </article>
     );
   }
-  const section = (title: string, list: Row[]) =>
+  const section = (title: string, list: Row[], urgency: string) =>
     list.length > 0 && (
       <section className="ddl-section">
         <h2>
           <span>{title}</span>
           <small>{list.length} 项</small>
         </h2>
-        {list.slice(0, limit).map(card)}
+        {list.slice(0, limit).map((row) => card(row, urgency))}
       </section>
     );
   return (
@@ -415,12 +427,12 @@ export default function DDL({
       {sections.overdue.length > 0 && (
         <details className="ddl-overdue">
           <summary>已逾期 · {sections.overdue.length} 项 · 点开看看</summary>
-          {sections.overdue.slice(0, limit).map(card)}
+          {sections.overdue.slice(0, limit).map((row) => card(row, "overdue"))}
         </details>
       )}
-      {section("今天截止", sections.today)}
-      {section(`未来 ${stops[windowIndex]} 天`, sections.soon)}
-      {section(`${stops[windowIndex]} 天之后`, sections.later)}
+      {section("今天截止", sections.today, "today")}
+      {section(`未来 ${stops[windowIndex]} 天`, sections.soon, "soon")}
+      {section(`${stops[windowIndex]} 天之后`, sections.later, "later")}
       {!sections.today.length && !sections.soon.length && (
         <p className="ddl-empty">
           {active === 0
@@ -433,13 +445,13 @@ export default function DDL({
       {sections.unsure.length > 0 && (
         <details className="ddl-secondary">
           <summary>日期待确认 · {sections.unsure.length} 项</summary>
-          {sections.unsure.slice(0, limit).map(card)}
+          {sections.unsure.slice(0, limit).map((row) => card(row, "unsure"))}
         </details>
       )}
       {sections.done.length > 0 && (
         <details className="ddl-secondary">
           <summary>已完成 · {sections.done.length} 项 · 可捞回来</summary>
-          {sections.done.slice(0, limit).map(card)}
+          {sections.done.slice(0, limit).map((row) => card(row, "done"))}
         </details>
       )}
       {Object.values(sections).some((rows) => rows.length > limit) && (

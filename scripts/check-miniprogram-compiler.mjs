@@ -28,6 +28,7 @@ execFileSync(
     join(temporary, "style.js"),
     "app.wxss",
     "lib/generated/client-ui.wxss",
+    "pages/index/card-visuals.wxss",
     "pages/index/index.wxss",
   ],
   { cwd: mini, stdio: "pipe" },

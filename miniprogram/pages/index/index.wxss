@@ -1,4 +1,5 @@
 @import "../../lib/generated/client-ui.wxss";
+@import "./card-visuals.wxss";
 .page {
   padding: 36rpx 30rpx calc(180rpx + env(safe-area-inset-bottom));
 }

@@ -1,0 +1,144 @@
+/* Color conveys type in World and urgency in DDL; text remains explicit. */
+.result-card[class*="kind-"] {
+  background: linear-gradient(140deg, #fff 40%, var(--card-paper)) !important;
+  border-top: 3px solid #111;
+  box-shadow:
+    6px 6px 0 var(--card-accent),
+    8px 8px 0 #111;
+}
+.result-card[class*="kind-"]:hover {
+  box-shadow:
+    8px 8px 0 var(--card-accent),
+    10px 10px 0 #111;
+}
+.result-card .card-topline {
+  background: var(--card-accent, #ffd43b);
+  border-bottom: 3px solid #111;
+  padding: 10px 16px;
+  margin: -22px -24px 20px;
+  min-height: 46px;
+}
+.result-card .card-kind {
+  color: #111;
+  font-weight: 900;
+}
+.result-card .completion-orbit {
+  background: #fff;
+}
+.result-card .completion-orbit[aria-pressed="true"] {
+  background: #111;
+  color: #fff;
+}
+.result-card .card-star {
+  color: #111;
+}
+.result-card .card-star[aria-pressed="true"] {
+  color: #111;
+  background: #fff;
+  border-radius: 4px;
+}
+.result-card .card-delete {
+  color: #111;
+}
+.result-card .card-bottom {
+  border-color: #1114;
+}
+.result-card.is-pinned .card-kind::after {
+  content: " · 置顶";
+}
+.result-card.is-done .card-open h2 {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+.result-card .deadline {
+  background: #ffd43b;
+  color: #111;
+}
+.result-card .deadline.is-overdue {
+  background: #ff8fab;
+  color: #111;
+}
+.result-card .collection-tag {
+  background: #fff;
+  color: #3b3546;
+  border: 1px solid #111;
+  border-radius: 3px;
+  padding: 3px 7px;
+}
+.category-nav button[class*="kind-"] {
+  border-bottom: 4px solid var(--card-accent);
+}
+.category-nav button[class*="kind-"][aria-pressed="true"] {
+  background: var(--card-accent);
+  color: #111;
+}
+.result-body[class*="kind-"] .result-heading {
+  background: var(--card-accent);
+  border: 3px solid #111;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: 4px 4px #111;
+}
+.result-body .result-heading > span {
+  color: #111;
+  font-weight: 900;
+}
+.result-body .result-heading h2 {
+  color: #111;
+}
+.ddl-item[class*="urgency-"] {
+  background: var(--card-paper);
+  box-shadow:
+    6px 6px var(--card-accent),
+    8px 8px #111;
+}
+.ddl-item[class*="urgency-"] .time-rail {
+  background: var(--card-accent);
+  color: #111;
+}
+.time-rail .ddl-status {
+  font-size: 17px;
+  font-weight: 900;
+  padding-bottom: 5px;
+  border-bottom: 2px solid #111;
+}
+.ddl-item .time-rail > b {
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.ddl-item .time-rail small {
+  color: #111;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ddl-item .ddl-copy h3 {
+  font-size: 20px;
+  line-height: 1.5;
+  font-weight: 900;
+}
+.ddl-item .ddl-course {
+  background: #fff;
+}
+.ddl-item .completion-orbit {
+  background: #fff;
+}
+.ddl-item .completion-orbit[aria-pressed="true"] {
+  background: #111;
+  color: #fff;
+}
+.ddl-item .ddl-panel {
+  border-color: #1115;
+}
+@media (max-width: 760px) {
+  .result-card .card-topline {
+    flex-wrap: wrap;
+  }
+  .time-rail .ddl-status {
+    font-size: 15px;
+  }
+  .ddl-item .time-rail > b {
+    font-size: 26px;
+  }
+}

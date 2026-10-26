@@ -325,6 +325,18 @@ Page({
       `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`,
       this.data.ddlDays[this.data.ddlIndex],
     );
+    const urgencyLabels = {
+      overdue: "已逾期",
+      today: "今天截止",
+      soon: "即将截止",
+      later: "提前安排",
+      unsure: "日期待确认",
+      done: "已完成",
+    };
+    for (const [urgency, rows] of Object.entries(ddl)) {
+      for (const row of rows)
+        Object.assign(row, { urgency, urgencyLabel: urgencyLabels[urgency] });
+    }
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
