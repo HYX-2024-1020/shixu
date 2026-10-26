@@ -1812,11 +1812,11 @@ export default function BucketApp() {
               />
               {activeSkin.art === "ice" && (
                 <fieldset className="ice-home-voices" aria-label="冰冰冰的声音">
-                  <legend>声音</legend>
                   {Object.entries(ICE_VOICES).map(([id, label]) => (
                     <button
                       type="button"
                       key={id}
+                      aria-label={label}
                       aria-pressed={
                         (skinCollection.iceVoice || "voice-1") === id
                       }
@@ -1833,7 +1833,7 @@ export default function BucketApp() {
                         }
                       }}
                     >
-                      {label}
+                      {id === "voice-1" ? "1" : "2"}
                     </button>
                   ))}
                 </fieldset>

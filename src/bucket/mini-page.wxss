@@ -2455,16 +2455,37 @@ page {
 }
 .ice-home-voices {
   display: flex;
-  flex-direction: column;
-  gap: 12rpx;
+  flex-direction: row;
+  gap: 0;
   flex: 0 0 auto;
-  font-size: 24rpx;
+  align-self: center;
 }
 .ice-home-voices .small-button {
-  min-width: 120rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 76rpx;
+  height: 88rpx;
+  min-height: 88rpx;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #8a8474;
+  font-size: 22rpx;
+  line-height: 1;
+  border-radius: 0;
 }
 .ice-home-voices .voice-selected {
-  background: #b9e7ff;
+  color: #4f493d;
+  background: transparent;
+}
+.ice-home-voices .voice-selected .ice-voice-label {
+  text-decoration: underline;
+  text-underline-offset: 8rpx;
 }
 .is-plain-art {
   animation: none !important;
