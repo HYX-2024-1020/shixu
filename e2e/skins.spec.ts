@@ -316,3 +316,19 @@ test("ice voices decode as single short utterances, switch and persist with no o
     page.getByRole("button", { name: "声音二", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
 });
+
+test("switching skins keeps the market frame stable and whale has no feed demo", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  const market = page.getByRole("dialog");
+  const before = await market.boundingBox();
+  await expect(market.getByRole("button", { name: "试着喂一口" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "使用冰冰冰" }).click();
+  const after = await market.boundingBox();
+  expect(after!.width).toBeCloseTo(before!.width, 0);
+  expect(after!.height).toBeCloseTo(before!.height, 0);
+  expect(after!.y).toBeCloseTo(before!.y, 0);
+});

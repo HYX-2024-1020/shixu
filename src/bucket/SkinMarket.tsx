@@ -251,7 +251,7 @@ export default function SkinMarket({
               </span>
             )}
           </div>
-          {preview.art !== "ice" && (
+          {preview.art === "custom" && (
             <button
               className="skin-button skin-feed-button"
               disabled={preview.art === "custom" && !preview.image}

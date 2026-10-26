@@ -919,3 +919,28 @@
 .skin-preview-stage:has(.is-plain-art) {
   background-image: none;
 }
+
+/* Keep the market frame stable when switching between characters. */
+.skin-market {
+  height: min(850px, calc(100dvh - 48px));
+}
+.skin-market-layout {
+  flex: 1;
+}
+.skin-home-character.with-voices .bucket-drawing {
+  flex-basis: clamp(220px, 30vw, 340px);
+  max-width: 340px;
+}
+.bucket-drawing.skin-mascot.is-plain .skin-art {
+  max-height: min(360px, 38dvh);
+}
+@media (min-width: 621px) {
+  .skin-preview-stage .skin-mascot.is-plain {
+    width: 230px;
+    height: 230px;
+  }
+}
+
+.skin-home-character.with-voices {
+  width: min(420px, 100%);
+}
