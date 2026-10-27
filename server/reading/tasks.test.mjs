@@ -166,6 +166,16 @@ test("original -> reading -> ledger -> atomic publication -> both logical sync d
   const f = fixture(t);
   const first = f.enqueue();
   assert.deepEqual(f.enqueue(), first);
+  const original = f.store.files.get("packet", "a");
+  assert.equal(
+    f.store.files.put("packet", "a", {
+      name: original.name,
+      type: original.type,
+      body: original.body,
+      epoch: f.store.epoch,
+    }).hash,
+    original.hash,
+  );
   assert.throws(
     () => f.put({ text: "offline modification" }),
     (e) => e.code === "INPUT_LOCKED",

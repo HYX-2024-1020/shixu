@@ -129,7 +129,6 @@ export function createAttachmentStore(store, limits = {}) {
       db.exec("BEGIN IMMEDIATE");
       try {
         active(packetId);
-        store.validateOriginalMutation?.(packetId);
         const existing = lookup(packetId, id);
         if (existing) {
           if (
@@ -145,6 +144,9 @@ export function createAttachmentStore(store, limits = {}) {
           db.exec("COMMIT");
           return descriptor(existing);
         }
+        // A byte-identical retry is an acknowledgement replay, not an input
+        // mutation; it must still succeed while the task locks this packet.
+        store.validateOriginalMutation?.(packetId);
         if (
           db
             .prepare(
