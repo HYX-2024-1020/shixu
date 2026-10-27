@@ -23,6 +23,18 @@ export default function SkinMascot({
   const lastFeed = useRef(feedSignal);
   const timer = useRef<number>(0);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const [playSignal, setPlaySignal] = useState(0);
+  const plain = skin.art === "ice" || skin.art === "bunny";
+  useEffect(() => {
+    const hide = () => {
+      if (document.hidden) {
+        audio.current?.pause();
+        setHappy(false);
+      }
+    };
+    document.addEventListener("visibilitychange", hide);
+    return () => document.removeEventListener("visibilitychange", hide);
+  }, []);
   useEffect(() => {
     if (feedSignal === lastFeed.current) return;
     lastFeed.current = feedSignal;
@@ -57,6 +69,8 @@ export default function SkinMascot({
     }
   }, [state, suspended]);
   function greet() {
+    if (suspended || state !== "idle") return;
+    setPlaySignal((value) => value + 1);
     setHappy(true);
     clearTimeout(timer.current);
     if (audio.current) {
@@ -87,25 +101,28 @@ export default function SkinMascot({
   return (
     <button
       type="button"
-      className={`skin-mascot ${compact ? "is-compact" : "bucket-drawing"} ${skin.art === "ice" ? "is-plain" : ""}`}
+      className={`skin-mascot ${compact ? "is-compact" : "bucket-drawing"} ${plain ? "is-plain" : ""} ${skin.art === "bunny" ? "bunny-mascot" : ""}`}
       data-motion={
-        skin.art !== "ice" && !suspended && (happy || feeding)
-          ? skin.motion
-          : "idle"
+        !plain && !suspended && (happy || feeding) ? skin.motion : "idle"
       }
       data-skin={skin.id}
       aria-label={`和${skin.name}打个招呼`}
       onClick={greet}
     >
-      {skin.art !== "ice" && (
+      {!plain && (
         <span className="skin-bubble" aria-live="polite">
           {bubble}
         </span>
       )}
       <span className="skin-body">
-        <SkinArt skin={skin} />
+        <SkinArt
+          skin={skin}
+          animate={skin.art === "bunny"}
+          playing={happy && !suspended}
+          playSignal={playSignal}
+        />
       </span>
-      {skin.art !== "ice" && (
+      {!plain && (
         <>
           <span className="skin-spark skin-spark-one" aria-hidden="true">
             ✦

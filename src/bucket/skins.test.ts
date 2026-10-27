@@ -8,6 +8,8 @@ import {
   saveSkinCollection,
   skinStorageKey,
   skinSound,
+  bunnyFrame,
+  BUNNY_CLIP,
   type Skin,
 } from "./skins";
 
@@ -20,6 +22,24 @@ const custom: Skin = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("skin collection persistence", () => {
+  it("persists the bunny and maps the whole audio timeline to valid atlas cells", () => {
+    expect(parseSkinCollection('{"selected":"bunny"}').selected).toBe("bunny");
+    expect(skinSound(BUILTIN_SKINS[2])).toBe("bunny-voice.mp3");
+    expect(bunnyFrame(0)).toEqual({ image: "fox/atlas.webp", x: 0, y: 0 });
+    expect(bunnyFrame(20 / 15)).toEqual({
+      image: "fox/atlas.webp",
+      x: 0,
+      y: 20,
+    });
+    expect(bunnyFrame(BUNNY_CLIP.duration + 99).image).toBe("fox/atlas.webp");
+    for (const time of [-1, NaN, 0, 1, 4, 7, 100]) {
+      const frame = bunnyFrame(time);
+      expect(frame.x).toBeGreaterThanOrEqual(0);
+      expect(frame.x).toBeLessThanOrEqual(100);
+      expect(frame.y).toBeGreaterThanOrEqual(0);
+      expect(frame.y).toBeLessThanOrEqual(100);
+    }
+  });
   it("recovers missing, corrupt, and invalid saved collections", () => {
     for (const raw of [null, "broken", "null", "[]", '{"selected":"missing"}'])
       expect(parseSkinCollection(raw)).toEqual({
@@ -34,8 +54,8 @@ describe("skin collection persistence", () => {
       parseSkinCollection(JSON.stringify({ selected: "planet" })).selected,
     ).toBe("whale");
   });
-  it("only offers whale and ice and validates the persisted voice", () => {
-    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(["whale", "ice"]);
+  it("offers all builtins and validates the persisted voice", () => {
+    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(["whale", "ice", "bunny"]);
     for (const voice of ["voice-1", "voice-2"] as const) {
       const saved = parseSkinCollection(
         JSON.stringify({ selected: "ice", iceVoice: voice }),

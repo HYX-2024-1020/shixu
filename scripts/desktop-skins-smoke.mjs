@@ -42,8 +42,10 @@ try {
     if (window.__syntheticAudio) return;
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
-      window.__greetingAudio = this;
-      window.__mediaPlays++;
+      if (this.tagName === "AUDIO") {
+        window.__greetingAudio = this;
+        window.__mediaPlays++;
+      }
       return play.call(this);
     };
   });
@@ -94,7 +96,7 @@ try {
     .fill("皮肤升级验证草稿，仅合成资料");
   await page.evaluate(() => window.flushDesktopDraft());
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
-  await expect(page.locator(".skin-card")).toHaveCount(2);
+  await expect(page.locator(".skin-card")).toHaveCount(3);
   await page.getByRole("button", { name: "使用冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
@@ -124,21 +126,72 @@ try {
   const levels = await page.evaluate(async () => {
     const ctx = new OfflineAudioContext(1, 1, 44100);
     return Promise.all(
-      ["ice-voice-1.mp3", "ice-voice-2.mp3"].map(async (name) => {
-        const buffer = await ctx.decodeAudioData(
-          await (await fetch("/" + name)).arrayBuffer(),
-        );
-        const samples = buffer.getChannelData(0);
-        let sum = 0;
-        for (const x of samples) sum += x * x;
-        return Math.sqrt(sum / samples.length);
-      }),
+      ["ice-voice-1.mp3", "ice-voice-2.mp3", "bunny-voice.mp3"].map(
+        async (name) => {
+          const buffer = await ctx.decodeAudioData(
+            await (await fetch("/" + name)).arrayBuffer(),
+          );
+          const samples = buffer.getChannelData(0);
+          let sum = 0;
+          for (const x of samples) sum += x * x;
+          return Math.sqrt(sum / samples.length);
+        },
+      ),
     );
   });
   assert.ok(
     levels.every((level) => level > 0.01),
-    "both bundled ice voices contain audible signal",
+    "bundled ice and bunny voices contain audible signal",
   );
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await page.getByRole("button", { name: "使用绯樱狐" }).click();
+  const bunny = page.locator(".skin-market .skin-mascot");
+  await bunny.click();
+  await expect(bunny.locator("video.bunny-video")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+    .toBeGreaterThan(1.4);
+  await expect
+    .poll(() =>
+      bunny.locator("video.bunny-video").evaluate((v) => v.currentTime),
+    )
+    .toBeGreaterThan(1.4);
+  await page.screenshot({ path: "release/desktop-bunny-market.png" });
+  await bunny.click();
+  assert.ok(
+    await page.evaluate(() => window.__greetingAudio.currentTime < 0.5),
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.ended), {
+      timeout: 12000,
+    })
+    .toBe(true);
+  await expect
+    .poll(() => bunny.locator("video.bunny-video").evaluate((v) => v.paused))
+    .toBe(true);
+  await expect(bunny.locator(".bunny-art")).toBeVisible();
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
+  const homeFox = page.locator(".bucket-drawing[data-skin='bunny']");
+  const idleBox = await homeFox.locator(".bunny-art").boundingBox();
+  const changeBox = await page.locator(".skin-home-change").boundingBox();
+  assert.ok(
+    changeBox.y - idleBox.y - idleBox.height >= 14,
+    "change button has space below the feet",
+  );
+  await homeFox.click();
+  await expect(homeFox.locator("video.bunny-video")).toBeVisible();
+  const playingBox = await homeFox.locator("video.bunny-video").boundingBox();
+  assert.ok(playingBox.height > 200, "home animation retains a real height");
+  assert.ok(
+    Math.abs(playingBox.height - idleBox.height) < 1,
+    "home playback does not collapse the layout",
+  );
+  await page.screenshot({ path: "release/desktop-fox-home.png" });
+  await page.getByRole("button", { name: "打开皮肤市场" }).click();
+  await bunny.click();
+  await page.getByRole("button", { name: "使用冰冰冰" }).click();
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
@@ -218,6 +271,7 @@ try {
         : "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
       "both ice voices contain non-silent decoded PCM and play to natural completion",
+      "bunny audio contains non-silent decoded PCM; original timeline plays once, restarts and stops on skin switch",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",
       "custom edit/delete restores whale",

@@ -30,6 +30,8 @@ const {
   BUILTIN_SKINS,
   ICE_VOICES,
   skinSound,
+  BUNNY_CLIP,
+  bunnyFrame,
   SKIN_MOTIONS,
   parseSkinCollection,
   MAX_CUSTOM_SKINS,
@@ -163,6 +165,8 @@ Page({
     previewSkin: BUILTIN_SKINS[0],
     skinMessage: BUILTIN_SKINS[0].hello,
     skinAnimating: false,
+    bunnySheet: "/assets/fox/atlas.webp",
+    bunnyPosition: "left:0%;top:0%",
     skinEditor: false,
     skinForm: {},
     motionLabels: Object.values(SKIN_MOTIONS),
@@ -1865,7 +1869,9 @@ Page({
           ? this._skinPath(s)
           : s.art === "whale"
             ? "/assets/mascot.png"
-            : "/assets/ice.png",
+            : s.art === "bunny"
+              ? "/assets/bunny.png"
+              : "/assets/ice.png",
     }));
     const activeSkin =
       skins.find((s) => s.id === collection.selected) || skins[0];
@@ -1921,15 +1927,26 @@ Page({
   },
   interactSkin() {
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
+    if (s.art === "bunny" && !this._foxReady) {
+      if (this._foxLoading) return;
+      this._stopSkinInteraction();
+      const generation = this._foxLoadGeneration;
+      this._foxLoading = true;
+      this._foxPendingPlay = generation;
+      this._foxWaitTimer = setTimeout(() => this.foxResourceError(), 8000);
+      return;
+    }
     this._stopSkinInteraction();
     this.setData({
       skinMessage: s.greeting,
       skinAnimating: s.art !== "ice",
     });
-    this._startSkinMotion(s);
+    if (s.art !== "bunny") this._startSkinMotion(s);
     if (skinSound(s, this.data.iceVoice) && this._prepareSkinAudio(s)) {
       try {
         this._skinAudio.play();
+        if (s.art === "bunny" && !this._skinAudio.onPlay)
+          this._startBunnyClip();
       } catch (_) {
         this.setData({
           skinAnimating: false,
@@ -1942,8 +1959,43 @@ Page({
         SKIN_INTERACTION.greetingMs,
       );
   },
+  foxResourceReady() {
+    clearTimeout(this._foxWaitTimer);
+    const pending = this._foxPendingPlay;
+    this._foxLoading = false;
+    this._foxReady = true;
+    this._foxPendingPlay = null;
+    if (pending && pending === this._foxLoadGeneration) this.interactSkin();
+  },
+  foxResourceError() {
+    clearTimeout(this._foxWaitTimer);
+    this._foxLoading = false;
+    this._foxPendingPlay = null;
+    this.setData({ notice: "绯樱狐暂时未能加载，请再点一次" });
+  },
+  _startBunnyClip() {
+    clearTimeout(this._bunnyTimer);
+    const generation = (this._bunnyGeneration || 0) + 1;
+    this._bunnyGeneration = generation;
+    const started = Date.now();
+    const advance = () => {
+      if (generation !== this._bunnyGeneration || !this.data.skinAnimating)
+        return;
+      const time = (Date.now() - started) / 1000;
+      if (time >= BUNNY_CLIP.duration) {
+        this._stopSkinInteraction();
+        return;
+      }
+      const frame = bunnyFrame(time);
+      this.setData({
+        bunnyPosition: `left:${-frame.x * (BUNNY_CLIP.columns - 1)}%;top:${-frame.y * (BUNNY_CLIP.rows - 1)}%`,
+      });
+      this._bunnyTimer = setTimeout(advance, 1000 / BUNNY_CLIP.fps);
+    };
+    advance();
+  },
   _startSkinMotion(skin) {
-    if (skin.art === "ice") return;
+    if (skin.art === "ice" || skin.art === "bunny") return;
     if (!wx.createAnimation) return;
     const motion = NATIVE_SKIN_MOTIONS[skin.motion];
     if (!motion) return;
@@ -1983,6 +2035,8 @@ Page({
     advance();
   },
   _finishSkinInteraction() {
+    clearTimeout(this._bunnyTimer);
+    this._bunnyGeneration = (this._bunnyGeneration || 0) + 1;
     const skin = this.data.skinOpen
       ? this.data.previewSkin
       : this.data.activeSkin;
@@ -1992,11 +2046,17 @@ Page({
     if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
     this.setData({
       skinAnimating: false,
+      bunnySheet: "/assets/fox/atlas.webp",
+      bunnyPosition: "left:0%;top:0%",
       skinMessage: skin.hello,
       ...(reset ? { skinAnimation: reset.export() } : {}),
     });
   },
   _stopSkinInteraction() {
+    clearTimeout(this._foxWaitTimer);
+    this._foxPendingPlay = null;
+    this._foxLoading = false;
+    this._foxLoadGeneration = (this._foxLoadGeneration || 0) + 1;
     clearTimeout(this._skinTimer);
     try {
       if (this._skinAudio) this._skinAudio.stop();
@@ -2026,6 +2086,14 @@ Page({
     try {
       audio = wx.createInnerAudioContext();
       audio.onEnded(() => this._finishSkinInteraction());
+      if (audio.onPlay)
+        audio.onPlay(() => {
+          const s = this.data.skinOpen
+            ? this.data.previewSkin
+            : this.data.activeSkin;
+          if (s.art === "bunny" && this.data.skinAnimating)
+            this._startBunnyClip();
+        });
       audio.onError(() => {
         this._finishSkinInteraction();
         this.setData({ notice: "声音播放失败，请重试" });

@@ -20,6 +20,27 @@ const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
 const exe = process.platform === "win32" ? ".exe" : "";
 execFileSync(
   join(directory, "wcc" + exe),
+  ["-o", join(temporary, "fox-player.js"), "assets/fox/player.wxml"],
+  { cwd: mini, stdio: "pipe" },
+);
+execFileSync(
+  join(directory, "wcsc" + exe),
+  ["-o", join(temporary, "fox-player.css"), "assets/fox/player.wxss"],
+  { cwd: mini, stdio: "pipe" },
+);
+
+execFileSync(
+  join(directory, "wcc" + exe),
+  ["-o", join(temporary, "fox-resource.js"), "assets/fox/entry.wxml"],
+  { cwd: mini, stdio: "pipe" },
+);
+execFileSync(
+  join(directory, "wcsc" + exe),
+  ["-o", join(temporary, "fox-resource.css"), "assets/fox/entry.wxss"],
+  { cwd: mini, stdio: "pipe" },
+);
+execFileSync(
+  join(directory, "wcc" + exe),
   [
     "-o",
     join(temporary, "page.js"),
@@ -401,7 +422,7 @@ assert.ok(
 page.openSkins();
 assert.equal(
   view().filter((node) => node.attr?.bindtap === "previewSkin").length,
-  2,
+  page.data.skins.length,
   "all desktop presets rendered",
 );
 page.previewSkin({ currentTarget: { dataset: { id: "ice" } } });
@@ -433,8 +454,26 @@ assert.ok(
   ),
   "selected voice is visible in the compiled native template",
 );
+page.openSkins();
+page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
+assert.equal(page.data.activeSkin.id, "bunny");
+page.setData({
+  skinAnimating: true,
+  bunnySheet: "/assets/fox/atlas.webp",
+  bunnyPosition: "left:-100%;top:-200%",
+});
+assert.ok(
+  view().some((node) => node.attr?.class?.includes("fox-player")),
+  "native bunny viewport renders",
+);
+assert.ok(
+  view().some((node) => node.attr?.position === "left:-100%;top:-200%"),
+  "native timeline sheet and cell render",
+);
+page.closeSkins();
+assert.equal(page.data.skinAnimating, false);
 console.log(
-  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 2 presets). Not an IDE or real-device test.",
+  "Official WXML/WXSS compilation and compiled template rendering passed (world, detail, edit, 3 presets and bunny timeline). Not an IDE or real-device test.",
 );
 console.log(`Compiled source project: ${mini}`);
 console.log(`Compiler output: ${resolve(temporary)}`);

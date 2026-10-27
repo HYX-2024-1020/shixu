@@ -399,7 +399,6 @@ export default function DDL({
             <br />
             一眼<span>看清。</span>
           </h1>
-          <p>优先采用原文时刻；未写时刻也会安排，点一下可核对、修改。</p>
         </div>
       </header>
       <div className="ddl-stats">
