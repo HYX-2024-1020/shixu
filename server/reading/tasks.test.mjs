@@ -150,6 +150,18 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+test("task kernel refuses configuration without explicit device authorization", () => {
+  assert.throws(
+    () =>
+      new ReadingTasks({
+        account: "a",
+        reader() {},
+        provider() {},
+        modelVersion: "fixture",
+      }),
+    /READING_CONFIGURATION_REQUIRED/,
+  );
+});
 test("original -> reading -> ledger -> atomic publication -> both logical sync devices, without persistent full text", async (t) => {
   const f = fixture(t);
   const first = f.enqueue();

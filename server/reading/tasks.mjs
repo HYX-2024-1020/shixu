@@ -105,11 +105,17 @@ export class ReadingTasks {
     provider,
     priceId,
     modelVersion,
-    authorize = () => {},
+    authorize,
     maxPromptTokens = 120000,
     maxOutputTokens = 4000,
   }) {
-    if (!account || !reader || !provider || !modelVersion)
+    if (
+      !account ||
+      !reader ||
+      !provider ||
+      !modelVersion ||
+      typeof authorize !== "function"
+    )
       throw Error("READING_CONFIGURATION_REQUIRED");
     Object.assign(this, {
       store,
@@ -340,7 +346,8 @@ export class ReadingTasks {
     const started = performance.now();
     try {
       const packet = this.store.record(task.packet).data,
-        materials = this.materials.get(id) || [];
+        cached = this.materials.get(id),
+        materials = cached || [];
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
       // per-step adaptation, never a total material cap.
       if (!this.materials.has(id) && packet.text?.trim()) {
@@ -383,8 +390,8 @@ export class ReadingTasks {
         }
       }
       if (!this.current(task)) return this.get(id);
-      this.materials.set(id, materials);
-      const readable = materials.map(modelMaterial);
+      const readable = cached || materials.map(modelMaterial);
+      this.materials.set(id, readable);
       this.db
         .prepare("UPDATE reading_tasks SET coverage=? WHERE id=?")
         .run(JSON.stringify(readable.map(coverageOnly)), id);

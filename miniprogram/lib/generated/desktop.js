@@ -942,33 +942,39 @@ var reasons = {
   ISOLATED_READING_FAILED: "隔离读取未完成"
 };
 function location(range) {
-  if (range.kind === "csv" && Number.isSafeInteger(range.row))
-    return `CSV 第 ${range.row}${range.rowEnd && range.rowEnd !== range.row ? "–" + range.rowEnd : ""} 行`;
-  if (Number.isSafeInteger(range.start) && Number.isSafeInteger(range.end) && range.end >= range.start)
+  if (range.kind === "csv" && Number.isSafeInteger(range.row) && range.row >= 1)
+    return `CSV 第 ${range.row}${Number.isSafeInteger(range.rowEnd) && range.rowEnd > range.row ? "–" + range.rowEnd : ""} 行`;
+  if (Number.isSafeInteger(range.start) && range.start >= 0 && Number.isSafeInteger(range.end) && range.end >= range.start)
     return `文字位置 ${range.start + 1}–${range.end}`;
   return "整份文件";
 }
 function readingView(coverage = []) {
   if (!Array.isArray(coverage)) return [];
-  return coverage.map((c) => {
-    const covered = Array.isArray(c.covered) ? c.covered : [], missing = Array.isArray(c.uncovered) ? c.uncovered : [];
+  return coverage.filter((c) => c && typeof c === "object").map((c, index) => {
+    const covered = Array.isArray(c.covered) ? c.covered.filter((r) => r && typeof r === "object") : [], missing = Array.isArray(c.uncovered) ? c.uncovered.filter((r) => r && typeof r === "object") : [];
     return {
-      id: c.attachmentId,
-      name: c.name,
-      state: c.state,
-      label: labels[c.state] || "读取状态待核对",
+      id: typeof c.attachmentId === "string" ? c.attachmentId : "unknown_" + index,
+      name: typeof c.name === "string" ? c.name.slice(0, 200) : "未命名附件",
+      state: typeof c.state === "string" ? c.state : "unknown",
+      label: typeof c.state === "string" && Object.prototype.hasOwnProperty.call(labels, c.state) ? labels[c.state] : "读取状态待核对",
       covered: `已读取 ${covered.length} 个来源范围`,
       missing: missing.map(
-        (r) => `${location(r)}：${reasons[r.code] || "未处理，需核对原因"}`
+        (r) => `${location(r)}：${typeof r.code === "string" && Object.prototype.hasOwnProperty.call(reasons, r.code) ? reasons[r.code] : "未处理，需核对原因"}`
       ).join("；"),
-      reason: (Array.isArray(c.reasons) ? c.reasons : []).map((r) => reasons[r] || "需核对读取原因").join("；")
+      reason: (Array.isArray(c.reasons) ? c.reasons : []).map(
+        (r) => typeof r === "string" && Object.prototype.hasOwnProperty.call(reasons, r) ? reasons[r] : "需核对读取原因"
+      ).join("；")
     };
   });
 }
 function sourceLocation(coverage = [], sourceId) {
   for (const c of Array.isArray(coverage) ? coverage : []) {
-    const range = (c.covered || []).find((r) => r.sourceId === sourceId);
-    if (range) return `${c.name} · ${location(range)}`;
+    if (!c || typeof c !== "object") continue;
+    const range = (Array.isArray(c.covered) ? c.covered : []).find(
+      (r) => r && r.sourceId === sourceId
+    );
+    if (range)
+      return `${typeof c.name === "string" ? c.name.slice(0, 200) : "未命名附件"} · ${location(range)}`;
   }
   return "";
 }
