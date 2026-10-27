@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { SKIN_INTERACTION } from "./client-ui";
 import type { Skin } from "./skins";
 
 export default function SkinArt({
@@ -6,11 +7,13 @@ export default function SkinArt({
   animate = false,
   playing = false,
   playSignal = 0,
+  onPlaybackEnd,
 }: {
   skin: Skin;
   animate?: boolean;
   playing?: boolean;
   playSignal?: number;
+  onPlaybackEnd?: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -18,9 +21,17 @@ export default function SkinArt({
     if (!element) return;
     element.pause();
     element.currentTime = 0;
-    if (playing) void element.play().catch(() => {});
-    return () => element.pause();
-  }, [playing, playSignal, animate, skin.art]);
+    element.volume = SKIN_INTERACTION.volume;
+    let cancelled = false;
+    if (playing)
+      void element.play().catch(() => {
+        if (!cancelled) onPlaybackEnd?.();
+      });
+    return () => {
+      cancelled = true;
+      element.pause();
+    };
+  }, [playing, playSignal, animate, skin.art, onPlaybackEnd]);
   if (skin.art === "bunny" && animate) {
     return (
       <video
@@ -30,7 +41,8 @@ export default function SkinArt({
         aria-label={skin.name}
         src={import.meta.env.BASE_URL + "bunny-motion.webm"}
         poster={import.meta.env.BASE_URL + "bunny.png"}
-        muted
+        onEnded={onPlaybackEnd}
+        onError={onPlaybackEnd}
         playsInline
         preload="auto"
         data-playing={playing}
