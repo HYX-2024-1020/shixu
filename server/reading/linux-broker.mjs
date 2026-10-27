@@ -77,7 +77,7 @@ export function sandboxArguments({
     WorkingDirectory: "/scratch",
     MountAPIVFS: "yes",
     RuntimeDirectory: input.slice("/run/".length),
-    RuntimeDirectoryMode: "0755",
+    RuntimeDirectoryMode: "0700",
     RuntimeDirectoryPreserve: "no",
     ReadOnlyPaths: input,
     SystemCallFilter:
@@ -206,6 +206,7 @@ export function createLinuxReader({ runtime, staging }) {
           s.isSymbolicLink() ||
           s.uid !== 0 ||
           s.mode & 0o022 ||
+          (path === staging && s.mode & 0o077) ||
           (await realpath(path)) !== resolve(path)
         )
           throw Error("UNTRUSTED_SANDBOX_DIRECTORY");
@@ -220,8 +221,8 @@ export function createLinuxReader({ runtime, staging }) {
       )
         throw Error("INPUT_INTEGRITY");
       directory = await mkdtemp(join(staging, "read-"));
-      await chmod(directory, 0o755);
-      await writeFile(join(directory, "original"), body, { mode: 0o444 });
+      await chmod(directory, 0o700);
+      await writeFile(join(directory, "original"), body, { mode: 0o400 });
       await writeFile(
         join(directory, "descriptor.json"),
         JSON.stringify({
@@ -231,7 +232,7 @@ export function createLinuxReader({ runtime, staging }) {
           hash: file.hash,
           ...(probe ? { probe } : {}),
         }),
-        { mode: 0o444 },
+        { mode: 0o400 },
       );
       const unit = "shixu-reader-" + randomUUID(),
         started = performance.now();

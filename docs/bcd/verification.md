@@ -12,11 +12,11 @@ Windows材料面板和小程序事项详情共用shared/reading-view.mjs，显�
 
 独立Linux测试目录/opt/shixu-bcd-test-20261028，短期输入/run/shixu-bcd-test-20261028，合成库/账号/动态回环端口。Node24.20.0、systemd255、内核6.8、1740MiB/无swap。未读取生产账号、原件、数据库或备份，未改8788服务、release指针、配置或AI开关。
 
-[隔离报告](evidence/isolation.json)：动态非root UID、空有效capabilities、NoNewPrivileges、仅PATH/LANG环境；联网、宿主/其他任务/符号链接逃逸、输入/代码写入均失败。scratch写至268435456字节后ENOSPC，内存超限约0.97秒终止，2秒墙钟探针约2.18秒终止，58次EAGAIN。broker被SIGKILL后systemd仍清除输入。CPUQuota=50%已由单元接受，但尚未独立测配额误差或穷举syscall攻击。
+[隔离报告](evidence/isolation.json)：动态非root UID、空有效capabilities、NoNewPrivileges、仅PATH/LANG环境；联网、宿主/其他任务/符号链接逃逸、输入/代码写入均失败。scratch写至268435456字节后ENOSPC，内存超限约1.00秒终止，2秒墙钟探针约2.12秒终止，58次EAGAIN。broker被SIGKILL后systemd仍清除输入。CPUQuota=50%已由单元接受，但尚未独立测配额误差或穷举syscall攻击。
 
 最小RootDirectory只复制Node/env及ldd动态库；无/etc、服务配置或模型key。依据[systemd执行环境](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)及[资源控制](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html)，以本机255实测为准。生产普通账号到受保护broker的权限代理尚未部署，不能赋予主应用任意sudo/systemd-run权限；生产必须单broker全局串行解析。
 
-复现：把本分支源码放入新独立目录，创建root所有0755的同名/run目录，运行scripts/reading-prepare-runtime.py（仅首次建立新runtime），再运行reading-linux-check.mjs、reading-benchmark.mjs、reading-loop-linux.mjs，参数均为/opt/shixu-bcd-test-YYYYMMDD。测试启动单元需要root，worker非root；不安装宿主软件包。
+复现：把本分支源码放入新独立目录，创建root所有0700的同名/run目录，运行scripts/reading-prepare-runtime.py（仅首次建立新runtime），再运行reading-linux-check.mjs、reading-benchmark.mjs、reading-loop-linux.mjs，参数均为/opt/shixu-bcd-test-YYYYMMDD。测试启动单元需要root，worker非root；不安装宿主软件包。
 
 ## 性能与质量
 
@@ -53,3 +53,5 @@ Windows材料面板和小程序事项详情共用shared/reading-view.mjs，显�
 - 生产启用前核对删除/到期/停止/异常/备份全部路径；短期正文不能长期留存。已完成块引用每项500/每附件累计2000字符后保留定位；真实语义和跨块依据待验证。
 - 本任务真实新增费用0元，不等于本轮累计0元。跨任务10元批次既往支出待可靠核对；调用前须查官方能力/人民币价格/请求上界并冻结快照，不能用合成费率启用。未发供应商请求。
 - 无生产升级、私人资料迁移、安装版/手机/公网发布。E/F独立跟踪，#69 B/C/D未勾选。撤销本分支回退源码，不把合成fixture回退用于真实消费/删除/撤销后的资料。
+
+宿主权限复核：/run staging仅root可遍历（0700），单次输入目录0700、文件0400，由systemd交给动态worker身份；实测inputUid与worker UID同为63350，宿主nobody UID65534无法遍历staging。权限收紧后四份读取、边界/内存/进程/超时及broker被杀清理重新通过；现有服务未改。

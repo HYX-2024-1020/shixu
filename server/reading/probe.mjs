@@ -6,6 +6,7 @@ import {
   writeSync,
   closeSync,
   symlinkSync,
+  statSync,
 } from "node:fs";
 import net from "node:net";
 import { spawn } from "node:child_process";
@@ -73,6 +74,9 @@ if (probe === "process") {
   process.stdout.write(
     JSON.stringify({
       uid: process.getuid(),
+      inputUid: statSync("/input/original").uid,
+      inputMode: statSync("/input/original").mode & 0o777,
+      inputDirectoryMode: statSync("/input").mode & 0o777,
       envKeys: Object.keys(process.env).sort(),
       noNewPrivileges: /NoNewPrivs:\s+1/.test(
         readFileSync("/proc/self/status", "utf8"),

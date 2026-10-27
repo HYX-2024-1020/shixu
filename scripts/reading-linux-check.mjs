@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, chmod } from "node:fs/promises";
 import { resolve, join, basename } from "node:path";
 import { createLinuxReader } from "../server/reading/linux-broker.mjs";
 import { readMaterial, sha256 } from "../server/reading/material.mjs";
@@ -17,7 +17,8 @@ if (
 )
   throw Error("EXPLICIT_SYNTHETIC_LINUX_ROOT_REQUIRED");
 const staging = "/run/" + basename(base);
-await mkdir(staging, { recursive: true, mode: 0o755 });
+await mkdir(staging, { recursive: true, mode: 0o700 });
+await chmod(staging, 0o700);
 const reader = createLinuxReader({ runtime: join(base, "runtime"), staging });
 const file = (text, name = "合成.txt") => {
   const body = Buffer.from(text);
@@ -50,6 +51,9 @@ for (const sample of samples) {
 }
 const boundary = await reader(file("synthetic"), { probe: "boundary" });
 assert.ok(boundary.uid > 0);
+assert.equal(boundary.inputUid, boundary.uid);
+assert.equal(boundary.inputMode, 0o400);
+assert.equal(boundary.inputDirectoryMode, 0o700);
 for (const key of [
   "noNewPrivileges",
   "noCapabilities",
