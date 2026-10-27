@@ -41,6 +41,8 @@ const {
   absoluteItem,
   setDeadline,
   habitCheckin,
+  readingView,
+  sourceLocation,
 } = require("../../lib/generated/desktop");
 const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
 const SKINS = "shixu:mini:skins:v1";
@@ -1063,10 +1065,12 @@ Page({
       ...row,
       sourceText: p.text || "",
       sources: p.sources || [],
+      reading: readingView(p.readingCoverage),
       attachments: (p.attachments || []).filter((file) => !file.deletedAt),
       evidence: (row.item.evidence || []).map((e) => ({
         ...e,
         name:
+          sourceLocation(p.readingCoverage, e.sourceId) ||
           ((p.sources || []).find((s) => s.id === e.sourceId) || {}).name ||
           e.sourceId,
       })),

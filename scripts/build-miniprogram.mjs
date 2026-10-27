@@ -154,7 +154,8 @@ const bundled = await build({
     export { compareItems, habitCheckin } from './src/bucket/management';
     export { cardCopy } from './src/bucket/card-copy';
     export { mergeCardOrder } from './src/bucket/card-order';
-    export { buildGroups, itemRef } from './shared/relations.mjs';`,
+    export { buildGroups, itemRef } from './shared/relations.mjs';
+    export { readingView, sourceLocation } from './shared/reading-view.mjs';`,
     resolveDir: root,
   },
   bundle: true,

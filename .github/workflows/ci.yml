@@ -71,6 +71,7 @@ jobs:
       - run: node scripts/check-docs.mjs
       - run: node --test scripts/stage-a/*.test.mjs
       - run: node scripts/stage-a/rehearse.mjs
+      - run: node --test server/reading/*.test.mjs
       - run: npm run build
       - run: npm run test:server
       - run: npm run test:sync
@@ -122,6 +123,7 @@ jobs:
       - run: npm run test:desktop
       - run: npm run desktop:build
       - run: npm run test:desktop:ui
+      - run: node scripts/desktop-reading-smoke.mjs
       - run: node scripts/desktop-layout-drag-smoke.mjs
 
   required:

@@ -129,6 +129,7 @@ export function createAttachmentStore(store, limits = {}) {
       db.exec("BEGIN IMMEDIATE");
       try {
         active(packetId);
+        store.validateOriginalMutation?.(packetId);
         const existing = lookup(packetId, id);
         if (existing) {
           if (

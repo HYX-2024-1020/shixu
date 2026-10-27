@@ -3,6 +3,51 @@ const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const vm = require("node:vm");
+test("detail projects server partial coverage and source positions without extracted body", () => {
+  const f = pageFixture();
+  const packet = {
+    id: "packet",
+    text: "",
+    sources: [],
+    attachments: [],
+    captureDate: "2026-10-28",
+    itemIds: ["item"],
+    readingCoverage: [
+      {
+        attachmentId: "a",
+        name: "合成表.csv",
+        state: "partial",
+        covered: [{ sourceId: "row", kind: "csv", row: 1, rowEnd: 2 }],
+        uncovered: [{ kind: "csv", row: 3, code: "CSV_MALFORMED" }],
+        reasons: ["CSV_MALFORMED"],
+      },
+    ],
+    result: {
+      summary: "合成",
+      items: [
+        {
+          kind: "note",
+          title: "合成要求",
+          summary: "安全部分",
+          facts: [],
+          nextSteps: [],
+          uncertainties: [],
+          due: null,
+          evidence: [{ sourceId: "row", quote: "依据" }],
+          sourceIds: ["row"],
+        },
+      ],
+    },
+  };
+  f.page._client = {
+    records: () => [{ id: "packet", version: 1, data: packet }],
+  };
+  const detail = f.page._detail("item");
+  assert.equal(detail.reading[0].label, "部分读取");
+  assert.equal(detail.reading[0].missing, "CSV 第 3 行：CSV 行或引号损坏");
+  assert.equal(detail.evidence[0].name, "合成表.csv · CSV 第 1–2 行");
+  assert.equal(detail.sources.length, 0);
+});
 const { createRequire } = require("node:module");
 
 function pageFixture({

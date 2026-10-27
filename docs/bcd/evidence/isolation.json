@@ -1,0 +1,91 @@
+{
+  "synthetic": true,
+  "providerCalls": 0,
+  "samples": [
+    {
+      "name": "合成.txt",
+      "bytes": 29,
+      "state": "read",
+      "segments": 1,
+      "exactMatch": true,
+      "parseMs": 3.0350329999999985,
+      "maxRssKiB": 49024,
+      "waitingMs": 1.9986079999999973,
+      "isolatedMs": 154.187146
+    },
+    {
+      "name": "结构.csv",
+      "bytes": 64,
+      "state": "read",
+      "segments": 3,
+      "exactMatch": true,
+      "parseMs": 3.3752219999999937,
+      "maxRssKiB": 49224,
+      "waitingMs": 3.1818910000000074,
+      "isolatedMs": 165.47806599999998
+    },
+    {
+      "name": "合成.txt",
+      "bytes": 780018,
+      "state": "read",
+      "segments": 4,
+      "exactMatch": true,
+      "parseMs": 20.364785999999995,
+      "maxRssKiB": 62172,
+      "waitingMs": 4.534615999999971,
+      "isolatedMs": 220.24935100000005
+    },
+    {
+      "name": "部分.csv",
+      "bytes": 15,
+      "state": "partial",
+      "segments": 2,
+      "exactMatch": true,
+      "parseMs": 3.368296000000001,
+      "maxRssKiB": 49096,
+      "waitingMs": 0.9016690000000835,
+      "isolatedMs": 117.77628699999991
+    }
+  ],
+  "probes": {
+    "boundary": {
+      "uid": 65163,
+      "envKeys": [
+        "LANG",
+        "PATH"
+      ],
+      "noNewPrivileges": true,
+      "noCapabilities": true,
+      "hostDenied": true,
+      "symlinkDenied": true,
+      "otherTaskDenied": true,
+      "inputReadOnly": true,
+      "runtimeReadOnly": true,
+      "networkDenied": true,
+      "diskDenied": true,
+      "scratchBytes": 268435456,
+      "timing": {
+        "waitingMs": 1.20651799999996,
+        "isolatedMs": 428.5691780000001
+      }
+    },
+    "memory": {
+      "terminated": true,
+      "elapsedMs": 970.6929399999999
+    },
+    "timeout": {
+      "terminated": true,
+      "elapsedMs": 2180.2249399999996
+    },
+    "process": {
+      "processLimitDenied": true,
+      "denied": 58,
+      "timing": {
+        "waitingMs": 0.6945849999992788,
+        "isolatedMs": 1285.0697370000007
+      }
+    },
+    "brokerCrashCleanup": true
+  },
+  "stagingClean": true
+}

@@ -213,7 +213,7 @@ export class SyncStore {
       records: selected.map((row) => this.record(row.id)),
     };
   }
-  apply(deviceId, operation, epoch) {
+  apply(deviceId, operation, epoch, internal = {}) {
     if (epoch !== this.epoch)
       fail("RESET_REQUIRED", "服务器资料版本已变化，请先核对本地资料", {
         epoch: this.epoch,
@@ -269,6 +269,21 @@ export class SyncStore {
         return response;
       }
       const current = this.record(id);
+      // Trusted in-process task integration only; HTTP handlers never accept
+      // this context. Guards run inside the same write transaction.
+      this.validateOperation?.(operation, internal);
+      if (
+        type === "put" &&
+        "readingCoverage" in data &&
+        !internal.taskId &&
+        JSON.stringify(data.readingCoverage) !==
+          JSON.stringify(current?.data?.readingCoverage)
+      )
+        throw new SyncError(
+          422,
+          "SERVER_FIELD_READONLY",
+          "服务端读取覆盖不能由设备改写",
+        );
       if ((current?.version || 0) !== baseVersion)
         fail("REVISION_CONFLICT", "另一台设备已修改这次投递，本机修改已保留", {
           current,
@@ -331,6 +346,7 @@ export class SyncStore {
         record: this.record(id),
         replayed: false,
       };
+      internal.beforeCommit?.(response);
       this.db.exec("COMMIT");
       return response;
     } catch (error) {

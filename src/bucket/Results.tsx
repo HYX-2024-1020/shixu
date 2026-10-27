@@ -1,4 +1,5 @@
 import CardFiles from "./CardFiles";
+import { sourceLocation } from "../../shared/reading-view.mjs";
 import {
   absoluteItem,
   setDeadline,
@@ -1097,10 +1098,12 @@ function Results({
                             {item.evidence.map((e, i) => (
                               <blockquote key={i}>
                                 <small>
-                                  {
+                                  {sourceLocation(
+                                    p.readingCoverage,
+                                    e.sourceId,
+                                  ) ||
                                     p.sources.find((s) => s.id === e.sourceId)
-                                      ?.name
-                                  }
+                                      ?.name}
                                   {e.sourceId === "input"
                                     ? " · 输入原文"
                                     : p.sources

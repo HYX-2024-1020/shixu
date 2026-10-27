@@ -29,6 +29,7 @@ export interface Packet {
   retryUnread?: boolean;
   organizedSourceIds?: string[];
   coverage?: import("./ingest").Coverage[];
+  readingCoverage?: import("../../shared/reading-view.mjs").ReadingCoverage[];
   itemIds?: string[];
   itemState?: Record<string, ItemState>;
   id: string;

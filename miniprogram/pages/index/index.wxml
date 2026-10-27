@@ -454,7 +454,7 @@
               复制原文
             </button></view
           ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">{{filesBusy ? '正在打开…' : '打开附件 ↗'}}</button></view><text wx:if="{{!selected.attachments.length}}" class="quiet">这次投递没有文件附件，原文保留在下方。</text><text class="detail-line evidence" selectable>{{selected.sourceText}}</text
-          ><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
+          ><view wx:for="{{selected.reading}}" wx:key="id" class="evidence"><text class="quiet">{{item.name}} · {{item.label}}</text><text class="detail-line">{{item.covered}}</text><text wx:if="{{item.missing}}" class="detail-line">{{item.missing}}</text><text wx:if="{{item.reason}}" class="quiet">{{item.reason}}</text></view><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
           ></view
