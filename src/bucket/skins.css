@@ -54,11 +54,15 @@
 .bunny-video {
   transition: none !important;
 }
-.bucket-drawing.skin-mascot.bunny-mascot .bunny-art {
-  width: 179.31px;
-  height: 260px;
+.bucket-drawing.skin-mascot.bunny-mascot {
+  width: 240px;
   max-width: 100%;
-  max-height: 290px;
+}
+.bucket-drawing.skin-mascot.bunny-mascot .bunny-art {
+  width: 240px;
+  height: 348px;
+  max-width: 100%;
+  max-height: none;
   aspect-ratio: 160 / 232;
   margin: auto;
 }

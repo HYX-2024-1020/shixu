@@ -8,6 +8,16 @@ test("fox atlas retains true-color alpha at 240px and lives in a bounded resourc
   const config = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
   const pkg = config.subPackages.find((p) => p.name === "fox-skin");
   assert.equal(pkg.root, "assets/fox");
+  const page = JSON.parse(
+    readFileSync(join(root, "pages/index/index.json"), "utf8"),
+  );
+  assert.equal(page.usingComponents["fox-player"], "/assets/fox/player");
+  assert.equal(page.componentPlaceholder["fox-player"], "view");
+  assert.equal(
+    JSON.parse(readFileSync(join(root, pkg.root, "player.json"), "utf8"))
+      .component,
+    true,
+  );
   const atlas = readFileSync(join(root, pkg.root, "atlas.webp"));
   assert.equal(atlas.subarray(0, 4).toString(), "RIFF");
   assert.equal(atlas.subarray(12, 16).toString(), "VP8X");

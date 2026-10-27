@@ -1932,30 +1932,8 @@ Page({
       this._stopSkinInteraction();
       const generation = this._foxLoadGeneration;
       this._foxLoading = true;
-      const failure = () => {
-        this._foxLoading = false;
-        if (generation === this._foxLoadGeneration)
-          this.setData({ notice: "绯樱狐暂时未能加载，请再点一次" });
-      };
-      const ready = () => {
-        this._foxLoading = false;
-        this._foxReady = true;
-        if (generation === this._foxLoadGeneration) this.interactSkin();
-      };
-      if (!wx.loadSubpackage || !wx.getImageInfo) {
-        failure();
-        return;
-      }
-      wx.loadSubpackage({
-        name: "fox-skin",
-        success: () =>
-          wx.getImageInfo({
-            src: "/assets/fox/atlas.webp",
-            success: ready,
-            fail: failure,
-          }),
-        fail: failure,
-      });
+      this._foxPendingPlay = generation;
+      this._foxWaitTimer = setTimeout(() => this.foxResourceError(), 8000);
       return;
     }
     this._stopSkinInteraction();
@@ -1980,6 +1958,20 @@ Page({
         () => this._finishSkinInteraction(),
         SKIN_INTERACTION.greetingMs,
       );
+  },
+  foxResourceReady() {
+    clearTimeout(this._foxWaitTimer);
+    const pending = this._foxPendingPlay;
+    this._foxLoading = false;
+    this._foxReady = true;
+    this._foxPendingPlay = null;
+    if (pending && pending === this._foxLoadGeneration) this.interactSkin();
+  },
+  foxResourceError() {
+    clearTimeout(this._foxWaitTimer);
+    this._foxLoading = false;
+    this._foxPendingPlay = null;
+    this.setData({ notice: "绯樱狐暂时未能加载，请再点一次" });
   },
   _startBunnyClip() {
     clearTimeout(this._bunnyTimer);
@@ -2061,6 +2053,9 @@ Page({
     });
   },
   _stopSkinInteraction() {
+    clearTimeout(this._foxWaitTimer);
+    this._foxPendingPlay = null;
+    this._foxLoading = false;
     this._foxLoadGeneration = (this._foxLoadGeneration || 0) + 1;
     clearTimeout(this._skinTimer);
     try {

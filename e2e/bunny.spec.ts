@@ -16,6 +16,11 @@ for (const width of [375, 810, 1440]) {
       .locator(".skin-preview-stage .bunny-art")
       .boundingBox();
     expect(preview!.height).toBeLessThan(stage!.height);
+    await expect(
+      page.locator(
+        ".skin-stage-label,.skin-motion-label,.skin-preview-copy p,.skin-preview-panel > .skin-eyebrow",
+      ),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "关闭皮肤市场" }).click();
     const mascot = page.locator(".bucket-drawing");
     const before = await mascot.locator(".bunny-art").boundingBox();
@@ -25,7 +30,7 @@ for (const width of [375, 810, 1440]) {
     await mascot.click();
     await expect(mascot.locator("video.bunny-video")).toBeVisible();
     const playing = await mascot.locator("video.bunny-video").boundingBox();
-    expect(playing!.height).toBeGreaterThan(200);
+    expect(playing!.height).toBeGreaterThanOrEqual(340);
     expect(Math.abs(playing!.height - before!.height)).toBeLessThan(1);
     expect(Math.abs(playing!.width - before!.width)).toBeLessThan(1);
     await expect(change).toContainText("绯樱狐");

@@ -17,8 +17,6 @@ function fixture({
   date = Date,
   selectorQuery,
   failAudio = false,
-  loadSubpackage = (o) => o.success(),
-  getImageInfo = (o) => o.success(),
   clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
@@ -44,8 +42,6 @@ function fixture({
             },
           }
         : {}),
-      loadSubpackage,
-      getImageInfo,
       getStorageSync: (key) => store.get(key),
       setStorageSync: (key, value) => {
         if (failWrite(key, value)) throw Error("disk full");
@@ -1588,55 +1584,100 @@ test("a whole-card short touch routes actions, but the release from a lifted car
 });
 
 test("fox waits for its decoded resource package and ignores a late load after switching skins", () => {
-  let load, plays = 0;
-  const audio = {onEnded(){},onError(){},play(){plays++;},stop(){},destroy(){}};
-  const p = fixture({audio, loadSubpackage(o){load=o;}}).page;
-  p.openSkins(); p.previewSkin(event("bunny")); p.interactSkin();
-  assert.equal(plays,0);
-  assert.equal(load.name,"fox-skin");
-  p.previewSkin(event("ice")); load.success();
-  assert.equal(plays,0);
-  assert.equal(p.data.skinAnimating,false);
-  p.previewSkin(event("bunny")); p.interactSkin();
-  assert.equal(plays,1);
+  let plays = 0;
+  const audio = {
+    onEnded() {},
+    onError() {},
+    play() {
+      plays++;
+    },
+    stop() {},
+    destroy() {},
+  };
+  const p = fixture({ audio }).page;
+  p.openSkins();
+  p.previewSkin(event("bunny"));
+  p.interactSkin();
+  assert.equal(plays, 0);
+  assert.equal(p._foxLoading, true);
+  p.previewSkin(event("ice"));
+  p.foxResourceReady();
+  assert.equal(plays, 0);
+  assert.equal(p.data.skinAnimating, false);
+  p.previewSkin(event("bunny"));
+  p.interactSkin();
+  assert.equal(plays, 1);
   p.onUnload();
 });
 
 test("bunny plays its timeline once, restarts cleanly, stops on hide and persists selection", () => {
-  let now = 0, ended, playing, next = 0;
-  const tasks = new Map(), calls = [];
-  class Clock extends Date { static now() { return now; } }
+  let now = 0,
+    ended,
+    playing,
+    next = 0;
+  const tasks = new Map(),
+    calls = [];
+  class Clock extends Date {
+    static now() {
+      return now;
+    }
+  }
   const audio = {
-    onEnded(fn) { ended = fn; },
-    onPlay(fn) { playing = fn; },
+    onEnded(fn) {
+      ended = fn;
+    },
+    onPlay(fn) {
+      playing = fn;
+    },
     onError() {},
-    play() { calls.push("play"); playing(); },
-    stop() { calls.push("stop"); },
+    play() {
+      calls.push("play");
+      playing();
+    },
+    stop() {
+      calls.push("stop");
+    },
     destroy() {},
   };
-  const f = fixture({ audio, date: Clock, clock: {
-    setTimeout(fn) { tasks.set(++next, fn); return next; },
-    clearTimeout(id) { tasks.delete(id); },
-  } });
+  const f = fixture({
+    audio,
+    date: Clock,
+    clock: {
+      setTimeout(fn) {
+        tasks.set(++next, fn);
+        return next;
+      },
+      clearTimeout(id) {
+        tasks.delete(id);
+      },
+    },
+  });
   const p = f.page;
-  p.openSkins(); p.previewSkin(event("bunny")); p.interactSkin();
+  p.openSkins();
+  p.previewSkin(event("bunny"));
+  p.foxResourceReady();
+  p.interactSkin();
   assert.equal(audio.src, "/assets/bunny-voice.mp3");
   assert.equal(p.data.skinAnimating, true);
   assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
-  now = 1400; tasks.get(p._bunnyTimer)();
+  now = 1400;
+  tasks.get(p._bunnyTimer)();
   assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
   assert.equal(p.data.bunnyPosition, "left:-100%;top:-200%");
   p.interactSkin();
   assert.deepEqual(calls.slice(-2), ["stop", "play"]);
   assert.equal(p.data.bunnyPosition, "left:0%;top:0%");
-  ended(); assert.equal(p.data.skinAnimating, false);
-  p.interactSkin(); p.onHide();
+  ended();
+  assert.equal(p.data.skinAnimating, false);
+  p.interactSkin();
+  p.onHide();
   assert.equal(p.data.skinAnimating, false);
   assert.equal(calls.at(-1), "stop");
-  const reopened = fixture({store: f.store}).page;
+  const reopened = fixture({ store: f.store }).page;
   assert.equal(reopened.data.activeSkin.id, "bunny");
   assert.equal(reopened.data.activeSkin.image, "/assets/bunny.png");
-  p.onUnload(); reopened.onUnload();
+  p.onUnload();
+  reopened.onUnload();
 });
 
 test("ice voices select distinct single-shot assets, stop before replay and persist", () => {

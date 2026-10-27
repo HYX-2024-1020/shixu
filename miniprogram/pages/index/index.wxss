@@ -1025,19 +1025,43 @@
   height: 300rpx;
   margin-top: 8rpx;
 }
-.bunny-window {
-  position: relative;
-  overflow: hidden;
+.fox-player {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 206.8966rpx;
   height: 300rpx;
-  margin: 0 auto;
+  opacity: 0;
+  pointer-events: none;
 }
-.bunny-window .bunny-sheet {
-  position: absolute;
-  width: 1000%;
-  height: 1100%;
-  max-width: none;
-  filter: none;
+.fox-player.is-playing {
+  opacity: 1;
+}
+.home-character.with-fox .bucket-drawing,
+.home-character.with-fox .mascot {
+  width: 300rpx;
+  height: 420rpx;
+}
+.home-character.with-fox .fox-player {
+  width: 289.6552rpx;
+  height: 420rpx;
+}
+.skin-preview-stage.with-fox {
+  width: 100%;
+  height: 320rpx;
+  margin: 0 auto 16rpx;
+  padding: 0;
+  overflow: hidden;
+}
+.skin-preview-stage.with-fox .preview-art {
+  width: 206.8966rpx;
+  height: 300rpx;
+  margin: 10rpx auto;
+}
+.skin-preview-stage .fox-player {
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 .mascot {
   display: block;

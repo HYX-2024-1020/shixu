@@ -1,0 +1,1 @@
+<view class="bunny-window"><image class="bunny-sheet" src="/assets/fox/atlas.webp" style="{{position}}" mode="scaleToFill" bindload="ready" binderror="failed"/></view>

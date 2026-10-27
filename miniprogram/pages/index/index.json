@@ -1,4 +1,5 @@
 {
   "navigationBarTitleText": "拾序",
-  "usingComponents": {}
+  "usingComponents": { "fox-player": "/assets/fox/player" },
+  "componentPlaceholder": { "fox-player": "view" }
 }

@@ -216,9 +216,6 @@ export default function SkinMarket({
       </header>
       <div className="skin-market-layout">
         <aside className="skin-preview-panel">
-          <span className="skin-eyebrow">
-            {editing ? "你的专属创作" : "试着戳一下它"} <span>↙</span>
-          </span>
           <div
             className="skin-preview-stage"
             style={{ backgroundColor: preview.color }}
@@ -237,22 +234,9 @@ export default function SkinMarket({
                 compact
               />
             )}
-            {preview.art !== "ice" && (
-              <span className="skin-stage-label">HELLO, NEW FRIEND.</span>
-            )}
           </div>
           <div className="skin-preview-copy">
             <h3>{preview.name || "还没起名的小伙伴"}</h3>
-            <p>{preview.description}</p>
-            {preview.art !== "ice" && (
-              <span className="skin-motion-label">
-                ✧{" "}
-                {preview.art === "bunny"
-                  ? "原片动作"
-                  : SKIN_MOTIONS[preview.motion]}
-                {preview.art === "whale" ? " · 原版笑声" : " · 点击互动"}
-              </span>
-            )}
           </div>
           {preview.art === "custom" && (
             <button

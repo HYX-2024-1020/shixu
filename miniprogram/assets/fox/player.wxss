@@ -1,0 +1,12 @@
+.bunny-window {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.bunny-sheet {
+  position: absolute;
+  width: 1000%;
+  height: 1100%;
+  max-width: none;
+}

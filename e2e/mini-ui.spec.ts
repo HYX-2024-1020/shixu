@@ -4,6 +4,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const cssAt = (width: number) =>
   (
     read("miniprogram/app.wxss") +
+    read("miniprogram/assets/fox/player.wxss") +
     read("miniprogram/pages/index/index.wxss")
       .replace(
         '@import "./cards.wxss";',
@@ -40,7 +41,7 @@ async function render(page: any, width: number, template: string, row: any) {
     '        ><view class="skin-grid"',
     marketPreviewStart,
   );
-  const source =
+  let source =
     template === "home"
       ? wxml.slice(
           wxml.indexOf('      <view class="home-character'),
@@ -54,6 +55,11 @@ async function render(page: any, width: number, template: string, row: any) {
         : wxml
             .split(`<template name="${template}">`)[1]
             .split("</template>")[0];
+  source = source.replace(
+    /<fox-player\b([^>]*?)\/>/g,
+    (_, attrs) =>
+      `<view${attrs}>${read("miniprogram/assets/fox/player.wxml").replace("{{position}}", "{{bunnyPosition}}").replace("/assets/fox/atlas.webp", "{{bunnySheet}}")}</view>`,
+  );
   await page.setViewportSize({ width, height: 900 });
   const host =
     template === "home"
@@ -205,9 +211,31 @@ test("native bunny timeline keeps the same crop in home and market", async ({
     expect(inner!.width / box!.width).toBeCloseTo(10, 1);
     expect(inner!.height / box!.height).toBeCloseTo(11, 1);
     if (template === "home") {
+      expect(box!.height).toBeGreaterThanOrEqual(210);
       const button = await page.locator(".skin-home-change").boundingBox();
       expect(button!.y - box!.y - box!.height).toBeGreaterThanOrEqual(14);
       await expect(page.locator(".skin-home-change")).toContainText("绯樱狐");
+    } else {
+      const stage = await page.locator(".skin-preview-stage").boundingBox();
+      const name = await page
+        .locator(".skin-preview .subheading")
+        .boundingBox();
+      expect(box!.y).toBeGreaterThanOrEqual(stage!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(
+        stage!.y + stage!.height,
+      );
+      expect(name!.y).toBeGreaterThanOrEqual(stage!.y + stage!.height);
+      await expect(page.locator(".skin-preview .quiet")).toHaveCount(0);
+      const playingHeight = stage!.height;
+      await render(page, 375, template, {
+        skin: "bunny",
+        image,
+        sheet,
+        playing: false,
+      });
+      expect(
+        (await page.locator(".skin-preview-stage").boundingBox())!.height,
+      ).toBeCloseTo(playingHeight, 1);
     }
     await expect(page.locator(".skin-bubble,.skin-spark")).toHaveCount(0);
     await page.waitForTimeout(500);

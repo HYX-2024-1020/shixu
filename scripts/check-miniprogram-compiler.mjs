@@ -18,8 +18,27 @@ const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
     ? resolve(process.env.WECHAT_PROJECT_DIR)
     : join(root, "miniprogram");
 const exe = process.platform === "win32" ? ".exe" : "";
-execFileSync(join(directory, "wcc" + exe), ["-o", join(temporary, "fox-resource.js"), "assets/fox/entry.wxml"], {cwd: mini, stdio: "pipe"});
-execFileSync(join(directory, "wcsc" + exe), ["-o", join(temporary, "fox-resource.css"), "assets/fox/entry.wxss"], {cwd: mini, stdio: "pipe"});
+execFileSync(
+  join(directory, "wcc" + exe),
+  ["-o", join(temporary, "fox-player.js"), "assets/fox/player.wxml"],
+  { cwd: mini, stdio: "pipe" },
+);
+execFileSync(
+  join(directory, "wcsc" + exe),
+  ["-o", join(temporary, "fox-player.css"), "assets/fox/player.wxss"],
+  { cwd: mini, stdio: "pipe" },
+);
+
+execFileSync(
+  join(directory, "wcc" + exe),
+  ["-o", join(temporary, "fox-resource.js"), "assets/fox/entry.wxml"],
+  { cwd: mini, stdio: "pipe" },
+);
+execFileSync(
+  join(directory, "wcsc" + exe),
+  ["-o", join(temporary, "fox-resource.css"), "assets/fox/entry.wxss"],
+  { cwd: mini, stdio: "pipe" },
+);
 execFileSync(
   join(directory, "wcc" + exe),
   [
@@ -444,15 +463,11 @@ page.setData({
   bunnyPosition: "left:-100%;top:-200%",
 });
 assert.ok(
-  view().some((node) => node.attr?.class === "bunny-window"),
+  view().some((node) => node.attr?.class?.includes("fox-player")),
   "native bunny viewport renders",
 );
 assert.ok(
-  view().some(
-    (node) =>
-      node.attr?.src === "/assets/fox/atlas.webp" &&
-      node.attr?.style === "left:-100%;top:-200%",
-  ),
+  view().some((node) => node.attr?.position === "left:-100%;top:-200%"),
   "native timeline sheet and cell render",
 );
 page.closeSkins();
