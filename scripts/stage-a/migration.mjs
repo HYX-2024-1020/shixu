@@ -4,6 +4,55 @@ import { join } from "node:path";
 import { assertManufactured, fixtureTime } from "./fixture.mjs";
 import { migrateState } from "./contract.mjs";
 
+function validateProjection(db) {
+  for (const schema of ["main", "tenant", "ledger", "safety"]) {
+    if (
+      Object.values(db.prepare(`PRAGMA ${schema}.integrity_check`).get())[0] !==
+        "ok" ||
+      db.prepare(`PRAGMA ${schema}.foreign_key_check`).all().length
+    )
+      throw Error("MIGRATION_INTEGRITY");
+  }
+  const mismatches = db
+    .prepare(
+      `SELECT
+    (SELECT COUNT(*) FROM accounts) - (SELECT COUNT(*) FROM account_credentials) AS credentials,
+    (SELECT COUNT(*) FROM accounts) - (SELECT COUNT(*) FROM ledger.wallets) AS wallets,
+    (SELECT COUNT(*) FROM ai_usage) - (SELECT COUNT(*) FROM ledger.legacy_unknown) AS calls,
+    (SELECT COUNT(*) FROM bindings WHERE revoked=0) - (SELECT COUNT(*) FROM device_slots) AS slots,
+    (SELECT COUNT(*) FROM tenant.sync_jobs) - (SELECT COUNT(*) FROM tenant.task_v4) AS tasks`,
+    )
+    .get();
+  if (Object.values(mismatches).some((n) => n !== 0))
+    throw Error("MIGRATION_INTEGRITY");
+  for (const usage of db.prepare("SELECT * FROM ai_usage").all()) {
+    const unknown = db
+      .prepare(
+        "SELECT * FROM ledger.legacy_unknown WHERE user_id=? AND job_id=?",
+      )
+      .get(usage.user_id, usage.job_id);
+    if (
+      !unknown ||
+      unknown.reserved_micros !== usage.reserved_micros ||
+      unknown.legacy_state !== usage.state ||
+      unknown.legacy_day !== usage.day
+    )
+      throw Error("MIGRATION_INTEGRITY");
+  }
+  for (const job of db.prepare("SELECT * FROM tenant.sync_jobs").all()) {
+    const task = db
+      .prepare("SELECT * FROM tenant.task_v4 WHERE id=?")
+      .get(job.id);
+    if (
+      !task ||
+      task.state !== migrateState(job.state) ||
+      task.packet_id !== job.record_id ||
+      task.input_revision !== "legacy-unverified:" + job.fingerprint
+    )
+      throw Error("MIGRATION_INTEGRITY");
+  }
+}
+
 export function openMigration(fixture) {
   assertManufactured(fixture);
   const db = new DatabaseSync(join(fixture.target, "accounts.sqlite"));
@@ -34,6 +83,7 @@ export function migrate(fixture, { failAt = "" } = {}) {
       old &&
       db.prepare("SELECT version FROM stage_a_versions WHERE version=1").get()
     ) {
+      validateProjection(db);
       db.exec("COMMIT");
       return { version: 1, repeated: true };
     }
@@ -71,7 +121,12 @@ export function migrate(fixture, { failAt = "" } = {}) {
         reserved_micros INTEGER NOT NULL CHECK(reserved_micros>=0),settled_micros INTEGER CHECK(settled_micros>=0),
         usage TEXT CHECK(usage IS NULL OR json_valid(usage)),
         CHECK((state='settled' AND settled_micros IS NOT NULL AND usage IS NOT NULL) OR
-          (state!='settled' AND settled_micros IS NULL)));
+          (state!='settled' AND settled_micros IS NULL)),
+        CHECK(state!='settled' OR COALESCE(CASE WHEN json_valid(usage) THEN
+          json_type(usage)='object' AND json_type(usage,'$.prompt_tokens')='integer' AND
+          json_type(usage,'$.completion_tokens')='integer' AND
+          json_extract(usage,'$.prompt_tokens')>=0 AND json_extract(usage,'$.completion_tokens')>=0
+          ELSE 0 END,0)));
       CREATE TABLE ledger.events(seq INTEGER PRIMARY KEY AUTOINCREMENT,operation_key TEXT UNIQUE NOT NULL,
         user_id TEXT NOT NULL,kind TEXT NOT NULL,amount_micros INTEGER NOT NULL CHECK(amount_micros>=0));
       CREATE TABLE safety.events(seq INTEGER PRIMARY KEY AUTOINCREMENT,operation_key TEXT UNIQUE NOT NULL,
@@ -149,6 +204,7 @@ export function migrate(fixture, { failAt = "" } = {}) {
     ).run(fixtureTime);
     db.prepare("INSERT INTO stage_a_versions VALUES(1,?)").run(fixtureTime);
     if (failAt === "commit") throw Error("INJECTED_BEFORE_COMMIT");
+    validateProjection(db);
     db.exec("COMMIT");
     return { version: 1, repeated: false };
   } catch (error) {

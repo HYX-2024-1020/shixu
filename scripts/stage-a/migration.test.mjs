@@ -401,6 +401,19 @@ test("ledger and safety records are append-only, prices frozen, and a settled ca
       "INSERT INTO ledger.calls VALUES('synthetic-call',?,'root','task','block',1,'synthetic-price','2026-10-28','settled',1000,100,NULL)",
     );
     assert.throws(() => insert.run(f.userId), /CHECK/);
+    const withUsage = db.prepare(
+      "INSERT INTO ledger.calls VALUES('synthetic-call',?,'root','task','block',1,'synthetic-price','2026-10-28','settled',1000,100,?)",
+    );
+    for (const usage of [
+      "null",
+      "{}",
+      "[]",
+      '{"prompt_tokens":1}',
+      '{"prompt_tokens":-1,"completion_tokens":2}',
+      '{"prompt_tokens":1.5,"completion_tokens":2}',
+    ])
+      assert.throws(() => withUsage.run(f.userId, usage), /CHECK/);
+    withUsage.run(f.userId, '{"prompt_tokens":100,"completion_tokens":20}');
     db.prepare(
       "INSERT INTO ledger.calls VALUES('unknown-call',?,'root','task','block',1,'synthetic-price','2026-10-28','unknown',1000,NULL,NULL)",
     ).run(f.userId);
@@ -423,4 +436,13 @@ test("rehearsal cannot accept a caller-supplied personal directory", () => {
     () => restoreBeforeNewWrites({ target: "." }),
     /SYNTHETIC_FIXTURE_REQUIRED/,
   );
+});
+
+test("a version marker cannot hide an incomplete migrated projection on repeat", (t) => {
+  const f = fixture(t);
+  migrate(f);
+  const db = openMigration(f);
+  db.prepare("DELETE FROM ledger.wallets WHERE user_id=?").run(f.userId);
+  db.close();
+  assert.throws(() => migrate(f), /MIGRATION_INTEGRITY/);
 });
