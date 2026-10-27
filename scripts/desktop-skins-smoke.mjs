@@ -126,7 +126,7 @@ try {
   const levels = await page.evaluate(async () => {
     const ctx = new OfflineAudioContext(1, 1, 44100);
     return Promise.all(
-      ["ice-voice-1.mp3", "ice-voice-2.mp3", "bunny-voice.mp3"].map(
+      ["ice-voice-1.mp3", "ice-voice-2.mp3", "bunny-motion.webm"].map(
         async (name) => {
           const buffer = await ctx.decodeAudioData(
             await (await fetch("/" + name)).arrayBuffer(),
@@ -146,23 +146,46 @@ try {
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await page.getByRole("button", { name: "使用绯樱狐" }).click();
   const bunny = page.locator(".skin-market .skin-mascot");
+  const independentPlays = await page.evaluate(() => window.__mediaPlays);
+  await bunny.locator("video").evaluate((v) => {
+    window.__foxClip = v;
+    v.addEventListener("ended", () => {
+      window.__foxEnded = true;
+    });
+  });
   await bunny.click();
   await expect(bunny.locator("video.bunny-video")).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
-    .toBeGreaterThan(1.4);
   await expect
     .poll(() =>
       bunny.locator("video.bunny-video").evaluate((v) => v.currentTime),
     )
     .toBeGreaterThan(1.4);
+  const media = bunny.locator("video.bunny-video");
+  assert.deepEqual(
+    await media.evaluate((v) => ({
+      muted: v.muted,
+      volume: v.volume,
+      audio: v.captureStream().getAudioTracks().length,
+    })),
+    { muted: false, volume: 0.5, audio: 1 },
+  );
+  assert.equal(
+    await page.evaluate(() => window.__mediaPlays),
+    independentPlays,
+    "fox must not start an independent audio clock",
+  );
+  await media.evaluate((v) => v.pause());
+  const held = await media.evaluate((v) => v.currentTime);
+  await page.waitForTimeout(400);
+  assert.ok(
+    Math.abs((await media.evaluate((v) => v.currentTime)) - held) < 0.05,
+  );
+  await media.evaluate((v) => v.play());
   await page.screenshot({ path: "release/desktop-bunny-market.png" });
   await bunny.click();
-  assert.ok(
-    await page.evaluate(() => window.__greetingAudio.currentTime < 0.5),
-  );
+  assert.ok(await media.evaluate((v) => v.currentTime < 0.5));
   await expect
-    .poll(() => page.evaluate(() => window.__greetingAudio.ended), {
+    .poll(() => page.evaluate(() => window.__foxEnded), {
       timeout: 12000,
     })
     .toBe(true);
@@ -190,7 +213,7 @@ try {
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await bunny.click();
   await page.getByRole("button", { name: "使用冰冰冰" }).click();
-  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  assert.equal(await page.evaluate(() => window.__foxClip.paused), true);
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".world-skin-art [alt='冰冰冰']")).toBeVisible();

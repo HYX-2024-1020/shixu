@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SKIN_INTERACTION } from "./client-ui";
 import SkinArt from "./SkinArt";
 import { skinSound, type Skin, type IceVoice } from "./skins";
@@ -24,6 +24,7 @@ export default function SkinMascot({
   const timer = useRef<number>(0);
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playSignal, setPlaySignal] = useState(0);
+  const finishPlayback = useCallback(() => setHappy(false), []);
   const plain = skin.art === "ice" || skin.art === "bunny";
   useEffect(() => {
     const hide = () => {
@@ -48,7 +49,7 @@ export default function SkinMascot({
   useEffect(() => {
     setHappy(false);
     const source = skinSound(skin, iceVoice);
-    if (source) {
+    if (source && skin.art !== "bunny") {
       const sound = new Audio(import.meta.env.BASE_URL + source);
       sound.loop = false;
       sound.preload = "auto";
@@ -73,6 +74,7 @@ export default function SkinMascot({
     setPlaySignal((value) => value + 1);
     setHappy(true);
     clearTimeout(timer.current);
+    if (skin.art === "bunny") return;
     if (audio.current) {
       const sound = audio.current;
       sound.currentTime = 0;
@@ -120,6 +122,7 @@ export default function SkinMascot({
           animate={skin.art === "bunny"}
           playing={happy && !suspended}
           playSignal={playSignal}
+          onPlaybackEnd={finishPlayback}
         />
       </span>
       {!plain && (

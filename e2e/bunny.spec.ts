@@ -63,24 +63,38 @@ test("market wheel scroll moves filters together with cards instead of overlayin
   await page.screenshot({ path: info.outputPath("fox-market-scrolled.png") });
 });
 
-test("bunny plays original audio and atlas once, persists, and removes the DDL caption", async ({
+test("fox uses one audible video clock through buffering, restart and completion", async ({
   page,
 }, info) => {
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 404, body: "unavailable" }),
   );
   await page.addInitScript(() => {
+    (window as any).__foxAudioPlays = [];
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
-      if (this.tagName === "AUDIO") (window as any).__bunnyAudio = this;
+      if (this.tagName === "AUDIO")
+        (window as any).__foxAudioPlays.push(this.src);
       return play.call(this);
     };
+  });
+  let release!: () => void;
+  const buffered = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/bunny-motion.webm", async (route) => {
+    await buffered;
+    await route.continue();
   });
   await page.goto("/");
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   await page.getByRole("button", { name: "使用绯樱狐" }).click();
   const mascot = page.locator(".skin-market .skin-mascot");
   await mascot.locator("video").evaluate((v: HTMLVideoElement) => {
+    (window as any).__foxClip = v;
+    v.addEventListener("ended", () => {
+      (window as any).__foxEnded = true;
+    });
     const canvas = document.createElement("canvas");
     canvas.width = 48;
     canvas.height = 69;
@@ -104,10 +118,17 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
     v.requestVideoFrameCallback(sample);
   });
   await mascot.click();
+  await page.waitForTimeout(350);
+  expect(
+    await mascot
+      .locator("video")
+      .evaluate((v: HTMLVideoElement) => v.currentTime),
+  ).toBe(0);
+  expect(await page.evaluate(() => (window as any).__foxAudioPlays)).toEqual(
+    [],
+  );
+  release();
   await expect(mascot.locator("video.bunny-video")).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => (window as any).__bunnyAudio.currentTime))
-    .toBeGreaterThan(1.4);
   await expect
     .poll(() =>
       mascot
@@ -115,15 +136,32 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
         .evaluate((v: HTMLVideoElement) => v.currentTime),
     )
     .toBeGreaterThan(1.4);
+  const media = mascot.locator("video.bunny-video");
+  const tracks = await media.evaluate((v: any) => ({
+    muted: v.muted,
+    volume: v.volume,
+    audio: v.captureStream().getAudioTracks().length,
+  }));
+  expect(tracks).toEqual({ muted: false, volume: 0.5, audio: 1 });
+  expect(await page.evaluate(() => (window as any).__foxAudioPlays)).toEqual(
+    [],
+  );
+  await media.evaluate((v: HTMLVideoElement) => v.pause());
+  const held = await media.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await page.waitForTimeout(400);
+  expect(
+    await media.evaluate((v: HTMLVideoElement) => v.currentTime),
+  ).toBeCloseTo(held, 1);
+  await media.evaluate((v: HTMLVideoElement) => v.play());
   await page
     .locator(".skin-market")
     .screenshot({ path: info.outputPath("bunny-market.png") });
   await mascot.click();
   expect(
-    await page.evaluate(() => (window as any).__bunnyAudio.currentTime),
+    await media.evaluate((v: HTMLVideoElement) => v.currentTime),
   ).toBeLessThan(0.5);
   await expect
-    .poll(() => page.evaluate(() => (window as any).__bunnyAudio.ended), {
+    .poll(() => page.evaluate(() => (window as any).__foxEnded), {
       timeout: 12000,
     })
     .toBe(true);
@@ -142,7 +180,7 @@ test("bunny plays original audio and atlas once, persists, and removes the DDL c
     .toBe(true);
   await mascot.click();
   await page.getByRole("button", { name: "关闭皮肤市场" }).click();
-  expect(await page.evaluate(() => (window as any).__bunnyAudio.paused)).toBe(
+  expect(await page.evaluate(() => (window as any).__foxClip.paused)).toBe(
     true,
   );
   await page.reload();
