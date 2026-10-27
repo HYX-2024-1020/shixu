@@ -69,6 +69,8 @@ jobs:
       - run: npm test
       - run: npm run mini:check
       - run: node scripts/check-docs.mjs
+      - run: node --test scripts/stage-a/*.test.mjs
+      - run: node scripts/stage-a/rehearse.mjs
       - run: npm run build
       - run: npm run test:server
       - run: npm run test:sync

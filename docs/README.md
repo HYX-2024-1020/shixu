@@ -8,6 +8,8 @@
 
 ## 参与开发
 
+- [阶段 A：契约、结构、资源上限与合成迁移演练](stage-a/README.md)（依赖规划 PR #70，未启用运行功能）
+
 - [贡献流程](../CONTRIBUTING.md) · [开发与验证](guides/development.md)
 - [架构与目录](architecture.md) · [当前成果与路线](current-baseline.md)
 - [双端发布前验收记录](release-acceptance-2026-10-24.md) · [双端能力与持续适配](client-parity.md)
