@@ -182,7 +182,7 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx"],
+          formats: ["txt", "csv", "docx", "xlsx"],
           registration,
           originalLifecycle: false,
         },

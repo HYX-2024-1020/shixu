@@ -5,6 +5,11 @@ import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
 
 const root = resolve(process.argv[2] || "");
+const officeFormat = process.argv.includes("--xlsx")
+  ? "xlsx"
+  : process.argv.includes("--docx")
+    ? "docx"
+    : null;
 if (
   process.platform !== "linux" ||
   process.getuid() !== 0 ||
@@ -51,7 +56,7 @@ try {
   const started = performance.now();
   const loop = await run(
     "nobody",
-    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${process.argv.includes("--docx") ? "import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./docx-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};" : "const original = undefined;"} const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader: createBrokerClient('${socketDirectory}/reader.sock'), original }); console.log(JSON.stringify(evidence));`,
+    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${officeFormat ? `import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./${officeFormat}-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};` : "const original = undefined;"} const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader: createBrokerClient('${socketDirectory}/reader.sock'), original }); console.log(JSON.stringify(evidence));`,
   );
   assert.equal(loop.exit, 0, loop.errors);
   const rejected = await run(

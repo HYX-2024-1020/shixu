@@ -32,8 +32,46 @@ const reasons = {
   DOCX_DYNAMIC_FIELD: "动态域未执行，仅保留已有显示文字",
   DOCX_UNLINKED_PART: "未关联到正文的文档部分未读取",
   DOCX_ENCRYPTED_UNSUPPORTED: "加密或旧式Office容器暂不支持",
+  XLSX_PACKAGE_MISSING: "缺少有效XLSX工作簿或类型声明",
+  XLSX_MACRO_UNSUPPORTED: "含宏的工作簿暂不支持",
+  XLSX_ENCRYPTED_UNSUPPORTED: "加密或旧式工作簿暂不支持",
+  XLSX_XML_UNSAFE: "工作簿含不安全的XML声明",
+  XLSX_XML_ENCODING: "工作簿内部文字编码无效",
+  XLSX_XML_DEPTH: "工作簿内部结构过深",
+  XLSX_XML_MALFORMED: "工作表XML损坏，未完整的行未读取",
+  XLSX_STRUCTURE_INVALID: "工作簿或单元格结构无效",
+  XLSX_RESOURCE_LIMIT: "工作簿展开或结构超过隔离资源限制",
+  XLSX_FORMAT_UNREAD: "部分数值显示格式未还原，保留原始值待核对",
+  XLSX_DATE_COMPAT: "工作簿使用Excel的1900闰日兼容值，日期需人工核对",
+  XLSX_SHARED_STRING_MISSING: "单元格引用的共享文字缺失",
+  XLSX_FORMULA_CACHED: "公式未执行，已有缓存值未重新计算，需核对时效",
+  XLSX_FORMULA_NO_CACHE: "公式无缓存值，未计算结果",
+  XLSX_CELL_ERROR: "单元格自身含错误值，原样保留待核对",
+  XLSX_EXTERNAL_LINK: "工作簿外部链接未访问",
+  XLSX_OBJECT_UNREAD: "工作簿图片、图表、对象或动态展示尚未读取",
+  XLSX_SHEET_UNREAD: "部分工作表或未关联内容尚未读取",
+  XLSX_PHONETIC_UNREAD: "注音标记未还原，普通单元格文字已保留",
+  XLSX_DEFINED_NAME: "命名公式未执行，单元格已有值已保留",
+  XLSX_VISUAL_LAYOUT: "列布局或隐藏列展示未还原，现有单元格已读取",
 };
 function location(range) {
+  if (range.kind === "xlsx") {
+    const sheet =
+      typeof range.sheet === "string"
+        ? `工作表 “${range.sheet.slice(0, 31)}”`
+        : "工作簿";
+    const positive = (n) => Number.isSafeInteger(n) && n >= 1;
+    return (
+      sheet +
+      (positive(range.row) ? ` · 第 ${range.row} 行` : "") +
+      (typeof range.cell === "string" &&
+      /^[A-Z]{1,3}[1-9]\d{0,6}$/.test(range.cell)
+        ? ` · 单元格 ${range.cell}`
+        : positive(range.column)
+          ? ` · 第 ${range.column}${positive(range.columnEnd) && range.columnEnd > range.column ? "–" + range.columnEnd : ""} 列`
+          : "")
+    );
+  }
   if (range.kind === "docx") {
     const part =
       typeof range.part === "string" ? range.part.slice(0, 200) : "正文";

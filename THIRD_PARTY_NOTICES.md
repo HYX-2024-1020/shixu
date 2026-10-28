@@ -43,3 +43,7 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 ## 服务端DOCX读取依赖（2026-10-28，Issue #73）
 
 `sax@1.6.1` 来自 https://github.com/isaacs/sax-js ，BlueOak-1.0.0，精确包和校验见lockfile。`server/reading/docx-reader.cjs`由本项目读取源码及sax打包，保留随附的 `server/reading/docx-reader.LICENSE`；不能将其依赖许可改称MIT。候选saxes上游已归档，未引入为新的读取依赖。包容器使用Node24内置zlib/CRC32；测试DOCX由项目自己的合成文字、XML与既有fflate生成，没有第三方文档样本或私人原件。
+
+## 服务端XLSX读取依赖（2026-10-28，Issue #73）
+
+沿用上述sax，以及仓库已有SheetJS CE `xlsx@0.20.3` 的SSF数值格式化（Apache-2.0，来源 https://sheetjs.com/ ，固定CDN包/完整性见lockfile）。`server/reading/xlsx-reader.cjs`按需加载自包含格式化与XML代码，保留SheetJS版权和随附 `xlsx-reader.LICENSE` 的两份完整许可；运行时不使用SheetJS完整工作簿/ZIP读取器，不引入宏/公式执行或网络访问。合成样本使用既有fflate及SheetJS写入器，无私人或第三方Office文档。详见docs/bcd/xlsx-verification.md的资源、维护和兼容边界。

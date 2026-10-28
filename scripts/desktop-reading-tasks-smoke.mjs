@@ -8,7 +8,37 @@ import { waitForPageState } from "./desktop-test-wait.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
+import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 const docx = process.argv.includes("--docx");
+const xlsx = process.argv.includes("--xlsx");
+const original = xlsx
+  ? {
+      name: "合成.xlsx",
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      body: [
+        ...xlsxBytes([
+          {
+            name: "资料表",
+            xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(16000))}</row><row r="7"><c r="C7"><f>1+1</f><v>999</v></c>${inline("D7", "尾部标记")}</row>`,
+          },
+        ]),
+      ],
+    }
+  : docx
+    ? {
+        name: "合成.docx",
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        body: [
+          ...docxBytes(
+            paragraph("合成完整材料😀。\n".repeat(16000)) +
+              "<w:tbl><w:tr><w:tc>" +
+              paragraph("尾部标记") +
+              "</w:tc></w:tr></w:tbl>",
+            { "word/media/image1.png": Buffer.from("not OCRed") },
+          ),
+        ],
+      }
+    : null;
 const root = await mkdtemp(join(tmpdir(), "shixu-v4-ui-ledger-"));
 const ledger = new ReadingLedger(join(root, "ledger.sqlite"));
 ledger.freezePrice({
@@ -89,54 +119,39 @@ try {
     );
     await page.getByRole("dialog").waitFor({ state: "detached" });
   } else await fixture.activate(page);
-  await page.evaluate(
-    async (docxBody) => {
-      const bytes = docxBody
-        ? Uint8Array.from(docxBody).buffer
-        : new TextEncoder().encode(
-            "合成完整材料😀。\n".repeat(16000) + "尾部标记",
-          ).buffer;
-      await window.desktop.store("savePackets", [
-        {
-          id: "task-ui",
-          text: "",
-          sources: [],
-          attachments: [
-            {
-              id: "original",
-              name: docxBody ? "合成.docx" : "合成.txt",
-              type: docxBody
-                ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                : "text/plain",
-              bytes,
-            },
-          ],
-          doneIds: [],
-          capturedAt: "2026-10-28T00:00:00.000Z",
-          captureDate: "2026-10-28",
-          updatedAt: "2026-10-28T00:00:00.000Z",
-          result: null,
-          status: "pending",
-        },
-      ]);
-      await window.desktop.cloud("sync");
-      await window.desktop.cloud("ai", {
-        kind: "organize",
-        packetId: "task-ui",
-      });
-    },
-    docx
-      ? [
-          ...docxBytes(
-            paragraph("合成完整材料😀。\n".repeat(16000)) +
-              "<w:tbl><w:tr><w:tc>" +
-              paragraph("尾部标记") +
-              "</w:tc></w:tr></w:tbl>",
-            { "word/media/image1.png": Buffer.from("not OCRed") },
-          ),
-        ]
-      : null,
-  );
+  await page.evaluate(async (original) => {
+    const bytes = original
+      ? Uint8Array.from(original.body).buffer
+      : new TextEncoder().encode(
+          "合成完整材料😀。\n".repeat(16000) + "尾部标记",
+        ).buffer;
+    await window.desktop.store("savePackets", [
+      {
+        id: "task-ui",
+        text: "",
+        sources: [],
+        attachments: [
+          {
+            id: "original",
+            name: original?.name || "合成.txt",
+            type: original?.type || "text/plain",
+            bytes,
+          },
+        ],
+        doneIds: [],
+        capturedAt: "2026-10-28T00:00:00.000Z",
+        captureDate: "2026-10-28",
+        updatedAt: "2026-10-28T00:00:00.000Z",
+        result: null,
+        status: "pending",
+      },
+    ]);
+    await window.desktop.cloud("sync");
+    await window.desktop.cloud("ai", {
+      kind: "organize",
+      packetId: "task-ui",
+    });
+  }, original);
   await page.locator(".bucket-settings").click();
   await expect(page.getByText(/累计已消费/)).toBeVisible();
   await page.getByRole("button", { name: "停止", exact: true }).click();
@@ -155,7 +170,7 @@ try {
   const status = await page.evaluate(() => window.desktop.cloud("status"));
   assert.ok(status.account.wallet.spent > 0);
   assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
-  if (docx) {
+  if (original) {
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     // IPC submission updates the main-process projection; verify persisted
     // cards after the renderer reloads its account workspace.
@@ -172,13 +187,20 @@ try {
       name: "同行材料",
       exact: true,
     });
-    await expect(materials.getByText("合成.docx · 部分读取")).toBeVisible();
     await expect(
-      materials.getByText(
-        "word/media/image1.png：图片、公式或嵌入对象尚未读取",
-        { exact: true },
-      ),
+      materials.getByText(original.name + " · 部分读取"),
     ).toBeVisible();
+    if (xlsx)
+      await expect(
+        materials.getByText(/工作表 “资料表”.*第 7 行.*单元格 C7.*公式未执行/),
+      ).toBeVisible();
+    else
+      await expect(
+        materials.getByText(
+          "word/media/image1.png：图片、公式或嵌入对象尚未读取",
+          { exact: true },
+        ),
+      ).toBeVisible();
   }
   console.log(
     JSON.stringify({
@@ -190,7 +212,7 @@ try {
       stopContinueButtons: true,
       cumulativeWallet: true,
       published: true,
-      format: docx ? "docx" : "txt",
+      format: xlsx ? "xlsx" : docx ? "docx" : "txt",
       simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")?.calls,
     }),
   );

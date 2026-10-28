@@ -9,6 +9,7 @@ import { readMaterial } from "./material.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
+import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 const result = (sources) => ({
   summary: "合成资料",
   warnings: [],
@@ -152,6 +153,42 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+
+test("empty/unreadable XLSX has no provider cost; partial worksheet rows retain exact source coordinates at publication", async (t) => {
+  const empty = fixture(t, {
+    name: "空.xlsx",
+    text: xlsxBytes([
+      { name: "空表", xml: `<row r="1">${inline("A1", " ")}</row>` },
+    ]),
+  });
+  empty.enqueue();
+  assert.equal((await finish(empty.tasks)).reason, "NO_READABLE_MATERIAL");
+  assert.equal(empty.calls(), 0);
+  assert.equal(empty.ledger.wallet("synthetic").spent, 0);
+  const partial = fixture(t, {
+    name: "合成.xlsx",
+    text: xlsxBytes([
+      {
+        name: "安全表",
+        xml: `<row r="1">${inline("A1", "安全资料")}</row><row r="7"><c r="B7"><f>1+1</f><v>999</v></c></row>`,
+      },
+    ]),
+  });
+  partial.enqueue();
+  assert.equal((await finish(partial.tasks)).state, "done");
+  const coverage = partial.store.record("packet").data.readingCoverage[0];
+  assert.equal(coverage.state, "partial");
+  assert.ok(
+    coverage.covered.some(
+      (r) => r.sheet === "安全表" && r.row === 7 && r.column === 2,
+    ),
+  );
+  assert.ok(
+    coverage.uncovered.some(
+      (r) => r.code === "XLSX_FORMULA_CACHED" && r.cell === "B7",
+    ),
+  );
+});
 
 test("orderly shutdown interrupts queued tasks durably without consuming or automatically restarting them", (t) => {
   const f = fixture(t);

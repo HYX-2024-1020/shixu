@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
-export const READER_VERSION = "text-csv/2;docx/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -142,7 +142,9 @@ export function readMaterial(
         start: offset,
         end: offset + chunk.size,
         ...locator,
-        ...(locator.kind === "docx" ? { fragment: part++ } : { part: part++ }),
+        ...(["docx", "xlsx"].includes(locator.kind)
+          ? { fragment: part++ }
+          : { part: part++ }),
       };
       result.covered.push(range);
       result.segments.push({
@@ -154,10 +156,15 @@ export function readMaterial(
       offset += chunk.size;
     }
   };
-  if (/\.docx$/i.test(name)) {
-    const { readDocx, DOCX_READER_VERSION } = require("./docx-reader.cjs");
-    result.readerVersion = DOCX_READER_VERSION;
-    readDocx(bytes, {
+  if (/\.(docx|xlsx)$/i.test(name)) {
+    const isXlsx = /\.xlsx$/i.test(name);
+    const reader = isXlsx
+      ? require("./xlsx-reader.cjs")
+      : require("./docx-reader.cjs");
+    result.readerVersion = isXlsx
+      ? reader.XLSX_READER_VERSION
+      : reader.DOCX_READER_VERSION;
+    (isXlsx ? reader.readXlsx : reader.readDocx)(bytes, {
       add,
       missing: (code, range = { kind: "file" }) => {
         result.uncovered.push({ ...range, code });
@@ -169,7 +176,7 @@ export function readMaterial(
       ? readable
         ? "partial"
         : result.reasons.some((c) =>
-              /UNSUPPORTED|LIMIT|DOCX_OBJECT_UNREAD|DOCX_EXTERNAL_LINK/.test(c),
+              /UNSUPPORTED|DOCX_OBJECT_UNREAD|DOCX_EXTERNAL_LINK/.test(c),
             )
           ? "unsupported"
           : "failed"

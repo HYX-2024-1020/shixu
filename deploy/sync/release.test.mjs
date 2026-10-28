@@ -13,6 +13,7 @@ import { buildRelease } from "../../scripts/build-sync-release.mjs";
 import { backupDatabase } from "./backup.mjs";
 import { verifyService } from "./verify.mjs";
 import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";
+import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
@@ -26,6 +27,8 @@ test("account service and protected CLI run from the self-contained release", as
     const original = docxBytes(paragraph("独立包DOCX原文😀"));
     assert.equal(readMaterial({id:"docx",name:"合成.docx",body:original,size:original.length,hash:sha256(original)}).segments.map(s=>s.text).join(""),"独立包DOCX原文😀\n");
     const accountDirectory = join(directory, "accounts");
+    const workbook=xlsxBytes();
+    assert.equal(readMaterial({id:"xlsx",name:"合成.xlsx",body:workbook,size:workbook.length,hash:sha256(workbook)}).segments.map(s=>s.text).join(""),"A1\t合成文字\n");
     const secret = "synthetic-release-secret-32-characters";
     const { stdout } = await promisify(execFile)(process.execPath, [join(current, "server/sync-admin.mjs"), "generate", "2"], {
       env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
@@ -65,7 +68,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "ledger.mjs", "material.mjs", "ooxml-zip.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "ledger.mjs", "material.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

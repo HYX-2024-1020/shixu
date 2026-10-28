@@ -15,6 +15,8 @@ const files = [
   "server/accounts-v4.mjs",
   "server/reading/docx.mjs", "server/reading/ooxml-zip.mjs",
   "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",
+  "server/reading/xlsx.mjs", "server/reading/ooxml-xml.mjs",
+  "server/reading/xlsx-reader.cjs", "server/reading/xlsx-reader.LICENSE",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",

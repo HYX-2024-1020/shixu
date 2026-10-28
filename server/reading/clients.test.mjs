@@ -5,7 +5,58 @@ import { join } from "node:path";
 import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
 import { readMaterial } from "./material.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
+import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import assert from "node:assert/strict";
+
+test(
+  "XLSX original crosses signed Windows and actual mini Page stop/continue, retaining worksheet coordinates and formula-cache omissions",
+  { timeout: 20000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "shixu-xlsx-client-loop-"));
+    try {
+      await runClientLoop({
+        directory,
+        reader: async (file) => readMaterial(file),
+        original: {
+          name: "合成.xlsx",
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          body: xlsxBytes([
+            {
+              name: "资料表",
+              xml: `<row r="1">${inline("A1", "合成单元格😀。\n".repeat(18000))}</row><row r="7"><c r="C7"><f>1+1</f><v>999</v></c>${inline("D7", "尾部唯一标记")}</row>`,
+            },
+          ]),
+          verify({ win, page }) {
+            const coverage = win.readingCoverage[0];
+            assert.equal(coverage.state, "partial");
+            assert.ok(
+              coverage.covered.some(
+                (r) =>
+                  r.sheet === "资料表" &&
+                  r.row === 7 &&
+                  r.column === 3 &&
+                  r.columnEnd === 4,
+              ),
+            );
+            assert.ok(
+              coverage.uncovered.some(
+                (r) => r.code === "XLSX_FORMULA_CACHED" && r.cell === "C7",
+              ),
+            );
+            assert.ok(
+              coverage.covered.every((r) => typeof r.part === "string"),
+            );
+            const detail = page._detail(win.itemIds[0]);
+            assert.match(detail.reading[0].missing, /公式未执行/);
+            assert.match(detail.evidence[0].name, /工作表 “资料表”.*第 1 行/);
+          },
+        },
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 test(
   "signed Windows workspace and real mini Page stop/continue the same v4 task and synchronize original-backed output",
   { timeout: 20000 },
