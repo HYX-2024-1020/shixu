@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { createPublicKey, randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { realpathSync } from "node:fs";
+import { realpathSync, existsSync } from "node:fs";
 import {
   AccountRegistry,
   digest,
@@ -12,6 +12,7 @@ import {
 import { createSyncService } from "./sync-server.mjs";
 import { SyncError } from "./sync-store.mjs";
 import { createServerAI } from "./sync-provider.mjs";
+import { createReadingRoutes } from "./reading/routes.mjs";
 
 export const DEFAULT_AI_LIMITS = Object.freeze({
   enabled: false,
@@ -61,6 +62,7 @@ export function createMultiUserService({
   ai = null,
   aiLimits = {},
   wechat = null,
+  reading = null,
 }) {
   if (new URL(origin).origin !== origin)
     throw Error("Origin must not contain a path");
@@ -81,6 +83,17 @@ export function createMultiUserService({
     throw Error("Invalid AI queue configuration");
   const registry = new AccountRegistry(directory, secret),
     tenants = new Map();
+  const readingRoutes = reading
+    ? createReadingRoutes({
+        ...reading,
+        authorize: (account, device) => {
+          const binding = registry.authenticate(registry.token({ id: device }));
+          if (binding.user_id !== account)
+            throw new SyncError(403, "FORBIDDEN", "设备不属于此账号");
+        },
+        enabled: () => reading.enabled === true && !registry.aiPaused(),
+      })
+    : null;
   let running = 0,
     closed = false;
   const waiting = [];
@@ -134,12 +147,13 @@ export function createMultiUserService({
       database: join(directory, "users", userId, "workspace.sqlite"),
       password: randomBytes(32).toString("base64url"),
       origin,
-      ai: ai
-        ? {
-            ...(ai.organize ? { organize: wrap(ai.organize) } : {}),
-            ...(ai.chat ? { chat: wrap(ai.chat) } : {}),
-          }
-        : null,
+      ai:
+        ai && !readingRoutes
+          ? {
+              ...(ai.organize ? { organize: wrap(ai.organize) } : {}),
+              ...(ai.chat ? { chat: wrap(ai.chat) } : {}),
+            }
+          : null,
       fileLimits: {
         maxWorkspaceBytes: Math.max(1, account.limits.storageBytes),
       },
@@ -197,6 +211,7 @@ export function createMultiUserService({
           256,
       );
     service.store.validateBlobStorage = checkStorage;
+    readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);
     for (const row of registry.db
       .prepare(
@@ -214,6 +229,14 @@ export function createMultiUserService({
     try {
       if (req.headers.origin && req.headers.origin !== origin)
         throw new SyncError(403, "UNTRUSTED_ORIGIN", "请求来源不受信任");
+      if (
+        req.url === "/api/v4/capabilities" &&
+        req.method === "GET" &&
+        readingRoutes
+      ) {
+        send(res, 200, readingRoutes.capabilities());
+        return;
+      }
       if (req.url === "/api/v3/status" && req.method === "GET") {
         send(res, 200, {
           application: "shixu-sync",
@@ -224,9 +247,15 @@ export function createMultiUserService({
             accounts: true,
             wechatLogin: !!wechat,
             attachments: true,
-            aiOrganize:
-              !!ai?.organize && limits.enabled && !registry.aiPaused(),
-            itemChat: !!ai?.chat && limits.enabled && !registry.aiPaused(),
+            aiOrganize: readingRoutes
+              ? reading.enabled === true && !registry.aiPaused()
+              : !!ai?.organize && limits.enabled && !registry.aiPaused(),
+            readingTasks: !!readingRoutes,
+            itemChat:
+              !readingRoutes &&
+              !!ai?.chat &&
+              limits.enabled &&
+              !registry.aiPaused(),
           },
         });
         return;
@@ -292,9 +321,11 @@ export function createMultiUserService({
         return;
       }
       // v2 enrollment and all v2 data endpoints are inaccessible in account mode.
-      if (!req.url.startsWith("/api/v3/"))
+      const isReading = req.url.startsWith("/api/v4/") && !!readingRoutes;
+      if (!req.url.startsWith("/api/v3/") && !isReading)
         throw new SyncError(404, "NOT_FOUND", "没有这个接口");
       if (
+        !isReading &&
         !/^\/api\/v3\/(account|device|changes|operations|jobs(?:\/[a-zA-Z0-9_-]{1,120})?|attachments\/[a-zA-Z0-9_-]{1,120}\/[a-zA-Z0-9_-]{1,120})$/.test(
           req.url.split("?")[0],
         )
@@ -315,6 +346,53 @@ export function createMultiUserService({
       if (binding.kind === "windows")
         registry.proof(binding, req.method, req.url, bytes, req.headers);
       const service = tenant(binding.user_id);
+      if (isReading) {
+        send(
+          res,
+          req.method === "POST" ? 202 : 200,
+          await readingRoutes.handle({
+            account: binding.user_id,
+            device: binding.id,
+            store: service.store,
+            method: req.method,
+            url: new URL(req.url, origin),
+            value: bytes.length ? parse(req, bytes) : {},
+          }),
+        );
+        return;
+      }
+      if (readingRoutes && req.url === "/api/v3/jobs" && req.method === "POST")
+        throw new SyncError(
+          426,
+          "CLIENT_UPGRADE_REQUIRED",
+          "请升级客户端以使用累计额度任务；原文已保留",
+        );
+      if (
+        readingRoutes &&
+        req.url.startsWith("/api/v3/changes?") &&
+        req.method === "GET"
+      ) {
+        const url = new URL(req.url, origin);
+        const pull = service.store.pull({
+          cursor: Number(url.searchParams.get("cursor") || 0),
+          epoch: url.searchParams.get("epoch"),
+          limit: Number(url.searchParams.get("limit") || 100),
+        });
+        if (
+          pull.records.some(
+            (r) =>
+              r.data?.processingCoverage?.partial ||
+              Buffer.byteLength(JSON.stringify(r)) > 400000,
+          )
+        )
+          throw new SyncError(
+            426,
+            "CLIENT_UPGRADE_REQUIRED",
+            "这次投递包含部分或长结果，请升级客户端后继续同步；本地队列已保留",
+          );
+        send(res, 200, pull);
+        return;
+      }
       service.files.limits.maxWorkspaceBytes = Math.max(
         1,
         account.limits.storageBytes,
@@ -332,6 +410,21 @@ export function createMultiUserService({
             resetTimezone: "UTC",
           },
           limits: account.limits,
+          ...(readingRoutes
+            ? {
+                reading: readingRoutes.capabilities(),
+                wallet: (() => {
+                  try {
+                    return reading.ledger.wallet(account.id);
+                  } catch {
+                    return {
+                      pausedReason: "RECONCILIATION_REQUIRED",
+                      available: 0,
+                    };
+                  }
+                })(),
+              }
+            : {}),
         });
         return;
       }
@@ -376,6 +469,13 @@ export function createMultiUserService({
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   // Resume durable queued work even if a user has not opened their client yet.
+  if (readingRoutes)
+    for (const account of registry.db
+      .prepare("SELECT id FROM accounts WHERE enabled=1")
+      .all()) {
+      if (existsSync(join(directory, "users", account.id, "workspace.sqlite")))
+        tenant(account.id);
+    }
   for (const row of registry.db
     .prepare("SELECT DISTINCT user_id FROM ai_usage WHERE state='pending'")
     .all()) {
@@ -389,19 +489,23 @@ export function createMultiUserService({
         .run(row.user_id);
     }
   }
+  let drained = Promise.resolve();
   server.on("close", () => {
     closed = true;
-    for (const service of tenants.values()) {
-      service.jobs.stop();
-      service.store.close();
-    }
-    for (const entry of waiting.splice(0)) {
-      entry.signal.removeEventListener("abort", entry.abort);
-      entry.reject(Error("Stopped"));
-    }
-    registry.close();
+    drained = (async () => {
+      await readingRoutes?.close();
+      for (const service of tenants.values()) {
+        service.jobs.stop();
+        service.store.close();
+      }
+      for (const entry of waiting.splice(0)) {
+        entry.signal.removeEventListener("abort", entry.abort);
+        entry.reject(Error("Stopped"));
+      }
+      registry.close();
+    })();
   });
-  return { server, registry, limits };
+  return { server, registry, limits, readingRoutes, drained: () => drained };
 }
 
 export function wechatCodeExchange(appId, appSecret, fetcher = fetch) {

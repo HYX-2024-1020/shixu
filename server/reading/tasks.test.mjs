@@ -150,6 +150,157 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+
+test("another authorized device can accept paid partial blocks atomically; purge cannot refund or resurrect them", async (t) => {
+  const f = fixture(t, {
+    text: "合成材料正文".repeat(45000),
+    provider: async (sources, signal, n) => {
+      if (n === 2) throw Error("synthetic timeout");
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: result(sources),
+      };
+    },
+  });
+  f.enqueue();
+  await f.tasks.run("task");
+  await f.tasks.run("task");
+  const task = f.tasks.get("task");
+  assert.equal(task.state, "paused");
+  const request = {
+    operationId: "accept",
+    expectedGeneration: task.generation,
+    expectedRevision: task.input_revision,
+  };
+  const response = f.tasks.action(
+    "task",
+    request,
+    "accept-partial",
+    f.wechat.deviceId,
+  );
+  assert.equal(response.state, "partial");
+  assert.deepEqual(
+    f.tasks.action("task", request, "accept-partial", f.wechat.deviceId),
+    { ...response },
+  );
+  assert.equal(f.store.record("packet").data.processingCoverage.partial, true);
+  assert.ok(
+    f.store.record("packet").data.processingCoverage.pending.length > 0,
+  );
+  assert.ok(
+    f.store.record("packet").data.processingCoverage.processed.length > 0,
+  );
+  const spent = f.ledger.wallet("synthetic").spent;
+  const purged = f.tasks.action(
+    "task",
+    {
+      operationId: "purge",
+      expectedGeneration: response.generation,
+      expectedRevision: response.input_revision,
+    },
+    "purge",
+    f.wechat.deviceId,
+  );
+  assert.equal(purged.state, "purged");
+  assert.equal(f.ledger.wallet("synthetic").spent, spent);
+  assert.equal(f.store.record("packet").data.result.items.length, 1);
+  assert.equal(
+    f.store.db.prepare("SELECT COUNT(*) n FROM reading_blocks").get().n,
+    0,
+  );
+  assert.throws(
+    () => f.action("continue", "after-purge"),
+    (e) => e.code === "INVALID_TASK_TRANSITION",
+  );
+});
+
+test("24-call checkpoint records progress and does not cap a longer task", async (t) => {
+  const f = fixture(t, { text: "合成正文".repeat(810000) });
+  f.enqueue();
+  let task;
+  for (let i = 0; i < 35; i++) {
+    task = await f.tasks.run("task");
+    if (task.state !== "queued") break;
+  }
+  assert.equal(task.state, "done");
+  assert.ok(f.calls() > 24);
+  const checkpoint = f.store.db
+    .prepare("SELECT * FROM reading_checkpoints")
+    .get();
+  assert.equal(checkpoint.calls, 24);
+  assert.equal(checkpoint.completed, 24);
+  assert.ok(checkpoint.spent > 0);
+});
+
+test("a no-progress checkpoint remains paused across repeated manual continue, without new calls", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
+  assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
+  f.action("continue", "retry-checkpoint");
+  assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
+  assert.equal(f.calls(), 0);
+});
+
+test("cleared originals require a matching reupload before paid blocks can resume", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop", "before-clear");
+  const original = f.store.files.get("packet", "a");
+  f.store.files.purge("packet");
+  assert.throws(
+    () => f.action("continue", "missing-original"),
+    (e) => e.code === "REUPLOAD_REQUIRED",
+  );
+  f.store.files.put("packet", "a", {
+    name: original.name,
+    type: original.type,
+    body: original.body,
+    epoch: f.store.epoch,
+  });
+  f.action("continue", "matching-reupload");
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.equal(f.calls(), 1);
+});
+
+test("broker queue time is excluded and a provider step obeys the remaining cumulative active deadline", async (t) => {
+  const f = fixture(t, {
+    reader: async (file) => {
+      await new Promise((done) => setTimeout(done, 450));
+      return { ...readMaterial(file), timing: { waitingMs: 440 } };
+    },
+  });
+  f.tasks.activeLimitMs = 300;
+  f.enqueue();
+  assert.equal((await f.tasks.run("task")).state, "queued");
+  assert.ok(f.tasks.get("task").active_ms < 300);
+  const g = fixture(t, {
+    provider: async (sources, signal) =>
+      new Promise((done, reject) => {
+        const timer = setTimeout(
+          () => reject(Error("failed to enforce deadline")),
+          1000,
+        );
+        signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(Error("abort"));
+          },
+          { once: true },
+        );
+      }),
+  });
+  g.tasks.activeLimitMs = 80;
+  g.enqueue();
+  g.store.db
+    .prepare("UPDATE reading_tasks SET active_ms=40 WHERE id='task'")
+    .run();
+  const start = performance.now();
+  assert.equal((await g.tasks.run("task")).reason, "UNKNOWN_COST");
+  assert.ok(performance.now() - start < 600);
+});
 test("task kernel refuses configuration without explicit device authorization", () => {
   assert.throws(
     () =>

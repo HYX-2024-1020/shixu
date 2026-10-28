@@ -1,6 +1,22 @@
 const SERVICE_ORIGIN = "https://sync.shixunote.top";
 const CONNECTION = "shixu:mini:account:v3";
 const { createTransport } = require("./transport");
+const { hydrateReadingChanges } = require("./reading-transport");
+const DEVELOPMENT_SERVICE_KEY = "shixu:mini:development-service";
+function accountServiceOrigin(runtime) {
+  const environment = runtime.getAccountInfoSync?.().miniProgram?.envVersion;
+  if (environment !== "develop") return SERVICE_ORIGIN;
+  const saved = runtime.getStorageSync?.(DEVELOPMENT_SERVICE_KEY);
+  if (!saved) return SERVICE_ORIGIN;
+  if (
+    typeof saved !== "string" ||
+    !/^http:\/\/(127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/.test(saved)
+  )
+    throw Error("开发联调仅允许本机 SSH 隧道地址");
+  const port = Number(saved.slice(saved.lastIndexOf(":") + 1));
+  if (port < 1 || port > 65535) throw Error("开发隧道端口无效");
+  return saved;
+}
 function spaceKey(connection) {
   return connection.protocolVersion === 3
     ? "account:" + connection.userId
@@ -12,21 +28,33 @@ function accountTransport(connection, runtime, onAccount = () => {}) {
     () => connection.token,
     runtime,
   );
+  let reading = false;
   return async (method, path, data) => {
     const next =
       connection.protocolVersion === 3
         ? path.replace(/^\/api\/v2\//, "/api/v3/")
         : path;
+    if (reading && method === "GET" && next.startsWith("/api/v3/changes?"))
+      return hydrateReadingChanges(request, next);
     const result = await request(method, next, data);
+    if (next === "/api/v3/account") {
+      reading = !!result.reading;
+      onAccount(result);
+    }
     if (connection.protocolVersion === 3 && next === "/api/v3/status") {
       const account = await request("GET", "/api/v3/account");
+      reading = !!account.reading;
       onAccount(account);
       return { ...result, epoch: account.epoch, account };
     }
     return result;
   };
 }
-async function activate(invite, runtime, origin = SERVICE_ORIGIN) {
+async function activate(
+  invite,
+  runtime,
+  origin = accountServiceOrigin(runtime),
+) {
   if (typeof invite !== "string" || !invite.trim() || invite.length > 100)
     throw Error("请填写邀请码");
   const login = await new Promise((resolve, reject) =>
@@ -56,4 +84,6 @@ module.exports = {
   spaceKey,
   accountTransport,
   activate,
+  accountServiceOrigin,
+  DEVELOPMENT_SERVICE_KEY,
 };

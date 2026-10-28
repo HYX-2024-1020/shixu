@@ -991,5 +991,6 @@ async function chatWithItem(item, meta, instruction, sources, options) {
 export {
   DEFAULT_MODEL,
   chatWithItem,
-  organizePacket
+  organizePacket,
+  validateResult
 };

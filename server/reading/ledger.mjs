@@ -14,7 +14,12 @@ export function validateUsage(usage) {
     !integer(usage.completion_tokens) ||
     ("prompt_cache_hit_tokens" in usage &&
       (!integer(usage.prompt_cache_hit_tokens) ||
-        usage.prompt_cache_hit_tokens > usage.prompt_tokens))
+        usage.prompt_cache_hit_tokens > usage.prompt_tokens)) ||
+    ("prompt_cache_miss_tokens" in usage &&
+      (!integer(usage.prompt_cache_miss_tokens) ||
+        usage.prompt_cache_miss_tokens +
+          (usage.prompt_cache_hit_tokens ?? 0) !==
+          usage.prompt_tokens))
   )
     throw Error("INVALID_USAGE");
   return {
@@ -178,10 +183,24 @@ export class ReadingLedger {
         "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE account=? AND state IN ('reserved','sent')",
       )
       .get(account).n;
+    const unknownRisk = this.db
+      .prepare(
+        "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE account=? AND state='unknown'",
+      )
+      .get(account).n;
+    const paused = this.db
+      .prepare("SELECT paused FROM reading_controls WHERE id=1")
+      .get().paused;
     return {
       ...w,
       reserved,
-      available: Math.max(0, w.granted - w.spent - reserved),
+      unknownRisk,
+      available: Math.max(0, w.granted - w.spent - reserved - unknownRisk),
+      pausedReason: unknownRisk
+        ? "UNKNOWN_COST"
+        : paused
+          ? "LEDGER_PAUSED"
+          : "",
       lowBalance: w.granted - w.spent < 3000000,
     };
   }
@@ -355,6 +374,60 @@ export class ReadingLedger {
       else this.unknown(c.id);
     }
   }
+  audit(account) {
+    const wallets = account
+      ? this.db
+          .prepare("SELECT * FROM reading_wallets WHERE account=?")
+          .all(account)
+      : this.db.prepare("SELECT * FROM reading_wallets").all();
+    let checkedCalls = 0;
+    for (const wallet of wallets) {
+      const events = this.db
+        .prepare(
+          "SELECT COALESCE(SUM(CASE WHEN kind='grant' THEN amount ELSE 0 END),0) granted,COALESCE(SUM(CASE WHEN kind='settle' THEN amount ELSE 0 END),0) spent FROM reading_events WHERE account=?",
+        )
+        .get(wallet.account);
+      let valid =
+        events.granted === wallet.granted && events.spent === wallet.spent;
+      const projection = this.db
+        .prepare(
+          "SELECT COALESCE(SUM(actual),0) spent FROM reading_calls WHERE account=? AND state='settled'",
+        )
+        .get(wallet.account);
+      valid &&= projection.spent === wallet.spent;
+      for (const call of this.db
+        .prepare("SELECT * FROM reading_calls WHERE account=?")
+        .all(wallet.account)) {
+        checkedCalls++;
+        const reserve = this.db
+          .prepare(
+            "SELECT amount FROM reading_events WHERE operation=? AND account=?",
+          )
+          .get("reserve:" + call.id, wallet.account);
+        valid &&= reserve?.amount === call.reserved;
+        if (call.state === "settled") {
+          const settle = this.db
+            .prepare(
+              "SELECT amount FROM reading_events WHERE operation=? AND account=?",
+            )
+            .get("settle:" + call.id, wallet.account);
+          try {
+            valid &&=
+              settle?.amount === call.actual &&
+              estimatedCost(this.price(call.price), JSON.parse(call.usage)) ===
+                call.actual;
+          } catch {
+            valid = false;
+          }
+        }
+      }
+      if (!valid) {
+        this.db.exec("UPDATE reading_controls SET paused=1 WHERE id=1");
+        throw Error("LEDGER_RECONCILIATION_REQUIRED");
+      }
+    }
+    return { accounts: wallets.length, checkedCalls, valid: true };
+  }
   saveEnvelope(callId, fingerprint, result, usage) {
     const body = JSON.stringify(result),
       normalized = JSON.stringify(validateUsage(usage));
@@ -383,9 +456,9 @@ export class ReadingLedger {
     return this.db
       .prepare(
         `SELECT e.*,c.id call_id FROM reading_envelopes e JOIN reading_calls c ON e.call=c.id
-      WHERE c.account=? AND c.task=? AND e.fingerprint=? AND c.price=? AND c.state='settled' ORDER BY c.rowid LIMIT 1`,
+      WHERE c.account=? AND c.task=? AND e.fingerprint=? AND (? IS NULL OR c.price=?) AND c.state='settled' ORDER BY c.rowid LIMIT 1`,
       )
-      .get(account, task, fingerprint, price);
+      .get(account, task, fingerprint, price ?? null, price ?? null);
   }
   clearEnvelope(callId) {
     this.db.prepare("DELETE FROM reading_envelopes WHERE call=?").run(callId);

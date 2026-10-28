@@ -158,15 +158,18 @@ export default function AccountConnection({
       <section className="connection-data">
         <h3>服务端 AI</h3>
         <p>
-          {!state?.base
-            ? "未激活"
-            : !state.account
-              ? "状态尚未刷新"
-              : !state.account.ai.enabled
-                ? "服务端暂未启用"
-                : used >= state.account.ai.dailyLimit
-                  ? "今日额度已用完；记录和同步仍可用"
-                  : `今日 ${used} / ${state.account.ai.dailyLimit} 次（UTC 零点重置）`}
+          {state?.account?.reading
+            ? state.account.wallet?.pausedReason ||
+              `累计已消费 ¥${((state.account.wallet?.spent || 0) / 1000000).toFixed(4)} · 可用 ¥${((state.account.wallet?.available || 0) / 1000000).toFixed(2)}（不按天重置）`
+            : !state?.base
+              ? "未激活"
+              : !state.account
+                ? "状态尚未刷新"
+                : !state.account.ai.enabled
+                  ? "服务端暂未启用"
+                  : used >= state.account.ai.dailyLimit
+                    ? "今日额度已用完；记录和同步仍可用"
+                    : `今日 ${used} / ${state.account.ai.dailyLimit} 次（UTC 零点重置）`}
         </p>
         <p>
           密钥和模型由服务端管理。使用 AI 时，相关文字及支持读取的 UTF-8
@@ -174,6 +177,69 @@ export default function AccountConnection({
           读取。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
         </p>
       </section>
+      {!!state?.account?.reading && (
+        <section className="connection-data">
+          <h3>整理任务</h3>
+          <p>
+            停止保留有效付费块；继续需原件一致。清除任务不会退回已消费额度。
+          </p>
+          {state.jobs?.map((task) => (
+            <div key={task.id}>
+              <p>
+                {(
+                  {
+                    queued: "排队中",
+                    running: "处理中",
+                    applying: "发布中",
+                    paused: "已暂停",
+                    cancelled: "已停止",
+                    interrupted: "已中断",
+                    done: "已发布",
+                    partial: "已收下部分",
+                    purged: "已清除",
+                  } as Record<string, string>
+                )[task.state] || "需核对"}{" "}
+                · 已调用 {task.calls || 0} 次 {task.error}
+              </p>
+              {task.actions
+                ?.filter((a) => a !== "purge")
+                .map((a) => (
+                  <button
+                    key={a}
+                    disabled={busy}
+                    onClick={() =>
+                      void action("taskAction", { id: task.id, action: a })
+                    }
+                  >
+                    {a === "stop"
+                      ? "停止"
+                      : a === "accept-partial"
+                        ? "收下有效部分"
+                        : "继续"}
+                  </button>
+                ))}
+              {task.actions?.includes("purge") && (
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "清除任务将丢弃可复用块，已发布事项和已消费额度保留。继续？",
+                      )
+                    )
+                      void action("taskAction", {
+                        id: task.id,
+                        action: "purge",
+                      });
+                  }}
+                >
+                  清除任务
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
       <section className="connection-data">
         <h3>本机备份</h3>
         <button

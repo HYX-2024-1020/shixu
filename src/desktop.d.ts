@@ -17,9 +17,19 @@ interface Window {
         state: string;
         error?: string;
         output?: unknown;
+        protocol?: number;
+        calls?: number;
+        actions?: string[];
       }[];
       account?: {
         activation: string;
+        reading?: { features: { readingEnabled: boolean } };
+        wallet?: {
+          spent?: number;
+          available: number;
+          lowBalance?: boolean;
+          pausedReason?: string;
+        };
         ai: {
           enabled: boolean;
           dailyLimit: number;

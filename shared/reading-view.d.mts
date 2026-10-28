@@ -15,9 +15,7 @@ export interface ReadingCoverage {
   uncovered: ReadingRange[];
   reasons: string[];
 }
-export function readingView(
-  coverage?: ReadingCoverage[],
-): {
+export function readingView(coverage?: ReadingCoverage[]): {
   id: string;
   name: string;
   state: string;
@@ -30,3 +28,9 @@ export function sourceLocation(
   coverage: ReadingCoverage[] | undefined,
   sourceId: string,
 ): string;
+export interface ProcessingCoverage {
+  partial: boolean;
+  processed: ReadingRange[];
+  pending: ReadingRange[];
+}
+export function processingView(processing?: ProcessingCoverage): string;

@@ -75,3 +75,13 @@ export function sourceLocation(coverage = [], sourceId) {
   }
   return "";
 }
+export function processingView(processing) {
+  if (!processing || processing.partial !== true) return "";
+  const processed = Array.isArray(processing.processed)
+    ? processing.processed.length
+    : 0;
+  const pending = Array.isArray(processing.pending)
+    ? processing.pending.filter((r) => r && typeof r === "object")
+    : [];
+  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个范围尚未整理。${pending.map(location).join("；")}`;
+}

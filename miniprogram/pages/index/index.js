@@ -3,6 +3,7 @@ const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const {
   CONNECTION,
   SERVICE_ORIGIN,
+  accountServiceOrigin,
   activate: activateAccount,
   spaceKey,
   accountTransport,
@@ -42,6 +43,7 @@ const {
   setDeadline,
   habitCheckin,
   readingView,
+  processingView,
   sourceLocation,
 } = require("../../lib/generated/desktop");
 const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
@@ -192,6 +194,10 @@ Page({
       error: "未完成",
       conflict: "有新修改，请核对结果",
       interrupted: "已中断，请核对后重试",
+      paused: "已暂停",
+      cancelled: "已停止",
+      partial: "已收下部分",
+      purged: "已清除",
     },
   },
   onLoad() {
@@ -259,20 +265,25 @@ Page({
   _activate(connection) {
     const environment = wx.getAccountInfoSync().miniProgram.envVersion;
     const base = normalizeServiceURL(connection.base, environment);
-    if (connection.protocolVersion === 3 && base !== SERVICE_ORIGIN)
+    if (connection.protocolVersion === 3 && base !== accountServiceOrigin(wx))
       throw new Error("激活服务地址无效");
+    this._reading = null;
     const transport =
       connection.protocolVersion === 3
         ? accountTransport(connection, wx, (account) => {
+            this._reading = account.reading || null;
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
             this.setData({
               activationState: "已激活",
-              accountAiState: !account.ai.enabled
-                ? "服务端 AI 暂未启用"
-                : used >= account.ai.dailyLimit
-                  ? "今日 AI 额度已用完；记录和同步仍可用"
-                  : `今日 ${used} / ${account.ai.dailyLimit} 次，UTC 零点重置`,
+              accountAiState: account.reading
+                ? account.wallet?.pausedReason ||
+                  `累计已消费 ¥${((account.wallet?.spent || 0) / 1000000).toFixed(4)} · 可用 ¥${((account.wallet?.available || 0) / 1000000).toFixed(2)}（不按天重置）`
+                : !account.ai.enabled
+                  ? "服务端 AI 暂未启用"
+                  : used >= account.ai.dailyLimit
+                    ? "今日 AI 额度已用完；记录和同步仍可用"
+                    : `今日 ${used} / ${account.ai.dailyLimit} 次，UTC 零点重置`,
             });
           })
         : createTransport(base, () => connection.token);
@@ -1066,6 +1077,7 @@ Page({
       sourceText: p.text || "",
       sources: p.sources || [],
       reading: readingView(p.readingCoverage),
+      processing: processingView(p.processingCoverage),
       attachments: (p.attachments || []).filter((file) => !file.deletedAt),
       evidence: (row.item.evidence || []).map((e) => ({
         ...e,
@@ -1726,11 +1738,16 @@ Page({
     if (row) wx.setClipboardData({ data: row.data.text || "" });
   },
   _jobViews(jobs) {
-    return jobs.map(({ id, state, error, output }) => ({
+    return jobs.map(({ id, state, error, output, actions, calls }) => ({
       id,
       state,
       error,
       hasOutput: !!output,
+      calls: calls || 0,
+      canStop: actions?.includes("stop") || false,
+      canContinue: actions?.includes("continue") || false,
+      canPurge: actions?.includes("purge") || false,
+      canAcceptPartial: actions?.includes("accept-partial") || false,
     }));
   },
   _saveJobs(jobs) {
@@ -1743,7 +1760,48 @@ Page({
     this._pollingJobs = true;
     try {
       const records = this._client.records();
+      if (this._reading) {
+        const remote = await this._transport("GET", "/api/v4/tasks");
+        const jobs = this._jobs.slice();
+        for (const task of remote.tasks) {
+          const old = jobs.find((j) => j.id === task.id);
+          if (old) Object.assign(old, task);
+          else
+            jobs.push({
+              ...task,
+              request: { packetId: task.packetId, kind: "organize" },
+            });
+        }
+        this._saveJobs(jobs);
+      }
       for (const saved of this._jobs.slice()) {
+        if (saved.pendingAction) {
+          const { action, ...request } = saved.pendingAction;
+          let task;
+          try {
+            task = await this._transport(
+              "POST",
+              `/api/v4/tasks/${saved.id}/${action}`,
+              request,
+            );
+          } catch (error) {
+            if ([401, 403, 404, 409, 422, 426, 429, 503].includes(error.status))
+              this._saveJobs(
+                this._jobs.map((j) =>
+                  j.id === saved.id
+                    ? { ...j, pendingAction: null, error: error.message }
+                    : j,
+                ),
+              );
+            throw error;
+          }
+          this._saveJobs(
+            this._jobs.map((j) =>
+              j.id === saved.id ? { ...j, ...task, pendingAction: null } : j,
+            ),
+          );
+          continue;
+        }
         const record = records.find((r) => r.id === saved.request.packetId);
         if (record && record.purged) {
           this._saveJobs(this._jobs.filter((j) => j.id !== saved.id));
@@ -1757,8 +1815,15 @@ Page({
         try {
           job =
             saved.state === "submitting"
-              ? await this._transport("POST", "/api/v2/jobs", saved.request)
-              : await this._transport("GET", `/api/v2/jobs/${saved.id}`);
+              ? await this._transport(
+                  "POST",
+                  saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs",
+                  saved.request,
+                )
+              : await this._transport(
+                  "GET",
+                  `${saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs"}/${saved.id}`,
+                );
         } catch (error) {
           if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error.status)) {
             this._saveJobs(
@@ -1817,9 +1882,16 @@ Page({
         packetId,
         baseVersion: record.version,
         epoch: status.epoch,
+        ...(this._reading ? { contractVersion: 1 } : {}),
         ...(kind === "chat" ? { itemId, instruction } : {}),
       };
-      const entry = { id: request.id, request, state: "submitting", error: "" };
+      const entry = {
+        id: request.id,
+        request,
+        state: "submitting",
+        error: "",
+        ...(this._reading ? { protocol: 4 } : {}),
+      };
       // Do not evict active requests; they may already have incurred a model charge.
       const jobs = this._jobs || [],
         active = jobs.filter((j) =>
@@ -1848,6 +1920,40 @@ Page({
   },
   organizeRecord(event) {
     return this._startJob("organize", event.currentTarget.dataset.id);
+  },
+  async taskAction(event) {
+    const { id, action } = event.currentTarget.dataset;
+    const job = (this._jobs || []).find((j) => j.id === id);
+    if (!job || !job.actions?.includes(action) || this.data.jobBusy) return;
+    if (action === "purge") {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "清除任务",
+          content: "可复用块将清除，已发布事项和已消费额度保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ jobBusy: true });
+    try {
+      if (!job.pendingAction)
+        job.pendingAction = {
+          action,
+          contractVersion: 1,
+          operationId: makeId(),
+          expectedGeneration: job.generation,
+          expectedRevision: job.inputRevision,
+        };
+      this._saveJobs(this._jobs.map((j) => (j.id === id ? job : j)));
+      await this._pollJobs();
+      await this.sync();
+    } catch (error) {
+      this._error(error);
+    } finally {
+      this.setData({ jobBusy: false });
+    }
   },
   chatWithItem() {
     const row = this.data.selected,

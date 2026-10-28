@@ -281,7 +281,11 @@
   >
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
-    ><text>模型任务 · {{jobLabels[item.state] || "待核对"}}</text
+    ><text>模型任务 · {{jobLabels[item.state] || "待核对"}} · 已调用 {{item.calls}} 次</text
+    ><button wx:if="{{item.canStop}}" data-id="{{item.id}}" data-action="stop" bindtap="taskAction" disabled="{{jobBusy}}">停止</button
+    ><button wx:if="{{item.canContinue}}" data-id="{{item.id}}" data-action="continue" bindtap="taskAction" disabled="{{jobBusy}}">继续</button
+    ><button wx:if="{{item.canAcceptPartial}}" data-id="{{item.id}}" data-action="accept-partial" bindtap="taskAction" disabled="{{jobBusy}}">收下有效部分</button
+    ><button wx:if="{{item.canPurge}}" data-id="{{item.id}}" data-action="purge" bindtap="taskAction" disabled="{{jobBusy}}">清除任务</button
     ><text wx:if="{{item.error}}">{{item.error}}</text
     ><button
       wx:if="{{item.hasOutput}}"
@@ -454,7 +458,7 @@
               复制原文
             </button></view
           ><view wx:for="{{selected.attachments}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" data-packet="{{selected.packetId}}" bindtap="openAttachment" disabled="{{filesBusy || selected.deleted}}">{{filesBusy ? '正在打开…' : '打开附件 ↗'}}</button></view><text wx:if="{{!selected.attachments.length}}" class="quiet">这次投递没有文件附件，原文保留在下方。</text><text class="detail-line evidence" selectable>{{selected.sourceText}}</text
-          ><view wx:for="{{selected.reading}}" wx:key="id" class="evidence"><text class="quiet">{{item.name}} · {{item.label}}</text><text class="detail-line">{{item.covered}}</text><text wx:if="{{item.missing}}" class="detail-line">{{item.missing}}</text><text wx:if="{{item.reason}}" class="quiet">{{item.reason}}</text></view><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
+          ><text wx:if="{{selected.processing}}" class="detail-line">{{selected.processing}}</text><view wx:for="{{selected.reading}}" wx:key="id" class="evidence"><text class="quiet">{{item.name}} · {{item.label}}</text><text class="detail-line">{{item.covered}}</text><text wx:if="{{item.missing}}" class="detail-line">{{item.missing}}</text><text wx:if="{{item.reason}}" class="quiet">{{item.reason}}</text></view><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
           ></view

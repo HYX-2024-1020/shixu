@@ -111,7 +111,18 @@ function createSyncClient({
       type,
       baseVersion: (state.records[id] || {}).version || 0,
     };
-    if (type === "put") operation.data = copy(data);
+    if (type === "put") {
+      operation.data = copy(data);
+      // Existing server-owned long result/coverage is preserved by merge. Only
+      // changed fields travel upstream; the optimistic local view stays whole.
+      if (before?.data)
+        for (const key of Object.keys(operation.data))
+          if (
+            JSON.stringify(operation.data[key]) ===
+            JSON.stringify(before.data[key])
+          )
+            delete operation.data[key];
+    }
     const local = {
       id,
       version: (before || {}).version || 0,

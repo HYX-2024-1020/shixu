@@ -44,6 +44,7 @@ __export(stdin_exports, {
   mergeCardOrder: () => mergeCardOrder,
   parseDeadline: () => parseDeadline,
   parseSkinCollection: () => parseSkinCollection,
+  processingView: () => processingView,
   readingView: () => readingView,
   setDeadline: () => setDeadline,
   skinSound: () => skinSound,
@@ -977,6 +978,12 @@ function sourceLocation(coverage = [], sourceId) {
       return `${typeof c.name === "string" ? c.name.slice(0, 200) : "未命名附件"} · ${location(range)}`;
   }
   return "";
+}
+function processingView(processing) {
+  if (!processing || processing.partial !== true) return "";
+  const processed = Array.isArray(processing.processed) ? processing.processed.length : 0;
+  const pending = Array.isArray(processing.pending) ? processing.pending.filter((r) => r && typeof r === "object") : [];
+  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个范围尚未整理。${pending.map(location).join("；")}`;
 }
 
 // <stdin>

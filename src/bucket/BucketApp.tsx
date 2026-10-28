@@ -214,7 +214,13 @@ export default function BucketApp() {
         const used =
           ai?.usage.find((u) => u.day === new Date().toISOString().slice(0, 10))
             ?.requests || 0;
-        setCloudReady(!!ai?.enabled && used < ai.dailyLimit);
+        setCloudReady(
+          updated.account?.reading
+            ? !!updated.account.reading.features.readingEnabled &&
+                !updated.account.wallet?.pausedReason &&
+                (updated.account.wallet?.available || 0) > 0
+            : !!ai?.enabled && used < ai.dailyLimit,
+        );
         const rows = await allPackets();
         if (!stopped && !working.current && !submitLock.current) {
           packetsRef.current = rows;
@@ -309,7 +315,18 @@ export default function BucketApp() {
           throw Error("账号空间已切换，结果保留在原账号");
         const job = status.jobs?.find((j) => j.id === state.job);
         if (job?.state === "done") break;
-        if (job && ["error", "conflict", "interrupted"].includes(job.state))
+        if (
+          job &&
+          [
+            "error",
+            "conflict",
+            "interrupted",
+            "paused",
+            "cancelled",
+            "purged",
+            "partial",
+          ].includes(job.state)
+        )
           throw Error(job.error || "AI 未覆盖资料，请核对后重试");
         if (Date.now() > deadline)
           throw Error("任务仍在服务端处理，请稍后核对状态；不会自动重复提交");

@@ -30,6 +30,7 @@ export interface Packet {
   organizedSourceIds?: string[];
   coverage?: import("./ingest").Coverage[];
   readingCoverage?: import("../../shared/reading-view.mjs").ReadingCoverage[];
+  processingCoverage?: import("../../shared/reading-view.mjs").ProcessingCoverage;
   itemIds?: string[];
   itemState?: Record<string, ItemState>;
   id: string;

@@ -8,6 +8,7 @@ const {
   sign,
 } = require("node:crypto");
 const { CloudWorkspace, serviceURL } = require("./cloud.cjs");
+const { hydrateReadingChanges } = require("./generated/reading-transport.cjs");
 const SERVICE_ORIGIN = "https://sync.shixunote.top";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 function atomic(file, value) {
@@ -45,6 +46,15 @@ class AccountWorkspace extends CloudWorkspace {
   }
   async request(base, method, api, data, extra = {}) {
     api = api.replace(/^\/api\/v2\//, "/api/v3/");
+    if (
+      this.accountState?.reading &&
+      method === "GET" &&
+      api.startsWith("/api/v3/changes?")
+    )
+      return hydrateReadingChanges(
+        (method, path) => this.request(base, method, path),
+        api,
+      );
     const device = this.config.devices[base];
     const key = extra.activationKey || device?.privateKey;
     const bytes = extra.body
@@ -96,9 +106,11 @@ class AccountWorkspace extends CloudWorkspace {
       );
     }
     if (device) this.authorization = "active";
-    return extra.binary
+    const result = extra.binary
       ? Buffer.from(await response.arrayBuffer())
-      : response.json();
+      : await response.json();
+    if (api === "/api/v3/account") this.accountState = result;
+    return result;
   }
   async activate({ invite }) {
     if (typeof invite !== "string" || !invite.trim() || invite.length > 100)
@@ -170,8 +182,65 @@ class AccountWorkspace extends CloudWorkspace {
     atomic(this.space().cache.file("jobs.json"), JSON.stringify(jobs));
   }
   async pollJobs() {
+    if (this.accountState?.reading) {
+      const remote = await this.request(
+        this.config.active,
+        "GET",
+        "/api/v4/tasks",
+      );
+      const jobs = this.readJobs();
+      for (const task of remote.tasks) {
+        const old = jobs.find((j) => j.id === task.id);
+        if (old) Object.assign(old, task);
+        else
+          jobs.push({
+            ...task,
+            request: { packetId: task.packetId, kind: "organize" },
+          });
+      }
+      this.writeJobs(jobs);
+    }
     for (const job of this.readJobs()) {
-      if (["done", "error", "conflict", "interrupted"].includes(job.state))
+      if (job.pendingAction) {
+        const { action, ...request } = job.pendingAction;
+        let task;
+        try {
+          task = await this.request(
+            this.config.active,
+            "POST",
+            `/api/v4/tasks/${job.id}/${action}`,
+            request,
+          );
+        } catch (error) {
+          if ([401, 403, 404, 409, 422, 426, 429, 503].includes(error.status))
+            this.writeJobs(
+              this.readJobs().map((j) =>
+                j.id === job.id
+                  ? { ...j, pendingAction: null, error: error.message }
+                  : j,
+              ),
+            );
+          throw error;
+        }
+        this.writeJobs(
+          this.readJobs().map((j) =>
+            j.id === job.id ? { ...j, ...task, pendingAction: null } : j,
+          ),
+        );
+        continue;
+      }
+      if (
+        [
+          "done",
+          "partial",
+          "purged",
+          "cancelled",
+          "paused",
+          "error",
+          "conflict",
+          "interrupted",
+        ].includes(job.state)
+      )
         continue;
       let result;
       try {
@@ -179,8 +248,11 @@ class AccountWorkspace extends CloudWorkspace {
           this.config.active,
           job.state === "submitting" ? "POST" : "GET",
           job.state === "submitting"
-            ? "/api/v3/jobs"
-            : "/api/v3/jobs/" + job.id,
+            ? job.protocol === 4
+              ? "/api/v4/tasks"
+              : "/api/v3/jobs"
+            : (job.protocol === 4 ? "/api/v4/tasks/" : "/api/v3/jobs/") +
+                job.id,
           job.state === "submitting" ? job.request : null,
         );
       } catch (error) {
@@ -228,10 +300,21 @@ class AccountWorkspace extends CloudWorkspace {
     if (!row || row.deletedAt || row.purged || row.pending || row.conflict)
       throw Error("请先完成这次投递的同步");
     const jobs = this.readJobs();
+    const v4 = !!this.accountState?.reading;
+    if (v4 && value.kind !== "organize")
+      throw Error("事项对话尚未接入累计账本，暂不可用");
     let saved = jobs.find(
       (j) =>
         j.request.packetId === value.packetId &&
-        !["done", "error", "conflict", "interrupted"].includes(j.state),
+        ![
+          "done",
+          "partial",
+          "purged",
+          "cancelled",
+          "error",
+          "conflict",
+          "interrupted",
+        ].includes(j.state),
     );
     if (
       saved &&
@@ -247,11 +330,17 @@ class AccountWorkspace extends CloudWorkspace {
         kind: value.kind,
         epoch: row ? this.config.devices[this.config.active].epoch : null,
         baseVersion: row.version,
+        ...(v4 ? { contractVersion: 1 } : {}),
         ...(value.kind === "chat"
           ? { itemId: value.itemId, instruction: value.instruction }
           : {}),
       };
-      saved = { id: request.id, state: "submitting", request };
+      saved = {
+        id: request.id,
+        state: "submitting",
+        request,
+        ...(v4 ? { protocol: 4 } : {}),
+      };
       jobs.push(saved);
       this.writeJobs(jobs);
     }
@@ -285,7 +374,14 @@ class AccountWorkspace extends CloudWorkspace {
       if (!job || packet.result || packet.deletedAt) return packet;
       return {
         ...packet,
-        status: ["error", "conflict", "interrupted"].includes(job.state)
+        status: [
+          "error",
+          "conflict",
+          "interrupted",
+          "paused",
+          "cancelled",
+          "purged",
+        ].includes(job.state)
           ? "error"
           : job.state === "done"
             ? packet.status
@@ -295,6 +391,28 @@ class AccountWorkspace extends CloudWorkspace {
     });
   }
   action(action, value) {
+    if (action === "taskAction")
+      return this.serial(async () => {
+        const jobs = this.readJobs(),
+          task = jobs.find((j) => j.id === value.id);
+        if (
+          !task ||
+          task.protocol !== 4 ||
+          !task.actions?.includes(value.action)
+        )
+          throw Error("任务状态已变化，请刷新");
+        if (!task.pendingAction)
+          task.pendingAction = {
+            action: value.action,
+            contractVersion: 1,
+            operationId: randomUUID(),
+            expectedGeneration: task.generation,
+            expectedRevision: task.inputRevision,
+          };
+        this.writeJobs(jobs); // Persist intent before network; lost responses reuse the same operation.
+        await this.pollJobs();
+        return this.sync();
+      });
     if (action === "connect" || action === "activate")
       return this.serial(() => this.activate(value));
     if (action === "ai") return this.serial(() => this.createAI(value));

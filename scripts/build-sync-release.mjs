@@ -10,6 +10,8 @@ const files = [
   "server/sync-jobs.mjs", "server/generated/ai-core.mjs",
   "server/sync-files.mjs",
   "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
+  "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs",
+  "server/reading/ledger.mjs", "server/reading/scheduler.mjs",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",
