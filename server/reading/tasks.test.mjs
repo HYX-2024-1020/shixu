@@ -10,6 +10,7 @@ import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
+import { readingView } from "../../shared/reading-view.mjs";
 const result = (sources) => ({
   summary: "合成资料",
   warnings: [],
@@ -594,8 +595,10 @@ test("cleared originals require a matching reupload before paid blocks can resum
 
 test("broker queue time is excluded and a provider step obeys the remaining cumulative active deadline", async (t) => {
   const f = fixture(t, {
-    reader: async (file) => {
+    reader: async (file, { onPhase }) => {
+      onPhase({ phase: "queued" });
       await new Promise((done) => setTimeout(done, 450));
+      onPhase({ phase: "active", waitingMs: 440 });
       return { ...readMaterial(file), timing: { waitingMs: 440 } };
     },
   });
@@ -629,6 +632,208 @@ test("broker queue time is excluded and a provider step obeys the remaining cumu
   assert.equal((await g.tasks.run("task")).reason, "UNKNOWN_COST");
   assert.ok(performance.now() - start < 600);
 });
+test("failed and cancelled queued reads exclude confirmed wait, retain exact failure coverage and incur no model cost", async (t) => {
+  for (const stopped of [false, true]) {
+    let entered;
+    const queued = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const f = fixture(t, {
+      reader: async (file, { signal, onPhase }) => {
+        const at = performance.now();
+        onPhase({ phase: "queued" });
+        entered();
+        if (stopped)
+          await new Promise((resolve) =>
+            signal.addEventListener("abort", resolve, { once: true }),
+          );
+        else await new Promise((resolve) => setTimeout(resolve, 140));
+        throw Object.assign(
+          Error(stopped ? "READING_ABORTED" : "ISOLATED_READING_FAILED"),
+          { timing: { waitingMs: performance.now() - at } },
+        );
+      },
+    });
+    f.tasks.activeLimitMs = 60;
+    f.enqueue();
+    const running = f.tasks.run("task");
+    await queued;
+    if (stopped) {
+      await new Promise((resolve) => setTimeout(resolve, 140));
+      f.action("stop");
+    }
+    const result = await running;
+    assert.equal(result.state, stopped ? "cancelled" : "paused");
+    if (!stopped) assert.equal(result.reason, "NO_READABLE_MATERIAL");
+    assert.ok(f.tasks.get("task").active_ms < 60);
+    assert.equal(f.calls(), 0);
+    assert.equal(f.tasks.roots.stats("task").reason, "");
+    if (!stopped) assert.equal(JSON.parse(result.coverage)[0].state, "failed");
+  }
+});
+
+test("the remaining root deadline bounds an uncooperative read and discards its late output before model or publication", async (t) => {
+  let release;
+  const f = fixture(t, {
+    reader: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  });
+  f.tasks.activeLimitMs = 80;
+  f.tasks.readerDrainMs = 20;
+  f.enqueue();
+  f.store.db
+    .prepare("UPDATE reading_tasks SET active_ms=45 WHERE id='task'")
+    .run();
+  const at = performance.now();
+  assert.equal((await f.tasks.run("task")).reason, "EXECUTION_LIMIT");
+  assert.ok(performance.now() - at < 500);
+  release(readMaterial(f.store.files.get("packet", "a")));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.calls(), 0);
+  assert.equal(f.store.record("packet").data.result, null);
+  assert.ok(f.tasks.roots.stats("task").activeMs >= 80);
+  assert.throws(
+    () => f.action("continue", "after-limit"),
+    (error) => error.code === "EXECUTION_LIMIT",
+  );
+  f.action("purge");
+  f.tasks.enqueue({
+    id: "replacement",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  assert.equal((await f.tasks.run("replacement")).reason, "EXECUTION_LIMIT");
+});
+
+test("unconfirmed queue cancellation blocks the root through purge and later task IDs", async (t) => {
+  let entered;
+  const queued = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const f = fixture(t, {
+    reader: (file, { onPhase }) => {
+      onPhase({ phase: "queued" });
+      entered();
+      return new Promise(() => {});
+    },
+  });
+  f.tasks.readerDrainMs = 20;
+  f.enqueue();
+  const running = f.tasks.run("task");
+  await queued;
+  f.action("stop");
+  await running;
+  assert.equal(
+    f.tasks.roots.stats("task").reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  f.action("purge", "purge-after-stop");
+  f.tasks.enqueue({
+    id: "replacement",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  assert.equal(
+    (await f.tasks.run("replacement")).reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  assert.equal(f.calls(), 0);
+});
+
+test("invalid queue timing fails closed rather than granting negative active time", async (t) => {
+  const f = fixture(t, {
+    reader: async (file) => ({
+      ...readMaterial(file),
+      timing: { waitingMs: 1000000 },
+    }),
+  });
+  f.enqueue();
+  assert.equal(
+    (await f.tasks.run("task")).reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  assert.equal(
+    f.tasks.roots.stats("task").reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  assert.equal(f.calls(), 0);
+  assert.ok(f.tasks.get("task").active_ms >= 0);
+});
+
+test("a per-file timeout records failure and continues safe attachments within the shared root budget", async (t) => {
+  const f = fixture(t, {
+    reader: async (file, { signal }) => {
+      if (file.id === "a")
+        return new Promise((resolve, reject) =>
+          signal.addEventListener("abort", () => reject(Error("aborted")), {
+            once: true,
+          }),
+        );
+      return readMaterial(file);
+    },
+  });
+  const b = f.store.files.put("packet", "b", {
+    name: "safe.txt",
+    body: Buffer.from("安全文字尾部"),
+    type: "text/plain",
+    epoch: f.store.epoch,
+  });
+  f.put({ attachments: [f.store.record("packet").data.attachments[0], b] });
+  f.tasks.readerLimitMs = 25;
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  const coverage = f.store.record("packet").data.readingCoverage;
+  assert.equal(coverage[0].state, "failed");
+  assert.equal(coverage[0].reasons[0], "READING_TIMEOUT");
+  assert.match(readingView(coverage)[0].missing, /读取步骤超时/);
+  assert.equal(coverage[1].state, "read");
+  assert.equal(f.calls(), 1);
+});
+
+test("late reader progress after a completed step cannot change the root clock or safety gate", async (t) => {
+  let late;
+  const f = fixture(t, {
+    reader: async (file, { onPhase }) => {
+      late = onPhase;
+      return readMaterial(file);
+    },
+  });
+  f.enqueue();
+  await f.tasks.run("task");
+  const before = f.tasks.roots.stats("task");
+  assert.doesNotThrow(() => late({ phase: "active", waitingMs: 10000000 }));
+  assert.deepEqual(f.tasks.roots.stats("task"), before);
+});
+
+test("an original cleared between reads pauses with the reupload code instead of a generic error or invented partial result", async (t) => {
+  const f = fixture(t, {
+    reader: async (file) => {
+      const get = f.store.files.get;
+      f.store.files.get = (packet, id) => {
+        if (id === "b")
+          throw Object.assign(Error("云端原件已清除，请重传"), {
+            code: "REUPLOAD_REQUIRED",
+          });
+        return get(packet, id);
+      };
+      return readMaterial(file);
+    },
+  });
+  const b = f.store.files.put("packet", "b", {
+    name: "second.txt",
+    body: Buffer.from("第二份原件"),
+    type: "text/plain",
+    epoch: f.store.epoch,
+  });
+  f.put({ attachments: [f.store.record("packet").data.attachments[0], b] });
+  f.enqueue();
+  assert.equal((await f.tasks.run("task")).reason, "REUPLOAD_REQUIRED");
+  assert.equal(f.calls(), 0);
+  assert.equal(f.store.record("packet").data.result, null);
+});
+
 test("task kernel refuses configuration without explicit device authorization", () => {
   assert.throws(
     () =>

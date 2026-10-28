@@ -130,6 +130,8 @@ jobs:
       - run: node scripts/desktop-reading-tasks-smoke.mjs --xlsx
       - run: node scripts/desktop-reading-tasks-smoke.mjs --originals
       - run: node scripts/desktop-reading-tasks-smoke.mjs --temporary
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --reader-limit
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --reader-time-unknown
       - run: node scripts/desktop-account-v4-smoke.mjs
       - run: node scripts/desktop-layout-drag-smoke.mjs
 

@@ -13,6 +13,11 @@ const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
 const temporary = process.argv.includes("--temporary");
 const lifecycle = process.argv.includes("--originals") || temporary;
+const readFailure = process.argv.includes("--reader-limit")
+  ? "EXECUTION_LIMIT"
+  : process.argv.includes("--reader-time-unknown")
+    ? "ACTIVE_TIME_RECONCILIATION"
+    : null;
 const original = xlsx
   ? {
       name: "合成.xlsx",
@@ -58,7 +63,27 @@ const reading = {
   ...(temporary ? { originals: { quota: 1 } } : {}),
   enabled: true,
   ledger,
-  reader: async (f) => readMaterial(f),
+  ...(readFailure === "EXECUTION_LIMIT" ? { activeLimitMs: 80 } : {}),
+  reader: async (f, { signal }) => {
+    if (readFailure === "ACTIVE_TIME_RECONCILIATION")
+      throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
+        timingUncertain: true,
+      });
+    if (readFailure === "EXECUTION_LIMIT")
+      return new Promise((resolve, reject) =>
+        signal.addEventListener(
+          "abort",
+          () =>
+            reject(
+              Object.assign(Error("READING_ABORTED"), {
+                timing: { waitingMs: 0 },
+              }),
+            ),
+          { once: true },
+        ),
+      );
+    return readMaterial(f);
+  },
   priceId: "fixture",
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
@@ -156,131 +181,179 @@ try {
     });
   }, original);
   await page.locator(".bucket-settings").click();
-  await expect(page.getByText(/累计已消费/)).toBeVisible();
-  await page.getByRole("button", { name: "停止", exact: true }).click();
-  await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
-  await page.getByRole("button", { name: "立即同步", exact: true }).click();
-  await page.getByRole("button", { name: "继续", exact: true }).click();
-  await waitForPageState(page, async () => {
-    await window.desktop.cloud("sync");
-    return (
-      (await window.desktop.store("packets")).find((p) => p.id === "task-ui")
-        ?.result?.items?.length > 0
+  if (readFailure) {
+    await waitForPageState(
+      page,
+      async (reason) => {
+        await window.desktop.cloud("sync");
+        return (
+          (await window.desktop.cloud("status")).jobs[0]?.reason === reason
+        );
+      },
+      readFailure,
     );
-  });
-  await page.getByRole("button", { name: "立即同步", exact: true }).click();
-  await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
-  await expect(page.getByText(/该投递累计 \d+ 次 · 活跃 \d+ 秒/)).toBeVisible();
-  const status = await page.evaluate(() => window.desktop.cloud("status"));
-  assert.ok(status.account.wallet.spent > 0);
-  assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
-  if (lifecycle) {
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "云端原件", exact: true }),
+      page.getByText(
+        readFailure === "EXECUTION_LIMIT"
+          ? /累计活跃时间已用尽/
+          : /任务活跃时间待核对/,
+      ),
     ).toBeVisible();
-    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
     await expect(
-      page.getByRole("button", { name: "删除云端原件", exact: true }),
-    ).toBeDisabled();
-    if (!temporary) {
-      await expect(
-        page.getByRole("button", { name: "续期30天", exact: true }),
-      ).toBeDisabled();
-      await expect(
-        page.getByRole("button", { name: "下载到本机", exact: true }),
-      ).toBeDisabled();
-    }
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect(
-      page.getByRole("button", { name: "删除云端原件", exact: true }),
-    ).toBeEnabled();
-    if (temporary)
-      await expect(
-        page.getByText("合成.txt · 临时整理，退出后需重传", { exact: true }),
-      ).toBeVisible();
-    else {
-      const before = (await page.evaluate(() => window.desktop.cloud("status")))
-        .originalStorage.originals[0].version;
-      await page.getByRole("button", { name: "续期30天", exact: true }).click();
-      await waitForPageState(
-        page,
-        async (version) =>
-          (await window.desktop.cloud("status")).originalStorage.originals[0]
-            .version ===
-          version + 1,
-        before,
+      page.getByRole("button", { name: "继续", exact: true }),
+    ).toHaveCount(0);
+    const status = await page.evaluate(() => window.desktop.cloud("status"));
+    assert.equal(status.jobs[0].calls, 0);
+    assert.equal(calls, 0);
+    assert.ok(status.jobs[0].actions.includes("purge"));
+    assert.equal(status.account.wallet.spent, 0);
+    console.log(
+      JSON.stringify({
+        synthetic: true,
+        realProviderCalls: 0,
+        electronSourceUI: true,
+        readFailure,
+        noContinue: true,
+        noChargeOrPublication: true,
+      }),
+    );
+  } else {
+    await expect(page.getByText(/累计已消费/)).toBeVisible();
+    await page.getByRole("button", { name: "停止", exact: true }).click();
+    await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
+    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "继续", exact: true }).click();
+    await waitForPageState(page, async () => {
+      await window.desktop.cloud("sync");
+      return (
+        (await window.desktop.store("packets")).find((p) => p.id === "task-ui")
+          ?.result?.items?.length > 0
       );
+    });
+    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
+    await expect(
+      page.getByText(/该投递累计 \d+ 次 · 活跃 \d+ 秒/),
+    ).toBeVisible();
+    const status = await page.evaluate(() => window.desktop.cloud("status"));
+    assert.ok(status.account.wallet.spent > 0);
+    assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
+    if (lifecycle) {
+      await page.getByRole("button", { name: "立即同步", exact: true }).click();
+      await expect(
+        page.getByRole("heading", { name: "云端原件", exact: true }),
+      ).toBeVisible();
+      await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+      await expect(
+        page.getByRole("button", { name: "删除云端原件", exact: true }),
+      ).toBeDisabled();
+      if (!temporary) {
+        await expect(
+          page.getByRole("button", { name: "续期30天", exact: true }),
+        ).toBeDisabled();
+        await expect(
+          page.getByRole("button", { name: "下载到本机", exact: true }),
+        ).toBeDisabled();
+      }
+      await page.evaluate(() => window.dispatchEvent(new Event("online")));
+      await expect(
+        page.getByRole("button", { name: "删除云端原件", exact: true }),
+      ).toBeEnabled();
+      if (temporary)
+        await expect(
+          page.getByText("合成.txt · 临时整理，退出后需重传", { exact: true }),
+        ).toBeVisible();
+      else {
+        const before = (
+          await page.evaluate(() => window.desktop.cloud("status"))
+        ).originalStorage.originals[0].version;
+        await page
+          .getByRole("button", { name: "续期30天", exact: true })
+          .click();
+        await waitForPageState(
+          page,
+          async (version) =>
+            (await window.desktop.cloud("status")).originalStorage.originals[0]
+              .version ===
+            version + 1,
+          before,
+        );
+        await page
+          .getByRole("button", { name: "下载到本机", exact: true })
+          .click();
+        await expect(
+          page.getByText("原件已校验并保存到本机，可从材料面板打开", {
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
+      page.once("dialog", (d) => d.accept());
       await page
-        .getByRole("button", { name: "下载到本机", exact: true })
+        .getByRole("button", { name: "删除云端原件", exact: true })
         .click();
       await expect(
-        page.getByText("原件已校验并保存到本机，可从材料面板打开", {
-          exact: true,
-        }),
-      ).toBeVisible();
+        page.getByRole("button", { name: "删除云端原件", exact: true }),
+      ).toHaveCount(0);
+      const storage = (
+        await page.evaluate(() => window.desktop.cloud("status"))
+      ).originalStorage;
+      assert.equal(storage.usedBytes, 0);
+      assert.equal(storage.originals[0].state, "deleted");
     }
-    page.once("dialog", (d) => d.accept());
-    await page
-      .getByRole("button", { name: "删除云端原件", exact: true })
-      .click();
-    await expect(
-      page.getByRole("button", { name: "删除云端原件", exact: true }),
-    ).toHaveCount(0);
-    const storage = (await page.evaluate(() => window.desktop.cloud("status")))
-      .originalStorage;
-    assert.equal(storage.usedBytes, 0);
-    assert.equal(storage.originals[0].state, "deleted");
-  }
-  if (original) {
-    await page.getByRole("button", { name: "关闭设置", exact: true }).click();
-    // IPC submission updates the main-process projection; verify persisted
-    // cards after the renderer reloads its account workspace.
-    await page.reload();
-    await expect(
-      page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
-    ).toBeEnabled();
-    await page.getByRole("button", { name: "整理结果", exact: true }).click();
-    await page
-      .getByRole("button", { name: /份同行材料/ })
-      .first()
-      .click();
-    const materials = page.getByRole("dialog", {
-      name: "同行材料",
-      exact: true,
-    });
-    await expect(
-      materials.getByText(original.name + " · 部分读取"),
-    ).toBeVisible();
-    if (xlsx)
+    if (original) {
+      await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+      // IPC submission updates the main-process projection; verify persisted
+      // cards after the renderer reloads its account workspace.
+      await page.reload();
       await expect(
-        materials.getByText(/工作表 “资料表”.*第 7 行.*单元格 C7.*公式未执行/),
-      ).toBeVisible();
-    else
+        page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
+      ).toBeEnabled();
+      await page.getByRole("button", { name: "整理结果", exact: true }).click();
+      await page
+        .getByRole("button", { name: /份同行材料/ })
+        .first()
+        .click();
+      const materials = page.getByRole("dialog", {
+        name: "同行材料",
+        exact: true,
+      });
       await expect(
-        materials.getByText(
-          "word/media/image1.png：图片、公式或嵌入对象尚未读取",
-          { exact: true },
-        ),
+        materials.getByText(original.name + " · 部分读取"),
       ).toBeVisible();
+      if (xlsx)
+        await expect(
+          materials.getByText(
+            /工作表 “资料表”.*第 7 行.*单元格 C7.*公式未执行/,
+          ),
+        ).toBeVisible();
+      else
+        await expect(
+          materials.getByText(
+            "word/media/image1.png：图片、公式或嵌入对象尚未读取",
+            { exact: true },
+          ),
+        ).toBeVisible();
+    }
+    console.log(
+      JSON.stringify({
+        synthetic: true,
+        realProviderCalls: 0,
+        electronSourceUI: true,
+        sshTunnelToIsolatedLinux: !!remote,
+        originalUpload: true,
+        originalLifecycle: lifecycle,
+        originalOfflineLock: lifecycle,
+        temporaryCleanupAndReupload: temporary,
+        stopContinueButtons: true,
+        cumulativeWallet: true,
+        published: true,
+        format: xlsx ? "xlsx" : docx ? "docx" : "txt",
+        simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
+          ?.calls,
+      }),
+    );
   }
-  console.log(
-    JSON.stringify({
-      synthetic: true,
-      realProviderCalls: 0,
-      electronSourceUI: true,
-      sshTunnelToIsolatedLinux: !!remote,
-      originalUpload: true,
-      originalLifecycle: lifecycle,
-      originalOfflineLock: lifecycle,
-      temporaryCleanupAndReupload: temporary,
-      stopContinueButtons: true,
-      cumulativeWallet: true,
-      published: true,
-      format: xlsx ? "xlsx" : docx ? "docx" : "txt",
-      simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")?.calls,
-    }),
-  );
 } finally {
   await app?.close();
   await fixture.close();

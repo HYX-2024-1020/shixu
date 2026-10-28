@@ -8,6 +8,37 @@ import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import assert from "node:assert/strict";
 
+for (const expectedReadPause of [
+  "EXECUTION_LIMIT",
+  "ACTIVE_TIME_RECONCILIATION",
+])
+  test(
+    `both real client adapters show ${expectedReadPause} after reader failure without offering a misleading continue`,
+    { timeout: 15000 },
+    async () => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "shixu-read-deadline-client-"),
+      );
+      try {
+        await runClientLoop({
+          directory,
+          expectedReadPause,
+          reader: async () => {
+            throw expectedReadPause === "EXECUTION_LIMIT"
+              ? Object.assign(Error("READING_ACTIVE_LIMIT"), {
+                  timing: { waitingMs: 0 },
+                })
+              : Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
+                  timingUncertain: true,
+                });
+          },
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
 for (const quota of [1, 500 * 1024 * 1024])
   test(
     `mini-originated manifest crosses both clients with ${quota === 1 ? "temporary cleanup/reupload" : "retention/renew/download"} and deletion preserving publication`,

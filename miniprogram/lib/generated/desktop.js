@@ -942,6 +942,8 @@ var reasons = {
   EMPTY_TEXT: "文件为空白文字",
   CSV_MALFORMED: "CSV 行或引号损坏",
   ISOLATED_READING_FAILED: "隔离读取未完成",
+  READING_TIMEOUT: "读取步骤超时，本次未读取",
+  READING_QUEUE_FULL: "读取队列已满，可稍后重试",
   PACKAGE_INVALID: "文件压缩结构或完整性校验失败",
   PACKAGE_UNSUPPORTED: "加密、ZIP64或此压缩方式暂不支持",
   PACKAGE_PATH: "文件内含不安全路径或链接",

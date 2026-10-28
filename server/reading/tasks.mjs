@@ -346,8 +346,14 @@ export class ReadingTasks {
             )
             .run(id);
       } else {
-        if (this.roots.stats(id).reason === "ACTIVE_TIME_RECONCILIATION")
+        const root = this.roots.stats(id);
+        if (root.reason === "ACTIVE_TIME_RECONCILIATION")
           throw error("ACTIVE_TIME_RECONCILIATION");
+        if (
+          root.activeMs >= this.activeLimitMs ||
+          task.reason === "EXECUTION_LIMIT"
+        )
+          throw error("EXECUTION_LIMIT");
         if (
           !["cancelled", "paused", "interrupted", "error"].includes(task.state)
         )
@@ -591,12 +597,123 @@ export class ReadingTasks {
     this.executions.set(id, execution);
     let excludedMs = 0;
     const root = this.roots.checkpoint(id);
-    const read = async (file, options) => {
-      const { timing, ...material } = await this.reader(file, options);
-      if (Number.isFinite(timing?.waitingMs) && timing.waitingMs > 0)
-        excludedMs += timing.waitingMs;
-      execution.excludedMs = excludedMs;
-      return material;
+    const read = async (file) => {
+      const readAt = performance.now(),
+        before = excludedMs;
+      const deadline = new AbortController();
+      const signal = AbortSignal.any([controller.signal, deadline.signal]);
+      let queuedAt,
+        timer,
+        drainTimer,
+        finished = false,
+        reportedWait = 0;
+      const waiting = (timing) => {
+        const ms = timing?.waitingMs;
+        if (
+          !Number.isFinite(ms) ||
+          ms < 0 ||
+          ms > performance.now() - readAt + 5
+        ) {
+          if (!this.finalSnapshots)
+            this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
+          throw Object.assign(Error("ACTIVE_TIME_RECONCILIATION"), {
+            timingUncertain: true,
+          });
+        }
+        reportedWait = ms;
+        excludedMs = before + ms;
+        execution.excludedMs = excludedMs;
+      };
+      const arm = () => {
+        clearTimeout(timer);
+        if (queuedAt !== undefined) return;
+        const remaining =
+          this.activeLimitMs -
+          root.activeMs -
+          (performance.now() - started - excludedMs);
+        const perRead =
+          (this.readerLimitMs || 30000) -
+          (performance.now() - readAt - reportedWait);
+        timer = setTimeout(
+          () =>
+            deadline.abort(
+              Error(
+                remaining <= perRead ? "EXECUTION_LIMIT" : "READING_TIMEOUT",
+              ),
+            ),
+          Math.max(1, Math.min(remaining, perRead)),
+        );
+      };
+      const activeBudgetMs = Math.max(
+        1,
+        Math.min(
+          1800000,
+          Math.floor(
+            this.activeLimitMs -
+              root.activeMs -
+              (performance.now() - started - excludedMs),
+          ),
+        ),
+      );
+      arm();
+      try {
+        const value = await new Promise((resolve, reject) => {
+          const aborted = () => {
+            drainTimer = setTimeout(
+              () =>
+                reject(
+                  Object.assign(signal.reason || Error("READING_ABORTED"), {
+                    timingUncertain: queuedAt !== undefined,
+                  }),
+                ),
+              this.readerDrainMs ?? 2100,
+            );
+          };
+          signal.addEventListener("abort", aborted, { once: true });
+          Promise.resolve()
+            .then(() =>
+              this.reader(file, {
+                signal,
+                activeBudgetMs,
+                onPhase: (phase) => {
+                  if (signal.aborted || finished || this.finalSnapshots) return;
+                  if (phase.phase === "queued" && queuedAt === undefined) {
+                    queuedAt = performance.now();
+                    clearTimeout(timer);
+                  } else if (phase.phase === "active") {
+                    waiting(phase);
+                    queuedAt = undefined;
+                    arm();
+                  } else
+                    throw Object.assign(Error("ACTIVE_TIME_RECONCILIATION"), {
+                      timingUncertain: true,
+                    });
+                },
+              }),
+            )
+            .then(resolve, reject)
+            .finally(() => signal.removeEventListener("abort", aborted));
+        });
+        if (value.timing) waiting(value.timing);
+        if (signal.aborted) throw signal.reason || Error("READING_ABORTED");
+        const { timing, ...material } = value;
+        return material;
+      } catch (e) {
+        if (this.finalSnapshots) throw Error("READING_ABORTED");
+        if (e.timing) waiting(e.timing);
+        if (e.timingUncertain) {
+          this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
+          throw Error("ACTIVE_TIME_RECONCILIATION");
+        }
+        if (deadline.signal.aborted) throw deadline.signal.reason;
+        if (e.message === "READING_ACTIVE_LIMIT")
+          throw Error("EXECUTION_LIMIT");
+        throw e;
+      } finally {
+        finished = true;
+        clearTimeout(timer);
+        clearTimeout(drainTimer);
+      }
     };
     try {
       if (root.reason) throw Error(root.reason);
@@ -609,16 +726,13 @@ export class ReadingTasks {
       if (!this.materials.has(id) && packet.text?.trim()) {
         const body = Buffer.from(packet.text);
         materials.push(
-          await read(
-            {
-              id: "input",
-              name: "输入.txt",
-              body,
-              size: body.length,
-              hash: sha256(body),
-            },
-            { signal: controller.signal },
-          ),
+          await read({
+            id: "input",
+            name: "输入.txt",
+            body,
+            size: body.length,
+            hash: sha256(body),
+          }),
         );
       }
       for (const f of this.materials.has(id)
@@ -626,12 +740,22 @@ export class ReadingTasks {
         : (packet.attachments || []).filter((f) => !f.deletedAt)) {
         if (!this.current(task)) return this.get(id);
         try {
-          materials.push(
-            await read(this.store.files.get(task.packet, f.id), {
-              signal: controller.signal,
-            }),
-          );
-        } catch {
+          materials.push(await read(this.store.files.get(task.packet, f.id)));
+        } catch (e) {
+          if (
+            [
+              "EXECUTION_LIMIT",
+              "ACTIVE_TIME_RECONCILIATION",
+              "REUPLOAD_REQUIRED",
+            ].includes(e.code || e.message) ||
+            !this.current(task)
+          )
+            throw e;
+          const code = ["READING_TIMEOUT", "READING_QUEUE_FULL"].includes(
+            e.message,
+          )
+            ? e.message
+            : "ISOLATED_READING_FAILED";
           materials.push({
             attachmentId: f.id,
             name: f.name,
@@ -639,8 +763,8 @@ export class ReadingTasks {
             state: "failed",
             readerVersion: READER_VERSION,
             covered: [],
-            uncovered: [{ kind: "file", code: "ISOLATED_READING_FAILED" }],
-            reasons: ["ISOLATED_READING_FAILED"],
+            uncovered: [{ kind: "file", code }],
+            reasons: [code],
             segments: [],
           });
         }
@@ -838,6 +962,7 @@ export class ReadingTasks {
       if (!this.current(task)) return this.get(id);
       return this.publish(task, readable.map(coverageOnly));
     } catch (e) {
+      const reason = e.code || e.message;
       if (
         this.current(task) ||
         (this.get(id)?.state === "applying" &&
@@ -858,8 +983,10 @@ export class ReadingTasks {
               "CHECKPOINT_NO_PROGRESS",
               "CHECKPOINT_RECONCILIATION",
               "ACTIVE_TIME_RECONCILIATION",
-            ].includes(e.message)
-              ? e.message
+              "REUPLOAD_REQUIRED",
+              "READING_TIMEOUT",
+            ].includes(reason)
+              ? reason
               : "READING_TASK_FAILED",
             id,
           );

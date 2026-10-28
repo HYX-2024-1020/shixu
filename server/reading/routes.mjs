@@ -16,6 +16,7 @@ const shutdownMessages = {
   CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
   REUPLOAD_REQUIRED: "原件已清理，请从保留本机副本的设备重传核对后继续",
+  READING_TIMEOUT: "单步读取超时，已完成进度保留；可稍后继续",
 };
 const fail = (status, code) => {
   throw new SyncError(status, code, shutdownMessages[code] || code);
@@ -32,12 +33,16 @@ export function createReadingRoutes({
   authorize,
   enabled = () => true,
   registration = false,
+  activeLimitMs = 1800000,
 }) {
   if (
     !ledger ||
     typeof reader !== "function" ||
     typeof provider !== "function" ||
-    typeof authorize !== "function"
+    typeof authorize !== "function" ||
+    !Number.isInteger(activeLimitMs) ||
+    activeLimitMs < 1 ||
+    activeLimitMs > 1800000
   )
     throw Error("READING_CONFIGURATION_REQUIRED");
   ledger.price(priceId);
@@ -63,6 +68,7 @@ export function createReadingRoutes({
           provider,
           priceId,
           modelVersion,
+          activeLimitMs,
           authorize: (device) => authorize(account, device),
         }),
       );
@@ -80,7 +86,11 @@ export function createReadingRoutes({
             "UPDATE reading_tasks SET state='paused',reason=? WHERE id=? AND state='queued'",
           )
           .run(
-            error.message === "QUEUE_FULL" ? "RESOURCE" : "READING_TASK_FAILED",
+            error.message === "QUEUE_FULL"
+              ? "RESOURCE"
+              : error.code === "REUPLOAD_REQUIRED"
+                ? "REUPLOAD_REQUIRED"
+                : "READING_TASK_FAILED",
             id,
           );
       })
@@ -123,6 +133,8 @@ export function createReadingRoutes({
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
               ...(recoverable.includes(t.state) &&
+              t.reason !== "EXECUTION_LIMIT" &&
+              root.activeMs < e.activeLimitMs &&
               ![
                 "ACTIVE_TIME_RECONCILIATION",
                 "CHECKPOINT_RECONCILIATION",

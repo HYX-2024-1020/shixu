@@ -31,8 +31,8 @@ export function sandboxArguments({
 }) {
   if (
     !/^shixu-reader-[a-f0-9-]+$/.test(unit) ||
-    !Number.isInteger(timeoutSeconds) ||
-    timeoutSeconds < 1 ||
+    !Number.isFinite(timeoutSeconds) ||
+    timeoutSeconds < 0.001 ||
     timeoutSeconds > 30
   )
     throw Error("INVALID_SANDBOX_CONFIG");
@@ -108,6 +108,7 @@ export function sandboxArguments({
 }
 
 function run(args, unit, { signal } = {}) {
+  if (signal?.aborted) return Promise.reject(Error("READING_ABORTED"));
   return new Promise((resolvePromise, reject) => {
     const child = spawn("/usr/bin/systemd-run", args, {
       env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
@@ -167,7 +168,7 @@ export function createLinuxReader({ runtime, staging }) {
     throw Error("EPHEMERAL_STAGING_REQUIRED");
   let busy = false;
   const waiting = [];
-  const acquire = (signal) =>
+  const acquire = (signal, queued) =>
     new Promise((resolveAcquire, reject) => {
       if (signal?.aborted) return reject(Error("READING_ABORTED"));
       if (!busy) {
@@ -182,6 +183,7 @@ export function createLinuxReader({ runtime, staging }) {
       };
       signal?.addEventListener("abort", entry.abort, { once: true });
       waiting.push(entry);
+      queued();
     });
   const release = () => {
     const next = waiting.shift();
@@ -192,12 +194,37 @@ export function createLinuxReader({ runtime, staging }) {
     next.signal?.removeEventListener("abort", next.abort);
     next.resolve();
   };
-  return async (file, { signal, probe } = {}) => {
+  return async (
+    file,
+    { signal, probe, onPhase, activeBudgetMs = 1800000 } = {},
+  ) => {
+    if (
+      !Number.isFinite(activeBudgetMs) ||
+      activeBudgetMs < 1 ||
+      activeBudgetMs > 1800000
+    )
+      throw Error("INVALID_READING_BUDGET");
     const queuedAt = performance.now();
-    await acquire(signal);
-    const acquiredAt = performance.now();
-    let directory;
+    let acquiredAt,
+      directory,
+      timer,
+      queued = false;
+    const deadline = new AbortController();
     try {
+      await acquire(signal, () => {
+        queued = true;
+        onPhase?.({ phase: "queued" });
+      });
+      acquiredAt = performance.now();
+      const waitingMs = queued ? acquiredAt - queuedAt : 0;
+      onPhase?.({ phase: "active", waitingMs });
+      timer = setTimeout(
+        () => deadline.abort(Error("READING_ACTIVE_LIMIT")),
+        activeBudgetMs,
+      );
+      signal = signal
+        ? AbortSignal.any([signal, deadline.signal])
+        : deadline.signal;
       if (signal?.aborted) throw Error("READING_ABORTED");
       for (const path of [runtime, staging]) {
         const s = await lstat(path);
@@ -241,6 +268,7 @@ export function createLinuxReader({ runtime, staging }) {
           runtime,
           input: directory,
           unit,
+          timeoutSeconds: Math.max(0.001, Math.min(30, activeBudgetMs / 1000)),
           ...(probe
             ? {
                 worker: "/reader/probe.mjs",
@@ -254,15 +282,27 @@ export function createLinuxReader({ runtime, staging }) {
       return {
         ...output,
         timing: {
-          waitingMs: acquiredAt - queuedAt,
+          waitingMs,
           prepareMs: started - acquiredAt,
           isolatedMs: performance.now() - started,
         },
       };
+    } catch (error) {
+      const failure = deadline.signal.aborted
+        ? Error("READING_ACTIVE_LIMIT")
+        : error;
+      failure.timing = {
+        waitingMs: queued ? (acquiredAt || performance.now()) - queuedAt : 0,
+      };
+      throw failure;
     } finally {
+      clearTimeout(timer);
       // Only the mkdtemp path owned by this invocation can be removed.
-      if (directory) await rm(directory, { recursive: true, force: true });
-      release();
+      try {
+        if (directory) await rm(directory, { recursive: true, force: true });
+      } finally {
+        if (acquiredAt !== undefined) release();
+      }
     }
   };
 }

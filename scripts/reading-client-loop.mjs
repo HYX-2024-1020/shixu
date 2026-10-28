@@ -32,6 +32,7 @@ export async function runClientLoop({
   sourceByMini = false,
   verifyLifecycle = false,
   failLocalWrite = false,
+  expectedReadPause,
 }) {
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
   ledger.freezePrice({
@@ -277,6 +278,36 @@ export async function runClientLoop({
       kind: "organize",
       packetId: "packet",
     });
+    if (expectedReadPause) {
+      while (service.readingRoutes.snapshot().accounts) await tick();
+      await cloud.action("sync");
+      await page.sync();
+      const win = cloud.readJobs().find((j) => j.id === initial.job);
+      const mini = page._jobs.find((j) => j.id === initial.job);
+      const view = page.data.jobs.find((j) => j.id === initial.job);
+      assert.equal(win.reason, expectedReadPause);
+      assert.equal(mini.reason, expectedReadPause);
+      assert.equal(win.error, mini.error);
+      assert.match(
+        win.error,
+        expectedReadPause === "EXECUTION_LIMIT"
+          ? /活跃时间已用尽/
+          : /活跃时间待核对/,
+      );
+      assert.ok(!win.actions.includes("continue"));
+      assert.equal(view.canContinue, false);
+      assert.ok(win.actions.includes("purge"));
+      assert.equal(win.rootCalls, 0);
+      assert.equal(calls, 0);
+      assert.equal((await cloud.packets())[0].result, null);
+      return {
+        synthetic: true,
+        realProviderCalls: 0,
+        expectedReadPause,
+        sameReasonAndActions: true,
+        noModelOrPublication: true,
+      };
+    }
     await entered;
     await page.sync();
     assert.equal(page.data.error, "");
