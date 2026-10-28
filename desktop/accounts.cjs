@@ -324,6 +324,7 @@ class AccountWorkspace extends CloudWorkspace {
     const v4 = !!this.accountState?.reading;
     if (v4 && value.kind !== "organize")
       throw Error("事项对话尚未接入累计账本，暂不可用");
+    if (v4) await this.reuploadTemporary(value.packetId);
     let saved = jobs.find(
       (j) =>
         j.request.packetId === value.packetId &&
@@ -459,28 +460,31 @@ class AccountWorkspace extends CloudWorkspace {
     for (const f of storage.originals.filter(
       (f) =>
         f.packetId === packetId &&
-        f.mode === "temporary" &&
         !f.available &&
-        !["deleted", "cleaned"].includes(f.state),
+        !f.readingAvailable &&
+        (f.mode === "temporary" || ["deleted", "cleaned"].includes(f.state)),
     )) {
       const file = this.space().cache.file("files/" + f.hash);
       const bytes =
         this.space().cache.volatileOriginals.get(f.hash) ||
         (fs.existsSync(file) ? fs.readFileSync(file) : null);
       if (!bytes)
-        throw Error(
-          "临时原件已清理，请在有本地副本的设备继续，或重新选择同一原件",
-        );
+        throw Error("原件已清理，请在有本地副本的设备继续，或重新选择同一原件");
       await this.request(
         this.config.active,
         "PUT",
-        `/api/v4/submissions/${f.submissionId}/files/${f.id}`,
+        ["deleted", "cleaned"].includes(f.state)
+          ? `/api/v4/originals/${packetId}/${f.id}/verify`
+          : `/api/v4/submissions/${f.submissionId}/files/${f.id}`,
         null,
         {
           headers: { "Content-Type": "application/octet-stream" },
           body: bytes,
         },
       );
+      if (["deleted", "cleaned"].includes(f.state))
+        this.originalNotice =
+          "云端原件保持已清除；本次仅临时核验，停止或结束后清理";
     }
   }
   async call(method, value, lease) {

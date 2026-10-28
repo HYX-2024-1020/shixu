@@ -92,6 +92,66 @@ function fixture({
     },
   };
 }
+test("cleared originals can be reverified for reading only: hash, tombstone, quota, download denial and finite memory remain", () => {
+  for (const kind of ["deleted", "cleaned"]) {
+    const f = fixture();
+    try {
+      f.put("p");
+      const file = f.file(),
+        s = f.begin("p", [file]);
+      f.originals.put(s.submissionId, file.id, file.body);
+      f.commit(s);
+      if (kind === "deleted")
+        f.originals.action("delete", {
+          operationId: "remove",
+          ids: [{ packetId: "p", id: "a", expectedVersion: 1 }],
+        });
+      else {
+        f.clock.at += 38 * day;
+        f.originals.sweep();
+      }
+      const before = f.originals.file("p", "a");
+      assert.throws(
+        () => f.originals.verifyForReading("p", "a", Buffer.from("wrong")),
+        (e) => e.code === "FILE_INTEGRITY",
+      );
+      f.originals.verifyForReading("p", "a", file.body);
+      assert.deepEqual(f.originals.file("p", "a"), before);
+      assert.equal(f.originals.usage().usedBytes, 0);
+      assert.throws(
+        () => f.store.files.get("p", "a"),
+        (e) => e.code === "REUPLOAD_REQUIRED",
+      );
+      assert.deepEqual(
+        f.store.files.get("p", "a", { forReading: true }).body,
+        file.body,
+      );
+      assert.equal(
+        f.originals.list({ packetId: "p" }).originals[0].available,
+        false,
+      );
+      f.store.files.releaseWindow("p");
+      assert.throws(
+        () => f.store.files.get("p", "a", { forReading: true }),
+        (e) => e.code === "REUPLOAD_REQUIRED",
+      );
+      assert.throws(
+        () => f.originals.put(s.submissionId, file.id, file.body),
+        (e) => e.code === "ORIGINAL_DELETED",
+      );
+      f.originals.verifyForReading("p", "a", file.body);
+      f.clock.at += 16 * 60000;
+      assert.throws(
+        () => f.store.files.get("p", "a", { forReading: true }),
+        (e) => e.code === "REUPLOAD_REQUIRED",
+      );
+      assert.equal(f.originals.pool.used, 0);
+    } finally {
+      f.close();
+    }
+  }
+});
+
 test("raw-byte mini SHA-256 matches Node at padding boundaries, Unicode bytes and a complete 10MiB original", () => {
   for (const n of [0, 1, 55, 56, 63, 64, 65, 1000, 10 * 1024 * 1024]) {
     const bytes = Buffer.alloc(n);

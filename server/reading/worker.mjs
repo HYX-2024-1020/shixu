@@ -5,7 +5,7 @@ import { readMaterial } from "./material.mjs";
 const descriptor = JSON.parse(readFileSync("/input/descriptor.json", "utf8"));
 const started = performance.now();
 try {
-  const material = readMaterial({
+  const material = await readMaterial({
     ...descriptor,
     body: readFileSync("/input/original"),
   });

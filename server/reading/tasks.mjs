@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { SyncError } from "../sync-store.mjs";
 import { validateResult } from "../generated/ai-core.mjs";
 import {
@@ -88,7 +89,7 @@ export function inputRevision(store, packetId) {
       // proof that an original still exists or retains its hash.
       let original;
       try {
-        original = store.files.get(packetId, f.id);
+        original = store.files.get(packetId, f.id, { forReading: true });
       } catch (cause) {
         if (cause.code === "NOT_FOUND") throw error("REUPLOAD_REQUIRED");
         throw cause;
@@ -715,6 +716,48 @@ export class ReadingTasks {
         clearTimeout(drainTimer);
       }
     };
+    const readSafe = async (file) => {
+      for (let retries = 0; ; retries++) {
+        if (!this.current(task)) throw Error("READING_ABORTED");
+        if (
+          root.activeMs + performance.now() - started - excludedMs >=
+          this.activeLimitMs
+        )
+          throw Error("EXECUTION_LIMIT");
+        try {
+          return { ...(await read(file)), readRetries: retries };
+        } catch (e) {
+          e.readRetries = retries;
+          // Only a fixed broker admission rejection proves no worker started.
+          // Transport loss, unknown timing, parser errors and timeouts are not
+          // evidence of non-execution and never enter this retry path.
+          if (
+            retries >= 2 ||
+            e.message !== "READING_QUEUE_FULL" ||
+            e.notExecuted !== true ||
+            e.timing?.waitingMs !== 0 ||
+            e.timingUncertain ||
+            !this.current(task)
+          )
+            throw e;
+          const remaining =
+            this.activeLimitMs -
+            root.activeMs -
+            (performance.now() - started - excludedMs);
+          const backoff = retries ? 300 : 100;
+          await delay(
+            Math.max(1, Math.min(backoff, remaining)),
+            undefined,
+            {
+              signal: controller.signal,
+            },
+          );
+          // Node rounds timer delays down. A sub-millisecond early wake must
+          // not admit another read when the budget cannot cover the backoff.
+          if (remaining <= backoff) throw Error("EXECUTION_LIMIT");
+        }
+      }
+    };
     try {
       if (root.reason) throw Error(root.reason);
       if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
@@ -726,7 +769,7 @@ export class ReadingTasks {
       if (!this.materials.has(id) && packet.text?.trim()) {
         const body = Buffer.from(packet.text);
         materials.push(
-          await read({
+          await readSafe({
             id: "input",
             name: "输入.txt",
             body,
@@ -740,7 +783,11 @@ export class ReadingTasks {
         : (packet.attachments || []).filter((f) => !f.deletedAt)) {
         if (!this.current(task)) return this.get(id);
         try {
-          materials.push(await read(this.store.files.get(task.packet, f.id)));
+          materials.push(
+            await readSafe(
+              this.store.files.get(task.packet, f.id, { forReading: true }),
+            ),
+          );
         } catch (e) {
           if (
             [
@@ -761,6 +808,7 @@ export class ReadingTasks {
             name: f.name,
             contentHash: f.hash,
             state: "failed",
+            readRetries: e.readRetries || 0,
             readerVersion: READER_VERSION,
             covered: [],
             uncovered: [{ kind: "file", code }],

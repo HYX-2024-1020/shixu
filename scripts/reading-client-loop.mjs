@@ -33,7 +33,11 @@ export async function runClientLoop({
   verifyLifecycle = false,
   failLocalWrite = false,
   expectedReadPause,
+  expireBeforeStart = false,
+  startByMini = false,
+  deleteBeforeStart = false,
 }) {
+  let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
   ledger.freezePrice({
     id: "synthetic",
@@ -58,7 +62,7 @@ export async function runClientLoop({
   const reading = {
     ...(originalQuota === undefined
       ? {}
-      : { originals: { quota: originalQuota } }),
+      : { originals: { quota: originalQuota, now: () => originalNow } }),
     ledger,
     enabled: true,
     reader: async (...args) => {
@@ -239,7 +243,7 @@ export async function runClientLoop({
       page
         ._library()
         .add(
-          { path: file, name: "合成.txt", size: body.length },
+          { path: file, name: original?.name || "合成.txt", size: body.length },
           "packet",
           page._space(),
         );
@@ -274,10 +278,22 @@ export async function runClientLoop({
         cloud.config.active,
       );
     await cloud.action("sync");
-    const initial = await cloud.action("ai", {
-      kind: "organize",
-      packetId: "packet",
-    });
+    if (expireBeforeStart) originalNow += 31 * 60 * 1000;
+    if (deleteBeforeStart) {
+      const row = cloud.status().originalStorage.originals[0];
+      await cloud.action("deleteOriginal", { ...row, stopTask: true });
+    }
+    let initial;
+    if (startByMini) {
+      await page.sync();
+      await page._startJob("organize", "packet");
+      assert.equal(page.data.error, "");
+      initial = { job: page._jobs.at(-1).id };
+    } else
+      initial = await cloud.action("ai", {
+        kind: "organize",
+        packetId: "packet",
+      });
     if (expectedReadPause) {
       while (service.readingRoutes.snapshot().accounts) await tick();
       await cloud.action("sync");
@@ -308,7 +324,28 @@ export async function runClientLoop({
         noModelOrPublication: true,
       };
     }
-    await entered;
+    let entryTimer;
+    try {
+      await Promise.race([
+        entered,
+        new Promise((_, reject) => {
+          entryTimer = setTimeout(async () => {
+            const latest = await cloud.request(
+              cloud.config.active,
+              "GET",
+              "/api/v4/tasks",
+            );
+            reject(
+              Error(
+                "Synthetic provider not entered: " + JSON.stringify(latest),
+              ),
+            );
+          }, 8000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(entryTimer);
+    }
     await page.sync();
     assert.equal(page.data.error, "");
     const task = page._jobs.find((j) => j.id === initial.job);
@@ -326,6 +363,17 @@ export async function runClientLoop({
       assert.equal(storage.usedBytes, 0);
       assert.equal(storage.originals[0].available, false);
       assert.equal(storage.originals[0].mode, "temporary");
+    }
+    if (deleteBeforeStart) {
+      const storage = await cloud.request(
+        cloud.config.active,
+        "GET",
+        "/api/v4/storage",
+      );
+      assert.equal(storage.originals[0].state, "deleted");
+      assert.equal(storage.originals[0].available, false);
+      assert.equal(storage.originals[0].readingAvailable, false);
+      assert.equal(storage.usedBytes, 0);
     }
     release();
     while (service.readingRoutes.snapshot().accounts) await tick();
@@ -369,6 +417,16 @@ export async function runClientLoop({
     );
     if (original?.verify)
       await original.verify({ win, mini, page, cloud, service });
+    if (deleteBeforeStart) {
+      const storage = await cloud.request(
+        cloud.config.active,
+        "GET",
+        "/api/v4/storage",
+      );
+      assert.equal(storage.originals[0].state, "deleted");
+      assert.equal(storage.originals[0].readingAvailable, false);
+      assert.equal(storage.usedBytes, 0);
+    }
     if (verifyLifecycle) {
       await page.sync();
       const f = page.data.originalStorage.originals[0];
@@ -441,6 +499,9 @@ export async function runClientLoop({
       spentMicros: ledger.wallet(account).spent,
       originalMode: originalQuota === 1 ? "temporary" : "retained",
       sourceByMini,
+      expireBeforeStart,
+      startByMini,
+      deleteBeforeStart,
       lifecycleVerified: verifyLifecycle,
     };
   } finally {

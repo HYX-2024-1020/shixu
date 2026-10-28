@@ -218,9 +218,11 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx"],
+          formats: ["txt", "csv", "docx", "xlsx", "pdf"],
+          pdfTextOnly: true,
           registration,
           originalLifecycle: true,
+          originalReverification: true,
           submissionManifest: true,
         },
         limits: {
@@ -257,6 +259,19 @@ export function createReadingRoutes({
           });
         if (url.pathname === "/api/v4/submissions" && method === "POST")
           return originals.begin(value);
+        const verification =
+          /^\/api\/v4\/originals\/([\w-]{1,100})\/([\w-]{1,100})\/verify$/.exec(
+            url.pathname,
+          );
+        if (verification && method === "PUT") {
+          if (headers?.["content-type"] !== "application/octet-stream")
+            fail(415, "BINARY_REQUIRED");
+          return originals.verifyForReading(
+            verification[1],
+            verification[2],
+            bytes,
+          );
+        }
         const upload =
           /^\/api\/v4\/submissions\/([\w-]{1,100})\/files\/([\w-]{1,100})$/.exec(
             url.pathname,

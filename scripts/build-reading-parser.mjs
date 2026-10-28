@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import "./build-reading-pdf.mjs";
 for (const format of ["docx", "xlsx"]) {
   const result = await build({
     entryPoints: [

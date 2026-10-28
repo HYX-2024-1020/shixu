@@ -9,6 +9,8 @@ import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
+import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
+const pdf = process.argv.includes("--pdf");
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
 const temporary = process.argv.includes("--temporary");
@@ -18,34 +20,51 @@ const readFailure = process.argv.includes("--reader-limit")
   : process.argv.includes("--reader-time-unknown")
     ? "ACTIVE_TIME_RECONCILIATION"
     : null;
-const original = xlsx
+const original = pdf
   ? {
-      name: "合成.xlsx",
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      name: "合成.pdf",
+      type: "application/pdf",
       body: [
-        ...xlsxBytes([
-          {
-            name: "资料表",
-            xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(16000))}</row><row r="7"><c r="C7"><f>1+1</f><v>999</v></c>${inline("D7", "尾部标记")}</row>`,
-          },
-        ]),
+        ...pdfBytes(
+          [
+            ...Array.from({ length: 180 }, (_, i) => ({
+              text: `第${i + 1}页合成完整材料😀。\n`.repeat(100),
+            })),
+            { text: "" },
+            { text: "尾部标记", rotation: 90 },
+          ],
+          { compress: true },
+        ),
       ],
     }
-  : docx
+  : xlsx
     ? {
-        name: "合成.docx",
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        name: "合成.xlsx",
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         body: [
-          ...docxBytes(
-            paragraph("合成完整材料😀。\n".repeat(16000)) +
-              "<w:tbl><w:tr><w:tc>" +
-              paragraph("尾部标记") +
-              "</w:tc></w:tr></w:tbl>",
-            { "word/media/image1.png": Buffer.from("not OCRed") },
-          ),
+          ...xlsxBytes([
+            {
+              name: "资料表",
+              xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(16000))}</row><row r="7"><c r="C7"><f>1+1</f><v>999</v></c>${inline("D7", "尾部标记")}</row>`,
+            },
+          ]),
         ],
       }
-    : null;
+    : docx
+      ? {
+          name: "合成.docx",
+          type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          body: [
+            ...docxBytes(
+              paragraph("合成完整材料😀。\n".repeat(16000)) +
+                "<w:tbl><w:tr><w:tc>" +
+                paragraph("尾部标记") +
+                "</w:tc></w:tr></w:tbl>",
+              { "word/media/image1.png": Buffer.from("not OCRed") },
+            ),
+          ],
+        }
+      : null;
 const root = await mkdtemp(join(tmpdir(), "shixu-v4-ui-ledger-"));
 const ledger = new ReadingLedger(join(root, "ledger.sqlite"));
 ledger.freezePrice({
@@ -220,6 +239,8 @@ try {
     );
   } else {
     await expect(page.getByText(/累计已消费/)).toBeVisible();
+    if (!remote)
+      await expect.poll(() => calls, { timeout: 20000 }).toBeGreaterThan(0);
     await page.getByRole("button", { name: "停止", exact: true }).click();
     await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
@@ -321,7 +342,14 @@ try {
       await expect(
         materials.getByText(original.name + " · 部分读取"),
       ).toBeVisible();
-      if (xlsx)
+      if (pdf) {
+        await expect(
+          materials.getByText(/PDF 第 181 页.*未提取到文字/),
+        ).toBeVisible();
+        await expect(
+          materials.getByText(/PDF 第 182 页.*仅提取文字层/),
+        ).toBeVisible();
+      } else if (xlsx)
         await expect(
           materials.getByText(
             /工作表 “资料表”.*第 7 行.*单元格 C7.*公式未执行/,
@@ -348,7 +376,7 @@ try {
         stopContinueButtons: true,
         cumulativeWallet: true,
         published: true,
-        format: xlsx ? "xlsx" : docx ? "docx" : "txt",
+        format: pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,
       }),

@@ -1,5 +1,7 @@
 # B/C/D 交错实施记录
 
+PDF文字层已接入受控隔离、页码/缺失范围、任务与双端发布，并补仅未执行读取的有限重试、原件墓碑不恢复的临时核验；扫描/图片仍未读，见[PDF联合验证](pdf-verification.md)。生产未启用，PDF整体与B/C/D继续保持未验收。
+
 关联 [总跟踪 #69](https://github.com/HYX-2024-1020/shixu/issues/69)、[实施 #73](https://github.com/HYX-2024-1020/shixu/issues/73)。依据 [A 契约](../stage-a/contracts.md) 与其中固定的方案 da28c1f；方案 #70 仍 Draft，不复制尚未合入的方案为已实施事实。
 
 ## 架构决策（2026-10-28，实现前记录）

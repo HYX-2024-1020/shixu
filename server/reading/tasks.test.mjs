@@ -11,6 +11,7 @@ import { ReadingTasks } from "./tasks.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import { readingView } from "../../shared/reading-view.mjs";
+import { pdfBytes } from "./pdf-fixtures.mjs";
 const result = (sources) => ({
   summary: "合成资料",
   warnings: [],
@@ -154,6 +155,93 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+
+test("PDF partial pages publish with real page coordinates; empty PDF never incurs provider cost", async (t) => {
+  const f = fixture(t, {
+    name: "合成.pdf",
+    text: pdfBytes([
+      { text: "中文😀来源" },
+      { text: "" },
+      { text: "尾部唯一标记", rotation: 270 },
+    ]),
+  });
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  const c = f.store.record("packet").data.readingCoverage[0];
+  assert.equal(c.state, "partial");
+  assert.deepEqual(
+    c.covered.map((r) => r.page),
+    [1, 3],
+  );
+  assert.match(readingView([c])[0].missing, /第 2 页/);
+  const empty = fixture(t, { name: "空.pdf", text: pdfBytes([{ text: "" }]) });
+  empty.enqueue();
+  assert.equal((await finish(empty.tasks)).reason, "NO_READABLE_MATERIAL");
+  assert.equal(empty.calls(), 0);
+});
+
+test("only proven broker admission rejection retries twice; exhausted, unknown and parser failures do not send models", async (t) => {
+  for (const mode of ["recover", "exhausted", "unknown", "parser"]) {
+    let attempts = 0;
+    const f = fixture(t, {
+      reader: async (file) => {
+        attempts++;
+        if (mode === "recover" && attempts === 3) return readMaterial(file);
+        throw Object.assign(
+          Error(
+            mode === "parser"
+              ? "ISOLATED_READING_FAILED"
+              : "READING_QUEUE_FULL",
+          ),
+          {
+            notExecuted: mode !== "unknown",
+            timing: { waitingMs: 0 },
+          },
+        );
+      },
+    });
+    f.enqueue();
+    await finish(f.tasks);
+    assert.equal(
+      attempts,
+      ["recover", "exhausted"].includes(mode) ? 3 : 1,
+      mode,
+    );
+    assert.equal(f.calls(), mode === "recover" ? 1 : 0, mode);
+    assert.equal(
+      JSON.parse(f.tasks.get("task").coverage)[0].readRetries,
+      mode === "recover" || mode === "exhausted" ? 2 : 0,
+    );
+  }
+});
+
+test("stopping during admission backoff prevents a retry; backoff cannot exceed the root deadline", async (t) => {
+  for (const stop of [true, false]) {
+    let attempts = 0,
+      entered;
+    const first = new Promise((resolve) => (entered = resolve));
+    const f = fixture(t, {
+      reader: async () => {
+        attempts++;
+        entered();
+        throw Object.assign(Error("READING_QUEUE_FULL"), {
+          notExecuted: true,
+          timing: { waitingMs: 0 },
+        });
+      },
+    });
+    if (!stop) f.tasks.activeLimitMs = 30;
+    f.enqueue();
+    const pending = f.tasks.run("task");
+    await first;
+    if (stop) f.action("stop");
+    const final = await pending;
+    assert.equal(final.state, stop ? "cancelled" : "paused");
+    if (!stop) assert.equal(final.reason, "EXECUTION_LIMIT");
+    assert.equal(attempts, 1);
+    assert.equal(f.calls(), 0);
+  }
+});
 
 test("empty/unreadable XLSX has no provider cost; partial worksheet rows retain exact source coordinates at publication", async (t) => {
   const empty = fixture(t, {

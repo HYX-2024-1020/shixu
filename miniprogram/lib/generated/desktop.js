@@ -935,6 +935,12 @@ var labels = {
   failed: "读取失败"
 };
 var reasons = {
+  PDF_VISUAL_UNREAD: "仅提取文字层；图像、视觉布局与文字顺序待核对，未推断表格关系",
+  PDF_NO_TEXT: "未提取到文字；可能是扫描或空白页，需图片输入核对",
+  PDF_PAGE_FAILED: "此页文字提取失败，其他页继续读取",
+  PDF_INVALID: "PDF结构损坏或无法解析",
+  PDF_ENCRYPTED_UNSUPPORTED: "加密PDF暂不支持",
+  PDF_RESOURCE_LIMIT: "PDF展开超过安全资源限制，剩余页未读取",
   FORMAT_UNSUPPORTED: "此格式暂不支持读取",
   ENCODING_UNSUPPORTED: "文字编码暂不支持",
   FORMAT_MISMATCH: "文件内容与格式不符",
@@ -987,6 +993,10 @@ var reasons = {
   XLSX_VISUAL_LAYOUT: "列布局或隐藏列展示未还原，现有单元格已读取"
 };
 function location(range) {
+  if (range.kind === "pdf") {
+    const valid = (n) => Number.isSafeInteger(n) && n > 0;
+    return valid(range.page) ? `PDF 第 ${range.page}${valid(range.pageEnd) && range.pageEnd > range.page ? "–" + range.pageEnd : ""} 页` : "PDF整份文件";
+  }
   if (range.kind === "xlsx") {
     const sheet = typeof range.sheet === "string" ? `工作表 “${range.sheet.slice(0, 31)}”` : "工作簿";
     const positive = (n) => Number.isSafeInteger(n) && n >= 1;

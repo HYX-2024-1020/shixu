@@ -244,6 +244,7 @@ export function createBrokerClient(socketPath) {
               finish(
                 Object.assign(Error("READING_QUEUE_FULL"), {
                   timing: { waitingMs: 0 },
+                  notExecuted: true,
                 }),
               ),
             );

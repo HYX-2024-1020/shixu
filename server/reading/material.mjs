@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -156,6 +156,18 @@ export function readMaterial(
       offset += chunk.size;
     }
   };
+  if (/\.pdf$/i.test(name)) {
+    return import("./pdf.mjs").then(async ({ readPdf, PDF_READER_VERSION }) => {
+      result.readerVersion = PDF_READER_VERSION;
+      await readPdf(bytes, { add, missing: (code, range = { kind: "file" }) => {
+        result.uncovered.push({ ...range, code });
+        if (!result.reasons.includes(code)) result.reasons.push(code);
+      } });
+      result.state = result.segments.some((s) => s.text.trim()) ? "partial"
+        : result.reasons.includes("PDF_ENCRYPTED_UNSUPPORTED") ? "unsupported" : "failed";
+      return result;
+    });
+  }
   if (/\.(docx|xlsx)$/i.test(name)) {
     const isXlsx = /\.xlsx$/i.test(name);
     const reader = isXlsx

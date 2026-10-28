@@ -726,22 +726,26 @@ Page({
     for (const f of storage.originals.filter(
       (f) =>
         f.packetId === packetId &&
-        f.mode === "temporary" &&
         !f.available &&
-        !["deleted", "cleaned"].includes(f.state),
+        !f.readingAvailable &&
+        (f.mode === "temporary" || ["deleted", "cleaned"].includes(f.state)),
     )) {
       const entry = library
         ?.entries(packetId, this._space())
         .find((e) => e.id === f.id);
       if (!entry)
-        throw Error(
-          "临时原件已清理，请在有本地副本的设备继续，或重新选择同一原件",
+        throw Error("原件已清理，请在有本地副本的设备继续，或重新选择同一原件");
+      if (["deleted", "cleaned"].includes(f.state)) {
+        await transport.verifyOriginal(packetId, entry, library.bytes(entry));
+        this.setData({
+          notice: "云端原件保持已清除；本次仅临时核验，停止或结束后清理",
+        });
+      } else
+        await transport.uploadSubmission(
+          f.submissionId,
+          entry,
+          library.bytes(entry),
         );
-      await transport.uploadSubmission(
-        f.submissionId,
-        entry,
-        library.bytes(entry),
-      );
     }
   },
   async originalAction(event) {
@@ -2174,6 +2178,10 @@ Page({
           const { action, ...request } = saved.pendingAction;
           let task;
           try {
+            if (["continue", "accept-partial"].includes(action))
+              await this._reuploadTemporary(
+                saved.packetId || saved.request.packetId,
+              );
             task = await this._transport(
               "POST",
               `/api/v4/tasks/${saved.id}/${action}`,
@@ -2208,6 +2216,8 @@ Page({
           continue;
         let job;
         try {
+          if (saved.state === "submitting" && saved.protocol === 4)
+            await this._reuploadTemporary(saved.request.packetId);
           job =
             saved.state === "submitting"
               ? await this._transport(

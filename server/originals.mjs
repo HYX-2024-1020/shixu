@@ -116,8 +116,15 @@ export class OriginalStore {
       if (
         ["deleted", "cleaned"].includes(f.state) ||
         (f.mode === "retained" && f.cleanup !== null && f.cleanup <= this.now())
-      )
+      ) {
+        const verified = this.buffers.get(this.key(packet, id));
+        if (options.forReading === true && verified?.verification === true) {
+          this.verify(f, verified.body);
+          verified.until = this.now() + 30 * 60000;
+          return { ...descriptor(f), body: Buffer.from(verified.body) };
+        }
         fail(409, "REUPLOAD_REQUIRED", "云端原件已清除，请重新上传核对后继续");
+      }
       if (f.mode === "retained") return get(packet, id, options);
       const bytes = this.buffers.get(this.key(packet, id))?.body;
       if (!bytes)
@@ -349,6 +356,43 @@ export class OriginalStore {
           : "云端原件保存30天，到期后7天待清理；提前7天提醒",
     };
   }
+  verifyForReading(packet, id, body) {
+    this.sweep();
+    this.active(packet);
+    const f = this.file(packet, id);
+    if (
+      !f ||
+      !["deleted", "cleaned"].includes(f.state) ||
+      !(this.store.record(packet).data.attachments || []).some(
+        (a) => a.id === id && !a.deletedAt,
+      )
+    )
+      fail(409, "ORIGINAL_CHANGED", "原件版本已改变，请刷新后核对");
+    const bytes = Buffer.from(body);
+    this.verify(f, bytes);
+    const key = this.key(packet, id);
+    if (!this.buffers.has(key)) {
+      this.store.validateOriginalMutation?.(packet);
+      if (
+        [...this.buffers.values()].reduce((n, b) => n + b.body.length, 0) +
+          bytes.length >
+        40 * 1024 * 1024
+      )
+        fail(503, "ORIGINAL_MEMORY_BUSY", "账号临时原件空间繁忙，请稍后重试");
+      this.pool.reserve(bytes.length);
+      this.buffers.set(key, {
+        body: bytes,
+        verification: true,
+        until: this.now() + this.stagingMs,
+      });
+    }
+    return {
+      contractVersion: 1,
+      verified: true,
+      retained: false,
+      warning: "云端原件保持已清除；本次仅临时核验，停止或结束后清理",
+    };
+  }
   put(id, fileId, body) {
     this.sweep();
     const s = this.db
@@ -526,10 +570,13 @@ export class OriginalStore {
           (f.mode === "retained" &&
             !["deleted", "cleaned"].includes(f.state) &&
             this.now() >= f.expires - 7 * day),
-        available:
-          f.mode === "temporary"
+        available: ["deleted", "cleaned"].includes(f.state)
+          ? false
+          : f.mode === "temporary"
             ? this.buffers.has(this.key(f.packet, f.id))
             : !["deleted", "cleaned"].includes(f.state),
+        readingAvailable:
+          this.buffers.get(this.key(f.packet, f.id))?.verification === true,
       })),
     };
   }

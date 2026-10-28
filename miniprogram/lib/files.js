@@ -280,6 +280,13 @@ function createFileTransport(
     );
   }
   return {
+    verifyOriginal: (packetId, entry, bytes) =>
+      request(
+        "PUT",
+        `/api/v4/originals/${packetId}/${entry.id}/verify`,
+        bytes,
+        { "Content-Type": "application/octet-stream" },
+      ),
     uploadSubmission: (submissionId, entry, bytes) =>
       request(
         "PUT",

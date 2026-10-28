@@ -7,6 +7,89 @@ import { readMaterial } from "./material.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import assert from "node:assert/strict";
+import { pdfBytes } from "./pdf-fixtures.mjs";
+import { readingView, sourceLocation } from "../../shared/reading-view.mjs";
+
+for (const startByMini of [false, true])
+  test(
+    `PDF temporary bytes expired before ${startByMini ? "mini" : "Windows"} new task: reupload, stop, resume and page coverage agree`,
+    { timeout: 30000 },
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "shixu-pdf-loop-"));
+      try {
+        await runClientLoop({
+          directory,
+          reader: async (f) => readMaterial(f),
+          originalQuota: 1,
+          sourceByMini: true,
+          expireBeforeStart: true,
+          startByMini,
+          original: {
+            name: "合成.pdf",
+            type: "application/pdf",
+            body: pdfBytes(
+              [
+                ...Array.from({ length: 180 }, (_, i) => ({
+                  text: `第${i + 1}页合成资料😀。\n`.repeat(100),
+                })),
+                { text: "" },
+                { text: "尾部唯一标记", rotation: 90 },
+              ],
+              { compress: true },
+            ),
+            verify: ({ win, mini, page }) => {
+              assert.deepEqual(win.readingCoverage, mini.readingCoverage);
+              const c = win.readingCoverage[0];
+              assert.equal(c.state, "partial");
+              assert.match(readingView([c])[0].missing, /第 181 页/);
+              assert.match(
+                sourceLocation([c], c.covered.at(-1).sourceId),
+                /第 182 页/,
+              );
+              const detail = page._detail(win.itemIds[0]);
+              assert.match(detail.reading[0].missing, /PDF 第 181 页/);
+              assert.match(detail.evidence[0].name, /PDF 第 1 页/);
+            },
+          },
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+for (const startByMini of [false, true])
+  test(
+    `deleted retained PDF verifies only transiently from ${startByMini ? "mini" : "Windows"} without reviving its original`,
+    { timeout: 30000 },
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "shixu-pdf-deleted-"));
+      try {
+        await runClientLoop({
+          directory,
+          reader: async (f) => readMaterial(f),
+          sourceByMini: true,
+          startByMini,
+          deleteBeforeStart: true,
+          original: {
+            name: "合成.pdf",
+            type: "application/pdf",
+            body: pdfBytes(
+              [
+                ...Array.from({ length: 180 }, (_, i) => ({
+                  text: `第${i + 1}页合成资料😀。\n`.repeat(100),
+                })),
+                { text: "尾部唯一标记" },
+              ],
+              { compress: true },
+            ),
+          },
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
 for (const expectedReadPause of [
   "EXECUTION_LIMIT",
