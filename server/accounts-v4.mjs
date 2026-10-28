@@ -71,6 +71,7 @@ export class AccountsV4 {
     this.db = registry.db;
     this.now = now;
     this.hashing = false;
+    this.closed = false;
     registry.transaction(() => {
       const version = this.db
         .prepare("SELECT value FROM account_meta WHERE key='auth_v4'")
@@ -132,7 +133,15 @@ export class AccountsV4 {
         throw Error("DEVICE_MIGRATION_INCOMPLETE");
     });
   }
+  close() {
+    this.closed = true;
+  }
+  assertOpen() {
+    if (this.closed)
+      throw new SyncError(503, "SERVICE_CLOSING", "服务正在关闭，请稍后重试");
+  }
   fingerprint(value) {
+    this.assertOpen();
     return createHmac("sha256", this.registry.secret)
       .update(JSON.stringify(value))
       .digest("hex");
@@ -160,6 +169,7 @@ export class AccountsV4 {
       .run(operation, kind, account, binding, this.now());
   }
   rate(key, ip) {
+    this.assertOpen();
     const accountKey = digest(key),
       ipKey = digest("ip:" + ip),
       at = this.now();
@@ -211,12 +221,13 @@ export class AccountsV4 {
     });
   }
   async hash(value, salt) {
+    this.assertOpen();
     if (this.hashing) fail("LOGIN_BUSY", 429);
     this.hashing = true;
     try {
-      return (
-        await derive(value, Buffer.from(salt, "hex"), 64, params)
-      ).toString("hex");
+      const bytes = await derive(value, Buffer.from(salt, "hex"), 64, params);
+      this.assertOpen();
+      return bytes.toString("hex");
     } finally {
       this.hashing = false;
     }

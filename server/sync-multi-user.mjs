@@ -64,7 +64,14 @@ export function createMultiUserService({
   aiLimits = {},
   wechat = null,
   reading = null,
+  shutdownGraceMs = 30000,
 }) {
+  if (
+    !Number.isSafeInteger(shutdownGraceMs) ||
+    shutdownGraceMs < 1 ||
+    shutdownGraceMs > 30000
+  )
+    throw Error("INVALID_SHUTDOWN_GRACE");
   if (new URL(origin).origin !== origin)
     throw Error("Origin must not contain a path");
   if (
@@ -130,6 +137,11 @@ export function createMultiUserService({
     : null;
   let running = 0,
     closed = false;
+  let finalized = false;
+  const assertLive = () => {
+    if (finalized)
+      throw new SyncError(503, "SERVICE_CLOSING", "服务正在关闭，请稍后重试");
+  };
   const waiting = [];
   async function acquire(signal) {
     if (closed || signal.aborted) throw Error("Stopped");
@@ -262,6 +274,8 @@ export function createMultiUserService({
   const requests = new Set();
   const handleRequest = async (req, res) => {
     try {
+      if (closed)
+        throw new SyncError(503, "SERVICE_CLOSING", "服务正在关闭，请稍后重试");
       if (req.headers.origin && req.headers.origin !== origin)
         throw new SyncError(403, "UNTRUSTED_ORIGIN", "请求来源不受信任");
       if (
@@ -281,6 +295,7 @@ export function createMultiUserService({
       ) {
         const bytes = await body(req, 8000),
           value = parse(req, bytes);
+        assertLive();
         if (value.contractVersion !== 1)
           throw new SyncError(426, "CLIENT_UPGRADE_REQUIRED", "请更新客户端");
         const identity = {
@@ -302,6 +317,7 @@ export function createMultiUserService({
             throw new SyncError(401, "UNAUTHORIZED", "请重新登录");
           identity.kind = "wechat";
           const openid = await wechat(value.code);
+          assertLive();
           if (typeof openid !== "string" || !openid || openid.length > 256)
             throw new SyncError(401, "UNAUTHORIZED", "请重新登录");
           identity.identity = digest(openid);
@@ -355,6 +371,7 @@ export function createMultiUserService({
                 req.socket.remoteAddress,
               );
         const binding = result.binding;
+        assertLive();
         registry.authenticate(binding.token);
         if (result.newAccount) reading.ledger.grantInitial(binding.user_id);
         const service = tenant(binding.user_id);
@@ -413,6 +430,7 @@ export function createMultiUserService({
         registry.rate("activation:" + req.socket.remoteAddress, 20);
         const bytes = await body(req, 8000),
           value = parse(req, bytes);
+        assertLive();
         let binding;
         if (req.url.endsWith("/windows")) {
           if (
@@ -443,6 +461,7 @@ export function createMultiUserService({
           // The adapter must exchange wx.login's code on the server. Never accept
           // an openid, platform label or AppSecret supplied by a client.
           const openid = await wechat(value.code);
+          assertLive();
           if (typeof openid !== "string" || !openid || openid.length > 256)
             throw new SyncError(401, "INVALID_LOGIN", "微信身份验证失败");
           binding = registry.bind(value.invite, "wechat", digest(openid));
@@ -486,6 +505,7 @@ export function createMultiUserService({
         req,
         req.method === "PUT" ? 10 * 1024 * 1024 : 1000000,
       );
+      assertLive();
       registry.authenticate(token); // Revocation may happen while bytes arrive.
       if (binding.kind === "windows")
         registry.proof(binding, req.method, req.url, bytes, req.headers);
@@ -686,7 +706,9 @@ export function createMultiUserService({
         inner.url.split("?")[0] === "/api/v2/status"
       )
         throw new SyncError(404, "NOT_FOUND", "没有这个接口");
-      service.server.emit("request", inner, res);
+      // Await the accepted upload/operation handler itself, including replayed
+      // bytes, so shutdown cannot close its tenant DB during an async body read.
+      await service.handleRequest(inner, res);
     } catch (error) {
       if (res.destroyed) return;
       if (res.headersSent) {
@@ -749,18 +771,46 @@ export function createMultiUserService({
     }
     registry.close();
   };
-  server.on("close", () => {
+  const beginShutdown = () => {
+    if (closed) return;
     closed = true;
-    // Preserve v3's synchronous close boundary for existing backup callers.
-    if (!readingRoutes) {
-      finishClose();
-      return;
-    }
     drained = (async () => {
-      await Promise.allSettled([...requests]);
-      await readingRoutes?.close();
+      let timer;
+      const completed = Promise.allSettled([
+        ...requests,
+        readingRoutes.close(),
+      ]).then(() => true);
+      const withinGrace = await Promise.race([
+        completed,
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), shutdownGraceMs);
+        }),
+      ]);
+      clearTimeout(timer);
+      finalized = true;
+      credentials?.close();
+      if (!withinGrace) {
+        readingRoutes.finalizeShutdown();
+        server.closeAllConnections();
+      }
       finishClose();
     })();
+  };
+  // Start cancellation before waiting for HTTP connections: an upstream may
+  // ignore cancellation while its HTTP request is still open.
+  if (readingRoutes) {
+    const nativeClose = server.close.bind(server);
+    server.close = (...args) => {
+      beginShutdown();
+      return nativeClose(...args);
+    };
+  }
+  server.on("close", () => {
+    if (readingRoutes) beginShutdown();
+    else {
+      closed = true;
+      finishClose(); // v3 backup callers require synchronous closure.
+    }
   });
   return {
     server,

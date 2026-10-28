@@ -4,8 +4,17 @@ import { SyncError } from "../sync-store.mjs";
 
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
+const shutdownMessages = {
+  SHUTDOWN: "服务关闭，进度已保留；重新连接后可继续",
+  SHUTDOWN_TIMEOUT: "关闭等待已结束，有调用费用待核对；已完成进度保留",
+  SHUTDOWN_TIME_UNCERTAIN:
+    "关闭时读取尚未结束，需核对活跃时间后继续；已完成进度保留",
+  ACTIVE_TIME_RECONCILIATION:
+    "任务活跃时间待核对，请联系维护者；已完成进度保留",
+  SERVICE_CLOSING: "服务正在关闭，请稍后重试",
+};
 const fail = (status, code) => {
-  throw new SyncError(status, code, code);
+  throw new SyncError(status, code, shutdownMessages[code] || code);
 };
 
 // Explicitly injected into an isolated service. No automatic wallet grant,
@@ -61,6 +70,7 @@ export function createReadingRoutes({
     const pending = scheduler
       .submit(e, id)
       .catch((error) => {
+        if (closed) return;
         e.db
           .prepare(
             "UPDATE reading_tasks SET state='paused',reason=? WHERE id=? AND state='queued'",
@@ -88,14 +98,17 @@ export function createReadingRoutes({
     activeMs: t.active_ms,
     reason: t.reason,
     rootTaskId: t.id,
-    error: t.reason || "",
+    error: shutdownMessages[t.reason] || t.reason || "",
     protocol: 4,
     actions:
       t.state === "purged"
         ? []
         : [
             ...(active.includes(t.state) ? ["stop"] : []),
-            ...(recoverable.includes(t.state) ? ["continue"] : []),
+            ...(recoverable.includes(t.state) &&
+            t.reason !== "SHUTDOWN_TIME_UNCERTAIN"
+              ? ["continue"]
+              : []),
             ...(["paused", "interrupted", "error", "conflict"].includes(t.state)
               ? ["accept-partial"]
               : []),
@@ -296,6 +309,11 @@ export function createReadingRoutes({
       scheduler.close();
       for (const e of engines.values()) e.close();
       await Promise.allSettled([...inflight.values()]);
+    },
+    finalizeShutdown() {
+      closed = true;
+      scheduler.close();
+      for (const e of engines.values()) e.finalizeShutdown();
     },
     snapshot: () => scheduler.snapshot(),
   };

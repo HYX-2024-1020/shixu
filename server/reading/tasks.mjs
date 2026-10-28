@@ -14,7 +14,16 @@ import { validateUsage } from "./ledger.mjs";
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
 const validId = (v) => typeof v === "string" && /^[\w-]{1,90}$/.test(v);
-const error = (code) => new SyncError(409, code, code);
+const error = (code) =>
+  new SyncError(
+    409,
+    code,
+    code === "ACTIVE_TIME_RECONCILIATION"
+      ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
+      : code === "SERVICE_CLOSING"
+        ? "服务正在关闭，请稍后重试"
+        : code,
+  );
 const versions = {
   reader: READER_VERSION,
   normalization: NORMALIZATION_VERSION,
@@ -139,6 +148,8 @@ export class ReadingTasks {
     });
     this.db = store.db;
     this.controllers = new Map();
+    this.executions = new Map();
+    this.finalSnapshots = null;
     this.materials = new Map();
     this.cacheTimers = new Map();
     this.db
@@ -185,6 +196,7 @@ export class ReadingTasks {
     };
   }
   get(id) {
+    if (this.finalSnapshots) return this.finalSnapshots.get(id);
     return this.db.prepare("SELECT * FROM reading_tasks WHERE id=?").get(id);
   }
   transaction(fn) {
@@ -199,6 +211,7 @@ export class ReadingTasks {
     }
   }
   enqueue({ id, packetId, deviceId }) {
+    if (this.finalSnapshots) throw error("SERVICE_CLOSING");
     this.authorize(deviceId);
     if (![id, packetId, deviceId].every(validId)) throw error("INVALID_TASK");
     return this.transaction(() => {
@@ -250,6 +263,7 @@ export class ReadingTasks {
     action,
     deviceId,
   ) {
+    if (this.finalSnapshots) throw error("SERVICE_CLOSING");
     const target = this.get(id);
     if (!target) throw error("TASK_NOT_FOUND");
     this.authorize(deviceId || target.device);
@@ -319,10 +333,12 @@ export class ReadingTasks {
         if (!["done", "partial", "cancelled"].includes(task.state))
           this.db
             .prepare(
-              "UPDATE reading_tasks SET generation=generation+1,state='cancelled',reason='' WHERE id=?",
+              "UPDATE reading_tasks SET generation=generation+1,state='cancelled',reason=CASE WHEN reason='SHUTDOWN_TIME_UNCERTAIN' THEN reason ELSE '' END WHERE id=?",
             )
             .run(id);
       } else {
+        if (task.reason === "SHUTDOWN_TIME_UNCERTAIN")
+          throw error("ACTIVE_TIME_RECONCILIATION");
         if (
           !["cancelled", "paused", "interrupted", "error"].includes(task.state)
         )
@@ -407,6 +423,12 @@ export class ReadingTasks {
     this.materials.delete(id);
   }
   close() {
+    if (this.finalSnapshots) return;
+    this.db
+      .prepare(
+        "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='SHUTDOWN' WHERE state='queued'",
+      )
+      .run();
     for (const [id, c] of this.controllers) {
       this.db
         .prepare(
@@ -416,6 +438,47 @@ export class ReadingTasks {
       c.abort();
     }
     for (const id of this.materials.keys()) this.clearMaterial(id);
+  }
+  finalizeShutdown() {
+    if (this.finalSnapshots) return;
+    this.close();
+    for (const [id, execution] of this.executions) {
+      const reason =
+        execution.phase === "provider"
+          ? "SHUTDOWN_TIMEOUT"
+          : "SHUTDOWN_TIME_UNCERTAIN";
+      this.db
+        .prepare(
+          "UPDATE reading_tasks SET reason=?,active_ms=active_ms+? WHERE id=?",
+        )
+        .run(
+          reason,
+          execution.phase === "provider"
+            ? Math.max(
+                0,
+                Math.ceil(
+                  performance.now() - execution.started - execution.excludedMs,
+                ),
+              )
+            : 0,
+          id,
+        );
+    }
+    for (const call of this.ledger.db
+      .prepare(
+        "SELECT id,task,state FROM reading_calls WHERE account=? AND state IN ('sent','reserved')",
+      )
+      .all(this.account)) {
+      if (!this.executions.has(call.task)) continue;
+      if (call.state === "sent") this.ledger.unknown(call.id);
+      else this.ledger.releaseUnsent(call.id);
+    }
+    // Only in-flight promises need a terminal snapshot. Do not load historical
+    // tasks/coverage into memory just to close the service.
+    this.finalSnapshots = new Map(
+      [...this.executions.keys()].map((id) => [id, this.get(id)]),
+    );
+    this.controllers.clear();
   }
   async run(id) {
     await this.step(id);
@@ -511,11 +574,14 @@ export class ReadingTasks {
     const controller = new AbortController();
     this.controllers.set(id, controller);
     const started = performance.now();
+    const execution = { started, excludedMs: 0, phase: "reader" };
+    this.executions.set(id, execution);
     let excludedMs = 0;
     const read = async (file, options) => {
       const { timing, ...material } = await this.reader(file, options);
       if (Number.isFinite(timing?.waitingMs) && timing.waitingMs > 0)
         excludedMs += timing.waitingMs;
+      execution.excludedMs = excludedMs;
       return material;
     };
     try {
@@ -662,6 +728,7 @@ export class ReadingTasks {
           .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
           .run(id);
         let response;
+        execution.phase = "provider";
         try {
           response = await this.provider(
             sources,
@@ -688,9 +755,11 @@ export class ReadingTasks {
             },
           );
         } catch {
+          if (this.finalSnapshots) return this.get(id);
           this.ledger.unknown(callId);
           throw Error("UNKNOWN_COST");
         }
+        if (this.finalSnapshots) return this.get(id);
         try {
           validateUsage(response.usage);
         } catch {
@@ -796,25 +865,31 @@ export class ReadingTasks {
           );
       return this.get(id);
     } finally {
-      this.db
-        .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
-        .run(
-          Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
-          id,
-        );
-      // Return queued only after the previous invocation fully drains. Stop and
-      // resume generations never share one in-flight controller.
-      if (this.current(task))
+      this.executions.delete(id);
+      if (this.finalSnapshots) {
+        this.controllers.delete(id);
+        this.clearMaterial(id);
+      } else {
         this.db
-          .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")
-          .run(id);
-      this.controllers.delete(id);
-      if (this.get(id)?.state !== "queued") this.clearMaterial(id);
-      else {
-        clearTimeout(this.cacheTimers.get(id));
-        const timer = setTimeout(() => this.clearMaterial(id), 30000);
-        timer.unref();
-        this.cacheTimers.set(id, timer);
+          .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
+          .run(
+            Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
+            id,
+          );
+        // Return queued only after the previous invocation fully drains. Stop and
+        // resume generations never share one in-flight controller.
+        if (this.current(task))
+          this.db
+            .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")
+            .run(id);
+        this.controllers.delete(id);
+        if (this.get(id)?.state !== "queued") this.clearMaterial(id);
+        else {
+          clearTimeout(this.cacheTimers.get(id));
+          const timer = setTimeout(() => this.clearMaterial(id), 30000);
+          timer.unref();
+          this.cacheTimers.set(id, timer);
+        }
       }
     }
   }

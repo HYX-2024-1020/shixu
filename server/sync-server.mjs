@@ -64,7 +64,7 @@ export function createSyncService({
   const jobs = createJobQueue(store, ai, jobHooks);
   const failures = new Map();
   const passwordHash = digest(password);
-  const server = http.createServer(async (req, res) => {
+  const handleRequest = async (req, res) => {
     try {
       const url = new URL(req.url, origin);
       // Device tokens, rather than browser cookies, authorize this API. Requests
@@ -242,7 +242,8 @@ export function createSyncService({
           code: "INTERNAL_ERROR",
         });
     }
-  });
+  };
+  const server = http.createServer(handleRequest);
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   server.on("listening", () => jobs.start());
@@ -250,7 +251,7 @@ export function createSyncService({
     jobs.stop();
     store.close();
   });
-  return { server, store, jobs, files };
+  return { server, store, jobs, files, handleRequest };
 }
 
 if (

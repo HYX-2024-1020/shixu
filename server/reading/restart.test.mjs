@@ -10,7 +10,7 @@ import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { readMaterial } from "./material.mjs";
 
-test("restart restores queued account scheduling and input guards before any v4 client request, then drains before DB close", async () => {
+test("restart restores queued account scheduling and input guards before any v4 client request, then drains before DB close", { timeout: 15000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "shixu-v4-restart-")),
     directory = join(root, "server");
   const ledger = new ReadingLedger(join(root, "ledger.sqlite"));
@@ -125,7 +125,7 @@ test("restart restores queued account scheduling and input guards before any v4 
       packetId: "packet",
       deviceId: binding.deviceId,
     });
-    tasks.close();
+    // A crash leaves queued work durable; graceful close instead interrupts it.
     store.close();
     service = createMultiUserService(options);
     await listen();

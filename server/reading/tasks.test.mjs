@@ -153,6 +153,136 @@ async function finish(tasks) {
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
 
+test("orderly shutdown interrupts queued tasks durably without consuming or automatically restarting them", (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  f.tasks.close();
+  const restarted = new ReadingTasks(f.taskArgs);
+  assert.equal(restarted.get("task").state, "interrupted");
+  assert.equal(restarted.get("task").reason, "SHUTDOWN");
+  assert.equal(f.calls(), 0);
+  assert.equal(f.ledger.wallet("synthetic").spent, 0);
+  restarted.close();
+});
+
+for (const rejects of [false, true]) {
+  test(`shutdown finalization preserves unknown cost and discards a late ${rejects ? "failure" : "success"} without accessing closed databases`, async (t) => {
+    let release, entered;
+    const started = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const f = fixture(t, {
+      provider: async (sources) => {
+        entered();
+        await new Promise((resolve) => {
+          release = resolve;
+        });
+        if (rejects) throw Error("late synthetic failure");
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: result(sources),
+        };
+      },
+    });
+    f.enqueue();
+    const pending = f.tasks.run("task");
+    await started;
+    f.tasks.close();
+    f.tasks.finalizeShutdown();
+    assert.equal(f.tasks.get("task").state, "interrupted");
+    assert.equal(f.tasks.get("task").reason, "SHUTDOWN_TIMEOUT");
+    assert.equal(
+      f.ledger.db.prepare("SELECT state FROM reading_calls").get().state,
+      "unknown",
+    );
+    assert.throws(
+      () => f.action("continue"),
+      (e) => e.code === "SERVICE_CLOSING",
+    );
+    const restarted = new ReadingTasks(f.taskArgs);
+    const task = restarted.get("task");
+    assert.throws(
+      () =>
+        restarted.action(
+          "task",
+          {
+            operationId: "restart",
+            expectedGeneration: task.generation,
+            expectedRevision: task.input_revision,
+          },
+          "continue",
+        ),
+      (e) => e.code === "UNKNOWN_COST",
+    );
+    restarted.close();
+    assert.equal(f.store.record("packet").data.result, null);
+    // Throwing DB entry points represent stores already closed by the host.
+    const tenantPrepare = f.store.db.prepare,
+      ledgerPrepare = f.ledger.db.prepare;
+    f.store.db.prepare = f.ledger.db.prepare = () => {
+      throw Error("DATABASE_ALREADY_CLOSED");
+    };
+    try {
+      release();
+      assert.equal((await pending).state, "interrupted");
+    } finally {
+      f.store.db.prepare = tenantPrepare;
+      f.ledger.db.prepare = ledgerPrepare;
+    }
+    assert.equal(f.ledger.audit().valid, true);
+    assert.equal(
+      f.ledger.db.prepare("SELECT state FROM reading_calls").get().state,
+      "unknown",
+    );
+    assert.equal(
+      f.store.db.prepare("SELECT COUNT(*) n FROM reading_blocks").get().n,
+      0,
+    );
+  });
+}
+
+test("a reader that outlives shutdown cannot publish and needs active-time reconciliation before continuing", async (t) => {
+  let release, entered;
+  const started = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const f = fixture(t, {
+    reader: async (file) => {
+      entered();
+      await new Promise((resolve) => {
+        release = resolve;
+      });
+      return { ...readMaterial(file), timing: { waitingMs: 100 } };
+    },
+  });
+  f.enqueue();
+  const pending = f.tasks.run("task");
+  await started;
+  f.tasks.finalizeShutdown();
+  assert.equal(f.tasks.get("task").reason, "SHUTDOWN_TIME_UNCERTAIN");
+  const restarted = new ReadingTasks(f.taskArgs);
+  const task = restarted.get("task");
+  assert.throws(
+    () =>
+      restarted.action(
+        "task",
+        {
+          operationId: "restart",
+          expectedGeneration: task.generation,
+          expectedRevision: task.input_revision,
+        },
+        "continue",
+      ),
+    (e) => e.code === "ACTIVE_TIME_RECONCILIATION",
+  );
+  restarted.close();
+  release();
+  await pending;
+  assert.equal(f.calls(), 0);
+  assert.equal(f.ledger.wallet("synthetic").spent, 0);
+  assert.equal(f.store.record("packet").data.result, null);
+});
+
 test("another authorized device can accept paid partial blocks atomically; purge cannot refund or resurrect them", async (t) => {
   const f = fixture(t, {
     text: "合成材料正文".repeat(45000),
