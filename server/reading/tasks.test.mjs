@@ -12,6 +12,7 @@ import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import { readingView } from "../../shared/reading-view.mjs";
 import { pdfBytes } from "./pdf-fixtures.mjs";
+import { archiveSample, zipBytes } from "./archive-fixtures.mjs";
 const result = (sources) => ({
   summary: "合成资料",
   warnings: [],
@@ -155,6 +156,46 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+
+test("ZIP paid block survives stop/resume without duplicate consumption and passes package paths to the provider", async (t) => {
+  const sample = archiveSample({ long: true });
+  const seen = [];
+  const f = fixture(t, { name: sample.name, text: sample.body,
+    provider: async (sources) => {
+      seen.push(...sources);
+      return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: result(sources) };
+    } });
+  f.enqueue();
+  await f.tasks.run("task");
+  const paid = f.ledger.wallet("synthetic").spent;
+  assert.equal(f.calls(), 1);
+  f.action("stop");
+  f.action("continue", "resume");
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.ok(seen.every(s => s.name.startsWith("包内 ")));
+  assert.equal(seen.map(s => s.text).join(""), sample.expectedText);
+  assert.equal(f.ledger.wallet("synthetic").spent, f.calls() * paid);
+  assert.ok(!JSON.stringify(f.tasks.get("task")).includes("归档课程材料"));
+});
+
+test("ZIP partial acceptance retains unprocessed paths; unsafe archive sends no model call", async (t) => {
+  const sample = archiveSample({ long: true });
+  const f = fixture(t, { name: sample.name, text: sample.body });
+  f.enqueue();
+  await f.tasks.run("task");
+  f.tasks.activeLimitMs = 1;
+  assert.equal((await f.tasks.run("task")).reason, "EXECUTION_LIMIT");
+  assert.equal(f.action("accept-partial", "accept").state, "partial");
+  const packet = f.store.record("packet").data;
+  assert.ok(packet.processingCoverage.pending.some(r => r.archivePath === "尾部.txt"));
+  assert.match(readingView(packet.readingCoverage)[0].missing, /嵌套归档/);
+  assert.equal(f.calls(), 1);
+  const bad = fixture(t, { name: "危险.zip", text: zipBytes({ "../escape.txt": "never" }) });
+  bad.enqueue();
+  assert.equal((await finish(bad.tasks)).reason, "NO_READABLE_MATERIAL");
+  assert.equal(bad.calls(), 0);
+  assert.equal(bad.ledger.wallet("synthetic").spent, 0);
+});
 
 test("PDF partial pages publish with real page coordinates; empty PDF never incurs provider cost", async (t) => {
   const f = fixture(t, {

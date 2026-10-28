@@ -11,7 +11,7 @@ const recovery = process.argv.includes("--reverify")
   : process.argv.includes("--expired")
     ? "expireBeforeStart:true,startByMini:true,"
     : "";
-const officeFormat = process.argv.includes("--pdf")
+const officeFormat = process.argv.includes("--zip") ? "zip" : process.argv.includes("--pdf")
   ? "pdf"
   : process.argv.includes("--xlsx")
     ? "xlsx"

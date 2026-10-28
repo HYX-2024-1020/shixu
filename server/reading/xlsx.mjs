@@ -80,7 +80,7 @@ function target(base, raw) {
 // Only cell values/structure are read. Formula evaluation, links, rendering,
 // VBA and filesystem extraction never enter this layer. SSF formats a number;
 // the complete SheetJS workbook/ZIP parsers are deliberately not invoked.
-export function readXlsx(bytes, { add, missing }) {
+export function readXlsx(bytes, { add, missing, budget }) {
   const omitted = new Set();
   const note = (code, range = { kind: "xlsx" }) => {
     const key = JSON.stringify([code, range]);
@@ -99,7 +99,7 @@ export function readXlsx(bytes, { add, missing }) {
   }
   let pkg;
   try {
-    pkg = openPackage(bytes);
+    pkg = openPackage(bytes, { budget });
   } catch (e) {
     note(e.message);
     return;

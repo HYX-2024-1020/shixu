@@ -874,7 +874,10 @@ export class ReadingTasks {
         }
         const sources = batch.map((s) => ({
           id: s.sourceId,
-          name: s.range.name,
+          name: typeof s.range.archivePath === "string"
+            ? "包内 " + [...s.range.archivePath].slice(0, 90).join("") +
+              ([...s.range.archivePath].length > 90 ? "…" : "")
+            : s.range.name,
           text: s.text,
         }));
         const prepared = this.provider.prepare?.(sources, {

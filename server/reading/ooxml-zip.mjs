@@ -11,7 +11,7 @@ const fail = (code) => {
 
 // No filesystem extraction and no path supplied to another program. Validate
 // both ZIP headers before allocating output; zlib enforces the actual bound.
-export function openPackage(bytes) {
+export function openPackage(bytes, { budget, archive = false } = {}) {
   const b = Buffer.from(bytes);
   let end = b.length - 22;
   for (; end >= Math.max(0, b.length - 65557); end--)
@@ -30,7 +30,7 @@ export function openPackage(bytes) {
     fail("PACKAGE_UNSUPPORTED");
   if (count !== b.readUInt16LE(end + 8) || central + centralSize !== end)
     fail("PACKAGE_INVALID");
-  if (!count || count > PACKAGE_LIMITS.entries) fail("PACKAGE_LIMIT");
+  if ((!count && !archive) || count > PACKAGE_LIMITS.entries) fail("PACKAGE_LIMIT");
   const entries = new Map(),
     spans = [];
   let cursor = central,
@@ -67,6 +67,10 @@ export function openPackage(bytes) {
     } catch {
       fail("PACKAGE_PATH");
     }
+    // ZIP's unflagged non-ASCII encoding is ambiguous (often CP437). Never
+    // silently treat it as UTF-8 and attach evidence to a different path.
+    if (archive && !(flags & 0x800) && rawName.some((c) => c > 127))
+      fail("ARCHIVE_ENCODING_UNSUPPORTED");
     if (
       !name ||
       Buffer.byteLength(name) > 512 ||
@@ -83,6 +87,11 @@ export function openPackage(bytes) {
     const mode = b.readUInt32LE(cursor + 38) >>> 16,
       kind = mode & 0o170000;
     if (kind && ![0o100000, 0o040000].includes(kind)) fail("PACKAGE_PATH");
+    if (archive && (
+      !!(b.readUInt32LE(cursor + 38) & 0x400) ||
+      (kind === 0o040000 && !name.endsWith("/")) ||
+      name.split("/").slice(0, -1).some((p) => !p)
+    )) fail("PACKAGE_PATH");
     if (name.endsWith("/") && expanded) fail("PACKAGE_INVALID");
     total += expanded;
     compressed += size;
@@ -122,8 +131,14 @@ export function openPackage(bytes) {
   spans.sort((a, b) => a[0] - b[0]);
   if (spans.some((span, i) => i && span[0] < spans[i - 1][1]))
     fail("PACKAGE_INVALID");
+  if (budget) {
+    if (budget.expanded + total > PACKAGE_LIMITS.expanded)
+      fail("PACKAGE_LIMIT");
+    budget.expanded += total;
+  }
   return {
     names: [...entries.keys()],
+    size: (name) => entries.get(name)?.expanded,
     read(name) {
       const e = entries.get(name);
       if (!e) fail("PACKAGE_PART_MISSING");

@@ -10,6 +10,8 @@ import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
+import { archiveSample } from "../server/reading/archive-fixtures.mjs";
+const zip = process.argv.includes("--zip");
 const pdf = process.argv.includes("--pdf");
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
@@ -20,7 +22,10 @@ const readFailure = process.argv.includes("--reader-limit")
   : process.argv.includes("--reader-time-unknown")
     ? "ACTIVE_TIME_RECONCILIATION"
     : null;
-const original = pdf
+const original = zip ? (() => {
+  const f = archiveSample({ long: true });
+  return { name: f.name, type: f.type, body: [...f.body] };
+})() : pdf
   ? {
       name: "合成.pdf",
       type: "application/pdf",
@@ -283,7 +288,7 @@ try {
       ).toBeEnabled();
       if (temporary)
         await expect(
-          page.getByText("合成.txt · 临时整理，退出后需重传", { exact: true }),
+          page.getByText((original?.name || "合成.txt") + " · 临时整理，退出后需重传", { exact: true }),
         ).toBeVisible();
       else {
         const before = (
@@ -342,7 +347,10 @@ try {
       await expect(
         materials.getByText(original.name + " · 部分读取"),
       ).toBeVisible();
-      if (pdf) {
+      if (zip) {
+        await expect(materials.getByText(/包内 “未读\/嵌套.zip”.*嵌套归档/)).toBeVisible();
+        await expect(materials.getByText(/包内 “页面\/正文.pdf”.*第 2 页/)).toBeVisible();
+      } else if (pdf) {
         await expect(
           materials.getByText(/PDF 第 181 页.*未提取到文字/),
         ).toBeVisible();
@@ -376,7 +384,7 @@ try {
         stopContinueButtons: true,
         cumulativeWallet: true,
         published: true,
-        format: pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
+        format: zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,
       }),

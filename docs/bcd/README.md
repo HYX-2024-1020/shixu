@@ -1,5 +1,7 @@
 # B/C/D 交错实施记录
 
+ZIP归档已接入同一隔离/任务/双端闭环，逐条读取支持材料、保留包内路径，停止补传与删除墓碑临时核验继续有效；RAR/7z仍未接入。见[ZIP联合验证](archive-verification.md)，不把本增量算整体归档或B/C/D完成。
+
 PDF文字层已接入受控隔离、页码/缺失范围、任务与双端发布，并补仅未执行读取的有限重试、原件墓碑不恢复的临时核验；扫描/图片仍未读，见[PDF联合验证](pdf-verification.md)。生产未启用，PDF整体与B/C/D继续保持未验收。
 
 关联 [总跟踪 #69](https://github.com/HYX-2024-1020/shixu/issues/69)、[实施 #73](https://github.com/HYX-2024-1020/shixu/issues/73)。依据 [A 契约](../stage-a/contracts.md) 与其中固定的方案 da28c1f；方案 #70 仍 Draft，不复制尚未合入的方案为已实施事实。

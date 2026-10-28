@@ -935,6 +935,11 @@ var labels = {
   failed: "读取失败"
 };
 var reasons = {
+  ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
+  ARCHIVE_NESTED_UNSUPPORTED: "嵌套归档暂不支持，未展开",
+  ARCHIVE_ENTRY_LIMIT: "包内文件超过单件安全限制，未读取",
+  ARCHIVE_ENTRY_FAILED: "包内文件完整性校验或读取失败，其他安全文件继续",
+  ARCHIVE_EMPTY_ENTRY: "包内文件为空，未提取文字",
   PDF_VISUAL_UNREAD: "仅提取文字层；图像、视觉布局与文字顺序待核对，未推断表格关系",
   PDF_NO_TEXT: "未提取到文字；可能是扫描或空白页，需图片输入核对",
   PDF_PAGE_FAILED: "此页文字提取失败，其他页继续读取",
@@ -993,6 +998,10 @@ var reasons = {
   XLSX_VISUAL_LAYOUT: "列布局或隐藏列展示未还原，现有单元格已读取"
 };
 function location(range) {
+  if (typeof range.archivePath === "string") {
+    const { archivePath, ...inner } = range;
+    return `包内 “${archivePath.slice(0, 512)}” · ${location(inner)}`;
+  }
   if (range.kind === "pdf") {
     const valid = (n) => Number.isSafeInteger(n) && n > 0;
     return valid(range.page) ? `PDF 第 ${range.page}${valid(range.pageEnd) && range.pageEnd > range.page ? "–" + range.pageEnd : ""} 页` : "PDF整份文件";

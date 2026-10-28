@@ -1,5 +1,7 @@
 # 第三方代码、素材与样本
 
+ZIP联合样本由项目在 `server/reading/archive-fixtures.mjs` 自行生成，沿用现有 fflate（MIT，lockfile固定）只作测试写入器，运行时解包仅用Node内置zlib和项目结构校验器，无新增第三方解压二进制。包内Office/PDF同样为项目合成材料，依赖许可沿下文既有记录。
+
 ## 绯樱狐素材（2026-10-27，Issue #65）
 
 `public/bunny.png`、`public/bunny-motion.webm`、`public/fox-atlas.webp` 和 `public/bunny-voice.mp3` 来自用户在本次对话提供的 `10月26日.mp4`。用户明确要求在 Windows 与小程序皮肤市场使用。原视频 SHA-256：`0625640e95b9f5773a8a2de5247d2ea2e62f8e1911185c3a17b858356e1748d3`，原视频本身不入库。原作者及开放许可未提供；这些角色和音频不按项目 MIT 重新授权，不授权其他用途再分发。

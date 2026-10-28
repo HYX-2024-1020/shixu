@@ -444,10 +444,10 @@ export default function AccountConnection({
         <p>
           密钥和模型由服务端管理。使用 AI
           时，相关文字及原件中读取的文字会发送给模型服务商。
-          服务端启用新版读取后支持 TXT、CSV、DOCX 和 XLSX 文字；Office
-          图片和嵌入对象会列为未读取，XLSX 公式仅用已有缓存值，不重新计算。
-          图片、PDF 等原件尚不支持 AI
-          读取。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
+          服务端启用新版读取后支持 TXT、CSV、DOCX、XLSX、PDF 文字层与 ZIP
+          内支持的材料，保留包内路径。Office 图片和嵌入对象列为未读，XLSX
+          公式仅用已有缓存值，不重新计算；PDF 视觉内容、扫描页、独立图片及嵌套归档尚未读取。
+          RAR/7z 仍待接入。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
         </p>
       </section>
       {!!state?.account?.reading && (

@@ -23,7 +23,7 @@ const isWord = (node, name) => wordUris.has(node.uri) && node.local === name;
 // This is structural text reading, never Word automation or rendering. Exact
 // part/paragraph/table coordinates survive model windows; omitted objects are
 // explicitly uncovered instead of being counted as fully read.
-export function readDocx(bytes, { add, missing }) {
+export function readDocx(bytes, { add, missing, budget }) {
   if (
     bytes
       .subarray(0, 8)
@@ -34,7 +34,7 @@ export function readDocx(bytes, { add, missing }) {
   }
   let pkg;
   try {
-    pkg = openPackage(bytes);
+    pkg = openPackage(bytes, { budget });
   } catch (e) {
     missing(e.message);
     return;

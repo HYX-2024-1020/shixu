@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/1;zip/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -90,7 +90,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -156,6 +156,11 @@ export function readMaterial(
       offset += chunk.size;
     }
   };
+  if (/\.zip$/i.test(name)) {
+    return import("./archive.mjs").then(({ readArchive }) =>
+      readArchive(bytes, result, { windowCodepoints }),
+    );
+  }
   if (/\.pdf$/i.test(name)) {
     return import("./pdf.mjs").then(async ({ readPdf, PDF_READER_VERSION }) => {
       result.readerVersion = PDF_READER_VERSION;
@@ -178,6 +183,7 @@ export function readMaterial(
       : reader.DOCX_READER_VERSION;
     (isXlsx ? reader.readXlsx : reader.readDocx)(bytes, {
       add,
+      budget: expansionBudget,
       missing: (code, range = { kind: "file" }) => {
         result.uncovered.push({ ...range, code });
         if (!result.reasons.includes(code)) result.reasons.push(code);
