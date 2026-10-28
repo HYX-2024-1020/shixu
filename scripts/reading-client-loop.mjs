@@ -216,6 +216,12 @@ export async function runClientLoop({ directory, reader, original }) {
       JSON.parse(JSON.stringify(mini.result)),
     );
     assert.equal(cloud.readJobs().find((j) => j.id === task.id).state, "done");
+    const winTask = cloud.readJobs().find((j) => j.id === task.id);
+    const miniTask = page.data.jobs.find((j) => j.id === task.id);
+    assert.equal(winTask.rootTaskId, task.id);
+    assert.equal(winTask.rootCalls, calls);
+    assert.equal(miniTask.rootCalls, winTask.rootCalls);
+    assert.equal(miniTask.rootActiveSeconds, winTask.rootActiveSeconds);
     assert.ok(tailSeen);
     assert.ok(calls > 2);
     assert.equal(JSON.stringify(win.sources), "[]");

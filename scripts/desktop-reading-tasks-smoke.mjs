@@ -155,7 +155,7 @@ try {
   await page.locator(".bucket-settings").click();
   await expect(page.getByText(/累计已消费/)).toBeVisible();
   await page.getByRole("button", { name: "停止", exact: true }).click();
-  await expect(page.getByText(/已停止 · 已调用/)).toBeVisible();
+  await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
   await page.getByRole("button", { name: "立即同步", exact: true }).click();
   await page.getByRole("button", { name: "继续", exact: true }).click();
   await waitForPageState(page, async () => {
@@ -166,7 +166,8 @@ try {
     );
   });
   await page.getByRole("button", { name: "立即同步", exact: true }).click();
-  await expect(page.getByText(/已发布 · 已调用/)).toBeVisible();
+  await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
+  await expect(page.getByText(/该投递累计 \d+ 次 · 活跃 \d+ 秒/)).toBeVisible();
   const status = await page.evaluate(() => window.desktop.cloud("status"));
   assert.ok(status.account.wallet.spent > 0);
   assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);

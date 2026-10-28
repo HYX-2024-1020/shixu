@@ -1900,17 +1900,30 @@ Page({
     }
   },
   _jobViews(jobs) {
-    return jobs.map(({ id, state, error, output, actions, calls }) => ({
-      id,
-      state,
-      error,
-      hasOutput: !!output,
-      calls: calls || 0,
-      canStop: actions?.includes("stop") || false,
-      canContinue: actions?.includes("continue") || false,
-      canPurge: actions?.includes("purge") || false,
-      canAcceptPartial: actions?.includes("accept-partial") || false,
-    }));
+    return jobs.map(
+      ({
+        id,
+        state,
+        error,
+        output,
+        actions,
+        calls,
+        rootCalls,
+        rootActiveSeconds,
+      }) => ({
+        id,
+        state,
+        error,
+        hasOutput: !!output,
+        calls: calls || 0,
+        rootCalls,
+        rootActiveSeconds,
+        canStop: actions?.includes("stop") || false,
+        canContinue: actions?.includes("continue") || false,
+        canPurge: actions?.includes("purge") || false,
+        canAcceptPartial: actions?.includes("accept-partial") || false,
+      }),
+    );
   },
   _saveJobs(jobs) {
     wx.setStorageSync(jobsKey(this._space()), jobs);

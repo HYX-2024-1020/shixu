@@ -371,7 +371,15 @@ export default function AccountConnection({
                     purged: "已清除",
                   } as Record<string, string>
                 )[task.state] || "需核对"}{" "}
-                · 已调用 {task.calls || 0} 次 {task.error}
+                · 本任务已调用 {task.calls || 0} 次
+                {typeof task.rootCalls === "number" && (
+                  <>
+                    {" "}
+                    · 该投递累计 {task.rootCalls} 次 · 活跃{" "}
+                    {task.rootActiveSeconds || 0} 秒
+                  </>
+                )}
+                {task.error}
               </p>
               {task.actions
                 ?.filter((a) => a !== "purge")

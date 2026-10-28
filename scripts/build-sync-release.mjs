@@ -11,7 +11,7 @@ const files = [
   "server/sync-files.mjs",
   "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
   "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs",
-  "server/reading/ledger.mjs", "server/reading/scheduler.mjs",
+  "server/reading/ledger.mjs", "server/reading/scheduler.mjs", "server/reading/roots.mjs",
   "server/accounts-v4.mjs",
   "server/reading/docx.mjs", "server/reading/ooxml-zip.mjs",
   "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",

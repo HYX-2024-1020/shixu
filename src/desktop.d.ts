@@ -34,6 +34,10 @@ interface Window {
         output?: unknown;
         protocol?: number;
         calls?: number;
+        rootTaskId?: string;
+        rootCalls?: number;
+        rootActiveMs?: number;
+        rootActiveSeconds?: number;
         actions?: string[];
       }[];
       account?: {

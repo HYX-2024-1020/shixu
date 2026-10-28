@@ -394,7 +394,7 @@ test("24-call checkpoint records progress and does not cap a longer task", async
   assert.equal(task.state, "done");
   assert.ok(f.calls() > 24);
   const checkpoint = f.store.db
-    .prepare("SELECT * FROM reading_checkpoints")
+    .prepare("SELECT * FROM reading_root_checkpoints")
     .get();
   assert.equal(checkpoint.calls, 24);
   assert.equal(checkpoint.completed, 24);
@@ -409,6 +409,165 @@ test("a no-progress checkpoint remains paused across repeated manual continue, w
   f.action("continue", "retry-checkpoint");
   assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
   assert.equal(f.calls(), 0);
+});
+
+test("24 invalid paid calls across new task IDs keep one root checkpoint after purge; a new packet has its own root", async (t) => {
+  const f = fixture(t, {
+    provider: async () => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: null,
+    }),
+  });
+  const create = (id) =>
+    f.tasks.enqueue({ id, packetId: "packet", deviceId: f.windows.deviceId });
+  const purge = (id) => {
+    const task = f.tasks.get(id);
+    return f.tasks.action(
+      id,
+      {
+        operationId: "purge_" + id,
+        expectedGeneration: task.generation,
+        expectedRevision: task.input_revision,
+      },
+      "purge",
+    );
+  };
+  for (let n = 0; n < 24; n++) {
+    const id = "retry_" + n;
+    create(id);
+    assert.equal((await f.tasks.run(id)).state, "paused");
+    purge(id);
+  }
+  assert.equal(f.calls(), 24);
+  const root = f.tasks.roots.stats("retry_23");
+  assert.equal(root.id, "retry_0");
+  assert.equal(root.calls, 24);
+  assert.equal(root.completed, 0);
+  assert.equal(root.checkpointCalls, 24);
+  assert.equal(root.reason, "CHECKPOINT_NO_PROGRESS");
+  assert.equal(root.spent, f.ledger.wallet("synthetic").spent);
+  create("retry_24");
+  assert.equal(
+    (await f.tasks.run("retry_24")).reason,
+    "CHECKPOINT_NO_PROGRESS",
+  );
+  assert.equal(f.calls(), 24);
+  purge("retry_24");
+  f.store.apply(
+    f.windows.deviceId,
+    {
+      id: "another_packet",
+      opId: "another_packet",
+      type: "put",
+      baseVersion: 0,
+      data: {
+        text: "明确另一次投递",
+        attachments: [],
+        captureDate: "2026-10-28",
+      },
+    },
+    f.store.epoch,
+  );
+  f.tasks.enqueue({
+    id: "another_task",
+    packetId: "another_packet",
+    deviceId: f.windows.deviceId,
+  });
+  assert.equal(f.tasks.roots.stats("another_task").calls, 0);
+  assert.equal(f.tasks.roots.stats("another_task").id, "another_task");
+  await f.tasks.run("another_task");
+  assert.equal(f.calls(), 25);
+  assert.equal(f.ledger.wallet("synthetic").spent, root.spent + 20);
+});
+
+test("root active time and unverified reader time survive task purge and edited-input retry", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  f.store.db
+    .prepare("UPDATE reading_tasks SET active_ms=1800000 WHERE id='task'")
+    .run();
+  f.action("purge", "purge_old");
+  f.put({ text: "暂停后修改正文" });
+  f.tasks.enqueue({
+    id: "next",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  assert.equal((await f.tasks.run("next")).reason, "EXECUTION_LIMIT");
+  assert.equal(f.calls(), 0);
+  assert.equal(f.tasks.roots.stats("next").id, "task");
+  f.tasks.roots.block("next", "ACTIVE_TIME_RECONCILIATION");
+  const task = f.tasks.get("next");
+  f.tasks.action(
+    "next",
+    {
+      operationId: "purge_next",
+      expectedGeneration: task.generation,
+      expectedRevision: task.input_revision,
+    },
+    "purge",
+  );
+  f.tasks.enqueue({
+    id: "third",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  assert.equal(
+    (await f.tasks.run("third")).reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  assert.equal(f.calls(), 0);
+});
+
+test("legacy root upgrade is idempotent, preserves paid progress, and requires audit for historical 24-call intervals", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop", "before_upgrade");
+  f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
+  f.store.db.exec(
+    "DROP TABLE reading_root_checkpoints; DROP TABLE reading_root_progress; DROP TABLE reading_roots",
+  );
+  const upgraded = new ReadingTasks(f.taskArgs);
+  const root = upgraded.roots.stats("task");
+  assert.equal(root.reason, "CHECKPOINT_RECONCILIATION");
+  assert.equal(root.calls, 24);
+  assert.equal(root.completed, 1);
+  const twice = new ReadingTasks(f.taskArgs);
+  assert.deepEqual(twice.roots.stats("task"), root);
+  upgraded.close();
+  twice.close();
+});
+
+test("crash-persisted running work cannot lose its unrecorded active interval by restarting or creating a new task", (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  f.store.db
+    .prepare(
+      "UPDATE reading_tasks SET state='running',active_ms=12 WHERE id='task'",
+    )
+    .run();
+  const restarted = new ReadingTasks(f.taskArgs);
+  assert.equal(restarted.get("task").state, "interrupted");
+  assert.equal(
+    restarted.roots.stats("task").reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  const task = restarted.get("task");
+  assert.throws(
+    () =>
+      restarted.action(
+        "task",
+        {
+          operationId: "crash_continue",
+          expectedGeneration: task.generation,
+          expectedRevision: task.input_revision,
+        },
+        "continue",
+      ),
+    (e) => e.code === "ACTIVE_TIME_RECONCILIATION",
+  );
+  restarted.close();
 });
 
 test("cleared originals require a matching reupload before paid blocks can resume", async (t) => {

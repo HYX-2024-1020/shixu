@@ -10,6 +10,7 @@ import {
   NORMALIZATION_VERSION,
 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
+import { ReadingRoots } from "./roots.mjs";
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -162,6 +163,7 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_checkpoints(task TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,PRIMARY KEY(task,calls));
       CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);`);
+    this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
         "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('running','applying')",
@@ -229,6 +231,12 @@ export class ReadingTasks {
       if (this.store.files.unlinked(packetId))
         throw error("ATTACHMENT_UNLINKED");
       if (
+        [...this.executions.keys()].some(
+          (runningId) => this.get(runningId)?.packet === packetId,
+        )
+      )
+        throw error("TASK_STILL_DRAINING");
+      if (
         (this.store.record(packetId).data.attachments || [])
           .filter((f) => !f.deletedAt)
           .reduce((sum, f) => sum + f.size, 0) >
@@ -254,6 +262,7 @@ export class ReadingTasks {
           revision,
           this.store.record(packetId).version,
         );
+      this.roots.attach(this.get(id));
       return this.get(id);
     });
   }
@@ -337,7 +346,7 @@ export class ReadingTasks {
             )
             .run(id);
       } else {
-        if (task.reason === "SHUTDOWN_TIME_UNCERTAIN")
+        if (this.roots.stats(id).reason === "ACTIVE_TIME_RECONCILIATION")
           throw error("ACTIVE_TIME_RECONCILIATION");
         if (
           !["cancelled", "paused", "interrupted", "error"].includes(task.state)
@@ -447,6 +456,8 @@ export class ReadingTasks {
         execution.phase === "provider"
           ? "SHUTDOWN_TIMEOUT"
           : "SHUTDOWN_TIME_UNCERTAIN";
+      if (reason === "SHUTDOWN_TIME_UNCERTAIN")
+        this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
       this.db
         .prepare(
           "UPDATE reading_tasks SET reason=?,active_ms=active_ms+? WHERE id=?",
@@ -577,6 +588,7 @@ export class ReadingTasks {
     const execution = { started, excludedMs: 0, phase: "reader" };
     this.executions.set(id, execution);
     let excludedMs = 0;
+    const root = this.roots.checkpoint(id);
     const read = async (file, options) => {
       const { timing, ...material } = await this.reader(file, options);
       if (Number.isFinite(timing?.waitingMs) && timing.waitingMs > 0)
@@ -585,6 +597,8 @@ export class ReadingTasks {
       return material;
     };
     try {
+      if (root.reason) throw Error(root.reason);
+      if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
       const packet = this.store.record(task.packet).data,
         cached = this.materials.get(id),
         materials = cached || [];
@@ -641,7 +655,7 @@ export class ReadingTasks {
       for (const batch of batches) {
         if (!this.current(task)) return this.get(id);
         if (
-          task.active_ms + performance.now() - started - excludedMs >=
+          root.activeMs + performance.now() - started - excludedMs >=
           this.activeLimitMs
         )
           throw Error("EXECUTION_LIMIT");
@@ -659,8 +673,13 @@ export class ReadingTasks {
             "SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?",
           )
           .get(id, fingerprint);
-        if (existing && this.ledger.call(existing.call_id)?.state === "settled")
+        if (
+          existing &&
+          this.ledger.call(existing.call_id)?.state === "settled"
+        ) {
+          this.roots.progress(id, fingerprint);
           continue;
+        }
         const recovered = this.ledger.completedEnvelope(
           this.account,
           id,
@@ -676,6 +695,7 @@ export class ReadingTasks {
             )
             .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
           this.ledger.clearEnvelope(recovered.call_id);
+          this.roots.progress(id, fingerprint);
           continue;
         }
         const sources = batch.map((s) => ({
@@ -688,31 +708,6 @@ export class ReadingTasks {
           maxOutputTokens: this.maxOutputTokens,
         });
         const callId = randomUUID();
-        const latest = this.get(id);
-        if (latest.calls > 0 && latest.calls % 24 === 0) {
-          const completed = this.db
-            .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")
-            .get(id).n;
-          const prior = this.db
-            .prepare(
-              "SELECT * FROM reading_checkpoints WHERE task=? AND calls<? ORDER BY calls DESC LIMIT 1",
-            )
-            .get(id, latest.calls);
-          if (
-            !this.db
-              .prepare(
-                "SELECT 1 FROM reading_checkpoints WHERE task=? AND calls=?",
-              )
-              .get(id, latest.calls)
-          ) {
-            const wallet = this.ledger.wallet(this.account);
-            this.db
-              .prepare("INSERT INTO reading_checkpoints VALUES(?,?,?,?)")
-              .run(id, latest.calls, completed, wallet.spent);
-          }
-          if (completed <= (prior?.completed || 0))
-            throw Error("CHECKPOINT_NO_PROGRESS");
-        }
         this.ledger.reserve({
           callId,
           account: this.account,
@@ -741,7 +736,7 @@ export class ReadingTasks {
                     240000,
                     Math.floor(
                       this.activeLimitMs -
-                        task.active_ms -
+                        root.activeMs -
                         (performance.now() - started - excludedMs),
                     ),
                   ),
@@ -833,6 +828,7 @@ export class ReadingTasks {
           .prepare("INSERT OR REPLACE INTO reading_block_ranges VALUES(?,?,?)")
           .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
         this.ledger.clearEnvelope(callId);
+        this.roots.progress(id, fingerprint);
         // One bounded call returns control to the caller scheduler. It may run a
         // different account next; checkpoints never reset cumulative counters.
         return this.get(id);
@@ -858,6 +854,8 @@ export class ReadingTasks {
               "NO_READABLE_MATERIAL",
               "TASK_INFLIGHT_BUDGET",
               "CHECKPOINT_NO_PROGRESS",
+              "CHECKPOINT_RECONCILIATION",
+              "ACTIVE_TIME_RECONCILIATION",
             ].includes(e.message)
               ? e.message
               : "READING_TASK_FAILED",
@@ -878,6 +876,14 @@ export class ReadingTasks {
           );
         // Return queued only after the previous invocation fully drains. Stop and
         // resume generations never share one in-flight controller.
+        // Check failed/invalid paid calls too, at call 24 itself.
+        const checkpoint = this.roots.checkpoint(id);
+        if (checkpoint.reason && this.current(task))
+          this.db
+            .prepare(
+              "UPDATE reading_tasks SET state='paused',reason=? WHERE id=?",
+            )
+            .run(checkpoint.reason, id);
         if (this.current(task))
           this.db
             .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")

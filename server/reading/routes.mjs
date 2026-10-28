@@ -12,6 +12,9 @@ const shutdownMessages = {
   ACTIVE_TIME_RECONCILIATION:
     "任务活跃时间待核对，请联系维护者；已完成进度保留",
   SERVICE_CLOSING: "服务正在关闭，请稍后重试",
+  CHECKPOINT_NO_PROGRESS: "累计24次调用未取得新增有效块，需核对后继续",
+  CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
+  EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
 };
 const fail = (status, code) => {
   throw new SyncError(status, code, shutdownMessages[code] || code);
@@ -87,51 +90,71 @@ export function createReadingRoutes({
       });
     inflight.set(key, pending);
   }
-  const view = (e, t) => ({
-    contractVersion: 1,
-    id: t.id,
-    packetId: t.packet,
-    state: t.state,
-    generation: t.generation,
-    inputRevision: t.input_revision,
-    calls: t.calls,
-    activeMs: t.active_ms,
-    reason: t.reason,
-    rootTaskId: t.id,
-    error: shutdownMessages[t.reason] || t.reason || "",
-    protocol: 4,
-    actions:
-      t.state === "purged"
-        ? []
-        : [
-            ...(active.includes(t.state) ? ["stop"] : []),
-            ...(recoverable.includes(t.state) &&
-            t.reason !== "SHUTDOWN_TIME_UNCERTAIN"
-              ? ["continue"]
-              : []),
-            ...(["paused", "interrupted", "error", "conflict"].includes(t.state)
-              ? ["accept-partial"]
-              : []),
-            "purge",
-          ],
-    readingSummary: JSON.parse(t.coverage).map((c) => ({
-      attachmentId: c.attachmentId,
-      name: c.name,
-      state: c.state,
-      readRanges: c.covered?.length || 0,
-      unreadRanges: c.uncovered?.length || 0,
-    })),
-    completedBlocks: e.db
-      .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")
-      .get(t.id).n,
-    wallet: (() => {
-      try {
-        return ledger.wallet(e.account);
-      } catch {
-        return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
-      }
-    })(),
-  });
+  const view = (e, t, roots) => {
+    const root = roots?.get(t.packet) || e.roots.stats(t.id);
+    roots?.set(t.packet, root);
+    return {
+      contractVersion: 1,
+      id: t.id,
+      packetId: t.packet,
+      state: t.state,
+      generation: t.generation,
+      inputRevision: t.input_revision,
+      calls: t.calls,
+      activeMs: t.active_ms,
+      reason: t.reason,
+      rootTaskId: root.id,
+      rootCalls: root.calls,
+      rootActiveMs: root.activeMs,
+      rootActiveSeconds: Math.ceil(root.activeMs / 1000),
+      rootSpent: root.spent,
+      checkpointCalls: root.checkpointCalls,
+      nextCheckpointCalls: root.nextCheckpointCalls,
+      error:
+        shutdownMessages[root.reason || t.reason] ||
+        root.reason ||
+        t.reason ||
+        "",
+      protocol: 4,
+      actions:
+        t.state === "purged"
+          ? []
+          : [
+              ...(active.includes(t.state) ? ["stop"] : []),
+              ...(recoverable.includes(t.state) &&
+              ![
+                "ACTIVE_TIME_RECONCILIATION",
+                "CHECKPOINT_RECONCILIATION",
+                "CHECKPOINT_NO_PROGRESS",
+              ].includes(root.reason)
+                ? ["continue"]
+                : []),
+              ...(["paused", "interrupted", "error", "conflict"].includes(
+                t.state,
+              )
+                ? ["accept-partial"]
+                : []),
+              "purge",
+            ],
+      readingSummary: JSON.parse(t.coverage).map((c) => ({
+        attachmentId: c.attachmentId,
+        name: c.name,
+        state: c.state,
+        readRanges: c.covered?.length || 0,
+        unreadRanges: c.uncovered?.length || 0,
+      })),
+      completedBlocks: e.db
+        .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")
+        .get(t.id).n,
+      wallet: (() => {
+        try {
+          return ledger.wallet(e.account);
+        } catch {
+          return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
+        }
+      })(),
+    };
+  };
   const paged = (record) => {
     const text = JSON.stringify(record);
     return Buffer.byteLength(text) > 400000
@@ -246,6 +269,7 @@ export function createReadingRoutes({
         }
       const e = engine(account, store);
       if (url.pathname === "/api/v4/tasks" && method === "GET") {
+        const roots = new Map();
         return {
           contractVersion: 1,
           tasks: e.db
@@ -253,7 +277,7 @@ export function createReadingRoutes({
               "SELECT * FROM reading_tasks ORDER BY rowid DESC LIMIT 100",
             )
             .all()
-            .map((t) => view(e, t)),
+            .map((t) => view(e, t, roots)),
         };
       }
       if (url.pathname === "/api/v4/tasks" && method === "POST") {
