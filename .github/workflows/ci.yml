@@ -68,6 +68,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run mini:check
+      - run: node scripts/build-reading-parser.mjs --check
       - run: node scripts/check-docs.mjs
       - run: node --test scripts/stage-a/*.test.mjs
       - run: node scripts/stage-a/rehearse.mjs
@@ -125,6 +126,7 @@ jobs:
       - run: npm run test:desktop:ui
       - run: node scripts/desktop-reading-smoke.mjs
       - run: node scripts/desktop-reading-tasks-smoke.mjs
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --docx
       - run: node scripts/desktop-account-v4-smoke.mjs
       - run: node scripts/desktop-layout-drag-smoke.mjs
 

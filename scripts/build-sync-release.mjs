@@ -13,6 +13,8 @@ const files = [
   "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs",
   "server/reading/ledger.mjs", "server/reading/scheduler.mjs",
   "server/accounts-v4.mjs",
+  "server/reading/docx.mjs", "server/reading/ooxml-zip.mjs",
+  "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",

@@ -15,7 +15,7 @@ const pagePath = fileURLToPath(
 );
 const tick = () => new Promise((done) => setTimeout(done, 10));
 
-export async function runClientLoop({ directory, reader }) {
+export async function runClientLoop({ directory, reader, original }) {
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
   ledger.freezePrice({
     id: "synthetic",
@@ -152,9 +152,9 @@ export async function runClientLoop({ directory, reader }) {
     };
     page.onLoad();
     page._activate({ ...binding, base: SERVICE_ORIGIN });
-    const body = Buffer.from(
-      "合成报告要求与顺序😀。\n".repeat(20000) + "尾部唯一标记",
-    );
+    const body =
+      original?.body ||
+      Buffer.from("合成报告要求与顺序😀。\n".repeat(20000) + "尾部唯一标记");
     await cloud.call(
       "savePackets",
       [
@@ -165,8 +165,8 @@ export async function runClientLoop({ directory, reader }) {
           attachments: [
             {
               id: "original",
-              name: "合成.txt",
-              type: "text/plain",
+              name: original?.name || "合成.txt",
+              type: original?.type || "text/plain",
               bytes: body,
             },
           ],
@@ -219,6 +219,11 @@ export async function runClientLoop({ directory, reader }) {
     assert.ok(tailSeen);
     assert.ok(calls > 2);
     assert.equal(JSON.stringify(win.sources), "[]");
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(win.readingCoverage)),
+      JSON.parse(JSON.stringify(mini.readingCoverage)),
+    );
+    if (original?.verify) original.verify({ win, mini, page });
     const old = await cloud
       .request(cloud.config.active, "POST", "/api/v3/jobs", {
         kind: "organize",

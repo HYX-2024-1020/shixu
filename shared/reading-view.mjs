@@ -12,8 +12,34 @@ const reasons = {
   EMPTY_TEXT: "文件为空白文字",
   CSV_MALFORMED: "CSV 行或引号损坏",
   ISOLATED_READING_FAILED: "隔离读取未完成",
+  PACKAGE_INVALID: "文件压缩结构或完整性校验失败",
+  PACKAGE_UNSUPPORTED: "加密、ZIP64或此压缩方式暂不支持",
+  PACKAGE_PATH: "文件内含不安全路径或链接",
+  PACKAGE_LIMIT: "文件展开超过安全资源限制",
+  PACKAGE_PART_MISSING: "文件所需组成部分缺失",
+  DOCX_PACKAGE_MISSING: "缺少有效DOCX正文或类型声明",
+  DOCX_MACRO_UNSUPPORTED: "含宏的Office文件暂不支持",
+  DOCX_XML_UNSAFE: "文件含不安全的XML声明",
+  DOCX_XML_ENCODING: "文件内部文字编码无效",
+  DOCX_XML_DEPTH: "文件内部结构过深",
+  DOCX_XML_MALFORMED: "文件内部XML损坏，未闭合部分未读取",
+  DOCX_STRUCTURE_INVALID: "DOCX正文结构无效",
+  DOCX_TABLE_INVALID: "表格合并范围无效",
+  DOCX_OBJECT_UNREAD: "图片、公式或嵌入对象尚未读取",
+  DOCX_EXTERNAL_LINK: "外部链接未访问",
+  DOCX_REVISIONS: "修订内容尚需人工核对",
+  DOCX_NUMBERING: "列表编号样式尚未还原，段落文字已保留",
+  DOCX_DYNAMIC_FIELD: "动态域未执行，仅保留已有显示文字",
+  DOCX_UNLINKED_PART: "未关联到正文的文档部分未读取",
+  DOCX_ENCRYPTED_UNSUPPORTED: "加密或旧式Office容器暂不支持",
 };
 function location(range) {
+  if (range.kind === "docx") {
+    const part =
+      typeof range.part === "string" ? range.part.slice(0, 200) : "正文";
+    const positive = (n) => Number.isSafeInteger(n) && n >= 1;
+    return `${part}${positive(range.table) && positive(range.row) && positive(range.column) ? ` · 表 ${range.table} 第 ${range.row} 行第 ${range.column} 列` : ""}${positive(range.paragraph) ? ` · 第 ${range.paragraph} 段` : ""}`;
+  }
   if (range.kind === "csv" && Number.isSafeInteger(range.row) && range.row >= 1)
     return `CSV 第 ${range.row}${Number.isSafeInteger(range.rowEnd) && range.rowEnd > range.row ? "–" + range.rowEnd : ""} 行`;
   if (

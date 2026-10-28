@@ -341,8 +341,10 @@ export default function AccountConnection({
                     : `今日 ${used} / ${state.account.ai.dailyLimit} 次（UTC 零点重置）`}
         </p>
         <p>
-          密钥和模型由服务端管理。使用 AI 时，相关文字及支持读取的 UTF-8
-          原件会发送给模型服务商；图片、PDF 等原件尚不支持 AI
+          密钥和模型由服务端管理。使用 AI
+          时，相关文字及原件中读取的文字会发送给模型服务商。
+          服务端启用新版读取后支持 TXT、CSV 和 DOCX 文字；DOCX
+          中的图片、公式和嵌入对象会列为未读取。 图片、PDF 等原件尚不支持 AI
           读取。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
         </p>
       </section>

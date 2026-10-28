@@ -39,3 +39,7 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 ### 0.3.20 音频截取修正
 
 沿用上述两份用户录屏与截取区间。旧版处理在截取前按录屏时间执行淡出，导致生成片段完全静音；本次先重置时间戳、atrim 截取，再 asetpts 重置片段时间戳，最后执行 8ms 淡入与20ms淡出。保留原始声调与来源使用范围。修正版解码 RMS：声音一约0.05496、声音二约0.05221；长度仍为1.00/0.73秒。不再以文件存在、可解码或时长正确代替有声验证。
+
+## 服务端DOCX读取依赖（2026-10-28，Issue #73）
+
+`sax@1.6.1` 来自 https://github.com/isaacs/sax-js ，BlueOak-1.0.0，精确包和校验见lockfile。`server/reading/docx-reader.cjs`由本项目读取源码及sax打包，保留随附的 `server/reading/docx-reader.LICENSE`；不能将其依赖许可改称MIT。候选saxes上游已归档，未引入为新的读取依赖。包容器使用Node24内置zlib/CRC32；测试DOCX由项目自己的合成文字、XML与既有fflate生成，没有第三方文档样本或私人原件。

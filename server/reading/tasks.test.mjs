@@ -8,6 +8,7 @@ import { createAttachmentStore } from "../sync-files.mjs";
 import { readMaterial } from "./material.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
+import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 const result = (sources) => ({
   summary: "合成资料",
   warnings: [],
@@ -30,6 +31,7 @@ function fixture(
   t,
   {
     text = "原件实际内容和要求",
+    name = "合成.txt",
     provider,
     reader = async (f) => readMaterial(f),
   } = {},
@@ -73,7 +75,7 @@ function fixture(
     result: null,
   });
   const attachment = store.files.put("packet", "a", {
-    name: "合成.txt",
+    name,
     body: Buffer.from(text),
     type: "text/plain",
     epoch: store.epoch,
@@ -438,6 +440,43 @@ test("all unreadable material never invokes provider; partial input publishes ex
   fail.enqueue();
   assert.equal((await fail.tasks.run("task")).reason, "NO_READABLE_MATERIAL");
   assert.equal(fail.calls(), 0);
+});
+
+test("unreadable DOCX never spends; damaged DOCX tail publishes only complete safe paragraphs and exact missing metadata", async (t) => {
+  const unreadable = fixture(t, {
+    name: "损坏.docx",
+    text: docxBytes("<w:p><w:r><w:t>损坏尾部"),
+  });
+  unreadable.enqueue();
+  assert.equal(
+    (await unreadable.tasks.run("task")).reason,
+    "NO_READABLE_MATERIAL",
+  );
+  assert.equal(unreadable.calls(), 0);
+  assert.equal(unreadable.ledger.wallet("synthetic").spent, 0);
+  const partial = fixture(t, {
+    name: "部分.docx",
+    text: docxBytes(
+      paragraph("可以安全读取的段落") + "<w:p><w:r><w:t>损坏尾部",
+    ),
+    provider: async (sources) => {
+      assert.equal(sources.map((s) => s.text).join(""), "可以安全读取的段落\n");
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: result(sources),
+      };
+    },
+  });
+  partial.enqueue();
+  assert.equal((await finish(partial.tasks)).state, "done");
+  const record = partial.store.record("packet");
+  assert.equal(record.data.readingCoverage[0].state, "partial");
+  assert.ok(
+    record.data.readingCoverage[0].uncovered.some(
+      (r) => r.code === "DOCX_XML_MALFORMED",
+    ),
+  );
+  assert.equal(partial.calls(), 1);
 });
 test("publication failure rolls back packet, publication manifest and terminal state together", async (t) => {
   const f = fixture(t);

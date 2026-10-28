@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 
-export const READER_VERSION = "text-csv/2";
+export const READER_VERSION = "text-csv/2;docx/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -128,6 +130,54 @@ export function readMaterial(
     result.reasons.push(code);
     return result;
   };
+  let offset = 0,
+    index = 0;
+  const add = (raw, locator, structure) => {
+    let part = 0;
+    for (const chunk of windows(raw, windowCodepoints)) {
+      const sourceId = `${id.slice(0, 64)}_${sha256(id).slice(0, 12)}_${index++}`;
+      const range = {
+        sourceId,
+        name,
+        start: offset,
+        end: offset + chunk.size,
+        ...locator,
+        ...(locator.kind === "docx" ? { fragment: part++ } : { part: part++ }),
+      };
+      result.covered.push(range);
+      result.segments.push({
+        sourceId,
+        text: chunk.text,
+        range,
+        ...(structure ? { structure } : {}),
+      });
+      offset += chunk.size;
+    }
+  };
+  if (/\.docx$/i.test(name)) {
+    const { readDocx, DOCX_READER_VERSION } = require("./docx-reader.cjs");
+    result.readerVersion = DOCX_READER_VERSION;
+    readDocx(bytes, {
+      add,
+      missing: (code, range = { kind: "file" }) => {
+        result.uncovered.push({ ...range, code });
+        if (!result.reasons.includes(code)) result.reasons.push(code);
+      },
+    });
+    const readable = result.segments.some((s) => s.text.trim());
+    result.state = result.uncovered.length
+      ? readable
+        ? "partial"
+        : result.reasons.some((c) =>
+              /UNSUPPORTED|LIMIT|DOCX_OBJECT_UNREAD|DOCX_EXTERNAL_LINK/.test(c),
+            )
+          ? "unsupported"
+          : "failed"
+      : "read";
+    if (!readable && !result.uncovered.length)
+      result.reasons.push("EMPTY_TEXT");
+    return result;
+  }
   if (!/\.(txt|csv)$/i.test(name))
     return fail("unsupported", "FORMAT_UNSUPPORTED");
   // Detect obvious binary masquerading without trusting a client MIME label.
@@ -146,30 +196,6 @@ export function readMaterial(
     return fail("unsupported", "ENCODING_UNSUPPORTED");
   }
   if (text.includes("\0")) return fail("failed", "BINARY_TEXT");
-  let offset = 0,
-    index = 0;
-  const add = (raw, locator, structure) => {
-    let part = 0;
-    for (const chunk of windows(raw, windowCodepoints)) {
-      const sourceId = `${id.slice(0, 64)}_${sha256(id).slice(0, 12)}_${index++}`;
-      const range = {
-        sourceId,
-        name,
-        start: offset,
-        end: offset + chunk.size,
-        ...locator,
-        part: part++,
-      };
-      result.covered.push(range);
-      result.segments.push({
-        sourceId,
-        text: chunk.text,
-        range,
-        ...(structure ? { structure } : {}),
-      });
-      offset += chunk.size;
-    }
-  };
   if (/\.csv$/i.test(name)) {
     let row = 0,
       group = null;

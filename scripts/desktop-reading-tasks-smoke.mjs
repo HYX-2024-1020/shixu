@@ -7,6 +7,8 @@ import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { waitForPageState } from "./desktop-test-wait.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
+import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
+const docx = process.argv.includes("--docx");
 const root = await mkdtemp(join(tmpdir(), "shixu-v4-ui-ledger-"));
 const ledger = new ReadingLedger(join(root, "ledger.sqlite"));
 ledger.freezePrice({
@@ -87,29 +89,54 @@ try {
     );
     await page.getByRole("dialog").waitFor({ state: "detached" });
   } else await fixture.activate(page);
-  await page.evaluate(async () => {
-    const bytes = new TextEncoder().encode(
-      "合成完整材料😀。\n".repeat(16000) + "尾部标记",
-    ).buffer;
-    await window.desktop.store("savePackets", [
-      {
-        id: "task-ui",
-        text: "",
-        sources: [],
-        attachments: [
-          { id: "original", name: "合成.txt", type: "text/plain", bytes },
-        ],
-        doneIds: [],
-        capturedAt: "2026-10-28T00:00:00.000Z",
-        captureDate: "2026-10-28",
-        updatedAt: "2026-10-28T00:00:00.000Z",
-        result: null,
-        status: "pending",
-      },
-    ]);
-    await window.desktop.cloud("sync");
-    await window.desktop.cloud("ai", { kind: "organize", packetId: "task-ui" });
-  });
+  await page.evaluate(
+    async (docxBody) => {
+      const bytes = docxBody
+        ? Uint8Array.from(docxBody).buffer
+        : new TextEncoder().encode(
+            "合成完整材料😀。\n".repeat(16000) + "尾部标记",
+          ).buffer;
+      await window.desktop.store("savePackets", [
+        {
+          id: "task-ui",
+          text: "",
+          sources: [],
+          attachments: [
+            {
+              id: "original",
+              name: docxBody ? "合成.docx" : "合成.txt",
+              type: docxBody
+                ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                : "text/plain",
+              bytes,
+            },
+          ],
+          doneIds: [],
+          capturedAt: "2026-10-28T00:00:00.000Z",
+          captureDate: "2026-10-28",
+          updatedAt: "2026-10-28T00:00:00.000Z",
+          result: null,
+          status: "pending",
+        },
+      ]);
+      await window.desktop.cloud("sync");
+      await window.desktop.cloud("ai", {
+        kind: "organize",
+        packetId: "task-ui",
+      });
+    },
+    docx
+      ? [
+          ...docxBytes(
+            paragraph("合成完整材料😀。\n".repeat(16000)) +
+              "<w:tbl><w:tr><w:tc>" +
+              paragraph("尾部标记") +
+              "</w:tc></w:tr></w:tbl>",
+            { "word/media/image1.png": Buffer.from("not OCRed") },
+          ),
+        ]
+      : null,
+  );
   await page.locator(".bucket-settings").click();
   await expect(page.getByText(/累计已消费/)).toBeVisible();
   await page.getByRole("button", { name: "停止", exact: true }).click();
@@ -128,6 +155,31 @@ try {
   const status = await page.evaluate(() => window.desktop.cloud("status"));
   assert.ok(status.account.wallet.spent > 0);
   assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
+  if (docx) {
+    await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+    // IPC submission updates the main-process projection; verify persisted
+    // cards after the renderer reloads its account workspace.
+    await page.reload();
+    await expect(
+      page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "整理结果", exact: true }).click();
+    await page
+      .getByRole("button", { name: /份同行材料/ })
+      .first()
+      .click();
+    const materials = page.getByRole("dialog", {
+      name: "同行材料",
+      exact: true,
+    });
+    await expect(materials.getByText("合成.docx · 部分读取")).toBeVisible();
+    await expect(
+      materials.getByText(
+        "word/media/image1.png：图片、公式或嵌入对象尚未读取",
+        { exact: true },
+      ),
+    ).toBeVisible();
+  }
   console.log(
     JSON.stringify({
       synthetic: true,
@@ -138,6 +190,7 @@ try {
       stopContinueButtons: true,
       cumulativeWallet: true,
       published: true,
+      format: docx ? "docx" : "txt",
       simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")?.calls,
     }),
   );

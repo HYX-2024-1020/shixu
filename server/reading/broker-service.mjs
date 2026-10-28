@@ -47,7 +47,7 @@ export async function createBrokerService({ socketPath, runtime, staging }) {
   await protectedTree(runtime);
   const code = fileURLToPath(new URL(".", import.meta.url));
   for (const name of await readdir(code))
-    if (name.endsWith(".mjs")) await protectedPath(join(code, name));
+    if (/\.[mc]js$/.test(name)) await protectedPath(join(code, name));
   const info = await lstat(parent);
   if (
     !info.isDirectory() ||
