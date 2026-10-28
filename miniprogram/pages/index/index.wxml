@@ -215,10 +215,17 @@
       /><button
         hover-class="btn-press" class="primary"
         bindtap="connect"
+        wx:if="{{!passwordAccounts}}"
         loading="{{connecting}}"
         disabled="{{connecting || syncing || !password.length}}"
       >
         激活此微信身份</button
+      ><view wx:if="{{passwordAccounts}}"><text class="field-label">账号名称</text><input value="{{accountUsername}}" data-field="accountUsername" bindinput="onAccountField" maxlength="20"/><text class="field-label">登录密码</text><input value="{{accountPassword}}" data-field="accountPassword" bindinput="onAccountField" password/>
+      <view class="button-row"><button data-action="register" bindtap="credentialAction" disabled="{{connecting || !accountUsername || accountPassword.length < 8 || !password}}">注册新账号</button><button data-action="login" bindtap="credentialAction" disabled="{{connecting || !accountUsername || !accountPassword}}">账号登录</button><button data-action="wechat" bindtap="credentialAction" disabled="{{connecting}}">恢复已绑定微信</button></view>
+      <button wx:if="{{connected && !accountClaimed}}" data-action="claim" bindtap="credentialAction" disabled="{{connecting || !accountUsername || accountPassword.length < 8}}">为旧账号补设账号密码</button>
+      <view wx:for="{{loginDevices}}" wx:key="id"><text>{{item.name}} · {{item.kind}} · 槽位 {{item.slot}} · 最近活跃 {{item.lastSeenLabel}}</text><button data-action="login" data-replace="{{item.id}}" bindtap="credentialAction" disabled="{{connecting}}">替换此设备并登录</button></view>
+      <text class="settings-copy">邀请码仅用于首次注册；同一账号最多3台Windows和1个微信身份。</text>
+      <view wx:if="{{accountClaimed}}"><view wx:for="{{accountDevices}}" wx:key="id"><text>{{item.name}} · {{item.kind}} · 槽位 {{item.slot}} · 最近活跃 {{item.lastSeenLabel}}</text><button data-id="{{item.id}}" bindtap="revokeAccountDevice">撤销设备</button></view><text class="field-label">新密码（上方填写当前登录密码）</text><input value="{{accountNewPassword}}" data-field="accountNewPassword" bindinput="onAccountField" password/><button bindtap="changeAccountPassword" disabled="{{!accountPassword || accountNewPassword.length < 8}}">修改密码并撤销全部设备</button></view></view
       ><view class="button-row"
         ><button
           wx:if="{{connected}}"

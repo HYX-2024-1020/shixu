@@ -85,3 +85,18 @@ export function processingView(processing) {
     : [];
   return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个范围尚未整理。${pending.map(location).join("；")}`;
 }
+export function walletView(wallet) {
+  if (!wallet) return "额度状态尚未刷新";
+  const paused = {
+    RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
+    UNKNOWN_COST: "有调用费用待核对，AI已暂停；已完成进度保留",
+    LEDGER_PAUSED: "费用账本待核对，AI已暂停；记录和同步仍可用",
+  };
+  if (wallet.pausedReason)
+    return Object.hasOwn(paused, wallet.pausedReason)
+      ? paused[wallet.pausedReason]
+      : "AI已暂停，额度状态待核对";
+  if (!Number.isFinite(wallet.spent) || !Number.isFinite(wallet.available))
+    return "额度状态待核对";
+  return `累计已消费 ¥${(wallet.spent / 1000000).toFixed(4)} · 可用 ¥${(wallet.available / 1000000).toFixed(2)}（不按天重置）${wallet.lowBalance ? " · 余额不足¥3" : ""}`;
+}

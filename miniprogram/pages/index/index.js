@@ -4,6 +4,7 @@ const {
   CONNECTION,
   SERVICE_ORIGIN,
   accountServiceOrigin,
+  credentials: accountCredentials,
   activate: activateAccount,
   spaceKey,
   accountTransport,
@@ -43,6 +44,7 @@ const {
   setDeadline,
   habitCheckin,
   readingView,
+  walletView,
   processingView,
   sourceLocation,
 } = require("../../lib/generated/desktop");
@@ -185,6 +187,13 @@ Page({
     jobs: [],
     chatInput: "",
     jobBusy: false,
+    accountUsername: "",
+    accountPassword: "",
+    accountNewPassword: "",
+    loginDevices: [],
+    accountDevices: [],
+    passwordAccounts: false,
+    accountClaimed: false,
     jobLabels: {
       submitting: "正在提交",
       queued: "等待整理",
@@ -272,13 +281,20 @@ Page({
       connection.protocolVersion === 3
         ? accountTransport(connection, wx, (account) => {
             this._reading = account.reading || null;
+            this.setData({
+              passwordAccounts: !!account.authentication,
+              accountClaimed: !!account.authentication?.claimed,
+              accountUsername:
+                this.data.accountUsername ||
+                account.authentication?.username ||
+                "",
+            });
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
             this.setData({
               activationState: "已激活",
               accountAiState: account.reading
-                ? account.wallet?.pausedReason ||
-                  `累计已消费 ¥${((account.wallet?.spent || 0) / 1000000).toFixed(4)} · 可用 ¥${((account.wallet?.available || 0) / 1000000).toFixed(2)}（不按天重置）`
+                ? walletView(account.wallet)
                 : !account.ai.enabled
                   ? "服务端 AI 暂未启用"
                   : used >= account.ai.dailyLimit
@@ -888,6 +904,7 @@ Page({
     }
     this._stopSkinInteraction();
     this.setData({ tab: target, notice: "", expandedCardId: "" });
+    if (target === "settings") void this.probeAccountCapabilities();
     this._refresh();
   },
   closeSettings() {
@@ -899,6 +916,7 @@ Page({
     this._refresh();
   },
   openAiSettings() {
+    void this.probeAccountCapabilities();
     if (this.data.tab !== "settings")
       this.setData({ settingsReturnTab: this.data.tab });
     this._stopSkinInteraction();
@@ -973,6 +991,15 @@ Page({
       const result = await this._client.sync();
       this._epoch = result.epoch;
       this.setData({ capabilities: result.capabilities || {} });
+      if (this.data.passwordAccounts)
+        this.setData({
+          accountDevices: (
+            await this._transport("GET", "/api/v4/devices")
+          ).devices.map((device) => ({
+            ...device,
+            lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
+          })),
+        });
       await this._uploadFiles(result.epoch);
       await this._pollJobs();
       const pendingFiles = this._library()
@@ -1736,6 +1763,141 @@ Page({
   copyRecord(event) {
     const row = this._record(event.currentTarget.dataset.id);
     if (row) wx.setClipboardData({ data: row.data.text || "" });
+  },
+  async probeAccountCapabilities() {
+    if (typeof wx.request !== "function") return;
+    try {
+      const capability = await createTransport(
+        accountServiceOrigin(wx),
+        () => null,
+      )("GET", "/api/v4/capabilities");
+      this.setData({
+        passwordAccounts: capability.features?.registration === true,
+      });
+    } catch (_) {
+      /* Legacy/offline service keeps its existing activation UI. */
+    }
+  },
+  onAccountField(event) {
+    this.setData({ [event.currentTarget.dataset.field]: event.detail.value });
+  },
+  async credentialAction(event) {
+    if (this.data.connecting || this.data.syncing) return;
+    let operationState;
+    const { action, replace } = event.currentTarget.dataset;
+    if (replace) {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "替换设备",
+          content: "旧设备立即失去云端访问权限，本地副本保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ connecting: true, error: "" });
+    try {
+      if (this._connection && this._client.pendingCount())
+        throw Error("请先同步待传操作，再切换账号");
+      const operationKey = "shixu:mini:auth-operations:v1",
+        operations = wx.getStorageSync(operationKey) || {};
+      const key = `${action}:${this.data.accountUsername}:${replace || ""}`;
+      operationState = { operationKey, operations, key };
+      operations[key] ||= makeId();
+      wx.setStorageSync(operationKey, operations);
+      const connection = await accountCredentials(
+        action,
+        {
+          operationId: operations[key],
+          username: this.data.accountUsername,
+          password: this.data.accountPassword,
+          ...(action === "register" ? { invite: this.data.password } : {}),
+          ...(replace ? { replaceBindingId: replace } : {}),
+        },
+        wx,
+        this._connection,
+      );
+      if (action !== "claim") {
+        const previous = wx.getStorageSync(stateKey(spaceKey(connection)));
+        if (previous?.epoch && previous.epoch !== connection.epoch)
+          throw Error("账号资料版本变化，本机队列已保留");
+        wx.setStorageSync(this._draftKey(), {
+          id: this._draftId,
+          text: this.data.draft,
+        });
+        this._activate(connection);
+        wx.setStorageSync(CONNECTION, connection);
+        wx.setStorageSync(CONNECTION + ":active", true);
+      }
+      this.setData({
+        accountPassword: "",
+        password: "",
+        loginDevices: [],
+        notice: "账号已连接，本机原空间资料保留",
+      });
+      delete operations[key];
+      wx.setStorageSync(operationKey, operations);
+      await this.sync();
+    } catch (error) {
+      if (
+        operationState &&
+        [400, 401, 403, 404, 409, 422, 426, 429, 503].includes(error.status)
+      ) {
+        const { operations, key, operationKey } = operationState;
+        delete operations[key];
+        wx.setStorageSync(operationKey, operations);
+      }
+      if (error.code === "DEVICE_SLOTS_FULL")
+        this.setData({
+          loginDevices: (error.devices || []).map((device) => ({
+            ...device,
+            lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
+          })),
+        });
+      this._error(error);
+    } finally {
+      this.setData({ connecting: false });
+    }
+  },
+  async revokeAccountDevice(event) {
+    const id = event.currentTarget.dataset.id;
+    const answer = await new Promise((resolve) =>
+      wx.showModal({
+        title: "撤销设备",
+        content: "该设备立即失去云端访问权限，本地副本保留。",
+        success: resolve,
+        fail: () => resolve({ confirm: false }),
+      }),
+    );
+    if (!answer.confirm) return;
+    try {
+      await this._transport("POST", `/api/v4/devices/${id}/revoke`, {
+        contractVersion: 1,
+        operationId: makeId(),
+      });
+      await this.sync();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  async changeAccountPassword() {
+    try {
+      await this._transport("POST", "/api/v4/auth/password", {
+        contractVersion: 1,
+        operationId: makeId(),
+        oldPassword: this.data.accountPassword,
+        newPassword: this.data.accountNewPassword,
+        revokeAll: true,
+      });
+      this.setData({
+        accountPassword: "",
+        accountNewPassword: "",
+        activationState: "密码已修改，所有设备已撤销，请重新登录",
+      });
+    } catch (error) {
+      this._error(error);
+    }
   },
   _jobViews(jobs) {
     return jobs.map(({ id, state, error, output, actions, calls }) => ({

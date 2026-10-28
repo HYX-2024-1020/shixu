@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { walletView } from "../../shared/reading-view.mjs";
 type State = Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>;
 export default function AccountConnection({
   canSwitch,
@@ -12,14 +13,21 @@ export default function AccountConnection({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [invite, setInvite] = useState(""),
+    [username, setUsername] = useState(""),
+    [password, setPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [deviceName, setDeviceName] = useState("这台 Windows"),
     [state, setState] = useState<State | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
     ref.current?.showModal();
     void window
-      .desktop!.cloud("status")
-      .then(setState)
+      .desktop!.cloud("capabilities")
+      .then((value) => {
+        setState(value);
+        setUsername(value.account?.authentication?.username || "");
+      })
       .catch((e) => setError(e.message));
     return () => ref.current?.close();
   }, []);
@@ -33,9 +41,12 @@ export default function AccountConnection({
       }
       setState(await window.desktop!.cloud(name, value));
       setInvite("");
+      setPassword("");
+      setNewPassword("");
       if (reload) location.reload();
     } catch (e) {
       setError((e as Error).message);
+      setState(await window.desktop!.cloud("status"));
     } finally {
       setBusy(false);
     }
@@ -74,33 +85,141 @@ export default function AccountConnection({
         <h3>账号激活</h3>
         <p>
           {state?.activation === "invalid"
-            ? "设备授权失效，本地缓存保留；请联系管理员恢复。"
+            ? state?.capabilities?.features.registration
+              ? "设备授权失效，本地缓存保留；请使用账号密码重新登录。"
+              : "设备授权失效，本地缓存保留；请联系管理员恢复。"
             : state?.base
               ? "此设备凭证已保存，日常使用无需再次输入邀请码。"
               : "当前使用本机资料；无需激活也能记录、查看和手动管理事项。"}
         </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void action("activate", { invite }, true);
-          }}
-        >
-          <label>
-            邀请码
-            <input
-              aria-label="邀请码"
-              type="password"
-              autoComplete="off"
-              value={invite}
-              onChange={(e) => setInvite(e.target.value)}
-              required
-              maxLength={100}
-            />
-          </label>
-          <button className="bucket-primary" disabled={busy || !invite.trim()}>
-            激活此设备
-          </button>
-        </form>
+        {state?.capabilities?.features.registration ? (
+          <div>
+            <label>
+              账号名称
+              <input
+                aria-label="账号名称"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                maxLength={20}
+                autoComplete="username"
+              />
+            </label>
+            <label>
+              登录密码
+              <input
+                aria-label="登录密码"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </label>
+            <label>
+              注册邀请码
+              <input
+                aria-label="注册邀请码"
+                type="password"
+                value={invite}
+                onChange={(e) => setInvite(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+            <button
+              disabled={busy || !username || password.length < 8 || !invite}
+              onClick={() =>
+                void action(
+                  "register",
+                  { username, password, invite, deviceName },
+                  true,
+                )
+              }
+            >
+              注册新账号
+            </button>
+            <button
+              disabled={busy || !username || !password}
+              onClick={() =>
+                void action("login", { username, password, deviceName }, true)
+              }
+            >
+              账号登录
+            </button>
+            {state.account?.authentication?.claimed === false && (
+              <button
+                disabled={busy || !username || password.length < 8}
+                onClick={() => void action("claim", { username, password })}
+              >
+                为旧账号补设账号密码
+              </button>
+            )}
+            {state.loginDevices?.map((device) => (
+              <div key={device.id}>
+                <p>
+                  {device.name} · {device.kind} · 槽位 {device.slot} · 最近活跃{" "}
+                  {new Date(device.lastSeen).toLocaleString()}
+                </p>
+                <button
+                  disabled={busy || !password}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "替换后这台旧设备将立即失去云端访问权限，本地副本保留。继续？",
+                      )
+                    )
+                      void action(
+                        "login",
+                        {
+                          username,
+                          password,
+                          deviceName,
+                          replaceBindingId: device.id,
+                        },
+                        true,
+                      );
+                  }}
+                >
+                  替换这台设备并登录
+                </button>
+              </div>
+            ))}
+            <label>
+              设备名称
+              <input
+                aria-label="设备名称"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                maxLength={80}
+              />
+            </label>
+            <p>邀请码仅用于首次注册；同一账号最多3台Windows和1个微信身份。</p>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void action("activate", { invite }, true);
+            }}
+          >
+            <label>
+              邀请码
+              <input
+                aria-label="邀请码"
+                type="password"
+                autoComplete="off"
+                value={invite}
+                onChange={(e) => setInvite(e.target.value)}
+                required
+                maxLength={100}
+              />
+            </label>
+            <button
+              className="bucket-primary"
+              disabled={busy || !invite.trim()}
+            >
+              激活此设备
+            </button>
+          </form>
+        )}
         {!state?.base && (
           <button
             disabled={busy}
@@ -109,11 +228,62 @@ export default function AccountConnection({
             返回已激活账号
           </button>
         )}
-        <p>
-          一个邀请码绑定一台 Windows
-          安装和一个微信身份。换机或重装后丢失凭证，请联系管理员重置。
-        </p>
+        {!state?.capabilities?.features.registration && (
+          <p>
+            一个邀请码绑定一台 Windows
+            安装和一个微信身份。换机或重装后丢失凭证，请联系管理员重置。
+          </p>
+        )}
       </section>
+      {!!state?.account?.authentication?.claimed && (
+        <section className="connection-data">
+          <h3>设备与密码</h3>
+          {state.devices?.map((device) => (
+            <div key={device.id}>
+              <p>
+                {device.name} · {device.kind} · 槽位 {device.slot} · 最近活跃{" "}
+                {new Date(device.lastSeen).toLocaleString()}
+              </p>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    confirm(
+                      "撤销后该设备不能继续访问云端，本地副本保留。继续？",
+                    )
+                  )
+                    void action("revokeDevice", { id: device.id });
+                }}
+              >
+                撤销设备
+              </button>
+            </div>
+          ))}
+          <label>
+            新密码
+            <input
+              aria-label="新密码"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <p>上方“登录密码”填写当前密码。</p>
+          <button
+            disabled={busy || !password || newPassword.length < 8}
+            onClick={() =>
+              void action("password", {
+                oldPassword: password,
+                newPassword,
+                revokeAll: true,
+              })
+            }
+          >
+            修改密码并撤销全部设备
+          </button>
+        </section>
+      )}
       <section className="connection-data">
         <h3>同步</h3>
         <p>
@@ -159,8 +329,7 @@ export default function AccountConnection({
         <h3>服务端 AI</h3>
         <p>
           {state?.account?.reading
-            ? state.account.wallet?.pausedReason ||
-              `累计已消费 ¥${((state.account.wallet?.spent || 0) / 1000000).toFixed(4)} · 可用 ¥${((state.account.wallet?.available || 0) / 1000000).toFixed(2)}（不按天重置）`
+            ? walletView(state.account.wallet)
             : !state?.base
               ? "未激活"
               : !state.account

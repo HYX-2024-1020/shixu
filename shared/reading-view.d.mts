@@ -34,3 +34,9 @@ export interface ProcessingCoverage {
   pending: ReadingRange[];
 }
 export function processingView(processing?: ProcessingCoverage): string;
+export function walletView(wallet?: {
+  spent?: number;
+  available?: number;
+  lowBalance?: boolean;
+  pausedReason?: string;
+}): string;

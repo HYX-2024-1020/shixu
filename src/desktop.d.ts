@@ -10,6 +10,21 @@ interface Window {
       conflicts: { id: string; text: string }[];
       error: string;
       activation?: string;
+      capabilities?: { features: { registration: boolean } };
+      devices?: {
+        id: string;
+        kind: string;
+        slot: number;
+        name: string;
+        lastSeen: number;
+      }[];
+      loginDevices?: {
+        id: string;
+        kind: string;
+        slot: number;
+        name: string;
+        lastSeen: number;
+      }[];
       job?: string;
       jobs?: {
         id: string;
@@ -23,6 +38,7 @@ interface Window {
       }[];
       account?: {
         activation: string;
+        authentication?: { version: number; claimed: boolean; username: string };
         reading?: { features: { readingEnabled: boolean } };
         wallet?: {
           spent?: number;

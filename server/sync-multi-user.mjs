@@ -13,6 +13,7 @@ import { createSyncService } from "./sync-server.mjs";
 import { SyncError } from "./sync-store.mjs";
 import { createServerAI } from "./sync-provider.mjs";
 import { createReadingRoutes } from "./reading/routes.mjs";
+import { AccountsV4 } from "./accounts-v4.mjs";
 
 export const DEFAULT_AI_LIMITS = Object.freeze({
   enabled: false,
@@ -66,6 +67,23 @@ export function createMultiUserService({
 }) {
   if (new URL(origin).origin !== origin)
     throw Error("Origin must not contain a path");
+  if (
+    reading &&
+    "credentials" in reading &&
+    typeof reading.credentials !== "boolean"
+  )
+    throw Error("INVALID_ACCOUNT_CONFIGURATION");
+  if (reading) {
+    if (
+      !reading.ledger ||
+      typeof reading.reader !== "function" ||
+      typeof reading.provider !== "function" ||
+      !reading.modelVersion
+    )
+      throw Error("READING_CONFIGURATION_REQUIRED");
+    reading.ledger.price(reading.priceId);
+    reading.ledger.audit();
+  }
   const limits = { ...DEFAULT_AI_LIMITS, ...aiLimits };
   for (const [key, value] of Object.entries(limits)) {
     if (key === "enabled") {
@@ -83,9 +101,25 @@ export function createMultiUserService({
     throw Error("Invalid AI queue configuration");
   const registry = new AccountRegistry(directory, secret),
     tenants = new Map();
+  if (
+    registry.db
+      .prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'")
+      .get() &&
+    !reading?.credentials
+  ) {
+    registry.close();
+    throw Error("AUTH_V4_REQUIRED");
+  }
+  const credentials = reading?.credentials ? new AccountsV4(registry) : null;
+  if (credentials)
+    for (const intent of registry.db
+      .prepare("SELECT account FROM account_grant_intents")
+      .all())
+      reading.ledger.grantInitial(intent.account);
   const readingRoutes = reading
     ? createReadingRoutes({
         ...reading,
+        registration: !!credentials,
         authorize: (account, device) => {
           const binding = registry.authenticate(registry.token({ id: device }));
           if (binding.user_id !== account)
@@ -225,7 +259,8 @@ export function createMultiUserService({
     service.jobs.start();
     return service;
   }
-  const server = http.createServer(async (req, res) => {
+  const requests = new Set();
+  const handleRequest = async (req, res) => {
     try {
       if (req.headers.origin && req.headers.origin !== origin)
         throw new SyncError(403, "UNTRUSTED_ORIGIN", "请求来源不受信任");
@@ -235,6 +270,109 @@ export function createMultiUserService({
         readingRoutes
       ) {
         send(res, 200, readingRoutes.capabilities());
+        return;
+      }
+      if (
+        credentials &&
+        req.method === "POST" &&
+        /^\/api\/v4\/auth\/(register|login|replace-device|wechat)$/.test(
+          req.url,
+        )
+      ) {
+        const bytes = await body(req, 8000),
+          value = parse(req, bytes);
+        if (value.contractVersion !== 1)
+          throw new SyncError(426, "CLIENT_UPGRADE_REQUIRED", "请更新客户端");
+        const identity = {
+          kind: value.platform,
+          name: value.deviceName || "新设备",
+        };
+        registry.rate(
+          "v4-auth-network:" + req.socket.remoteAddress,
+          5,
+          credentials.now(),
+        );
+        if (req.url.endsWith("/wechat") || value.platform === "wechat") {
+          if (
+            !wechat ||
+            typeof value.code !== "string" ||
+            !value.code ||
+            value.code.length > 256
+          )
+            throw new SyncError(401, "UNAUTHORIZED", "请重新登录");
+          identity.kind = "wechat";
+          const openid = await wechat(value.code);
+          if (typeof openid !== "string" || !openid || openid.length > 256)
+            throw new SyncError(401, "UNAUTHORIZED", "请重新登录");
+          identity.identity = digest(openid);
+        } else {
+          if (
+            value.platform !== "windows" ||
+            typeof value.publicKey !== "string" ||
+            value.publicKey.length > 1000
+          )
+            throw new SyncError(401, "UNAUTHORIZED", "请重新登录");
+          verifyWindowsProof(
+            value.publicKey,
+            req.method,
+            req.url,
+            bytes,
+            req.headers,
+          );
+          identity.publicKey = createPublicKey(value.publicKey)
+            .export({ type: "spki", format: "pem" })
+            .toString();
+          identity.identity = digest(identity.publicKey);
+          registry.db.exec(
+            "CREATE TABLE IF NOT EXISTS account_public_nonces(identity TEXT NOT NULL,nonce TEXT NOT NULL,expires INTEGER NOT NULL,PRIMARY KEY(identity,nonce))",
+          );
+          registry.db
+            .prepare("DELETE FROM account_public_nonces WHERE expires<?")
+            .run(Date.now());
+          try {
+            registry.db
+              .prepare("INSERT INTO account_public_nonces VALUES(?,?,?)")
+              .run(
+                identity.identity,
+                req.headers["x-shixu-nonce"],
+                Date.now() + 120000,
+              );
+          } catch {
+            throw new SyncError(401, "REPLAYED_REQUEST", "请重新发起登录");
+          }
+        }
+        const result = req.url.endsWith("/wechat")
+          ? credentials.wechat(identity.identity, req.socket.remoteAddress)
+          : req.url.endsWith("/register")
+            ? await credentials.register(
+                value,
+                identity,
+                req.socket.remoteAddress,
+              )
+            : await credentials.login(
+                value,
+                identity,
+                req.socket.remoteAddress,
+              );
+        const binding = result.binding;
+        registry.authenticate(binding.token);
+        if (result.newAccount) reading.ledger.grantInitial(binding.user_id);
+        const service = tenant(binding.user_id);
+        if (!service.store.authenticate(binding.token))
+          service.store.createDevice(binding.kind, Date.now(), {
+            id: binding.id,
+            token: binding.token,
+            expiresAt: binding.expires,
+          });
+        send(res, 200, {
+          contractVersion: 1,
+          protocolVersion: 3,
+          userId: binding.user_id,
+          deviceId: binding.id,
+          token: binding.token,
+          expiresAt: binding.expires,
+          epoch: service.store.epoch,
+        });
         return;
       }
       if (req.url === "/api/v3/status" && req.method === "GET") {
@@ -264,6 +402,12 @@ export function createMultiUserService({
         req.url === "/api/v3/activate/windows" ||
         req.url === "/api/v3/activate/wechat";
       if (activation && req.method === "POST") {
+        if (credentials)
+          throw new SyncError(
+            426,
+            "CLIENT_UPGRADE_REQUIRED",
+            "请使用账号密码注册或登录；旧账号先补设密码",
+          );
         // Do not trust X-Forwarded-For. The reverse proxy must preserve a trusted
         // loopback boundary; this conservative limit is shared behind a proxy.
         registry.rate("activation:" + req.socket.remoteAddress, 20);
@@ -346,6 +490,77 @@ export function createMultiUserService({
       if (binding.kind === "windows")
         registry.proof(binding, req.method, req.url, bytes, req.headers);
       const service = tenant(binding.user_id);
+      const credentialValue =
+        credentials &&
+        req.method === "POST" &&
+        /^\/api\/v4\/(?:auth\/(?:claim-legacy|password)|devices\/[\w-]{1,90}\/revoke)$/.test(
+          req.url,
+        )
+          ? parse(req, bytes)
+          : null;
+      if (credentialValue && credentialValue.contractVersion !== 1)
+        throw new SyncError(426, "CLIENT_UPGRADE_REQUIRED", "请更新客户端");
+      if (
+        credentials &&
+        req.url === "/api/v4/auth/claim-legacy" &&
+        req.method === "POST"
+      ) {
+        const value = credentialValue;
+        send(
+          res,
+          200,
+          await credentials.claim(
+            binding.user_id,
+            value,
+            binding.id,
+            req.socket.remoteAddress,
+          ),
+        );
+        return;
+      }
+      if (
+        credentials &&
+        req.url === "/api/v4/devices" &&
+        req.method === "GET"
+      ) {
+        send(res, 200, {
+          contractVersion: 1,
+          devices: credentials.devices(binding.user_id),
+        });
+        return;
+      }
+      if (
+        credentials &&
+        req.url === "/api/v4/auth/password" &&
+        req.method === "POST"
+      ) {
+        send(
+          res,
+          200,
+          await credentials.changePassword(
+            binding.user_id,
+            credentialValue,
+            binding.id,
+            req.socket.remoteAddress,
+          ),
+        );
+        return;
+      }
+      const revoke =
+        credentials &&
+        /^\/api\/v4\/devices\/([\w-]{1,90})\/revoke$/.exec(req.url);
+      if (revoke && req.method === "POST") {
+        send(
+          res,
+          200,
+          credentials.revoke(
+            binding.user_id,
+            revoke[1],
+            credentialValue.operationId,
+          ),
+        );
+        return;
+      }
       if (isReading) {
         send(
           res,
@@ -404,12 +619,32 @@ export function createMultiUserService({
           sync: "ready",
           epoch: service.store.epoch,
           ai: {
-            enabled: !!ai && limits.enabled && !registry.aiPaused(),
+            enabled: readingRoutes
+              ? reading.enabled === true && !registry.aiPaused()
+              : !!ai && limits.enabled && !registry.aiPaused(),
             dailyLimit: account.limits.dailyJobs,
             usage: registry.usage(account.id),
             resetTimezone: "UTC",
           },
           limits: account.limits,
+          ...(credentials
+            ? {
+                authentication: {
+                  version: 4,
+                  username:
+                    registry.db
+                      .prepare(
+                        "SELECT username FROM account_credentials WHERE user_id=?",
+                      )
+                      .get(account.id)?.username || "",
+                  claimed: !!registry.db
+                    .prepare(
+                      "SELECT 1 FROM account_credentials WHERE user_id=?",
+                    )
+                    .get(account.id),
+                },
+              }
+            : {}),
           ...(readingRoutes
             ? {
                 reading: readingRoutes.capabilities(),
@@ -453,6 +688,7 @@ export function createMultiUserService({
         throw new SyncError(404, "NOT_FOUND", "没有这个接口");
       service.server.emit("request", inner, res);
     } catch (error) {
+      if (res.destroyed) return;
       if (res.headersSent) {
         res.destroy();
         return;
@@ -463,8 +699,20 @@ export function createMultiUserService({
           error instanceof SyncError
             ? error.message
             : "服务暂时不可用，本地内容已保留",
+        ...(error instanceof SyncError ? error.details : {}),
       });
     }
+  };
+  const server = http.createServer((req, res) => {
+    const pending = handleRequest(req, res);
+    requests.add(pending);
+    pending.then(
+      () => requests.delete(pending),
+      () => {
+        requests.delete(pending);
+        res.destroy();
+      },
+    );
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
@@ -490,22 +738,38 @@ export function createMultiUserService({
     }
   }
   let drained = Promise.resolve();
+  const finishClose = () => {
+    for (const service of tenants.values()) {
+      service.jobs.stop();
+      service.store.close();
+    }
+    for (const entry of waiting.splice(0)) {
+      entry.signal.removeEventListener("abort", entry.abort);
+      entry.reject(Error("Stopped"));
+    }
+    registry.close();
+  };
   server.on("close", () => {
     closed = true;
+    // Preserve v3's synchronous close boundary for existing backup callers.
+    if (!readingRoutes) {
+      finishClose();
+      return;
+    }
     drained = (async () => {
+      await Promise.allSettled([...requests]);
       await readingRoutes?.close();
-      for (const service of tenants.values()) {
-        service.jobs.stop();
-        service.store.close();
-      }
-      for (const entry of waiting.splice(0)) {
-        entry.signal.removeEventListener("abort", entry.abort);
-        entry.reject(Error("Stopped"));
-      }
-      registry.close();
+      finishClose();
     })();
   });
-  return { server, registry, limits, readingRoutes, drained: () => drained };
+  return {
+    server,
+    registry,
+    limits,
+    readingRoutes,
+    credentials,
+    drained: () => drained,
+  };
 }
 
 export function wechatCodeExchange(appId, appSecret, fetcher = fetch) {

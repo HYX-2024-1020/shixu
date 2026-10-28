@@ -78,6 +78,36 @@ async function activate(
     throw Error("激活响应无效");
   return { ...enrolled, base: origin };
 }
+async function credentials(action, value, runtime, connection) {
+  const origin = accountServiceOrigin(runtime);
+  const request = createTransport(origin, () => connection?.token, runtime);
+  if (action === "claim")
+    return request("POST", "/api/v4/auth/claim-legacy", {
+      contractVersion: 1,
+      ...value,
+    });
+  const login = await new Promise((resolve, reject) =>
+    runtime.login({
+      success: resolve,
+      fail: () => reject(Error("微信登录暂时失败")),
+    }),
+  );
+  if (!login.code) throw Error("微信未返回登录凭证");
+  const enrolled = await request("POST", `/api/v4/auth/${action}`, {
+    contractVersion: 1,
+    ...value,
+    platform: "wechat",
+    deviceName: "拾序微信",
+    code: login.code,
+  });
+  if (
+    enrolled.protocolVersion !== 3 ||
+    !/^[a-f0-9-]{36}$/.test(enrolled.userId) ||
+    typeof enrolled.token !== "string"
+  )
+    throw Error("账号响应无效");
+  return { ...enrolled, base: origin };
+}
 module.exports = {
   SERVICE_ORIGIN,
   CONNECTION,
@@ -86,4 +116,5 @@ module.exports = {
   activate,
   accountServiceOrigin,
   DEVELOPMENT_SERVICE_KEY,
+  credentials,
 };

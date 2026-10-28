@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   createHash,
+  createPublicKey,
   generateKeyPairSync,
   randomBytes,
   randomUUID,
@@ -275,6 +276,10 @@ class AccountWorkspace extends CloudWorkspace {
         "GET",
         "/api/v3/account",
       );
+      if (this.accountState.authentication?.version === 4)
+        this.deviceList = (
+          await this.request(this.config.active, "GET", "/api/v4/devices")
+        ).devices;
       await this.pollJobs();
       return { ...status, ...this.status() };
     } catch (error) {
@@ -290,6 +295,9 @@ class AccountWorkspace extends CloudWorkspace {
         : "inactive",
       account: this.accountState,
       jobs: this.readJobs().map(({ request, ...job }) => job),
+      capabilities: this.publicCapabilities,
+      devices: this.deviceList || [],
+      loginDevices: this.loginDevices || [],
     };
   }
   async createAI(value) {
@@ -391,6 +399,50 @@ class AccountWorkspace extends CloudWorkspace {
     });
   }
   action(action, value) {
+    if (action === "capabilities")
+      return this.serial(async () => {
+        try {
+          this.publicCapabilities = await this.request(
+            this.config.active,
+            "GET",
+            "/api/v4/capabilities",
+          );
+        } catch (error) {
+          if (error.status !== 404) throw error;
+          this.publicCapabilities = { features: { registration: false } };
+        }
+        return this.status();
+      });
+    if (["register", "login", "claim"].includes(action))
+      return this.serial(() => this.credentials(action, value));
+    if (action === "revokeDevice")
+      return this.serial(async () => {
+        await this.request(
+          this.config.active,
+          "POST",
+          `/api/v4/devices/${value.id}/revoke`,
+          { contractVersion: 1, operationId: randomUUID() },
+        );
+        if (value.id === this.config.devices[this.config.active]?.deviceId) {
+          this.authorization = "invalid";
+          return this.status();
+        }
+        return this.sync();
+      });
+    if (action === "password")
+      return this.serial(async () => {
+        const response = await this.request(
+          this.config.active,
+          "POST",
+          "/api/v4/auth/password",
+          { contractVersion: 1, operationId: randomUUID(), ...value },
+        );
+        if (response.revokedAll) {
+          this.authorization = "invalid";
+          return this.status();
+        }
+        return this.sync();
+      });
     if (action === "taskAction")
       return this.serial(async () => {
         const jobs = this.readJobs(),
@@ -438,6 +490,107 @@ class AccountWorkspace extends CloudWorkspace {
         return this.status();
       });
     return super.action(action, value);
+  }
+  async credentials(action, value) {
+    if (this.config.active && this.space().client.pendingCount())
+      throw Error("请先同步待传操作，再登录或切换账号");
+    const username = String(value.username || "")
+      .trim()
+      .replace(/[A-Z]/g, (c) => c.toLowerCase());
+    const keyId =
+      action === "claim"
+        ? "claim:" + this.config.active
+        : "credential:" + username;
+    const operationKey = `${action}:${keyId}:${value.replaceBindingId || ""}`;
+    const next = structuredClone(this.config);
+    next.authOperations ||= {};
+    next.authOperations[operationKey] ||= randomUUID();
+    if (action !== "claim" && !next.keys[keyId]) {
+      const pair = generateKeyPairSync("ed25519");
+      next.keys[keyId] = {
+        privateKey: pair.privateKey
+          .export({ type: "pkcs8", format: "pem" })
+          .toString(),
+        publicKey: pair.publicKey
+          .export({ type: "spki", format: "pem" })
+          .toString(),
+      };
+    }
+    await this.configure(next); // Signing identity/operation only; never persist the password.
+    this.loginDevices = [];
+    const pair = next.keys[keyId];
+    const request = {
+      contractVersion: 1,
+      operationId: next.authOperations[operationKey],
+      username,
+      password: value.password,
+      ...(action === "register" ? { invite: value.invite } : {}),
+      ...(action === "claim"
+        ? {}
+        : {
+            platform: "windows",
+            deviceName: value.deviceName || "拾序 Windows",
+            publicKey: pair.publicKey,
+          }),
+      ...(value.replaceBindingId
+        ? { replaceBindingId: value.replaceBindingId }
+        : {}),
+    };
+    let enrolled;
+    try {
+      enrolled = await this.request(
+        this.config.active,
+        "POST",
+        `/api/v4/auth/${action === "claim" ? "claim-legacy" : action}`,
+        request,
+        action === "claim" ? {} : { activationKey: pair.privateKey },
+      );
+    } catch (error) {
+      if (error.code === "DEVICE_SLOTS_FULL")
+        this.loginDevices = error.devices || [];
+      if (
+        [400, 401, 403, 404, 409, 422, 426, 429, 503].includes(error.status)
+      ) {
+        const config = structuredClone(this.config);
+        delete config.authOperations[operationKey];
+        await this.configure(config);
+      }
+      throw error;
+    }
+    if (action === "claim") {
+      const device = this.config.devices[this.config.active],
+        config = structuredClone(this.config);
+      config.keys["credential:" + username] = {
+        privateKey: device.privateKey,
+        publicKey: createPublicKey(device.privateKey)
+          .export({ type: "spki", format: "pem" })
+          .toString(),
+      };
+      await this.configure(config);
+      return this.sync();
+    }
+    if (
+      enrolled.protocolVersion !== 3 ||
+      !/^[a-f0-9-]{36}$/.test(enrolled.userId) ||
+      typeof enrolled.token !== "string"
+    )
+      throw Error("账号登录响应无效");
+    const base = "account:" + enrolled.userId;
+    const queueFile = this.space(base).cache.file("queue.json");
+    if (fs.existsSync(queueFile)) {
+      const epoch = JSON.parse(fs.readFileSync(queueFile)).epoch;
+      if (epoch && epoch !== enrolled.epoch)
+        throw Error("账号资料版本已变化，本机队列保留，请核对后接入");
+    }
+    const config = structuredClone(this.config);
+    config.active = base;
+    config.devices[base] = { ...enrolled, privateKey: pair.privateKey };
+    if (action === "login") delete config.authOperations[operationKey];
+    await this.configure(config);
+    this.accountState = null;
+    this.authorization = "active";
+    await this.sync().catch(() => {});
+    return this.status();
   }
 }
 module.exports = { AccountWorkspace, SERVICE_ORIGIN };

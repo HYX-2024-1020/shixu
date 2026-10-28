@@ -18,6 +18,7 @@ export function createReadingRoutes({
   modelVersion,
   authorize,
   enabled = () => true,
+  registration = false,
 }) {
   if (
     !ledger ||
@@ -110,7 +111,13 @@ export function createReadingRoutes({
     completedBlocks: e.db
       .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")
       .get(t.id).n,
-    wallet: ledger.wallet(e.account),
+    wallet: (() => {
+      try {
+        return ledger.wallet(e.account);
+      } catch {
+        return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
+      }
+    })(),
   });
   const paged = (record) => {
     const text = JSON.stringify(record);
@@ -163,7 +170,7 @@ export function createReadingRoutes({
           readingTasks: true,
           readingEnabled: enabled(),
           formats: ["txt", "csv"],
-          registration: false,
+          registration,
           originalLifecycle: false,
         },
         limits: {
@@ -215,11 +222,15 @@ export function createReadingRoutes({
         };
       }
       if (url.pathname === "/api/v4/wallet" && method === "GET")
-        return {
-          contractVersion: 1,
-          ...ledger.wallet(account),
-          timezone: "Asia/Shanghai",
-        };
+        try {
+          return {
+            contractVersion: 1,
+            ...ledger.wallet(account),
+            timezone: "Asia/Shanghai",
+          };
+        } catch {
+          fail(503, "RECONCILIATION_REQUIRED");
+        }
       const e = engine(account, store);
       if (url.pathname === "/api/v4/tasks" && method === "GET") {
         return {
@@ -237,7 +248,11 @@ export function createReadingRoutes({
         if (value.contractVersion !== 1 || value.kind !== "organize")
           fail(426, "CLIENT_UPGRADE_REQUIRED");
         if (value.epoch !== store.epoch) fail(409, "RESET_REQUIRED");
-        ledger.wallet(account); // Reconciliation is required before any queue mutation.
+        try {
+          ledger.wallet(account);
+        } catch {
+          fail(503, "RECONCILIATION_REQUIRED");
+        } // Reconcile before queue mutation.
         const prior = e.get(value.id);
         if (
           !prior &&

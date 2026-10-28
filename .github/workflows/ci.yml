@@ -125,6 +125,7 @@ jobs:
       - run: npm run test:desktop:ui
       - run: node scripts/desktop-reading-smoke.mjs
       - run: node scripts/desktop-reading-tasks-smoke.mjs
+      - run: node scripts/desktop-account-v4-smoke.mjs
       - run: node scripts/desktop-layout-drag-smoke.mjs
 
   required:

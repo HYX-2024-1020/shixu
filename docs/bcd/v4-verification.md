@@ -2,6 +2,8 @@
 
 2026-10-28，北京时间。沿用 `feat/bcd-attachment-loop`、[#73](https://github.com/HYX-2024-1020/shixu/issues/73)、Draft [#74](https://github.com/HYX-2024-1020/shixu/pull/74)。起点 f54d9e2；方案仍固定 da28c1f，#70 未合入。主 checkout 的其他成果未修改。
 
+本文是18e7bec增量的历史边界；后续账号密码/3+1设备的实际接线及新的CI问题见[账号增量验证](accounts-verification.md)，不再把本文旧账号待办解释为最新代码尚无账号实现。
+
 ## 本次实际实现
 
 - `createMultiUserService({reading})` 显式接入 v4 capabilities、tasks、wallet、changes/records。默认 CLI 不提供 reading 配置，现有生产服务没有启用。账号与设备仍来自签名/微信凭证，HTTP 不能选择租户。所有现存租户启动时恢复输入保护，queued 工作恢复轮转；running 中断、未知费用不自动重发。
