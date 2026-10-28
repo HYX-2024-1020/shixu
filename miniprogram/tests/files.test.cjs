@@ -144,8 +144,12 @@ test("copy or manifest failure cannot fabricate a durable attachment", () => {
   assert.match(f.page.data.error, /missing original/);
   const full = fixture({ failWrite: (key) => key === files.KEY });
   full.page._collectFiles([source(full)]);
-  assert.equal(full.page.data.draftFiles.length, 0);
-  assert.match(full.page.data.error, /disk full/);
+  assert.equal(full.page.data.draftFiles.length, 1);
+  assert.match(full.page.data.notice, /保存失败/);
+  const entry=full.page._library().entries(full.page._draftId,full.page._draftSpace())[0];
+  assert.equal(entry.volatile,true);
+  assert.equal(full.store.get(files.KEY),undefined);
+  assert.equal(full.page._library().bytes(entry).byteLength,entry.size);
 });
 test("corrupted local paths are refused before any original bytes are read", () => {
   const fs = filesystem(),

@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import {
+  readFileSync,
+  mkdirSync,
+  copyFileSync,
+  statSync,
+  accessSync,
+  writeFileSync,
+  unlinkSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -15,7 +24,15 @@ const pagePath = fileURLToPath(
 );
 const tick = () => new Promise((done) => setTimeout(done, 10));
 
-export async function runClientLoop({ directory, reader, original }) {
+export async function runClientLoop({
+  directory,
+  reader,
+  original,
+  originalQuota,
+  sourceByMini = false,
+  verifyLifecycle = false,
+  failLocalWrite = false,
+}) {
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
   ledger.freezePrice({
     id: "synthetic",
@@ -38,6 +55,9 @@ export async function runClientLoop({ directory, reader, original }) {
     parserRuns = 0,
     tailSeen = false;
   const reading = {
+    ...(originalQuota === undefined
+      ? {}
+      : { originals: { quota: originalQuota } }),
     ledger,
     enabled: true,
     reader: async (...args) => {
@@ -93,6 +113,7 @@ export async function runClientLoop({ directory, reader, original }) {
     serviceOrigin: base,
     seal: async (s) => Buffer.from(s),
     unseal: async (b) => b.toString(),
+    confirmTemporaryLoss: async () => true,
   }); // Synthetic harness only, never a personal profile.
   let page;
   try {
@@ -112,6 +133,26 @@ export async function runClientLoop({ directory, reader, original }) {
     let definition;
     const storage = new Map();
     const wx = {
+      ...(sourceByMini
+        ? {
+            env: { USER_DATA_PATH: join(directory, "mini") },
+            getFileSystemManager: () => ({
+              accessSync,
+              mkdirSync: (p) => mkdirSync(p, { recursive: true }),
+              copyFileSync,
+              statSync,
+              readFileSync: (p) => {
+                const b = readFileSync(p);
+                return b.buffer.slice(
+                  b.byteOffset,
+                  b.byteOffset + b.byteLength,
+                );
+              },
+              writeFileSync: (p, b) => writeFileSync(p, Buffer.from(b)),
+              unlinkSync,
+            }),
+          }
+        : {}),
       getStorageSync: (k) => storage.get(k),
       setStorageSync: (k, v) => storage.set(k, structuredClone(v)),
       getAccountInfoSync: () => ({ miniProgram: { envVersion: "develop" } }),
@@ -123,9 +164,23 @@ export async function runClientLoop({ directory, reader, original }) {
           const res = await fetch(options.url.replace(SERVICE_ORIGIN, base), {
             method: options.method,
             headers: options.header,
-            ...(options.data ? { body: JSON.stringify(options.data) } : {}),
+            ...(options.data
+              ? {
+                  body:
+                    options.header?.["Content-Type"] ===
+                    "application/octet-stream"
+                      ? options.data
+                      : JSON.stringify(options.data),
+                }
+              : {}),
           });
-          options.success({ statusCode: res.status, data: await res.json() });
+          options.success({
+            statusCode: res.status,
+            data:
+              options.responseType === "arraybuffer"
+                ? await res.arrayBuffer()
+                : await res.json(),
+          });
         } catch (e) {
           options.fail(e);
         }
@@ -155,31 +210,68 @@ export async function runClientLoop({ directory, reader, original }) {
     const body =
       original?.body ||
       Buffer.from("合成报告要求与顺序😀。\n".repeat(20000) + "尾部唯一标记");
-    await cloud.call(
-      "savePackets",
-      [
-        {
-          id: "packet",
-          text: "",
-          sources: [{ id: "forged", name: "客户端伪造正文", text: "禁止信任" }],
-          attachments: [
-            {
-              id: "original",
-              name: original?.name || "合成.txt",
-              type: original?.type || "text/plain",
-              bytes: body,
-            },
-          ],
-          captureDate: "2026-10-28",
-          capturedAt: "2026-10-28T00:00:00.000Z",
-          updatedAt: "2026-10-28T00:00:00.000Z",
-          doneIds: [],
-          result: null,
-          status: "pending",
-        },
-      ],
-      cloud.config.active,
-    );
+    if (failLocalWrite)
+      mkdirSync(
+        cloud
+          .space()
+          .cache.file(
+            "files/" +
+              createHash("sha256").update(body).digest("hex") +
+              ".next",
+          ),
+        { recursive: true },
+      );
+    if (sourceByMini) {
+      mkdirSync(join(directory, "mini"), { recursive: true });
+      const file = join(directory, "mini", "source.txt");
+      writeFileSync(file, body);
+      page._client.put("packet", {
+        text: "",
+        attachments: [],
+        sources: [],
+        result: null,
+        doneIds: [],
+        status: "pending",
+        captureDate: "2026-10-28",
+        capturedAt: "2026-10-28T00:00:00Z",
+      });
+      page
+        ._library()
+        .add(
+          { path: file, name: "合成.txt", size: body.length },
+          "packet",
+          page._space(),
+        );
+      await page.sync();
+      assert.equal(page.data.error, "");
+    } else
+      await cloud.call(
+        "savePackets",
+        [
+          {
+            id: "packet",
+            text: "",
+            sources: [
+              { id: "forged", name: "客户端伪造正文", text: "禁止信任" },
+            ],
+            attachments: [
+              {
+                id: "original",
+                name: original?.name || "合成.txt",
+                type: original?.type || "text/plain",
+                bytes: body,
+              },
+            ],
+            captureDate: "2026-10-28",
+            capturedAt: "2026-10-28T00:00:00.000Z",
+            updatedAt: "2026-10-28T00:00:00.000Z",
+            doneIds: [],
+            result: null,
+            status: "pending",
+          },
+        ],
+        cloud.config.active,
+      );
     await cloud.action("sync");
     const initial = await cloud.action("ai", {
       kind: "organize",
@@ -194,6 +286,16 @@ export async function runClientLoop({ directory, reader, original }) {
       currentTarget: { dataset: { id: task.id, action: "stop" } },
     });
     assert.equal(page._jobs.find((j) => j.id === task.id).state, "cancelled");
+    if (originalQuota === 1) {
+      const storage = await cloud.request(
+        cloud.config.active,
+        "GET",
+        "/api/v4/storage",
+      );
+      assert.equal(storage.usedBytes, 0);
+      assert.equal(storage.originals[0].available, false);
+      assert.equal(storage.originals[0].mode, "temporary");
+    }
     release();
     while (service.readingRoutes.snapshot().accounts) await tick();
     await cloud.action("sync");
@@ -203,9 +305,12 @@ export async function runClientLoop({ directory, reader, original }) {
     );
     assert.equal((await cloud.packets())[0].result, null);
     await page.sync();
-    await page.taskAction({
-      currentTarget: { dataset: { id: task.id, action: "continue" } },
-    });
+    if (originalQuota === 1 && !sourceByMini)
+      await cloud.action("taskAction", { id: task.id, action: "continue" });
+    else
+      await page.taskAction({
+        currentTarget: { dataset: { id: task.id, action: "continue" } },
+      });
     while (service.readingRoutes.snapshot().accounts) await tick();
     await page.sync();
     await cloud.action("sync");
@@ -216,6 +321,8 @@ export async function runClientLoop({ directory, reader, original }) {
       JSON.parse(JSON.stringify(mini.result)),
     );
     assert.equal(cloud.readJobs().find((j) => j.id === task.id).state, "done");
+    if (failLocalWrite)
+      assert.match(cloud.status().localSaveNotice, /保存失败/);
     const winTask = cloud.readJobs().find((j) => j.id === task.id);
     const miniTask = page.data.jobs.find((j) => j.id === task.id);
     assert.equal(winTask.rootTaskId, task.id);
@@ -229,7 +336,52 @@ export async function runClientLoop({ directory, reader, original }) {
       JSON.parse(JSON.stringify(win.readingCoverage)),
       JSON.parse(JSON.stringify(mini.readingCoverage)),
     );
-    if (original?.verify) original.verify({ win, mini, page });
+    if (original?.verify)
+      await original.verify({ win, mini, page, cloud, service });
+    if (verifyLifecycle) {
+      await page.sync();
+      const f = page.data.originalStorage.originals[0];
+      assert.equal(f.mode, originalQuota === 1 ? "temporary" : "retained");
+      if (f.mode === "retained") {
+        await page.originalAction({
+          currentTarget: {
+            dataset: { id: f.id, packet: f.packetId, action: "renew" },
+          },
+        });
+        assert.equal(page.data.error, "");
+        await cloud.action("sync");
+        assert.equal(
+          cloud.status().originalStorage.originals[0].version,
+          f.version + 1,
+        );
+        await page.originalAction({
+          currentTarget: {
+            dataset: { id: f.id, packet: f.packetId, action: "download" },
+          },
+        });
+        assert.equal(page.data.error, "");
+      }
+      const row = cloud.status().originalStorage.originals[0];
+      await cloud.action("deleteOriginal", { ...row, stopTask: true });
+      await page.sync();
+      assert.equal(page.data.error, "");
+      assert.equal(page.data.originalStorage.originals[0].state, "deleted");
+      assert.equal(cloud.status().originalStorage.usedBytes, 0);
+      assert.deepEqual((await cloud.packets())[0].result, win.result);
+      const afterDelete = (await cloud.packets())[0];
+      await cloud.call(
+        "savePackets",
+        [{ ...afterDelete, error: "synthetic edit after original deletion" }],
+        cloud.config.active,
+      );
+      await cloud.action("sync");
+      await page.sync();
+      assert.equal(
+        page._record("packet").data.error,
+        "synthetic edit after original deletion",
+      );
+      assert.equal(page.data.originalStorage.originals[0].state, "deleted");
+    }
     const old = await cloud
       .request(cloud.config.active, "POST", "/api/v3/jobs", {
         kind: "organize",
@@ -256,6 +408,9 @@ export async function runClientLoop({ directory, reader, original }) {
       resultsEqual: true,
       v3AIBlocked: true,
       spentMicros: ledger.wallet(account).spent,
+      originalMode: originalQuota === 1 ? "temporary" : "retained",
+      sourceByMini,
+      lifecycleVerified: verifyLifecycle,
     };
   } finally {
     release();

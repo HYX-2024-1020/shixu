@@ -8,6 +8,47 @@ import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import assert from "node:assert/strict";
 
+for (const quota of [1, 500 * 1024 * 1024])
+  test(
+    `mini-originated manifest crosses both clients with ${quota === 1 ? "temporary cleanup/reupload" : "retention/renew/download"} and deletion preserving publication`,
+    { timeout: 20000 },
+    async () => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "shixu-original-client-loop-"),
+      );
+      try {
+        await runClientLoop({
+          directory,
+          reader: async (f) => readMaterial(f),
+          originalQuota: quota,
+          sourceByMini: true,
+          verifyLifecycle: true,
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+test(
+  "Windows original save failure retains only session bytes, explicitly confirms temporary mode and can reupload/continue without losing paid progress",
+  { timeout: 20000 },
+  async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "shixu-original-volatile-loop-"),
+    );
+    try {
+      await runClientLoop({
+        directory,
+        reader: async (f) => readMaterial(f),
+        originalQuota: 1,
+        failLocalWrite: true,
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 test(
   "XLSX original crosses signed Windows and actual mini Page stop/continue, retaining worksheet coordinates and formula-cache omissions",
   { timeout: 20000 },

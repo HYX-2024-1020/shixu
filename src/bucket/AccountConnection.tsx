@@ -325,6 +325,83 @@ export default function AccountConnection({
           </div>
         ))}
       </section>
+      {state?.originalStorage && (
+        <section className="connection-data">
+          <h3>云端原件</h3>
+          {state.originalStorage.hasMore && (
+            <button
+              disabled={busy}
+              onClick={() => void action("moreOriginals")}
+            >
+              更多原件
+            </button>
+          )}
+          {state.localSaveNotice && <p role="alert">{state.localSaveNotice}</p>}
+          <p>
+            逻辑空间 {(state.originalStorage.usedBytes / 1048576).toFixed(2)} /{" "}
+            {(state.originalStorage.limitBytes / 1048576).toFixed(0)} MiB ·
+            上传预留{" "}
+            {(state.originalStorage.reservedBytes / 1048576).toFixed(2)} MiB
+          </p>
+          <p>
+            {state.originalNotice ||
+              "保存30天，提前7天提醒，到期后7天待清理；本机副本独立保留。"}
+          </p>
+          {state.originalStorage.originals.map((f) => (
+            <div key={f.packetId + ":" + f.id}>
+              <p>
+                {f.name} ·{" "}
+                {["deleted", "cleaned"].includes(f.state)
+                  ? "云端已清除"
+                  : f.mode === "temporary"
+                    ? "临时整理，退出后需重传"
+                    : f.state === "legacy_pending_notice"
+                      ? "旧原件待确认期限"
+                      : f.state === "pending_cleanup"
+                        ? "待清理"
+                        : "云端已保存"}
+                {f.remind ? " · 请续期或下载保留" : ""}
+                {f.expiresAt && f.mode === "retained"
+                  ? ` · 到期 ${new Date(f.expiresAt).toLocaleDateString()}`
+                  : ""}
+              </p>
+              {!["deleted", "cleaned"].includes(f.state) && (
+                <>
+                  {f.available && (
+                    <button
+                      disabled={busy}
+                      onClick={() => void action("downloadOriginal", f)}
+                    >
+                      下载到本机
+                    </button>
+                  )}
+                  {f.mode === "retained" && (
+                    <button
+                      disabled={busy}
+                      onClick={() => void action("renewOriginal", f)}
+                    >
+                      续期30天
+                    </button>
+                  )}
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "删除云端原件将停止对应任务，本机副本保留。继续？",
+                        )
+                      )
+                        void action("deleteOriginal", { ...f, stopTask: true });
+                    }}
+                  >
+                    删除云端原件
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
       <section className="connection-data">
         <h3>服务端 AI</h3>
         <p>

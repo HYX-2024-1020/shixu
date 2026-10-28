@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { createMultiUserService } from "../sync-multi-user.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { readMaterial } from "./material.mjs";
+import { createHash } from "node:crypto";
 
 test(
   "four authenticated tenants share the live v4 scheduler without sharing records, budget or blocking ordinary queries",
@@ -124,18 +125,49 @@ test(
             ? "合成长任务。".repeat(90000)
             : `第${index}个账号独立材料`,
         );
-        const uploaded = await request(
+        const manifest = [
+          {
+            id: "original",
+            name: "合成.txt",
+            type: "text/plain",
+            size: body.length,
+            hash: createHash("sha256").update(body).digest("hex"),
+          },
+        ];
+        const submission = await request(
+          binding,
+          "POST",
+          "/api/v4/submissions",
+          {
+            submissionId: "upload",
+            packetId: "packet",
+            manifest,
+            epoch: binding.epoch,
+          },
+        );
+        await request(
           binding,
           "PUT",
-          `/api/v3/attachments/packet/original?epoch=${binding.epoch}`,
+          `/api/v4/submissions/upload/files/original`,
           body,
           {
             "Content-Type": "application/octet-stream",
             "X-Shixu-File-Name": encodeURIComponent("合成.txt"),
           },
         );
-        record = (await put({ attachments: [uploaded.file] }, record.version))
-          .record;
+        record = (
+          await request(binding, "POST", "/api/v4/submissions/upload/commit", {
+            manifestHash: submission.manifestHash,
+            epoch: binding.epoch,
+            operation: {
+              opId: "commit",
+              id: "packet",
+              type: "put",
+              baseVersion: record.version,
+              data: { attachments: manifest },
+            },
+          })
+        ).record;
         binding.version = record.version;
       }
       await Promise.all(

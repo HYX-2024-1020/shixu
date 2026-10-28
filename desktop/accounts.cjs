@@ -31,6 +31,8 @@ class AccountWorkspace extends CloudWorkspace {
     this.origin = serviceURL(options.serviceOrigin || SERVICE_ORIGIN);
     this.config = { active: "", devices: {}, keys: {} };
     this.accountState = null;
+    this.confirmTemporaryLoss =
+      options.confirmTemporaryLoss || (async () => false);
   }
   async init() {
     const file = path.join(this.root, "account.enc");
@@ -206,6 +208,8 @@ class AccountWorkspace extends CloudWorkspace {
         const { action, ...request } = job.pendingAction;
         let task;
         try {
+          if (["continue", "accept-partial"].includes(action))
+            await this.reuploadTemporary(job.packetId || job.request.packetId);
           task = await this.request(
             this.config.active,
             "POST",
@@ -280,6 +284,12 @@ class AccountWorkspace extends CloudWorkspace {
         this.deviceList = (
           await this.request(this.config.active, "GET", "/api/v4/devices")
         ).devices;
+      if (this.accountState.reading?.features?.submissionManifest)
+        this.originalStorage = await this.request(
+          this.config.active,
+          "GET",
+          "/api/v4/storage",
+        );
       await this.pollJobs();
       return { ...status, ...this.status() };
     } catch (error) {
@@ -298,6 +308,9 @@ class AccountWorkspace extends CloudWorkspace {
       capabilities: this.publicCapabilities,
       devices: this.deviceList || [],
       loginDevices: this.loginDevices || [],
+      originalStorage: this.originalStorage,
+      originalNotice: this.originalNotice || "",
+      localSaveNotice: this.space()?.cache.localSaveError || "",
     };
   }
   async createAI(value) {
@@ -357,6 +370,119 @@ class AccountWorkspace extends CloudWorkspace {
     if (submitted?.state === "error") throw Error(submitted.error);
     return { ...this.status(), job: submitted?.id };
   }
+  async submitOriginals(base, cache, operation, epoch) {
+    if (!this.accountState?.reading?.features?.submissionManifest) return null;
+    const manifest = operation.data.attachments.map(
+      ({ id, name, type, size, hash }) => ({ id, name, type, size, hash }),
+    );
+    if (operation.baseVersion > 0) {
+      const existing = await this.request(
+        base,
+        "GET",
+        `/api/v4/storage?packetId=${encodeURIComponent(operation.id)}`,
+      );
+      // Editing a published item must not re-upload or revive a deleted original.
+      if (
+        manifest.every((f) =>
+          existing.originals.some((old) =>
+            ["id", "name", "type", "size", "hash"].every(
+              (k) => old[k] === f[k],
+            ),
+          ),
+        )
+      )
+        return this.request(base, "POST", "/api/v3/operations", {
+          operation,
+          epoch,
+        });
+    }
+    let op = operation;
+    if (op.baseVersion === 0) {
+      const scaffold = await this.request(base, "POST", "/api/v3/operations", {
+        epoch,
+        operation: {
+          ...op,
+          opId: op.opId + "_originals",
+          data: { ...op.data, attachments: [] },
+        },
+      });
+      op = { ...op, baseVersion: scaffold.acceptedVersion };
+    }
+    const submission = await this.request(base, "POST", "/api/v4/submissions", {
+      submissionId: op.opId,
+      packetId: op.id,
+      manifest,
+      epoch,
+      storageIntent: "retained",
+    });
+    this.originalNotice = submission.warning;
+    if (
+      submission.mode === "temporary" &&
+      manifest.some((f) => cache.volatileOriginals.has(f.hash)) &&
+      !(await this.confirmTemporaryLoss())
+    )
+      throw Error(
+        "本机未保存且云端空间不足；已暂停上传，请另存副本或明确选择临时整理",
+      );
+    for (const f of manifest) {
+      const file = cache.file("files/" + f.hash);
+      const bytes =
+        cache.volatileOriginals.get(f.hash) ||
+        (fs.existsSync(file) ? fs.readFileSync(file) : null);
+      if (!bytes) continue;
+      await this.request(
+        base,
+        "PUT",
+        `/api/v4/submissions/${submission.submissionId}/files/${f.id}`,
+        null,
+        {
+          headers: { "Content-Type": "application/octet-stream" },
+          body: bytes,
+        },
+      );
+    }
+    const result = await this.request(
+      base,
+      "POST",
+      `/api/v4/submissions/${submission.submissionId}/commit`,
+      { manifestHash: submission.manifestHash, operation: op, epoch },
+    );
+    return result;
+  }
+  async reuploadTemporary(packetId) {
+    if (!this.accountState?.reading?.features?.submissionManifest) return;
+    const storage = await this.request(
+      this.config.active,
+      "GET",
+      `/api/v4/storage?packetId=${encodeURIComponent(packetId)}`,
+    );
+    for (const f of storage.originals.filter(
+      (f) =>
+        f.packetId === packetId &&
+        f.mode === "temporary" &&
+        !f.available &&
+        !["deleted", "cleaned"].includes(f.state),
+    )) {
+      const file = this.space().cache.file("files/" + f.hash);
+      const bytes =
+        this.space().cache.volatileOriginals.get(f.hash) ||
+        (fs.existsSync(file) ? fs.readFileSync(file) : null);
+      if (!bytes)
+        throw Error(
+          "临时原件已清理，请在有本地副本的设备继续，或重新选择同一原件",
+        );
+      await this.request(
+        this.config.active,
+        "PUT",
+        `/api/v4/submissions/${f.submissionId}/files/${f.id}`,
+        null,
+        {
+          headers: { "Content-Type": "application/octet-stream" },
+          body: bytes,
+        },
+      );
+    }
+  }
   async call(method, value, lease) {
     if (this.config.active && method === "savePackets")
       value = value.map((p) => ({
@@ -399,6 +525,78 @@ class AccountWorkspace extends CloudWorkspace {
     });
   }
   action(action, value) {
+    if (action === "moreOriginals")
+      return this.serial(async () => {
+        if (this.originalStorage?.hasMore) {
+          const next = await this.request(
+            this.config.active,
+            "GET",
+            `/api/v4/storage?cursor=${this.originalStorage.nextCursor}`,
+          );
+          this.originalStorage = {
+            ...next,
+            originals: [...this.originalStorage.originals, ...next.originals],
+          };
+        }
+        return this.status();
+      });
+    if (["renewOriginal", "deleteOriginal"].includes(action))
+      return this.serial(async () => {
+        const kind = action === "renewOriginal" ? "renew" : "delete";
+        const file = this.space().cache.file("original-actions.json");
+        const saved = fs.existsSync(file)
+          ? JSON.parse(fs.readFileSync(file, "utf8"))
+          : {};
+        const key = hash(JSON.stringify({ kind, value }));
+        if (!saved[key]) {
+          saved[key] = randomUUID();
+          atomic(file, JSON.stringify(saved));
+        }
+        const result = await this.request(
+          this.config.active,
+          "POST",
+          `/api/v4/originals/${kind}`,
+          {
+            operationId: saved[key],
+            ids: [
+              {
+                packetId: value.packetId,
+                id: value.id,
+                expectedVersion: value.version,
+              },
+            ],
+            stopTask: value.stopTask === true,
+          },
+        );
+        delete saved[key];
+        atomic(file, JSON.stringify(saved));
+        this.originalStorage = await this.request(
+          this.config.active,
+          "GET",
+          "/api/v4/storage",
+        );
+        if (result.results.some((r) => r.code !== "OK"))
+          throw Error("原件版本已变化，请刷新后重试");
+        return this.status();
+      });
+    if (action === "downloadOriginal")
+      return this.serial(async () => {
+        const bytes = await this.request(
+          this.config.active,
+          "GET",
+          `/api/v3/attachments/${value.packetId}/${value.id}?epoch=${encodeURIComponent(this.config.devices[this.config.active].epoch)}`,
+          null,
+          { binary: true },
+        );
+        const f = this.originalStorage?.originals.find(
+          (f) => f.packetId === value.packetId && f.id === value.id,
+        );
+        if (!f || hash(bytes) !== f.hash || bytes.length !== f.size)
+          throw Error("下载校验不一致，未保存原件");
+        atomic(this.space().cache.file("files/" + f.hash), bytes);
+        this.originalNotice = "原件已校验并保存到本机，可从材料面板打开";
+        return this.status();
+      });
     if (action === "capabilities")
       return this.serial(async () => {
         try {

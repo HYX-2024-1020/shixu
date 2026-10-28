@@ -430,6 +430,8 @@ export class ReadingTasks {
     clearTimeout(this.cacheTimers.get(id));
     this.cacheTimers.delete(id);
     this.materials.delete(id);
+    if (this.get(id)?.state !== "queued")
+      this.store.files.releaseWindow?.(this.get(id)?.packet);
   }
   close() {
     if (this.finalSnapshots) return;

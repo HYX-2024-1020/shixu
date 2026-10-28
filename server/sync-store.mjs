@@ -325,6 +325,7 @@ export class SyncStore {
           : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      internal.beforeValidate?.();
       if (type === "put") this.validateStorage?.(nextData, current);
       if (type === "put") {
         if (this.files)
@@ -367,6 +368,7 @@ export class SyncStore {
         replayed: false,
       };
       internal.beforeCommit?.(response);
+      this.afterOperation?.(operation, response);
       this.db.exec("COMMIT");
       return response;
     } catch (error) {

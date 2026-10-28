@@ -15,6 +15,7 @@ const shutdownMessages = {
   CHECKPOINT_NO_PROGRESS: "累计24次调用未取得新增有效块，需核对后继续",
   CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
+  REUPLOAD_REQUIRED: "原件已清理，请从保留本机副本的设备重传核对后继续",
 };
 const fail = (status, code) => {
   throw new SyncError(status, code, shutdownMessages[code] || code);
@@ -207,7 +208,8 @@ export function createReadingRoutes({
           readingEnabled: enabled(),
           formats: ["txt", "csv", "docx", "xlsx"],
           registration,
-          originalLifecycle: false,
+          originalLifecycle: true,
+          submissionManifest: true,
         },
         limits: {
           windowCharacters: 120000,
@@ -215,12 +217,77 @@ export function createReadingRoutes({
           initialMicros: 20000000,
           siteDailyMicros: 50000000,
           taskInflightMicros: 2000000,
+          originalBytes: 500 * 1024 * 1024,
+          submissionBytes: 20 * 1024 * 1024,
         },
       };
     },
-    async handle({ account, device, store, method, url, value }) {
+    async handle({
+      account,
+      device,
+      store,
+      method,
+      url,
+      value,
+      bytes,
+      headers,
+    }) {
       authorize(account, device);
       if (closed) fail(503, "MAINTENANCE");
+      if (store.originals) {
+        const originals = store.originals;
+        if (url.pathname === "/api/v4/storage" && method === "GET")
+          return originals.list({
+            cursor: Number(url.searchParams.get("cursor") || 0),
+            ...(url.searchParams.has("packetId")
+              ? { packetId: url.searchParams.get("packetId") }
+              : {}),
+          });
+        if (url.pathname === "/api/v4/submissions" && method === "POST")
+          return originals.begin(value);
+        const upload =
+          /^\/api\/v4\/submissions\/([\w-]{1,100})\/files\/([\w-]{1,100})$/.exec(
+            url.pathname,
+          );
+        if (upload && method === "PUT") {
+          if (headers?.["content-type"] !== "application/octet-stream")
+            fail(415, "BINARY_REQUIRED");
+          return originals.put(upload[1], upload[2], bytes);
+        }
+        const commit = /^\/api\/v4\/submissions\/([\w-]{1,100})\/commit$/.exec(
+          url.pathname,
+        );
+        if (commit && method === "POST")
+          return originals.commit(commit[1], value, device);
+        const action = /^\/api\/v4\/originals\/(renew|delete)$/.exec(
+          url.pathname,
+        );
+        if (action && method === "POST")
+          return originals.action(action[1], value, (packet) => {
+            const e = engine(account, store);
+            const t = e.db
+              .prepare(
+                "SELECT * FROM reading_tasks WHERE packet=? AND state IN ('queued','running','applying')",
+              )
+              .get(packet);
+            if (t)
+              e.action(
+                t.id,
+                {
+                  operationId:
+                    "original_stop_" + value.operationId.slice(0, 70),
+                  expectedGeneration: t.generation,
+                  expectedRevision: t.input_revision,
+                },
+                "stop",
+                device,
+              );
+            for (const task of e.db
+              .prepare("SELECT id FROM reading_tasks WHERE packet=?")
+              .all(packet))
+              e.clearMaterial(task.id);
+          });
+      }
       if (url.pathname === "/api/v4/changes" && method === "GET") {
         const cursor = url.searchParams.get("cursor") || "0";
         if (!/^\d+$/.test(cursor)) fail(400, "INVALID_CURSOR");

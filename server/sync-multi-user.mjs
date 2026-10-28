@@ -14,6 +14,7 @@ import { SyncError } from "./sync-store.mjs";
 import { createServerAI } from "./sync-provider.mjs";
 import { createReadingRoutes } from "./reading/routes.mjs";
 import { AccountsV4 } from "./accounts-v4.mjs";
+import { OriginalStore, originalMemoryPool } from "./originals.mjs";
 
 export const DEFAULT_AI_LIMITS = Object.freeze({
   enabled: false,
@@ -117,6 +118,7 @@ export function createMultiUserService({
     registry.close();
     throw Error("AUTH_V4_REQUIRED");
   }
+  const originalPool = originalMemoryPool();
   const credentials = reading?.credentials ? new AccountsV4(registry) : null;
   if (credentials)
     for (const intent of registry.db
@@ -190,6 +192,7 @@ export function createMultiUserService({
         }
       };
     const service = createSyncService({
+      originalsV4: !!readingRoutes,
       database: join(directory, "users", userId, "workspace.sqlite"),
       password: randomBytes(32).toString("base64url"),
       origin,
@@ -236,7 +239,7 @@ export function createMultiUserService({
         .prepare(
           `SELECT
         (SELECT COALESCE(SUM(length(CAST(data AS BLOB))),0) FROM sync_records) +
-        (SELECT COALESCE(SUM(size),0) FROM sync_blobs) +
+        ${readingRoutes ? "0" : "(SELECT COALESCE(SUM(size),0) FROM sync_blobs)"} +
         (SELECT COALESCE(SUM(length(CAST(request AS BLOB))+COALESCE(length(CAST(output AS BLOB)),0)),0) FROM sync_jobs) +
         (SELECT COUNT(*)*256 FROM sync_operations) AS n`,
         )
@@ -257,6 +260,11 @@ export function createMultiUserService({
           256,
       );
     service.store.validateBlobStorage = checkStorage;
+    if (readingRoutes)
+      new OriginalStore(service.store, {
+        pool: originalPool,
+        ...reading.originals,
+      });
     readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);
     for (const row of registry.db
@@ -272,6 +280,21 @@ export function createMultiUserService({
     return service;
   }
   const requests = new Set();
+  let originalUploadReaders = 0;
+  const readOriginalBody = async (req) => {
+    if (originalUploadReaders >= 2)
+      throw new SyncError(
+        503,
+        "ORIGINAL_UPLOAD_BUSY",
+        "原件上传繁忙，请稍后重试",
+      );
+    originalUploadReaders++;
+    try {
+      return await body(req, 10 * 1024 * 1024);
+    } finally {
+      originalUploadReaders--;
+    }
+  };
   const handleRequest = async (req, res) => {
     try {
       if (closed)
@@ -501,10 +524,10 @@ export function createMultiUserService({
         "account:" + binding.user_id,
         account.limits.requestsPerMinute,
       );
-      const bytes = await body(
-        req,
-        req.method === "PUT" ? 10 * 1024 * 1024 : 1000000,
-      );
+      const bytes =
+        isReading && req.method === "PUT"
+          ? await readOriginalBody(req)
+          : await body(req, req.method === "PUT" ? 10 * 1024 * 1024 : 1000000);
       assertLive();
       registry.authenticate(token); // Revocation may happen while bytes arrive.
       if (binding.kind === "windows")
@@ -591,7 +614,10 @@ export function createMultiUserService({
             store: service.store,
             method: req.method,
             url: new URL(req.url, origin),
-            value: bytes.length ? parse(req, bytes) : {},
+            value:
+              req.method === "PUT" ? {} : bytes.length ? parse(req, bytes) : {},
+            bytes,
+            headers: req.headers,
           }),
         );
         return;
@@ -763,6 +789,7 @@ export function createMultiUserService({
   const finishClose = () => {
     for (const service of tenants.values()) {
       service.jobs.stop();
+      service.store.originals?.close();
       service.store.close();
     }
     for (const entry of waiting.splice(0)) {

@@ -1,5 +1,6 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
+const { sha256: originalHash } = require("../../lib/originals");
 const {
   CONNECTION,
   SERVICE_ORIGIN,
@@ -244,6 +245,7 @@ Page({
       this._error(error);
     }
     this._network = (result) => {
+      this.setData({ offline: !result.isConnected });
       if (result.isConnected) this.syncQuietly();
     };
     wx.onNetworkStatusChange(this._network);
@@ -553,7 +555,11 @@ Page({
       }
       this.setData({
         error: "",
-        notice: "原件已保存在本机；丢进去后与文字一起投递",
+        notice: library
+          .entries(this._draftId, this._draftSpace())
+          .some((e) => e.volatile)
+          ? "本机原件保存失败，仅本次会话可用；上传后请核对云端保存结果，关闭前另存副本"
+          : "原件已保存在本机；丢进去后与文字一起投递",
       });
     } catch (error) {
       this._error(error);
@@ -585,6 +591,95 @@ Page({
       );
     this.setData({ filesBusy: true });
     try {
+      if (this._reading?.features?.submissionManifest) {
+        const pending = library.entries(null, base).filter((e) => !e.remote);
+        for (const packetId of new Set(pending.map((e) => e.packetId))) {
+          const row = this._record(packetId);
+          if (!row || row.deletedAt || row.conflict) continue;
+          const entries = library.entries(packetId, base);
+          const newFiles = entries.map((e) => ({
+            id: e.id,
+            name: e.name,
+            type: e.type,
+            size: e.size,
+            hash: e.remote?.hash || originalHash(library.bytes(e)),
+          }));
+          const manifest = [
+            ...(row.data.attachments || []).filter(
+              (f) => !newFiles.some((n) => n.id === f.id),
+            ),
+            ...newFiles,
+          ];
+          const key = `shixu:submission:${base}:${packetId}`;
+          let saved = wx.getStorageSync(key);
+          if (
+            !saved ||
+            JSON.stringify(saved.manifest) !== JSON.stringify(manifest)
+          ) {
+            saved = { id: makeId(), manifest, baseVersion: row.version };
+            wx.setStorageSync(key, saved);
+          }
+          const submission = await this._transport(
+            "POST",
+            "/api/v4/submissions",
+            {
+              submissionId: saved.id,
+              packetId,
+              manifest,
+              epoch,
+              storageIntent: "retained",
+            },
+          );
+          this.setData({ originalNotice: submission.warning });
+          if (
+            submission.mode === "temporary" &&
+            entries.some((e) => e.volatile)
+          ) {
+            const answer = await new Promise((resolve) =>
+              wx.showModal({
+                title: "原件未保存",
+                content:
+                  "本机保存失败且云端空间不足，只能临时整理；停止、失败或关闭后需重新选择原件。仍继续？",
+                success: resolve,
+                fail: () => resolve({ confirm: false }),
+              }),
+            );
+            if (!answer.confirm)
+              throw Error("已保留本次会话材料，请先另存原件后重试");
+          }
+          for (const entry of entries)
+            await transport.uploadSubmission(
+              saved.id,
+              entry,
+              library.bytes(entry),
+            );
+          await this._transport(
+            "POST",
+            `/api/v4/submissions/${saved.id}/commit`,
+            {
+              manifestHash: submission.manifestHash,
+              epoch,
+              operation: {
+                opId: saved.id,
+                id: packetId,
+                type: "put",
+                baseVersion: saved.baseVersion,
+                data: { attachments: manifest },
+              },
+            },
+          );
+          for (const entry of entries)
+            library.markUploaded(
+              entry,
+              manifest.find((f) => f.id === entry.id),
+            );
+          wx.setStorageSync(key, null);
+        }
+        if (pending.length) await this._client.sync();
+        const storage = await this._transport("GET", "/api/v4/storage");
+        this.setData({ originalStorage: storage });
+        return;
+      }
       let changed = false;
       for (const entry of library
         .entries(null, base)
@@ -611,6 +706,131 @@ Page({
         changed = true;
       }
       if (changed) await this._client.sync();
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  async _reuploadTemporary(packetId) {
+    if (!this._reading?.features?.submissionManifest) return;
+    const storage = await this._transport(
+      "GET",
+      `/api/v4/storage?packetId=${encodeURIComponent(packetId)}`,
+    );
+    const library = this._library();
+    const transport = createFileTransport(
+      this._connection.base,
+      () => this._connection.token,
+      wx,
+      3,
+    );
+    for (const f of storage.originals.filter(
+      (f) =>
+        f.packetId === packetId &&
+        f.mode === "temporary" &&
+        !f.available &&
+        !["deleted", "cleaned"].includes(f.state),
+    )) {
+      const entry = library
+        ?.entries(packetId, this._space())
+        .find((e) => e.id === f.id);
+      if (!entry)
+        throw Error(
+          "临时原件已清理，请在有本地副本的设备继续，或重新选择同一原件",
+        );
+      await transport.uploadSubmission(
+        f.submissionId,
+        entry,
+        library.bytes(entry),
+      );
+    }
+  },
+  async originalAction(event) {
+    const { id, packet, action } = event.currentTarget.dataset;
+    const f = this.data.originalStorage?.originals.find(
+      (f) => f.id === id && f.packetId === packet,
+    );
+    if (!f || this.data.filesBusy) return;
+    if (this.data.offline) {
+      this._error(Error("离线时不能修改云端原件；联网后刷新再操作"));
+      return;
+    }
+    if (action === "delete") {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "删除云端原件",
+          content: "会停止对应任务并清理云端原件；本机副本保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ filesBusy: true, error: "" });
+    try {
+      if (action === "download") {
+        const bytes = await createFileTransport(
+          this._connection.base,
+          () => this._connection.token,
+          wx,
+          3,
+        ).download(packet, id, this._epoch);
+        if (originalHash(bytes) !== f.hash)
+          throw Error("下载校验不一致，未保存原件");
+        this._library().cache(f, packet, this._space(), bytes);
+        this.setData({ notice: "原件已校验并保存到本机，可从材料中打开" });
+        return;
+      }
+      const key = `shixu:original-action:${this._space()}:${packet}:${id}:${f.version}:${action}`;
+      let operationId = wx.getStorageSync(key);
+      if (!operationId) {
+        operationId = makeId();
+        wx.setStorageSync(key, operationId);
+      }
+      const result = await this._transport(
+        "POST",
+        `/api/v4/originals/${action}`,
+        {
+          operationId,
+          ids: [{ packetId: packet, id, expectedVersion: f.version }],
+          stopTask: action === "delete",
+        },
+      );
+      wx.setStorageSync(key, null);
+      if (result.results.some((r) => r.code !== "OK"))
+        throw Error("原件状态已变化，请刷新后重试");
+      this.setData({
+        originalStorage: await this._transport("GET", "/api/v4/storage"),
+      });
+    } catch (e) {
+      this._error(e);
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  async moreOriginals() {
+    if (
+      !this.data.originalStorage?.hasMore ||
+      this.data.filesBusy ||
+      this.data.offline
+    )
+      return;
+    this.setData({ filesBusy: true });
+    try {
+      const next = await this._transport(
+        "GET",
+        `/api/v4/storage?cursor=${this.data.originalStorage.nextCursor}`,
+      );
+      this.setData({
+        originalStorage: {
+          ...next,
+          originals: [
+            ...this.data.originalStorage.originals,
+            ...next.originals,
+          ],
+        },
+      });
+    } catch (e) {
+      this._error(e);
     } finally {
       this.setData({ filesBusy: false });
     }
@@ -2113,6 +2333,8 @@ Page({
     }
     this.setData({ jobBusy: true });
     try {
+      if (["continue", "accept-partial"].includes(action))
+        await this._reuploadTemporary(job.packetId || job.request.packetId);
       if (!job.pendingAction)
         job.pendingAction = {
           action,

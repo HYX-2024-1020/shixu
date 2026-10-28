@@ -9,6 +9,7 @@ const files = [
   "server/sync-server.mjs", "server/sync-store.mjs",
   "server/sync-jobs.mjs", "server/generated/ai-core.mjs",
   "server/sync-files.mjs",
+  "server/originals.mjs",
   "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
   "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs",
   "server/reading/ledger.mjs", "server/reading/scheduler.mjs", "server/reading/roots.mjs",

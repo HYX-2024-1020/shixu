@@ -286,6 +286,18 @@
       <text class="nav-icon">✦</text><text class="nav-label">世界</text>
     </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab" hover-class="nav-press" aria-label="DDL，截止事项"><text class="nav-icon">◷</text><text class="nav-label">DDL</text><text wx:if="{{ddlCount}}" class="nav-badge">{{ddlCount}}</text></button></view
   >
+<view wx:if="{{originalNotice}}" class="notice">{{originalNotice}}</view>
+<view wx:if="{{tab === 'settings' && originalStorage}}" class="job-strip">
+  <text>云端原件：{{originalStorage.usedBytes}} / {{originalStorage.limitBytes}} 字节，预留 {{originalStorage.reservedBytes}} 字节</text>
+  <text>保存30天，提前7天提醒，到期后7天待清理；投递回收站7天，单项最近删除30天。</text>
+  <button wx:if="{{originalStorage.hasMore}}" bindtap="moreOriginals" disabled="{{filesBusy || offline}}">更多原件</button>
+  <view wx:for="{{originalStorage.originals}}" wx:key="id" class="job-line">
+    <text>{{item.name}} · {{item.state === 'deleted' || item.state === 'cleaned' ? '云端已清除' : item.mode === 'temporary' ? '临时整理，退出后需重传' : item.state === 'legacy_pending_notice' ? '旧原件待确认期限' : item.state === 'pending_cleanup' ? '到期待清理' : item.available ? '云端已保存' : '云端已清除'}}{{item.remind ? ' · 请续期或下载保留' : ''}}</text>
+    <button wx:if="{{item.mode === 'retained' && item.available}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="renew" bindtap="originalAction">续期30天</button>
+    <button wx:if="{{item.available}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="download" bindtap="originalAction">下载到本机</button>
+    <button wx:if="{{item.state !== 'deleted' && item.state !== 'cleaned'}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="delete" bindtap="originalAction">删除云端原件</button>
+  </view>
+</view>
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
     ><text>模型任务 · {{jobLabels[item.state] || "待核对"}} · 本任务已调用 {{item.calls}} 次</text

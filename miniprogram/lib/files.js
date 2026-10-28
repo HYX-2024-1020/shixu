@@ -22,8 +22,14 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
   if (saved && (saved.version !== 1 || !Array.isArray(saved.entries)))
     throw new Error("本机原件索引无法读取，请保留资料联系开发者");
   let entries = saved ? JSON.parse(JSON.stringify(saved.entries)) : [];
+  const volatile = new Map();
   const commit = (next) => {
-    write({ version: 1, entries: next });
+    const durable = next.filter((e) => !e.volatile);
+    if (
+      JSON.stringify(durable) !==
+      JSON.stringify(entries.filter((e) => !e.volatile))
+    )
+      write({ version: 1, entries: durable });
     entries = JSON.parse(JSON.stringify(next));
   };
   const safePath = (id, name) => {
@@ -31,6 +37,7 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
     return `${root}/${id}.${extension(name)}`;
   };
   const checkPath = (entry) => {
+    if (entry.volatile && volatile.has(entry.id)) return;
     if (entry.path !== safePath(entry.diskId || entry.id, entry.name))
       throw new Error("原件路径无效，本机资料已保留");
   };
@@ -86,10 +93,6 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
         throw new Error("一次投递最多 20 份原件");
       const id = newId(),
         path = safePath(id, name);
-      ensure();
-      fs.copyFileSync(source.path || source.tempFilePath, path);
-      if (fs.statSync(path).size !== source.size)
-        throw new Error("原件未完整保存，请重新选择");
       const entry = {
         id,
         diskId: id,
@@ -101,8 +104,31 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
         path,
         remote: null,
       };
-      commit([...entries, entry]);
-      return basic(entry);
+      try {
+        ensure();
+        fs.copyFileSync(source.path || source.tempFilePath, path);
+        if (fs.statSync(path).size !== source.size)
+          throw Error("原件未完整保存，请重新选择");
+        commit([...entries, entry]);
+      } catch (e) {
+        let bytes;
+        try {
+          bytes = fs.readFileSync(source.path || source.tempFilePath);
+        } catch {
+          throw e;
+        }
+        if (
+          bytes.byteLength !== source.size ||
+          [...volatile.values()].reduce((n, b) => n + b.byteLength, 0) +
+            bytes.byteLength >
+            20 * 1024 * 1024
+        )
+          throw e;
+        volatile.set(entry.id, bytes);
+        entry.volatile = true;
+        entries = [...entries, entry];
+      }
+      return { ...basic(entry), localSaved: !entry.volatile };
     },
     metadata: basic,
     confirmation,
@@ -127,6 +153,12 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
       }
       // A failed manifest write leaves purge references for another cleanup attempt.
       commit(remaining);
+      for (const entry of removed)
+        if (!remaining.some((e) => e.id === entry.id)) {
+          const bytes = volatile.get(entry.id);
+          if (bytes?.fill) bytes.fill(0);
+          volatile.delete(entry.id);
+        }
     },
     assign(packetId, space, draftSpace = "draft") {
       commit(
@@ -154,7 +186,7 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
     },
     bytes(entry) {
       checkPath(entry);
-      const bytes = fs.readFileSync(entry.path);
+      const bytes = volatile.get(entry.id) || fs.readFileSync(entry.path);
       if (
         (bytes.byteLength === undefined ? bytes.length : bytes.byteLength) !==
         entry.size
@@ -164,6 +196,8 @@ function createFileLibrary({ read, write, fs, root, newId = makeId }) {
     },
     path(entry) {
       checkPath(entry);
+      if (entry.volatile)
+        throw Error("本机原件尚未保存，可在本次会话上传；请重新选择以预览");
       if (fs.statSync(entry.path).size !== entry.size)
         throw new Error("本机原件不完整");
       return entry.path;
@@ -246,6 +280,13 @@ function createFileTransport(
     );
   }
   return {
+    uploadSubmission: (submissionId, entry, bytes) =>
+      request(
+        "PUT",
+        `/api/v4/submissions/${submissionId}/files/${entry.id}`,
+        bytes,
+        { "Content-Type": "application/octet-stream" },
+      ),
     upload: (entry, bytes, epoch) =>
       request(
         "PUT",

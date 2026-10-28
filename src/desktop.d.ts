@@ -9,6 +9,27 @@ interface Window {
       pending: number;
       conflicts: { id: string; text: string }[];
       error: string;
+      originalNotice?: string;
+      localSaveNotice?: string;
+      originalStorage?: {
+        hasMore: boolean;
+        nextCursor: number | null;
+        usedBytes: number;
+        reservedBytes: number;
+        limitBytes: number;
+        originals: {
+          id: string;
+          packetId: string;
+          name: string;
+          mode: string;
+          state: string;
+          version: number;
+          remind: boolean;
+          available: boolean;
+          expiresAt: number | null;
+          cleanupAt: number | null;
+        }[];
+      };
       activation?: string;
       capabilities?: { features: { registration: boolean } };
       devices?: {
@@ -42,7 +63,11 @@ interface Window {
       }[];
       account?: {
         activation: string;
-        authentication?: { version: number; claimed: boolean; username: string };
+        authentication?: {
+          version: number;
+          claimed: boolean;
+          username: string;
+        };
         reading?: { features: { readingEnabled: boolean } };
         wallet?: {
           spent?: number;

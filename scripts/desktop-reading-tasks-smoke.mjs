@@ -11,6 +11,8 @@ import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
+const temporary = process.argv.includes("--temporary");
+const lifecycle = process.argv.includes("--originals") || temporary;
 const original = xlsx
   ? {
       name: "合成.xlsx",
@@ -53,6 +55,7 @@ ledger.freezePrice({
 });
 let calls = 0;
 const reading = {
+  ...(temporary ? { originals: { quota: 1 } } : {}),
   enabled: true,
   ledger,
   reader: async (f) => readMaterial(f),
@@ -171,6 +174,48 @@ try {
   const status = await page.evaluate(() => window.desktop.cloud("status"));
   assert.ok(status.account.wallet.spent > 0);
   assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
+  if (lifecycle) {
+    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "云端原件", exact: true }),
+    ).toBeVisible();
+    if (temporary)
+      await expect(
+        page.getByText("合成.txt · 临时整理，退出后需重传", { exact: true }),
+      ).toBeVisible();
+    else {
+      const before = (await page.evaluate(() => window.desktop.cloud("status")))
+        .originalStorage.originals[0].version;
+      await page.getByRole("button", { name: "续期30天", exact: true }).click();
+      await waitForPageState(
+        page,
+        async (version) =>
+          (await window.desktop.cloud("status")).originalStorage.originals[0]
+            .version ===
+          version + 1,
+        before,
+      );
+      await page
+        .getByRole("button", { name: "下载到本机", exact: true })
+        .click();
+      await expect(
+        page.getByText("原件已校验并保存到本机，可从材料面板打开", {
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
+    page.once("dialog", (d) => d.accept());
+    await page
+      .getByRole("button", { name: "删除云端原件", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "删除云端原件", exact: true }),
+    ).toHaveCount(0);
+    const storage = (await page.evaluate(() => window.desktop.cloud("status")))
+      .originalStorage;
+    assert.equal(storage.usedBytes, 0);
+    assert.equal(storage.originals[0].state, "deleted");
+  }
   if (original) {
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     // IPC submission updates the main-process projection; verify persisted
@@ -210,6 +255,8 @@ try {
       electronSourceUI: true,
       sshTunnelToIsolatedLinux: !!remote,
       originalUpload: true,
+      originalLifecycle: lifecycle,
+      temporaryCleanupAndReupload: temporary,
       stopContinueButtons: true,
       cumulativeWallet: true,
       published: true,

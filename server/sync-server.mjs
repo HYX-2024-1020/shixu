@@ -50,6 +50,7 @@ export function createSyncService({
   ai = null,
   fileLimits = {},
   jobHooks = {},
+  originalsV4 = false,
 }) {
   if (typeof password !== "string" || password.length < 12)
     throw new Error("独立同步服务需要至少 12 位的 SYNC_PASSWORD");
@@ -60,6 +61,13 @@ export function createSyncService({
   )
     throw new Error("SYNC_ORIGIN 必须是无路径的 HTTP 或 HTTPS 来源");
   const store = new SyncStore(database);
+  if (
+    !originalsV4 &&
+    store.db.prepare("SELECT 1 FROM sync_meta WHERE key='originals_v4'").get()
+  ) {
+    store.close();
+    throw Error("ORIGINALS_V4_REQUIRED");
+  }
   const files = createAttachmentStore(store, fileLimits);
   const jobs = createJobQueue(store, ai, jobHooks);
   const failures = new Map();

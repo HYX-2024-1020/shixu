@@ -67,7 +67,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
     assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "ledger.mjs", "material.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
