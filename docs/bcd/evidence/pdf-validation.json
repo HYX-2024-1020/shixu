@@ -13,9 +13,9 @@
     },
     {
       "name": "sync-mini",
-      "passed": 124,
+      "passed": 125,
       "failed": 0,
-      "durationMs": 4402.1101
+      "durationMs": 4503.1147
     },
     {
       "name": "desktop-data",
@@ -80,6 +80,7 @@
     "Electron fixture must wait for first simulated provider before stop",
     "official compiler path explicitly set",
     "isolation probe required its own minimal runtime directory",
-    "Linux timer rounding could admit an extra read during bounded backoff; fixed and reran Windows/Linux"
+    "Linux timer rounding could admit an extra read during bounded backoff; fixed and reran Windows/Linux",
+    "mini original transport dropped HTTP status; refused revalidation now clears pending action; actual Page polling regression passed for object/string/malformed error bodies"
   ]
 }

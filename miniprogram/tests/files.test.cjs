@@ -105,6 +105,56 @@ const source = (f, body = Buffer.from("合成原件"), name = "通知.txt") => {
   f.fs.data.set("/chosen/file", body);
   return { path: "/chosen/file", name, size: body.length };
 };
+
+test("a refused original revalidation clears the saved task action and is not uploaded again by polling", async () => {
+  for (const data of [
+    { code: "FILE_INTEGRITY" },
+    JSON.stringify({ code: "FILE_INTEGRITY" }),
+    "invalid response",
+  ]) {
+    let uploads = 0;
+    const f = fixture({
+      request: (options) => {
+        uploads++;
+        options.success({ statusCode: 422, data });
+      },
+    });
+    const p = f.page;
+    try {
+      p._connection = { base: "https://synthetic.example", token: "synthetic" };
+      p._reading = { features: { submissionManifest: true } };
+      p._transport = async (method, path) => {
+        assert.equal(method, "GET");
+        assert.equal(path, "/api/v4/tasks");
+        return { tasks: [] };
+      };
+      p._reuploadTemporary = () =>
+        files
+          .createFileTransport(p._connection.base, () => "synthetic", f.wx, 3)
+          .verifyOriginal("packet", { id: "a" }, Buffer.from("synthetic"));
+      p._saveJobs([
+        {
+          id: "task",
+          state: "cancelled",
+          request: { packetId: "packet", kind: "organize" },
+          pendingAction: { action: "continue", operationId: "stable" },
+        },
+      ]);
+      await assert.rejects(
+        p._pollJobs(),
+        (e) =>
+          e.status === 422 &&
+          ((typeof data === "string" && data === "invalid response") ||
+            e.code === "FILE_INTEGRITY"),
+      );
+      assert.equal(p._jobs[0].pendingAction, null);
+      await p._pollJobs();
+      assert.equal(uploads, 1);
+    } finally {
+      p.onUnload();
+    }
+  }
+});
 test("attachment-only capture persists original bytes and resumes after page restart", () => {
   const f = fixture();
   const chosen = source(f);

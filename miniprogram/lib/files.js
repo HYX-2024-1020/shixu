@@ -252,11 +252,26 @@ function createFileTransport(
         header: { Authorization: `Bearer ${getToken()}`, ...header },
         success(response) {
           if (response.statusCode < 200 || response.statusCode >= 300) {
-            reject(
-              new Error(
-                `原件请求失败（${response.statusCode}），本机原件已保留`,
-              ),
+            const error = new Error(
+              `原件请求失败（${response.statusCode}），本机原件已保留`,
             );
+            error.status = response.statusCode;
+            // Keep the machine reason for action replay without reflecting an
+            // arbitrary response body into the UI or losing local originals.
+            try {
+              const payload =
+                typeof response.data === "string"
+                  ? JSON.parse(response.data)
+                  : response.data;
+              if (
+                typeof payload?.code === "string" &&
+                /^[A-Z_]{1,80}$/.test(payload.code)
+              )
+                error.code = payload.code;
+            } catch {
+              /* The HTTP status remains authoritative. */
+            }
+            reject(error);
             return;
           }
           if (method === "GET") {
