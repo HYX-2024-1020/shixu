@@ -46,6 +46,8 @@ node scripts/reading-broker-linux.mjs /opt/shixu-bcd-test-YYYYMMDD-originals --o
 
 新增两条源码Electron UI检查已接Windows CI，官方WXML/WXSS编译及模板渲染单独执行。Node Page、官方编译、源码Electron和Linux隔离分别记证，不替代原生微信develop/真实微信身份/手机/安装版或公网验收。最终检查数量与远端CI见PR最新提交。
 
+最后交互复核补齐Windows显式离线提示与原件按钮禁用，Electron分别模拟offline/online事件验证禁用/恢复，retained与temporary两条专项重跑通过；此前仅有网络请求失败保护。仅改展示及交互门禁，不重复解析性能样本。
+
 ## 未完成及回滚
 
 未新增图片/PDF/归档支持。失败/中止读取的排队时间回传、剩余活跃时间约束读取仍待补齐，根累计不等于完整计时。跨修订复用、语义合并去重、所有AI共账、真实供应商/usage与维护审计入口、安全水位、正式多库迁移/恢复防回退、多账号容量压测继续由#73/#69跟踪。

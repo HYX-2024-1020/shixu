@@ -19,7 +19,18 @@ export default function AccountConnection({
     [deviceName, setDeviceName] = useState("这台 Windows"),
     [state, setState] = useState<State | null>(null),
     [busy, setBusy] = useState(false),
+    [online, setOnline] = useState(navigator.onLine),
     [error, setError] = useState("");
+  useEffect(() => {
+    const connected = () => setOnline(true),
+      disconnected = () => setOnline(false);
+    window.addEventListener("online", connected);
+    window.addEventListener("offline", disconnected);
+    return () => {
+      window.removeEventListener("online", connected);
+      window.removeEventListener("offline", disconnected);
+    };
+  }, []);
   useEffect(() => {
     ref.current?.showModal();
     void window
@@ -35,6 +46,16 @@ export default function AccountConnection({
     setBusy(true);
     setError("");
     try {
+      if (
+        !online &&
+        [
+          "moreOriginals",
+          "downloadOriginal",
+          "renewOriginal",
+          "deleteOriginal",
+        ].includes(name)
+      )
+        throw Error("离线时不能操作云端原件；联网后刷新再操作");
       if (reload) {
         if (!canSwitch()) throw Error("请等待当前投递或对话完成");
         await window.flushDesktopDraft?.();
@@ -328,9 +349,12 @@ export default function AccountConnection({
       {state?.originalStorage && (
         <section className="connection-data">
           <h3>云端原件</h3>
+          {!online && (
+            <p role="status">离线，云端原件操作已暂停；本机副本仍可使用。</p>
+          )}
           {state.originalStorage.hasMore && (
             <button
-              disabled={busy}
+              disabled={busy || !online}
               onClick={() => void action("moreOriginals")}
             >
               更多原件
@@ -369,7 +393,7 @@ export default function AccountConnection({
                 <>
                   {f.available && (
                     <button
-                      disabled={busy}
+                      disabled={busy || !online}
                       onClick={() => void action("downloadOriginal", f)}
                     >
                       下载到本机
@@ -377,14 +401,14 @@ export default function AccountConnection({
                   )}
                   {f.mode === "retained" && (
                     <button
-                      disabled={busy}
+                      disabled={busy || !online}
                       onClick={() => void action("renewOriginal", f)}
                     >
                       续期30天
                     </button>
                   )}
                   <button
-                    disabled={busy}
+                    disabled={busy || !online}
                     onClick={() => {
                       if (
                         confirm(

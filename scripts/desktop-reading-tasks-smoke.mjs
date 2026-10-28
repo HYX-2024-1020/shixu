@@ -179,6 +179,22 @@ try {
     await expect(
       page.getByRole("heading", { name: "云端原件", exact: true }),
     ).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+    await expect(
+      page.getByRole("button", { name: "删除云端原件", exact: true }),
+    ).toBeDisabled();
+    if (!temporary) {
+      await expect(
+        page.getByRole("button", { name: "续期30天", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "下载到本机", exact: true }),
+      ).toBeDisabled();
+    }
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect(
+      page.getByRole("button", { name: "删除云端原件", exact: true }),
+    ).toBeEnabled();
     if (temporary)
       await expect(
         page.getByText("合成.txt · 临时整理，退出后需重传", { exact: true }),
@@ -256,6 +272,7 @@ try {
       sshTunnelToIsolatedLinux: !!remote,
       originalUpload: true,
       originalLifecycle: lifecycle,
+      originalOfflineLock: lifecycle,
       temporaryCleanupAndReupload: temporary,
       stopContinueButtons: true,
       cumulativeWallet: true,
