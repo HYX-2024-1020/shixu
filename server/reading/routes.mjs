@@ -14,6 +14,7 @@ const shutdownMessages = {
   SERVICE_CLOSING: "服务正在关闭，请稍后重试",
   CHECKPOINT_NO_PROGRESS: "累计24次调用未取得新增有效块，需核对后继续",
   CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
+  SAFETY_RECONCILIATION: "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
   REUPLOAD_REQUIRED: "原件已清理，请从保留本机副本的设备重传核对后继续",
   READING_TIMEOUT: "单步读取超时，已完成进度保留；可稍后继续",
@@ -114,7 +115,7 @@ export function createReadingRoutes({
       calls: t.calls,
       reusedBlocks: e.reuse.count(t.id),
       activeMs: t.active_ms,
-      reason: t.reason,
+      reason: root.reason || t.reason,
       rootTaskId: root.id,
       rootCalls: root.calls,
       rootActiveMs: root.activeMs,
@@ -140,6 +141,7 @@ export function createReadingRoutes({
                 "ACTIVE_TIME_RECONCILIATION",
                 "CHECKPOINT_RECONCILIATION",
                 "CHECKPOINT_NO_PROGRESS",
+                "SAFETY_RECONCILIATION",
               ].includes(root.reason)
                 ? ["continue"]
                 : []),

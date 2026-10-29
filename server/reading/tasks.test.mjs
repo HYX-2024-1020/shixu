@@ -31,6 +31,106 @@ const result = (sources) => ({
     },
   ],
 });
+
+test("older tenant timing cannot rewind the independent root watermark or resume paid work", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop", "watermark-stop");
+  const before = f.tasks.roots.stats("task");
+  assert.ok(before.activeMs > 0);
+  // Synthetic rollback of safety metadata, never a real user's database.
+  f.store.db
+    .prepare("UPDATE reading_tasks SET active_ms=0 WHERE id='task'")
+    .run();
+  const restored = f.tasks.roots.stats("task");
+  assert.ok(restored.activeMs >= before.activeMs);
+  assert.equal(restored.reason, "SAFETY_RECONCILIATION");
+  assert.throws(
+    () => f.action("continue", "watermark-continue"),
+    (e) => e.code === "SAFETY_RECONCILIATION",
+  );
+  assert.equal(f.calls(), 1);
+});
+
+test("missing tenant task rows cannot detach settled calls or invent a new root for the same packet", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop", "missing-stop");
+  f.action("purge", "missing-purge");
+  const spent = f.ledger.wallet("synthetic").spent;
+  f.store.db.exec(
+    "DELETE FROM reading_tasks; DELETE FROM reading_roots; DELETE FROM reading_root_progress; DELETE FROM reading_root_checkpoints;",
+  );
+  f.tasks.enqueue({
+    id: "later",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  const stats = f.tasks.roots.stats("later");
+  assert.equal(stats.id, "task");
+  assert.equal(stats.calls, 1);
+  assert.equal(stats.spent, spent);
+  assert.equal(stats.reason, "SAFETY_RECONCILIATION");
+  await f.tasks.run("later");
+  assert.equal(f.calls(), 1);
+});
+
+test("failed independent execution registration cannot send a model request", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  const prepare = f.ledger.db.prepare.bind(f.ledger.db);
+  f.ledger.db.prepare = (sql) => {
+    if (sql.startsWith("INSERT INTO reading_safe_steps"))
+      throw Error("synthetic safety disk failure");
+    return prepare(sql);
+  };
+  try {
+    assert.equal((await f.tasks.run("task")).state, "paused");
+  } finally {
+    f.ledger.db.prepare = prepare;
+  }
+  assert.equal(f.calls(), 0);
+  assert.equal(
+    f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_calls").get().n,
+    0,
+  );
+});
+
+test("a failed final safety write abandons local ownership and leaves a conservative execution fence", async (t) => {
+  let fail = false;
+  const f = fixture(t, {
+    provider: async (sources) => {
+      fail = true;
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: result(sources),
+      };
+    },
+  });
+  f.enqueue();
+  const prepare = f.ledger.db.prepare.bind(f.ledger.db);
+  f.ledger.db.prepare = (sql) => {
+    if (fail && sql.startsWith("INSERT INTO reading_safe_events"))
+      throw Error("synthetic final safety write failure");
+    return prepare(sql);
+  };
+  try {
+    await assert.rejects(
+      f.tasks.run("task"),
+      /synthetic final safety write failure/,
+    );
+  } finally {
+    f.ledger.db.prepare = prepare;
+  }
+  assert.equal(
+    f.tasks.roots.stats("task").reason,
+    "ACTIVE_TIME_RECONCILIATION",
+  );
+  assert.equal(f.calls(), 1);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+});
 function fixture(
   t,
   {
@@ -508,8 +608,9 @@ for (const rejects of [false, true]) {
           },
           "continue",
         ),
-      (e) => e.code === "UNKNOWN_COST",
+      (e) => e.code === "ACTIVE_TIME_RECONCILIATION",
     );
+    assert.ok(f.ledger.wallet("synthetic").unknownRisk > 0);
     restarted.close();
     assert.equal(f.store.record("packet").data.result, null);
     // Throwing DB entry points represent stores already closed by the host.

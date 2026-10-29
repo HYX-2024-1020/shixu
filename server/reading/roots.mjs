@@ -1,3 +1,5 @@
+import { ReadingRootSafety } from "./root-safety.mjs";
+
 // Root safety metadata contains no input, extracted text or model result. A
 // packet's later task IDs/revisions share counters, including after purge.
 export class ReadingRoots {
@@ -5,6 +7,7 @@ export class ReadingRoots {
     this.db = store.db;
     this.ledger = ledger;
     this.account = account;
+    this.safety = new ReadingRootSafety(ledger, account);
     this.db
       .exec(`CREATE TABLE IF NOT EXISTS reading_roots(id TEXT PRIMARY KEY,packet TEXT NOT NULL UNIQUE,reason TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS reading_root_progress(root TEXT NOT NULL,fingerprint TEXT NOT NULL,PRIMARY KEY(root,fingerprint));
@@ -24,6 +27,7 @@ export class ReadingRoots {
           .prepare("INSERT OR IGNORE INTO reading_roots(id,packet) VALUES(?,?)")
           .run(task.id, task.packet).changes;
         const root = this.forTask(task.id);
+        this.safety.bind(task.packet, task.id, root.id);
         if (
           task.reason === "SHUTDOWN_TIME_UNCERTAIN" ||
           ["running", "applying"].includes(task.state)
@@ -52,11 +56,22 @@ export class ReadingRoots {
       this.db.exec("ROLLBACK");
       throw e;
     }
+    for (const { id } of this.db
+      .prepare("SELECT MIN(id) id FROM reading_tasks GROUP BY packet")
+      .all())
+      this.stats(id);
   }
   attach(task) {
+    const root = this.safety.bind(
+      task.packet,
+      task.id,
+      this.db
+        .prepare("SELECT id FROM reading_roots WHERE packet=?")
+        .get(task.packet)?.id || task.id,
+    );
     this.db
       .prepare("INSERT OR IGNORE INTO reading_roots(id,packet) VALUES(?,?)")
-      .run(task.id, task.packet);
+      .run(root, task.packet);
   }
   forTask(id) {
     return this.db
@@ -72,6 +87,7 @@ export class ReadingRoots {
         "UPDATE reading_roots SET reason=? WHERE packet=(SELECT packet FROM reading_tasks WHERE id=?) AND reason!='ACTIVE_TIME_RECONCILIATION'",
       )
       .run(reason, id);
+    this.stats(id);
   }
   progress(id, fingerprint) {
     this.db
@@ -82,6 +98,7 @@ export class ReadingRoots {
   }
   stats(id) {
     const root = this.forTask(id);
+    const safeRoot = this.safety.bind(root.packet, id, root.id);
     const tasks = this.db
       .prepare(
         "SELECT id,calls,active_ms,reason FROM reading_tasks WHERE packet=?",
@@ -92,8 +109,9 @@ export class ReadingRoots {
       unknownRisk = 0;
     // Separate databases: bounded SQL parameter batches instead of attaching a
     // mutable tenant DB to the independent billing connection.
-    for (let i = 0; i < tasks.length; i += 400) {
-      const ids = tasks.slice(i, i + 400).map((t) => t.id);
+    const linkedTasks = this.safety.tasks(safeRoot);
+    for (let i = 0; i < linkedTasks.length; i += 400) {
+      const ids = linkedTasks.slice(i, i + 400);
       const totals = this.ledger.db
         .prepare(
           `SELECT COUNT(*) calls,COALESCE(SUM(actual),0) spent,
@@ -110,24 +128,28 @@ export class ReadingRoots {
         "SELECT * FROM reading_root_checkpoints WHERE root=? ORDER BY calls DESC LIMIT 1",
       )
       .get(root.id);
-    return {
-      id: root.id,
-      calls: Math.max(
-        calls,
-        tasks.reduce((n, t) => n + t.calls, 0),
-      ),
-      activeMs: tasks.reduce((n, t) => n + t.active_ms, 0),
-      spent,
-      unknownRisk,
-      completed: this.db
-        .prepare("SELECT COUNT(*) n FROM reading_root_progress WHERE root=?")
-        .get(root.id).n,
-      reason: tasks.some((t) => t.reason === "SHUTDOWN_TIME_UNCERTAIN")
-        ? "ACTIVE_TIME_RECONCILIATION"
-        : root.reason,
-      checkpointCalls: checkpoint?.calls || 0,
-      nextCheckpointCalls: (checkpoint?.calls || 0) + 24,
-    };
+    return this.safety.observe(
+      safeRoot,
+      {
+        id: root.id,
+        calls: Math.max(
+          calls,
+          tasks.reduce((n, t) => n + t.calls, 0),
+        ),
+        activeMs: tasks.reduce((n, t) => n + t.active_ms, 0),
+        spent,
+        unknownRisk,
+        completed: this.db
+          .prepare("SELECT COUNT(*) n FROM reading_root_progress WHERE root=?")
+          .get(root.id).n,
+        reason: tasks.some((t) => t.reason === "SHUTDOWN_TIME_UNCERTAIN")
+          ? "ACTIVE_TIME_RECONCILIATION"
+          : root.reason,
+        checkpointCalls: checkpoint?.calls || 0,
+        nextCheckpointCalls: (checkpoint?.calls || 0) + 24,
+      },
+      root.id !== safeRoot,
+    );
   }
   checkpoint(id) {
     const stats = this.stats(id);

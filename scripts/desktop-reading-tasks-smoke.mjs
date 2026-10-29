@@ -11,6 +11,8 @@ import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
+import { DatabaseSync } from "node:sqlite";
+const safetyRollback = process.argv.includes("--safety-rollback");
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
 const pdfLimit = process.argv.includes("--pdf-limit");
@@ -162,7 +164,7 @@ if (remote) {
 }
 delete fixture.env.ELECTRON_RUN_AS_NODE;
 let app;
-try {
+scenario: try {
   app = await electron.launch({ args: ["."], env: fixture.env });
   const page = await app.firstWindow();
   if (remote) {
@@ -257,6 +259,28 @@ try {
       await expect.poll(() => calls, { timeout: 20000 }).toBeGreaterThan(0);
     await page.getByRole("button", { name: "停止", exact: true }).click();
     await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
+    if (safetyRollback) {
+      await expect.poll(()=>fixture.service.readingRoutes.snapshot().accounts).toBe(0);
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      const before=await page.evaluate(()=>window.desktop.cloud("status"));
+      const task=before.jobs.find(j=>j.packetId==="task-ui");
+      assert.ok(task.rootActiveMs > 0);
+      const db=new DatabaseSync(join(fixture.root,"server","users",fixture.invitation.userId,"workspace.sqlite"));
+      try {db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id);} finally {db.close();}
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
+      const after=await page.evaluate(()=>window.desktop.cloud("status"));
+      assert.ok(after.jobs[0].rootActiveMs >= task.rootActiveMs);
+      assert.equal(calls,1);assert.equal(after.account.wallet.spent,before.account.wallet.spent);
+      await page.reload();
+      await page.locator(".bucket-settings").click();
+      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
+      console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,safetyRollback:true,
+        sameTimeFloor:true,noContinue:true,reloadGatePreserved:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent}));
+      break scenario;
+    }
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
     await page.getByRole("button", { name: "继续", exact: true }).click();
     await waitForPageState(page, async () => {

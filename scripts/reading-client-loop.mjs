@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import vm from "node:vm";
+import { DatabaseSync } from "node:sqlite";
 import { createMultiUserService } from "../server/sync-multi-user.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 const require = createRequire(import.meta.url);
@@ -37,6 +38,7 @@ export async function runClientLoop({
   startByMini = false,
   deleteBeforeStart = false,
   reviseAfterPublication = false,
+  rollbackRootAfterStop = false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -385,6 +387,29 @@ export async function runClientLoop({
     );
     assert.equal((await cloud.packets())[0].result, null);
     await page.sync();
+    if (rollbackRootAfterStop) {
+      const before = cloud.readJobs().find(j=>j.id===task.id);
+      assert.ok(before.rootActiveMs > 0);
+      const db = new DatabaseSync(join(directory,"server","users",account,"workspace.sqlite"));
+      try { db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id); }
+      finally { db.close(); }
+      await cloud.action("sync"); await page.sync();
+      const win = cloud.readJobs().find(j=>j.id===task.id);
+      const mini = page._jobs.find(j=>j.id===task.id);
+      assert.equal(win.reason,"SAFETY_RECONCILIATION"); assert.equal(mini.reason,win.reason);
+      assert.match(win.error,/资料进度与安全记录不一致/); assert.equal(mini.error,win.error);
+      assert.ok(win.rootActiveMs >= before.rootActiveMs); assert.equal(win.rootActiveMs,mini.rootActiveMs);
+      assert.ok(!win.actions.includes("continue")); assert.equal(page.data.jobs.find(j=>j.id===task.id).canContinue,false);
+      await assert.rejects(cloud.action("taskAction",{id:task.id,action:"continue"}),/任务状态已变化/);
+      await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${task.id}/continue`,{
+        contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,expectedRevision:win.inputRevision,
+      }),/资料进度与安全记录不一致/);
+      assert.equal(calls,1); assert.equal(ledger.wallet(account).spent,20);
+      assert.equal((await cloud.packets())[0].result,null);
+      return {synthetic:true,realProviderCalls:0,simulatedProviderCalls:calls,spentMicros:20,
+        rootActiveMs:win.rootActiveMs,sameReasonAndActions:true,continueDenied:true,
+        desktopTransport:"AccountWorkspace signed HTTP",miniTransport:"Page lifecycle with Node wx adapter, not native WeChat"};
+    }
     if (originalQuota === 1 && !sourceByMini)
       await cloud.action("taskAction", { id: task.id, action: "continue" });
     else

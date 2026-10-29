@@ -24,9 +24,11 @@ const error = (code) =>
     code,
     code === "ACTIVE_TIME_RECONCILIATION"
       ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
-      : code === "SERVICE_CLOSING"
-        ? "服务正在关闭，请稍后重试"
-        : code,
+      : code === "SAFETY_RECONCILIATION"
+        ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
+        : code === "SERVICE_CLOSING"
+          ? "服务正在关闭，请稍后重试"
+          : code,
   );
 const versions = {
   reader: READER_VERSION,
@@ -357,6 +359,8 @@ export class ReadingTasks {
         const root = this.roots.stats(id);
         if (root.reason === "ACTIVE_TIME_RECONCILIATION")
           throw error("ACTIVE_TIME_RECONCILIATION");
+        if (root.reason === "SAFETY_RECONCILIATION")
+          throw error("SAFETY_RECONCILIATION");
         if (
           root.activeMs >= this.activeLimitMs ||
           task.reason === "EXECUTION_LIMIT"
@@ -493,6 +497,7 @@ export class ReadingTasks {
             : 0,
           id,
         );
+      this.roots.stats(id);
     }
     for (const call of this.ledger.db
       .prepare(
@@ -599,6 +604,7 @@ export class ReadingTasks {
     this.authorize(task.device);
     if (inputRevision(this.store, task.packet) !== task.input_revision)
       throw error("INPUT_CHANGED");
+    const root = this.roots.checkpoint(id);
     this.db
       .prepare("UPDATE reading_tasks SET state='running' WHERE id=?")
       .run(id);
@@ -609,7 +615,7 @@ export class ReadingTasks {
     const execution = { started, excludedMs: 0, phase: "reader" };
     this.executions.set(id, execution);
     let excludedMs = 0;
-    const root = this.roots.checkpoint(id);
+    let safetyStep;
     const read = async (file, pdfWindow) => {
       const readAt = performance.now(),
         before = excludedMs;
@@ -772,6 +778,7 @@ export class ReadingTasks {
       if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
+      safetyStep = this.roots.safety.begin(root.id,id,task.generation);
       const paged = this.reader.pdfWindows === true;
       if (!paged && this.windows.rows(id).length) throw Error("READER_WINDOW_REQUIRED");
       const packet = this.store.record(task.packet).data,
@@ -802,6 +809,7 @@ export class ReadingTasks {
             [
               "EXECUTION_LIMIT",
               "ACTIVE_TIME_RECONCILIATION",
+              "SAFETY_RECONCILIATION",
               "REUPLOAD_REQUIRED",
               "INVALID_READER_WINDOW",
             ].includes(e.code || e.message) ||
@@ -1065,6 +1073,7 @@ export class ReadingTasks {
               "REUPLOAD_REQUIRED",
               "READING_TIMEOUT",
               "LEDGER_PAUSED",
+              "SAFETY_RECONCILIATION",
             ].includes(reason)
               ? reason
               : "READING_TASK_FAILED",
@@ -1073,38 +1082,43 @@ export class ReadingTasks {
       return this.get(id);
     } finally {
       this.executions.delete(id);
-      if (this.finalSnapshots) {
-        this.controllers.delete(id);
-        this.clearMaterial(id);
-      } else {
-        this.db
-          .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
-          .run(
-            Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
-            id,
-          );
-        // Return queued only after the previous invocation fully drains. Stop and
-        // resume generations never share one in-flight controller.
-        // Check failed/invalid paid calls too, at call 24 itself.
-        const checkpoint = this.roots.checkpoint(id);
-        if (checkpoint.reason && this.current(task))
+      try {
+        if (this.finalSnapshots) {
+          this.controllers.delete(id);
+          this.clearMaterial(id);
+        } else {
           this.db
-            .prepare(
-              "UPDATE reading_tasks SET state='paused',reason=? WHERE id=?",
-            )
-            .run(checkpoint.reason, id);
-        if (this.current(task))
-          this.db
-            .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")
-            .run(id);
-        this.controllers.delete(id);
-        if (this.get(id)?.state !== "queued") this.clearMaterial(id);
-        else {
-          clearTimeout(this.cacheTimers.get(id));
-          const timer = setTimeout(() => this.clearMaterial(id), 30000);
-          timer.unref();
-          this.cacheTimers.set(id, timer);
+            .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
+            .run(
+              Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
+              id,
+            );
+          // Return queued only after the previous invocation fully drains. Stop and
+          // resume generations never share one in-flight controller.
+          // Check failed/invalid paid calls too, at call 24 itself.
+          const checkpoint = this.roots.checkpoint(id);
+          if (safetyStep) this.roots.safety.finish(safetyStep);
+          if (checkpoint.reason && this.current(task))
+            this.db
+              .prepare(
+                "UPDATE reading_tasks SET state='paused',reason=? WHERE id=?",
+              )
+              .run(checkpoint.reason, id);
+          if (this.current(task))
+            this.db
+              .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")
+              .run(id);
+          this.controllers.delete(id);
+          if (this.get(id)?.state !== "queued") this.clearMaterial(id);
+          else {
+            clearTimeout(this.cacheTimers.get(id));
+            const timer = setTimeout(() => this.clearMaterial(id), 30000);
+            timer.unref();
+            this.cacheTimers.set(id, timer);
+          }
         }
+      } finally {
+        if (safetyStep) this.roots.safety.abandon(safetyStep);
       }
     }
   }
