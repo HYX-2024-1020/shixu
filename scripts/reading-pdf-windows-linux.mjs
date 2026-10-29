@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { zipBytes } from "../server/reading/archive-fixtures.mjs";
 import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
 import { SyncStore } from "../server/sync-store.mjs";
 import { createAttachmentStore } from "../server/sync-files.mjs";
@@ -9,6 +10,8 @@ import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { ReadingTasks } from "../server/reading/tasks.mjs";
 import { createLinuxReader } from "../server/reading/linux-broker.mjs";
 import { sha256 } from "../server/reading/material.mjs";
+const archiveMode=process.argv.includes("--archive");
+const prefix="归档前件😀\n", suffix="归档尾部唯一标记";
 const base = resolve(process.argv[2] || "");
 if (
   process.platform !== "linux" ||
@@ -35,14 +38,17 @@ ledger.freezePrice({
 });
 const pageText = ("资源".repeat(50) + "\n").repeat(400),
   tail = "不可假称已读的尾页";
-const body = pdfBytes(
+const pdfBody = pdfBytes(
   [...Array.from({ length: 240 }, () => ({ text: pageText })), { text: tail }],
   { compress: true },
 );
-assert.equal(body.length, 531269, "same historical pressure sample");
+assert.equal(pdfBody.length, 531269, "same historical pressure sample");
+const body=archiveMode ? zipBytes({"01.txt":prefix,"02.pdf":pdfBody,"03.txt":suffix}) : pdfBody;
 const expectedHash = createHash("sha256");
+if(archiveMode)expectedHash.update(prefix);
 for (let i = 0; i < 240; i++) expectedHash.update(pageText);
 expectedHash.update(tail + "\n");
+if(archiveMode)expectedHash.update(suffix);
 const expectedTextHash = expectedHash.digest("hex"),
   seen = createHash("sha256");
 const device = store.createDevice("synthetic").deviceId;
@@ -67,7 +73,7 @@ put({
   status: "pending",
 });
 const file = store.files.put("packet", "pdf", {
-  name: "resource.pdf",
+  name: archiveMode ? "resource.zip" : "resource.pdf",
   type: "application/pdf",
   body,
   epoch: store.epoch,
@@ -94,13 +100,13 @@ try {
       async (file, options) => {
         const output = await isolated(file, options);
         windows.push({
-          request: options.pdfWindow,
-          pagination: output.material.pagination,
+          request: options.archiveWindow || options.pdfWindow,
+          pagination: output.material.archivePagination || output.material.pagination,
           ...output.metrics,
         });
         return { ...output.material, timing: output.timing };
       },
-      { pdfWindows: true },
+      { pdfWindows: true, archiveWindows:archiveMode },
     ),
     provider: async (sources) => {
       calls++;
@@ -157,16 +163,17 @@ try {
   assert.equal(tailSeen, true);
   const c = store.record("packet").data.readingCoverage[0];
   assert.deepEqual(
-    c.covered.map((r) => r.page),
+    c.covered.filter(r=>r.kind==="pdf").map((r) => r.page),
     Array.from({ length: 241 }, (_, i) => i + 1),
   );
   assert.ok(c.uncovered.every((r) => r.code === "PDF_VISUAL_UNREAD"));
-  assert.equal(c.pagination.nextPage, null);
-  assert.equal(new Set(c.covered.map((r) => r.sourceId)).size, 241);
+  if(archiveMode)assert.equal(c.archivePagination.next,null);
+  else assert.equal(c.pagination.nextPage, null);
+  assert.equal(new Set(c.covered.map((r) => r.sourceId)).size, archiveMode ? 243 : 241);
   assert.ok(
-    c.covered.every(
+    c.covered.filter(r=>r.kind==="pdf").every(
       (r, i) =>
-        r.start === i * pageText.length &&
+        r.start === i * pageText.length + (archiveMode ? [...prefix].length : 0) &&
         r.end === r.start + (i === 240 ? tail.length + 1 : pageText.length),
     ),
   );
@@ -187,6 +194,7 @@ try {
   const report = {
     synthetic: true,
     realProviderCalls: 0,
+    archiveMode,
     originalBytes: body.length,
     originalHash: sha256(body),
     independentFullTextHash: expectedTextHash,
@@ -204,7 +212,7 @@ try {
     samples: windows,
   };
   await writeFile(
-    base + "/pdf-windows-task.json",
+    base + (archiveMode ? "/archive-windows-task.json" : "/pdf-windows-task.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report));

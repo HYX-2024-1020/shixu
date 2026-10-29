@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readingView, sourceLocation } from "../../shared/reading-view.mjs";
+import { readingView, sourceLocation, pdfProgressView } from "../../shared/reading-view.mjs";
 test("malformed local/legacy coverage cannot crash the shared view or use prototype names as statuses", () => {
   const coverage = [
     null,
@@ -32,4 +32,11 @@ test("malformed local/legacy coverage cannot crash the shared view or use protot
     "<script>alert(1)</script>",
     "view returns inert text; native renderers escape it",
   );
+});
+
+test("archive PDF progress tolerates malformed legacy members and keeps each valid member separate",()=>{
+  assert.doesNotThrow(()=>pdfProgressView([{name:{toString:{}},archivePdfPages:[{archivePath:"a",checked:1,total:1}]}]));
+  assert.equal(pdfProgressView([null,{archivePdfPages:[null,{}, {archivePath:3}, {archivePath:"x",checked:-1,total:2}]}]),"");
+  assert.match(pdfProgressView([{name:"包.zip",archivePdfPages:[{archivePath:"a.pdf",checked:8,total:19},{archivePath:"b.pdf",checked:2,total:2}]}]),
+    /a.pdf.*8 \/ 19.*b.pdf.*2 \/ 2/);
 });

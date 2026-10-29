@@ -1,0 +1,1222 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "archiveMode": true,
+  "originalBytes": 531596,
+  "originalHash": "9d2000b403b911d2d58ae7b24b21d52b346f3c64ce4c4a16bac8487d9d5f963d",
+  "independentFullTextHash": "87fbf8f0881c8d7c370fb4c6e2f09e4e8231ed53831e7b06f41b2d8c76ee2911",
+  "totalPages": 241,
+  "windows": 33,
+  "simulatedCalls": 123,
+  "checkpointCalls": 120,
+  "spentMicros": 2460,
+  "elapsedMs": 66048.75430799999,
+  "maxWindowTextUnits": 323200,
+  "maxWorkerRssKiB": 100452,
+  "tailSeen": true,
+  "completeTextOrderCoordinatesAndSourcesChecked": true,
+  "visualContentsUnread": true,
+  "samples": [
+    {
+      "request": {
+        "entry": 0,
+        "page": 1,
+        "offset": 0,
+        "base": 0,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 0,
+          "page": 1,
+          "offset": 0,
+          "base": 0,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 1,
+          "offset": 6,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "01.txt"
+      },
+      "parseMs": 12.423762999999994,
+      "serializationAndTransferMs": 2.4031670000000105,
+      "maxRssKiB": 54656
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 1,
+        "offset": 6,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 1,
+          "offset": 6,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 9,
+          "offset": 323206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 1,
+          "nextPage": 9,
+          "totalPages": 241,
+          "startOffset": 0,
+          "nextOffset": 323200
+        }
+      },
+      "parseMs": 1589.0732850000002,
+      "serializationAndTransferMs": 6.432747999999947,
+      "maxRssKiB": 100452
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 9,
+        "offset": 323206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 9,
+          "offset": 323206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 17,
+          "offset": 646406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 9,
+          "nextPage": 17,
+          "totalPages": 241,
+          "startOffset": 323200,
+          "nextOffset": 646400
+        }
+      },
+      "parseMs": 1809.132254,
+      "serializationAndTransferMs": 8.246912000000066,
+      "maxRssKiB": 92540
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 17,
+        "offset": 646406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 17,
+          "offset": 646406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 25,
+          "offset": 969606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 17,
+          "nextPage": 25,
+          "totalPages": 241,
+          "startOffset": 646400,
+          "nextOffset": 969600
+        }
+      },
+      "parseMs": 1698.7054050000002,
+      "serializationAndTransferMs": 6.3939490000000205,
+      "maxRssKiB": 91400
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 25,
+        "offset": 969606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 25,
+          "offset": 969606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 33,
+          "offset": 1292806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 25,
+          "nextPage": 33,
+          "totalPages": 241,
+          "startOffset": 969600,
+          "nextOffset": 1292800
+        }
+      },
+      "parseMs": 1795.464311,
+      "serializationAndTransferMs": 7.328213999999889,
+      "maxRssKiB": 92140
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 33,
+        "offset": 1292806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 33,
+          "offset": 1292806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 41,
+          "offset": 1616006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 33,
+          "nextPage": 41,
+          "totalPages": 241,
+          "startOffset": 1292800,
+          "nextOffset": 1616000
+        }
+      },
+      "parseMs": 1621.849615,
+      "serializationAndTransferMs": 6.565961000000016,
+      "maxRssKiB": 89596
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 41,
+        "offset": 1616006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 41,
+          "offset": 1616006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 49,
+          "offset": 1939206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 41,
+          "nextPage": 49,
+          "totalPages": 241,
+          "startOffset": 1616000,
+          "nextOffset": 1939200
+        }
+      },
+      "parseMs": 1716.249122,
+      "serializationAndTransferMs": 6.754378999999972,
+      "maxRssKiB": 93320
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 49,
+        "offset": 1939206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 49,
+          "offset": 1939206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 57,
+          "offset": 2262406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 49,
+          "nextPage": 57,
+          "totalPages": 241,
+          "startOffset": 1939200,
+          "nextOffset": 2262400
+        }
+      },
+      "parseMs": 1815.959799,
+      "serializationAndTransferMs": 7.140105000000176,
+      "maxRssKiB": 91592
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 57,
+        "offset": 2262406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 57,
+          "offset": 2262406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 65,
+          "offset": 2585606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 57,
+          "nextPage": 65,
+          "totalPages": 241,
+          "startOffset": 2262400,
+          "nextOffset": 2585600
+        }
+      },
+      "parseMs": 1801.4214200000001,
+      "serializationAndTransferMs": 7.296802000000071,
+      "maxRssKiB": 92956
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 65,
+        "offset": 2585606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 65,
+          "offset": 2585606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 73,
+          "offset": 2908806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 65,
+          "nextPage": 73,
+          "totalPages": 241,
+          "startOffset": 2585600,
+          "nextOffset": 2908800
+        }
+      },
+      "parseMs": 1810.814966,
+      "serializationAndTransferMs": 7.266950000000179,
+      "maxRssKiB": 91744
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 73,
+        "offset": 2908806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 73,
+          "offset": 2908806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 81,
+          "offset": 3232006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 73,
+          "nextPage": 81,
+          "totalPages": 241,
+          "startOffset": 2908800,
+          "nextOffset": 3232000
+        }
+      },
+      "parseMs": 1768.346084,
+      "serializationAndTransferMs": 6.586709999999812,
+      "maxRssKiB": 92472
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 81,
+        "offset": 3232006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 81,
+          "offset": 3232006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 89,
+          "offset": 3555206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 81,
+          "nextPage": 89,
+          "totalPages": 241,
+          "startOffset": 3232000,
+          "nextOffset": 3555200
+        }
+      },
+      "parseMs": 1786.831117,
+      "serializationAndTransferMs": 6.699577999999974,
+      "maxRssKiB": 90756
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 89,
+        "offset": 3555206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 89,
+          "offset": 3555206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 97,
+          "offset": 3878406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 89,
+          "nextPage": 97,
+          "totalPages": 241,
+          "startOffset": 3555200,
+          "nextOffset": 3878400
+        }
+      },
+      "parseMs": 1696.53092,
+      "serializationAndTransferMs": 7.781236999999919,
+      "maxRssKiB": 91144
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 97,
+        "offset": 3878406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 97,
+          "offset": 3878406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 105,
+          "offset": 4201606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 97,
+          "nextPage": 105,
+          "totalPages": 241,
+          "startOffset": 3878400,
+          "nextOffset": 4201600
+        }
+      },
+      "parseMs": 1778.4067029999999,
+      "serializationAndTransferMs": 7.646179000000075,
+      "maxRssKiB": 91152
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 105,
+        "offset": 4201606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 105,
+          "offset": 4201606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 113,
+          "offset": 4524806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 105,
+          "nextPage": 113,
+          "totalPages": 241,
+          "startOffset": 4201600,
+          "nextOffset": 4524800
+        }
+      },
+      "parseMs": 1919.3925780000002,
+      "serializationAndTransferMs": 65.41606999999999,
+      "maxRssKiB": 91440
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 113,
+        "offset": 4524806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 113,
+          "offset": 4524806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 121,
+          "offset": 4848006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 113,
+          "nextPage": 121,
+          "totalPages": 241,
+          "startOffset": 4524800,
+          "nextOffset": 4848000
+        }
+      },
+      "parseMs": 1880.346147,
+      "serializationAndTransferMs": 8.616894999999886,
+      "maxRssKiB": 91784
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 121,
+        "offset": 4848006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 121,
+          "offset": 4848006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 129,
+          "offset": 5171206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 121,
+          "nextPage": 129,
+          "totalPages": 241,
+          "startOffset": 4848000,
+          "nextOffset": 5171200
+        }
+      },
+      "parseMs": 1909.5724969999999,
+      "serializationAndTransferMs": 8.363892000000078,
+      "maxRssKiB": 91948
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 129,
+        "offset": 5171206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 129,
+          "offset": 5171206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 137,
+          "offset": 5494406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 129,
+          "nextPage": 137,
+          "totalPages": 241,
+          "startOffset": 5171200,
+          "nextOffset": 5494400
+        }
+      },
+      "parseMs": 1887.327237,
+      "serializationAndTransferMs": 8.396833000000015,
+      "maxRssKiB": 97472
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 137,
+        "offset": 5494406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 137,
+          "offset": 5494406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 145,
+          "offset": 5817606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 137,
+          "nextPage": 145,
+          "totalPages": 241,
+          "startOffset": 5494400,
+          "nextOffset": 5817600
+        }
+      },
+      "parseMs": 1868.2475659999998,
+      "serializationAndTransferMs": 7.1738520000001245,
+      "maxRssKiB": 91304
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 145,
+        "offset": 5817606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 145,
+          "offset": 5817606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 153,
+          "offset": 6140806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 145,
+          "nextPage": 153,
+          "totalPages": 241,
+          "startOffset": 5817600,
+          "nextOffset": 6140800
+        }
+      },
+      "parseMs": 1897.92314,
+      "serializationAndTransferMs": 7.072178999999778,
+      "maxRssKiB": 94024
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 153,
+        "offset": 6140806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 153,
+          "offset": 6140806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 161,
+          "offset": 6464006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 153,
+          "nextPage": 161,
+          "totalPages": 241,
+          "startOffset": 6140800,
+          "nextOffset": 6464000
+        }
+      },
+      "parseMs": 1682.7957390000001,
+      "serializationAndTransferMs": 7.776069999999891,
+      "maxRssKiB": 92396
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 161,
+        "offset": 6464006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 161,
+          "offset": 6464006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 169,
+          "offset": 6787206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 161,
+          "nextPage": 169,
+          "totalPages": 241,
+          "startOffset": 6464000,
+          "nextOffset": 6787200
+        }
+      },
+      "parseMs": 1688.732011,
+      "serializationAndTransferMs": 6.939114000000018,
+      "maxRssKiB": 91408
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 169,
+        "offset": 6787206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 169,
+          "offset": 6787206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 177,
+          "offset": 7110406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 169,
+          "nextPage": 177,
+          "totalPages": 241,
+          "startOffset": 6787200,
+          "nextOffset": 7110400
+        }
+      },
+      "parseMs": 1783.811321,
+      "serializationAndTransferMs": 6.66626999999994,
+      "maxRssKiB": 91180
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 177,
+        "offset": 7110406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 177,
+          "offset": 7110406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 185,
+          "offset": 7433606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 177,
+          "nextPage": 185,
+          "totalPages": 241,
+          "startOffset": 7110400,
+          "nextOffset": 7433600
+        }
+      },
+      "parseMs": 1816.7354039999998,
+      "serializationAndTransferMs": 7.622875000000022,
+      "maxRssKiB": 92052
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 185,
+        "offset": 7433606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 185,
+          "offset": 7433606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 193,
+          "offset": 7756806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 185,
+          "nextPage": 193,
+          "totalPages": 241,
+          "startOffset": 7433600,
+          "nextOffset": 7756800
+        }
+      },
+      "parseMs": 1604.951349,
+      "serializationAndTransferMs": 8.333820999999944,
+      "maxRssKiB": 96144
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 193,
+        "offset": 7756806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 193,
+          "offset": 7756806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 201,
+          "offset": 8080006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 193,
+          "nextPage": 201,
+          "totalPages": 241,
+          "startOffset": 7756800,
+          "nextOffset": 8080000
+        }
+      },
+      "parseMs": 1711.5232680000001,
+      "serializationAndTransferMs": 6.078763999999865,
+      "maxRssKiB": 91632
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 201,
+        "offset": 8080006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 201,
+          "offset": 8080006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 209,
+          "offset": 8403206,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 201,
+          "nextPage": 209,
+          "totalPages": 241,
+          "startOffset": 8080000,
+          "nextOffset": 8403200
+        }
+      },
+      "parseMs": 1875.05473,
+      "serializationAndTransferMs": 7.212091999999984,
+      "maxRssKiB": 93032
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 209,
+        "offset": 8403206,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 209,
+          "offset": 8403206,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 217,
+          "offset": 8726406,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 209,
+          "nextPage": 217,
+          "totalPages": 241,
+          "startOffset": 8403200,
+          "nextOffset": 8726400
+        }
+      },
+      "parseMs": 1532.942581,
+      "serializationAndTransferMs": 66.60111000000006,
+      "maxRssKiB": 91144
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 217,
+        "offset": 8726406,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 217,
+          "offset": 8726406,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 225,
+          "offset": 9049606,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 217,
+          "nextPage": 225,
+          "totalPages": 241,
+          "startOffset": 8726400,
+          "nextOffset": 9049600
+        }
+      },
+      "parseMs": 1576.2464499999999,
+      "serializationAndTransferMs": 6.4232200000001285,
+      "maxRssKiB": 92372
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 225,
+        "offset": 9049606,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 225,
+          "offset": 9049606,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 233,
+          "offset": 9372806,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 225,
+          "nextPage": 233,
+          "totalPages": 241,
+          "startOffset": 9049600,
+          "nextOffset": 9372800
+        }
+      },
+      "parseMs": 1807.659356,
+      "serializationAndTransferMs": 6.824010000000044,
+      "maxRssKiB": 89956
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 233,
+        "offset": 9372806,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 233,
+          "offset": 9372806,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 1,
+          "page": 241,
+          "offset": 9696006,
+          "base": 6,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 233,
+          "nextPage": 241,
+          "totalPages": 241,
+          "startOffset": 9372800,
+          "nextOffset": 9696000
+        }
+      },
+      "parseMs": 1782.9483739999998,
+      "serializationAndTransferMs": 8.300581000000193,
+      "maxRssKiB": 93456
+    },
+    {
+      "request": {
+        "entry": 1,
+        "page": 241,
+        "offset": 9696006,
+        "base": 6,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 1,
+          "page": 241,
+          "offset": 9696006,
+          "base": 6,
+          "expanded": 0
+        },
+        "next": {
+          "entry": 2,
+          "page": 1,
+          "offset": 9696016,
+          "base": 9696016,
+          "expanded": 0
+        },
+        "entries": 3,
+        "archivePath": "02.pdf",
+        "pdf": {
+          "startPage": 241,
+          "nextPage": null,
+          "totalPages": 241,
+          "startOffset": 9696000,
+          "nextOffset": 9696010
+        }
+      },
+      "parseMs": 311.94197199999996,
+      "serializationAndTransferMs": 1.7959769999999935,
+      "maxRssKiB": 77660
+    },
+    {
+      "request": {
+        "entry": 2,
+        "page": 1,
+        "offset": 9696016,
+        "base": 9696016,
+        "expanded": 0
+      },
+      "pagination": {
+        "start": {
+          "entry": 2,
+          "page": 1,
+          "offset": 9696016,
+          "base": 9696016,
+          "expanded": 0
+        },
+        "next": null,
+        "entries": 3,
+        "archivePath": "03.txt"
+      },
+      "parseMs": 12.586833999999996,
+      "serializationAndTransferMs": 2.9749060000000043,
+      "maxRssKiB": 54716
+    }
+  ]
+}

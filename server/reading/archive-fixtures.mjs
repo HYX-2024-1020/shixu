@@ -29,3 +29,13 @@ export function archiveSample({ long = false } = {}) {
       "正文中文😀\nA1\t单元格😀\n页内文字😀\n安全行,1\n尾部唯一标记",
   };
 }
+
+export function archiveWindowSample() {
+  const pages = Array.from({length:19},(_,i)=>({text:i===8?"":`包内第${i+1}页中文😀\n`}));
+  const entries={"01前件.txt":Buffer.from("前件中文😀\r\n"),
+    "02分页.pdf":pdfBytes(pages,{compress:true}),
+    "03另一份.pdf":pdfBytes([{text:"另一份第一页😀"},{text:"另一份尾页"}],{compress:true}),
+    "04未读.png":Buffer.from("synthetic image"),"05尾部.txt":Buffer.from("尾部唯一标记")};
+  return {name:"包内分页.zip",type:"application/zip",body:zipBytes(entries),entries,
+    expectedText:"前件中文😀\n"+pages.map(p=>p.text).join("")+"另一份第一页😀\n另一份尾页\n尾部唯一标记"};
+}

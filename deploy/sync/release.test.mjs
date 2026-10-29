@@ -15,7 +15,7 @@ import { verifyService } from "./verify.mjs";
 import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";
 import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
-import { archiveSample } from "../../server/reading/archive-fixtures.mjs";
+import { archiveSample, archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
 
 test("account service and protected CLI run from the self-contained release", async () => {
@@ -38,6 +38,13 @@ test("account service and protected CLI run from the self-contained release", as
     assert.equal((await readMaterial({id:"rar",name:rar.name,body:rar.body,size:rar.body.length,hash:sha256(rar.body)})).segments.map(s=>s.text).join(""),rar.expectedText);
     assert.equal((await readMaterial({id:"zip",name:zip.name,body:zip.body,size:zip.body.length,hash:sha256(zip.body)})).segments.map(s=>s.text).join(""),zip.expectedText);
     assert.equal((await readMaterial({id:"pdf",name:"合成.pdf",body:pdf,size:pdf.length,hash:sha256(pdf)})).segments.map(s=>s.text).join(""),"中文😀PDF尾部\n");
+    const windowed=archiveWindowSample();
+    let cursor={entry:0,page:1,offset:0,base:0,expanded:0},text="";
+    do {
+      const m=await readMaterial({id:"paged",name:windowed.name,body:windowed.body,size:windowed.body.length,hash:sha256(windowed.body)},{archiveWindow:cursor});
+      text+=m.segments.map(s=>s.text).join("");cursor=m.archivePagination.next;
+    } while(cursor);
+    assert.equal(text,windowed.expectedText);
     const secret = "synthetic-release-secret-32-characters";
     const { stdout } = await promisify(execFile)(process.execPath, [join(current, "server/sync-admin.mjs"), "generate", "2"], {
       env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
@@ -77,7 +84,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

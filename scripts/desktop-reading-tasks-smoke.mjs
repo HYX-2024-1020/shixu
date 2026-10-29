@@ -10,9 +10,10 @@ import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf-fixtures.mjs";
-import { archiveSample } from "../server/reading/archive-fixtures.mjs";
+import { archiveSample, archiveWindowSample } from "../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../server/reading/native-archive-fixtures.mjs";
 import { DatabaseSync } from "node:sqlite";
+const archiveWindows = process.argv.includes("--archive-windows");
 const safetyRollback = process.argv.includes("--safety-rollback");
 const auditTime = process.argv.includes("--audit-time");
 const revisionReuse = process.argv.includes("--reuse");
@@ -30,7 +31,7 @@ const readFailure = process.argv.includes("--reader-limit") || auditTime
   : process.argv.includes("--reader-time-unknown")
     ? "ACTIVE_TIME_RECONCILIATION"
     : null;
-const original = nativeFormat ? await (async()=> {
+const original = archiveWindows ? (()=>{const f=archiveWindowSample();return {name:f.name,type:f.type,body:[...f.body]};})() : nativeFormat ? await (async()=> {
   const f=await nativeArchiveSample(nativeFormat,{long:true});
   return {name:f.name,type:f.type,body:[...f.body]};
 })() : zip ? (() => {
@@ -107,7 +108,7 @@ const reading = {
   enabled: true,
   ledger,
   ...(readFailure === "EXECUTION_LIMIT" ? { activeLimitMs: 80 } : {}),
-  reader: Object.assign(async (f, { signal, pdfWindow }) => {
+  reader: Object.assign(async (f, { signal, pdfWindow, archiveWindow }) => {
     if (readFailure === "ACTIVE_TIME_RECONCILIATION")
       throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
         timingUncertain: true,
@@ -125,8 +126,8 @@ const reading = {
           { once: true },
         ),
       );
-    return readMaterial(f, {pdfWindow,...(pdfLimit ? {pdfTextUnits:pdfLimitSample().textUnitLimit} : {})});
-  }, {pdfWindows}),
+    return readMaterial(f, {pdfWindow,archiveWindow,...(pdfLimit ? {pdfTextUnits:pdfLimitSample().textUnitLimit} : {})});
+  }, {pdfWindows:pdfWindows || archiveWindows,archiveWindows}),
   priceId: "fixture",
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
@@ -415,8 +416,8 @@ scenario: try {
       await expect(page.getByText(/复用 [1-9]\d* 个已付费块（已核验当前材料）/)).toBeVisible();
       assert.equal(calls, previousCalls + 1);
     }
-    if (pdfWindows)
-      await expect(page.getByText(/已检查 19 \/ 19 页/)).toBeVisible();
+    if (pdfWindows || archiveWindows)
+      await expect(page.getByText(/已检查 19 \/ 19 页/).last()).toBeVisible();
     if (original) {
       await page.getByRole("button", { name: "关闭设置", exact: true }).click();
       // IPC submission updates the main-process projection; verify persisted
@@ -437,7 +438,10 @@ scenario: try {
       await expect(
         materials.getByText(original.name + " · 部分读取"),
       ).toBeVisible();
-      if (nativeFormat) {
+      if (archiveWindows) {
+        await expect(materials.getByText(/包内 “02分页.pdf”.*第 9 页.*未提取到文字/)).toBeVisible();
+        await expect(materials.getByText(/包内 “04未读.png”.*此格式暂不支持/)).toBeVisible();
+      } else if (nativeFormat) {
         await expect(materials.getByText(/包内 “05页面.pdf”.*第 2 页/)).toBeVisible();
         await expect(materials.getByText(/包内 “06未读.png”.*此格式暂不支持/)).toBeVisible();
       } else if (zip) {
@@ -481,9 +485,10 @@ scenario: try {
         stopContinueButtons: true,
         cumulativeWallet: true,
         published: true,
-        format: nativeFormat || (zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt"),
+        format: archiveWindows ? "zip" : nativeFormat || (zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt"),
         crossRevisionReuse: revisionReuse,
         pdfResourceSuffix: pdfLimit,
+        archivePdfWindows: archiveWindows,
         pdfPageWindows: pdfWindows,
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,

@@ -160,6 +160,7 @@ export function createReadingRoutes({
         attachmentId: c.attachmentId,
         name: c.name,
         state: c.state,
+        archivePdfPages:c.archivePdfPages,
         readRanges: c.covered?.length || 0,
         unreadRanges: c.uncovered?.length || 0,
         ...(c.pagination ? {pdfPages:{

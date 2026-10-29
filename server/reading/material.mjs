@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+import { validateArchiveWindow } from "./archive-window.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/2";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/3";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -91,7 +92,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -131,6 +132,8 @@ export function readMaterial(
     result.reasons.push(code);
     return result;
   };
+  archiveWindow = validateArchiveWindow(archiveWindow);
+  if (archiveWindow && !/\.(zip|rar|7z)$/i.test(name)) throw Error("INVALID_ARCHIVE_WINDOW");
   pdfWindow = validatePdfWindow(pdfWindow);
   if (pdfWindow && !/\.pdf$/i.test(name)) throw Error("INVALID_PDF_WINDOW");
   let offset = pdfWindow?.offset || 0,
@@ -161,7 +164,7 @@ export function readMaterial(
   };
   if (/\.(zip|rar|7z)$/i.test(name)) {
     return import("./archive.mjs").then(({ readArchive }) =>
-      readArchive(bytes, result, { windowCodepoints }),
+      readArchive(bytes, result, { windowCodepoints, archiveWindow }),
     );
   }
   if (/\.pdf$/i.test(name)) {

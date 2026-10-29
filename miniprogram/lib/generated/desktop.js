@@ -937,6 +937,7 @@ var labels = {
   failed: "读取失败"
 };
 var reasons = {
+  ARCHIVE_WINDOW_PENDING: "后续包内材料等待读取，尚未进入整理结果",
   ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
   ARCHIVE_RAR4_UNSUPPORTED: "旧版 RAR 的原路径与编码尚未验证，暂不支持",
   NATIVE_READER_UNSUPPORTED: "服务端安全归档读取工具未就绪，请联系维护者",
@@ -1062,7 +1063,7 @@ function processingView(processing) {
   const processed = Array.isArray(processing.processed) ? processing.processed.length : 0;
   const pending = Array.isArray(processing.pending) ? processing.pending.filter((r) => r && typeof r === "object") : [];
   const unread = Array.isArray(processing.unread) ? processing.unread.filter((r) => r && typeof r === "object") : [];
-  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个已读取范围尚未整理。${pending.map(location).join("；")}${unread.length ? `另有 ${unread.length} 段后续页尚未读取：${unread.map(location).join("；")}` : ""}`;
+  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个已读取范围尚未整理。${pending.map(location).join("；")}${unread.length ? `另有 ${unread.length} 段后续${unread.every((r) => r.kind === "pdf") ? "页" : "材料"}尚未读取：${unread.map(location).join("；")}` : ""}`;
 }
 function walletView(wallet) {
   if (!wallet) return "额度状态尚未刷新";
@@ -1082,7 +1083,15 @@ function reuseView(count) {
 }
 function pdfProgressView(summary) {
   if (!Array.isArray(summary)) return "";
-  return summary.filter((c) => c && c.pdfPages && Number.isSafeInteger(c.pdfPages.checked) && Number.isSafeInteger(c.pdfPages.total) && c.pdfPages.total > 0 && c.pdfPages.checked >= 0 && c.pdfPages.checked <= c.pdfPages.total).map((c) => `${typeof c.name === "string" ? c.name.slice(0, 200) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`).join("；");
+  const rows = summary.flatMap((c) => {
+    if (!c || typeof c !== "object") return [];
+    const members = Array.isArray(c.archivePdfPages) ? c.archivePdfPages : [];
+    return [c, ...members.filter((p) => p && typeof p.archivePath === "string").map((p) => ({
+      name: `${typeof c.name === "string" ? c.name.slice(0, 200) : "归档"} · 包内 “${p.archivePath.slice(0, 512)}”`,
+      pdfPages: p
+    }))];
+  });
+  return rows.filter((c) => c.pdfPages && Number.isSafeInteger(c.pdfPages.checked) && Number.isSafeInteger(c.pdfPages.total) && c.pdfPages.total > 0 && c.pdfPages.checked >= 0 && c.pdfPages.checked <= c.pdfPages.total).map((c) => `${typeof c.name === "string" ? c.name.slice(0, 740) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`).join("；");
 }
 
 // <stdin>

@@ -567,7 +567,7 @@ export class ReadingTasks {
     const processingCoverage = {
       partial,
       processed,
-      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => r.code === "PDF_WINDOW_PENDING")
+      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING"].includes(r.code))
         .map(r => ({...r,name:c.name}))),
       pending: coverage
         .flatMap((c) => c.covered || [])
@@ -642,7 +642,7 @@ export class ReadingTasks {
     this.executions.set(id, execution);
     let excludedMs = 0;
     let safetyStep;
-    const read = async (file, pdfWindow) => {
+    const read = async (file, pdfWindow, archiveWindow) => {
       const readAt = performance.now(),
         before = excludedMs;
       const deadline = new AbortController();
@@ -720,6 +720,7 @@ export class ReadingTasks {
               this.reader(file, {
                 signal,
                 pdfWindow,
+                archiveWindow,
                 activeBudgetMs,
                 onPhase: (phase) => {
                   if (signal.aborted || finished || this.finalSnapshots) return;
@@ -761,7 +762,7 @@ export class ReadingTasks {
         clearTimeout(drainTimer);
       }
     };
-    const readSafe = async (file, pdfWindow) => {
+    const readSafe = async (file, pdfWindow, archiveWindow) => {
       for (let retries = 0; ; retries++) {
         if (!this.current(task)) throw Error("READING_ABORTED");
         if (
@@ -770,7 +771,7 @@ export class ReadingTasks {
         )
           throw Error("EXECUTION_LIMIT");
         try {
-          return { ...(await read(file, pdfWindow)), readRetries: retries };
+          return { ...(await read(file, pdfWindow, archiveWindow)), readRetries: retries };
         } catch (e) {
           e.readRetries = retries;
           // Only a fixed broker admission rejection proves no worker started.
@@ -814,10 +815,10 @@ export class ReadingTasks {
       const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
       const pendingInputs = [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
       const readInput = async file => {
-        const selection = paged ? this.windows.select(id,file) : {};
+        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true}) : {};
         if (selection.skip) return;
-        const material = await readSafe(file,selection.pdfWindow);
-        if (paged) this.windows.verify(material,selection.pdfWindow);
+        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow);
+        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow);
         materials.push(material);
       };
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
@@ -838,6 +839,7 @@ export class ReadingTasks {
               "SAFETY_RECONCILIATION",
               "REUPLOAD_REQUIRED",
               "INVALID_READER_WINDOW",
+              "READER_WINDOW_REQUIRED",
             ].includes(e.code || e.message) ||
             !this.current(task)
           )
@@ -873,7 +875,7 @@ export class ReadingTasks {
         if (paged) {
           this.transaction(() => this.windows.advance(id,readable));
           this.dropMaterial(id);
-          if (this.windows.pending(id,pendingInputs)) return this.get(id);
+          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true})) return this.get(id);
         }
         throw Error("NO_READABLE_MATERIAL");
       }
@@ -1071,7 +1073,7 @@ export class ReadingTasks {
       if (paged) {
         this.transaction(() => this.windows.advance(id,readable));
         this.dropMaterial(id);
-        if (this.windows.pending(id,pendingInputs)) return this.get(id);
+        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true})) return this.get(id);
       }
       return this.publish(task, coverage);
     } catch (e) {

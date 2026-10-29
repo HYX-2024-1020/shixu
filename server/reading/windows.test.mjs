@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readMaterial, sha256 } from "./material.mjs";
+import { zipBytes } from "./archive-fixtures.mjs";
 import { pdfBytes } from "./pdf-fixtures.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 import { ReadingWindows } from "./windows.mjs";
@@ -71,7 +72,7 @@ test("PDF page windows stitch to exact full text, Unicode offsets, source IDs an
   ])
     assert.throws(() => validatePdfWindow(value), /INVALID_PDF_WINDOW/);
 });
-function fixture(t, { blankPrefix = false, invalidReader = false } = {}) {
+function fixture(t, { blankPrefix = false, invalidReader = false, archive = false } = {}) {
   const store = new SyncStore(":memory:");
   createAttachmentStore(store);
   const ledger = new ReadingLedger(":memory:");
@@ -112,9 +113,10 @@ function fixture(t, { blankPrefix = false, invalidReader = false } = {}) {
     result: null,
     status: "pending",
   });
-  const bytes = pdfBytes(pages, { compress: true });
+  const pdf = pdfBytes(pages, { compress: true });
+  const bytes = archive ? zipBytes({"01.txt":"前件😀", "02.pdf":pdf,"03.txt":"尾部唯一标记"}) : pdf;
   const file = store.files.put("p", "pdf", {
-    name: "分页.pdf",
+    name: archive ? "分页.zip" : "分页.pdf",
     body: bytes,
     type: "application/pdf",
     epoch: store.epoch,
@@ -135,13 +137,13 @@ function fixture(t, { blankPrefix = false, invalidReader = false } = {}) {
     authorize: (id) => assert.equal(id, device),
     reader: Object.assign(
       async (file, options) => {
-        reads.push({ id: file.id, window: options.pdfWindow });
+        reads.push({ id: file.id, window: options.pdfWindow, archiveWindow:options.archiveWindow });
         return readMaterial(
           file,
-          invalidReader ? {} : { pdfWindow: options.pdfWindow },
+          invalidReader ? {} : { pdfWindow: options.pdfWindow, archiveWindow:options.archiveWindow },
         );
       },
-      { pdfWindows: true },
+      { pdfWindows: true, archiveWindows:archive },
     ),
     provider: async (sources) => {
       calls++;
@@ -287,4 +289,52 @@ test("accepting paid partial windows distinguishes unread future pages from unpr
   );
   assert.match(processingView(processing), /后续页尚未读取：PDF 第 9–19 页/);
   assert.equal(f.calls(), 1);
+});
+
+test("archive member windows resume paid work after restart, retain PDF progress and require cursor-aware readers", async t => {
+  const f = fixture(t,{archive:true});
+  for(let n=0;n<3;n++) await f.tasks.run("t");
+  assert.equal(f.calls(),2);
+  f.action("stop"); f.restart(); f.action("continue");
+  assert.equal((await f.finish()).state,"done",JSON.stringify(f.tasks.get("t")));
+  assert.equal(f.calls(),6); // Three PDF windows, two archive text members and other original.
+  const coverage=f.store.record("p").data.readingCoverage[0];
+  assert.deepEqual(coverage.archivePdfPages,[{archivePath:"02.pdf",checked:19,total:19}]);
+  assert.equal(coverage.archivePagination.next,null);
+  assert.equal(coverage.covered.filter(r=>r.archivePath==="02.pdf").length,19);
+  assert.ok(!coverage.uncovered.some(r=>/WINDOW_PENDING/.test(r.code)));
+  assert.ok(!JSON.stringify(f.tasks.windows.rows("t")).includes("独有正文"));
+  assert.equal(f.tasks.materials.size,0);
+  assert.deepEqual(f.reads.filter(r=>r.archiveWindow?.entry===1).map(r=>r.archiveWindow.page),[1,1,9,17]);
+  const bad=fixture(t,{archive:true,invalidReader:true});
+  assert.equal((await bad.finish()).state,"paused");
+  assert.equal(bad.calls(),0);
+});
+test("archive cursor writes are atomic and paid blocks survive a failed cursor commit", async t => {
+  const f=fixture(t,{archive:true});
+  await f.tasks.run("t");
+  const prepare=f.store.db.prepare.bind(f.store.db);
+  f.store.db.prepare=sql=>{
+    if(sql.startsWith("INSERT OR REPLACE INTO reading_windows"))throw Error("synthetic cursor failure");
+    return prepare(sql);
+  };
+  try {assert.equal((await f.tasks.run("t")).state,"paused");}
+  finally {f.store.db.prepare=prepare;}
+  assert.equal(f.tasks.windows.rows("t").length,0);
+  f.action("continue");
+  assert.equal((await f.finish()).state,"done",JSON.stringify(f.tasks.get("t")));
+  assert.equal(f.calls(),6);
+});
+test("partial archive publication names unread members and pages, never classifies them as processed", async t=>{
+  const f=fixture(t,{archive:true});
+  // Commit the first text member, then pay the first PDF window.
+  for(let n=0;n<3;n++) await f.tasks.run("t");
+  f.tasks.activeLimitMs=1;
+  assert.equal((await f.tasks.run("t")).state,"paused");
+  assert.equal(f.action("accept-partial").state,"partial");
+  const p=f.store.record("p").data.processingCoverage;
+  assert.ok(p.unread.some(r=>r.archivePath==="02.pdf"&&r.page===9&&r.pageEnd===19));
+  assert.ok(p.unread.some(r=>r.archivePath==="03.txt"&&r.code==="ARCHIVE_WINDOW_PENDING"));
+  assert.ok(!p.processed.some(r=>r.archivePath==="03.txt"));
+  assert.match(processingView(p),/包内 “03.txt”/);
 });
