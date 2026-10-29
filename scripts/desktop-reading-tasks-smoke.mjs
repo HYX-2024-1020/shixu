@@ -9,12 +9,13 @@ import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
-import { pdfBytes, pdfLimitSample } from "../server/reading/pdf-fixtures.mjs";
+import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
 const pdfLimit = process.argv.includes("--pdf-limit");
-const pdf = process.argv.includes("--pdf") || pdfLimit;
+const pdfWindows = process.argv.includes("--pdf-windows");
+const pdf = process.argv.includes("--pdf") || pdfLimit || pdfWindows;
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
 const temporary = process.argv.includes("--temporary");
@@ -27,6 +28,9 @@ const readFailure = process.argv.includes("--reader-limit")
 const original = zip ? (() => {
   const f = archiveSample({ long: true });
   return { name: f.name, type: f.type, body: [...f.body] };
+})() : pdfWindows ? (() => {
+  const f=pdfWindowSample();
+  return {name:f.name,type:f.type,body:[...f.body]};
 })() : pdfLimit ? (() => {
   const f = pdfLimitSample();
   return { name:f.name, type:f.type, body:[...f.body] };
@@ -93,7 +97,7 @@ const reading = {
   enabled: true,
   ledger,
   ...(readFailure === "EXECUTION_LIMIT" ? { activeLimitMs: 80 } : {}),
-  reader: async (f, { signal }) => {
+  reader: Object.assign(async (f, { signal, pdfWindow }) => {
     if (readFailure === "ACTIVE_TIME_RECONCILIATION")
       throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
         timingUncertain: true,
@@ -111,8 +115,8 @@ const reading = {
           { once: true },
         ),
       );
-    return readMaterial(f, pdfLimit ? {pdfTextUnits:pdfLimitSample().textUnitLimit} : {});
-  },
+    return readMaterial(f, {pdfWindow,...(pdfLimit ? {pdfTextUnits:pdfLimitSample().textUnitLimit} : {})});
+  }, {pdfWindows}),
   priceId: "fixture",
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
@@ -349,6 +353,8 @@ try {
       await expect(page.getByText(/复用 [1-9]\d* 个已付费块（已核验当前材料）/)).toBeVisible();
       assert.equal(calls, previousCalls + 1);
     }
+    if (pdfWindows)
+      await expect(page.getByText(/已检查 19 \/ 19 页/)).toBeVisible();
     if (original) {
       await page.getByRole("button", { name: "关闭设置", exact: true }).click();
       // IPC submission updates the main-process projection; verify persisted
@@ -372,6 +378,8 @@ try {
       if (zip) {
         await expect(materials.getByText(/包内 “未读\/嵌套.zip”.*嵌套归档/)).toBeVisible();
         await expect(materials.getByText(/包内 “页面\/正文.pdf”.*第 2 页/)).toBeVisible();
+      } else if (pdfWindows) {
+        await expect(materials.getByText(/PDF 第 9 页.*未提取到文字/)).toBeVisible();
       } else if (pdfLimit) {
         await expect(materials.getByText(/PDF 第 5–6 页.*安全资源限制/)).toBeVisible();
       } else if (pdf) {
@@ -411,6 +419,7 @@ try {
         format: zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
         crossRevisionReuse: revisionReuse,
         pdfResourceSuffix: pdfLimit,
+        pdfPageWindows: pdfWindows,
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,
       }),

@@ -44,6 +44,7 @@ __export(stdin_exports, {
   mergeCardOrder: () => mergeCardOrder,
   parseDeadline: () => parseDeadline,
   parseSkinCollection: () => parseSkinCollection,
+  pdfProgressView: () => pdfProgressView,
   processingView: () => processingView,
   readingView: () => readingView,
   reuseView: () => reuseView,
@@ -947,6 +948,7 @@ var reasons = {
   PDF_INVALID: "PDF结构损坏或无法解析",
   PDF_ENCRYPTED_UNSUPPORTED: "加密PDF暂不支持",
   PDF_RESOURCE_LIMIT: "PDF展开超过安全资源限制，剩余页未读取",
+  PDF_WINDOW_PENDING: "后续页等待读取，尚未进入整理结果",
   FORMAT_UNSUPPORTED: "此格式暂不支持读取",
   ENCODING_UNSUPPORTED: "文字编码暂不支持",
   FORMAT_MISMATCH: "文件内容与格式不符",
@@ -1057,7 +1059,8 @@ function processingView(processing) {
   if (!processing || processing.partial !== true) return "";
   const processed = Array.isArray(processing.processed) ? processing.processed.length : 0;
   const pending = Array.isArray(processing.pending) ? processing.pending.filter((r) => r && typeof r === "object") : [];
-  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个范围尚未整理。${pending.map(location).join("；")}`;
+  const unread = Array.isArray(processing.unread) ? processing.unread.filter((r) => r && typeof r === "object") : [];
+  return `本次已收下有效部分：已整理 ${processed} 个来源范围，${pending.length} 个已读取范围尚未整理。${pending.map(location).join("；")}${unread.length ? `另有 ${unread.length} 段后续页尚未读取：${unread.map(location).join("；")}` : ""}`;
 }
 function walletView(wallet) {
   if (!wallet) return "额度状态尚未刷新";
@@ -1074,6 +1077,10 @@ function walletView(wallet) {
 }
 function reuseView(count) {
   return Number.isSafeInteger(count) && count > 0 ? `复用 ${count} 个已付费块（已核验当前材料）` : "";
+}
+function pdfProgressView(summary) {
+  if (!Array.isArray(summary)) return "";
+  return summary.filter((c) => c && c.pdfPages && Number.isSafeInteger(c.pdfPages.checked) && Number.isSafeInteger(c.pdfPages.total) && c.pdfPages.total > 0 && c.pdfPages.checked >= 0 && c.pdfPages.checked <= c.pdfPages.total).map((c) => `${typeof c.name === "string" ? c.name.slice(0, 200) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`).join("；");
 }
 
 // <stdin>

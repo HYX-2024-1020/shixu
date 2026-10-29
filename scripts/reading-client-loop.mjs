@@ -66,10 +66,10 @@ export async function runClientLoop({
       : { originals: { quota: originalQuota, now: () => originalNow } }),
     ledger,
     enabled: true,
-    reader: async (...args) => {
+    reader: Object.assign(async (...args) => {
       parserRuns++;
       return reader(...args);
-    },
+    }, {pdfWindows:reader.pdfWindows === true}),
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {
@@ -418,6 +418,14 @@ export async function runClientLoop({
     );
     if (original?.verify)
       await original.verify({ win, mini, page, cloud, service });
+    if (original?.expectedPdfPages) {
+      const c=win.readingCoverage[0];
+      assert.equal(c.pagination.nextPage,null);
+      assert.equal(c.pagination.totalPages,original.expectedPdfPages);
+      assert.ok(!c.uncovered.some(r=>r.code==="PDF_WINDOW_PENDING"));
+      const job=page.data.jobs.find(j=>j.id===task.id);
+      assert.match(job.pdfProgressLabel,new RegExp(`已检查 ${original.expectedPdfPages} / ${original.expectedPdfPages} 页`));
+    }
     let revisionEvidence;
     if (reviseAfterPublication) {
       const previousCalls = calls, previousSpent = ledger.wallet(account).spent;
@@ -534,6 +542,7 @@ export async function runClientLoop({
       startByMini,
       deleteBeforeStart,
       lifecycleVerified: verifyLifecycle,
+      ...(original?.expectedPdfPages ? {pdfPages:original.expectedPdfPages,pdfWindowsVerified:true} : {}),
       ...(revisionEvidence ? { revisionEvidence } : {}),
     };
   } finally {

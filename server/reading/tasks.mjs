@@ -13,6 +13,7 @@ import {
 import { validateUsage } from "./ledger.mjs";
 import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
+import { ReadingWindows } from "./windows.mjs";
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -167,6 +168,7 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);`);
     this.reuse = new ReadingReuse(this.db, ledger, account);
+    this.windows = new ReadingWindows(this.db);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
@@ -329,6 +331,7 @@ export class ReadingTasks {
         };
       } else if (action === "purge") {
         this.reuse.purge(id);
+        this.windows.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
           .prepare("DELETE FROM reading_block_ranges WHERE task=?")
@@ -438,11 +441,14 @@ export class ReadingTasks {
     return now && now.state === "running" && now.generation === task.generation;
   }
   clearMaterial(id) {
+    this.dropMaterial(id);
+    if (this.get(id)?.state !== "queued")
+      this.store.files.releaseWindow?.(this.get(id)?.packet);
+  }
+  dropMaterial(id) {
     clearTimeout(this.cacheTimers.get(id));
     this.cacheTimers.delete(id);
     this.materials.delete(id);
-    if (this.get(id)?.state !== "queued")
-      this.store.files.releaseWindow?.(this.get(id)?.packet);
   }
   close() {
     if (this.finalSnapshots) return;
@@ -531,6 +537,8 @@ export class ReadingTasks {
     const processingCoverage = {
       partial,
       processed,
+      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => r.code === "PDF_WINDOW_PENDING")
+        .map(r => ({...r,name:c.name}))),
       pending: coverage
         .flatMap((c) => c.covered || [])
         .filter((r) => !processedKeys.has(JSON.stringify(r))),
@@ -602,7 +610,7 @@ export class ReadingTasks {
     this.executions.set(id, execution);
     let excludedMs = 0;
     const root = this.roots.checkpoint(id);
-    const read = async (file) => {
+    const read = async (file, pdfWindow) => {
       const readAt = performance.now(),
         before = excludedMs;
       const deadline = new AbortController();
@@ -679,6 +687,7 @@ export class ReadingTasks {
             .then(() =>
               this.reader(file, {
                 signal,
+                pdfWindow,
                 activeBudgetMs,
                 onPhase: (phase) => {
                   if (signal.aborted || finished || this.finalSnapshots) return;
@@ -720,7 +729,7 @@ export class ReadingTasks {
         clearTimeout(drainTimer);
       }
     };
-    const readSafe = async (file) => {
+    const readSafe = async (file, pdfWindow) => {
       for (let retries = 0; ; retries++) {
         if (!this.current(task)) throw Error("READING_ABORTED");
         if (
@@ -729,7 +738,7 @@ export class ReadingTasks {
         )
           throw Error("EXECUTION_LIMIT");
         try {
-          return { ...(await read(file)), readRetries: retries };
+          return { ...(await read(file, pdfWindow)), readRetries: retries };
         } catch (e) {
           e.readRetries = retries;
           // Only a fixed broker admission rejection proves no worker started.
@@ -763,39 +772,38 @@ export class ReadingTasks {
       if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
+      const paged = this.reader.pdfWindows === true;
+      if (!paged && this.windows.rows(id).length) throw Error("READER_WINDOW_REQUIRED");
       const packet = this.store.record(task.packet).data,
         cached = this.materials.get(id),
         materials = cached || [];
+      const inputBytes = packet.text?.trim() ? Buffer.from(packet.text) : null;
+      const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
+      const pendingInputs = [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
+      const readInput = async file => {
+        const selection = paged ? this.windows.select(id,file) : {};
+        if (selection.skip) return;
+        const material = await readSafe(file,selection.pdfWindow);
+        if (paged) this.windows.verify(material,selection.pdfWindow);
+        materials.push(material);
+      };
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
       // per-step adaptation, never a total material cap.
-      if (!this.materials.has(id) && packet.text?.trim()) {
-        const body = Buffer.from(packet.text);
-        materials.push(
-          await readSafe({
-            id: "input",
-            name: "输入.txt",
-            body,
-            size: body.length,
-            hash: sha256(body),
-          }),
-        );
-      }
+      if (!this.materials.has(id) && input) await readInput(input);
       for (const f of this.materials.has(id)
         ? []
         : (packet.attachments || []).filter((f) => !f.deletedAt)) {
         if (!this.current(task)) return this.get(id);
+        if (paged && materials.length) break;
         try {
-          materials.push(
-            await readSafe(
-              this.store.files.get(task.packet, f.id, { forReading: true }),
-            ),
-          );
+          await readInput(this.store.files.get(task.packet,f.id,{forReading:true}));
         } catch (e) {
           if (
             [
               "EXECUTION_LIMIT",
               "ACTIVE_TIME_RECONCILIATION",
               "REUPLOAD_REQUIRED",
+              "INVALID_READER_WINDOW",
             ].includes(e.code || e.message) ||
             !this.current(task)
           )
@@ -822,11 +830,19 @@ export class ReadingTasks {
       if (!this.current(task)) return this.get(id);
       const readable = cached || materials.map(modelMaterial);
       this.materials.set(id, readable);
+      const coverage = paged ? this.windows.coverage(id,readable) : readable.map(coverageOnly);
       this.db
         .prepare("UPDATE reading_tasks SET coverage=? WHERE id=?")
-        .run(JSON.stringify(readable.map(coverageOnly)), id);
-      if (!readable.some((m) => m.segments.some((s) => s.text.trim())))
+        .run(JSON.stringify(coverage), id);
+      if (!readable.some((m) => m.segments.some((s) => s.text.trim())) &&
+          !this.db.prepare("SELECT 1 FROM reading_blocks WHERE task=?").get(id)) {
+        if (paged) {
+          this.transaction(() => this.windows.advance(id,readable));
+          this.dropMaterial(id);
+          if (this.windows.pending(id,pendingInputs)) return this.get(id);
+        }
         throw Error("NO_READABLE_MATERIAL");
+      }
       const batches = [...modelBatches(readable)];
       for (const batch of batches) {
         if (!this.current(task)) return this.get(id);
@@ -1018,7 +1034,12 @@ export class ReadingTasks {
         return this.get(id);
       }
       if (!this.current(task)) return this.get(id);
-      return this.publish(task, readable.map(coverageOnly));
+      if (paged) {
+        this.transaction(() => this.windows.advance(id,readable));
+        this.dropMaterial(id);
+        if (this.windows.pending(id,pendingInputs)) return this.get(id);
+      }
+      return this.publish(task, coverage);
     } catch (e) {
       const reason = e.code || e.message;
       if (
@@ -1089,14 +1110,14 @@ export class ReadingTasks {
   }
   boundQuotes(id, result, readable, batch) {
     const quoteTotals = new Map();
+    const attachments = new Map(JSON.parse(this.get(id).coverage).flatMap(m =>
+      (m.covered || []).map(r => [r.sourceId,m.attachmentId])));
     for (const row of this.db
       .prepare("SELECT result FROM reading_blocks WHERE task=?")
       .all(id))
       for (const item of JSON.parse(row.result).items)
         for (const evidence of item.evidence) {
-          const attachment = readable.find((m) =>
-            m.segments.some((s) => s.sourceId === evidence.sourceId),
-          )?.attachmentId;
+          const attachment = attachments.get(evidence.sourceId);
           if (attachment)
             quoteTotals.set(
               attachment,

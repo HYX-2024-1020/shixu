@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/2;zip/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;zip/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -90,7 +91,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -130,12 +131,14 @@ export function readMaterial(
     result.reasons.push(code);
     return result;
   };
-  let offset = 0,
+  pdfWindow = validatePdfWindow(pdfWindow);
+  if (pdfWindow && !/\.pdf$/i.test(name)) throw Error("INVALID_PDF_WINDOW");
+  let offset = pdfWindow?.offset || 0,
     index = 0;
   const add = (raw, locator, structure) => {
     let part = 0;
     for (const chunk of windows(raw, windowCodepoints)) {
-      const sourceId = `${id.slice(0, 64)}_${sha256(id).slice(0, 12)}_${index++}`;
+      const sourceId = `${id.slice(0, 64)}_${sha256(id).slice(0, 12)}_${locator.kind === "pdf" ? "p"+locator.page+"_"+part : index++}`;
       const range = {
         sourceId,
         name,
@@ -164,14 +167,16 @@ export function readMaterial(
   if (/\.pdf$/i.test(name)) {
     return import("./pdf.mjs").then(async ({ readPdf, PDF_READER_VERSION }) => {
       result.readerVersion = PDF_READER_VERSION;
-      await readPdf(bytes, {
+      const pagination = await readPdf(bytes, {
         add,
         textUnitLimit: pdfTextUnits,
+        window: pdfWindow,
         missing: (code, range = { kind: "file" }) => {
           result.uncovered.push({ ...range, code });
           if (!result.reasons.includes(code)) result.reasons.push(code);
         },
       });
+      if (pagination) result.pagination = { ...pagination, startOffset:pdfWindow.offset, nextOffset:offset };
       result.state = result.segments.some((s) => s.text.trim())
         ? "partial"
         : result.reasons.includes("PDF_ENCRYPTED_UNSUPPORTED")

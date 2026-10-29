@@ -110,3 +110,9 @@ export function pdfLimitSample() {
     body: pdfBytes([...pages, {text}, {text:"不得假称已读的后缀"}], {compress:true}),
     expectedText, textUnitLimit: expectedText.length + 50 };
 }
+export function pdfWindowSample() {
+  const pages=Array.from({length:19},(_,i)=>({text:i===8?"":i===18?"尾部唯一标记":`第${i+1}页窗口资料😀。\n`.repeat(50)}));
+  return {name:"分页接续.pdf",type:"application/pdf",expectedPdfPages:19,
+    body:pdfBytes(pages,{compress:true}),
+    expectedText:pages.filter(p=>p.text).map(p=>p.text.endsWith("\n")?p.text:p.text+"\n").join("")};
+}

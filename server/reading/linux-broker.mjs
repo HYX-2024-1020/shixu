@@ -11,6 +11,7 @@ import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { MAX_FILE_BYTES, sha256 } from "./material.mjs";
+import { validatePdfWindow } from "./pdf-window.mjs";
 
 const moduleDirectory = fileURLToPath(new URL(".", import.meta.url));
 export const SANDBOX_LIMITS = Object.freeze({
@@ -194,10 +195,12 @@ export function createLinuxReader({ runtime, staging }) {
     next.signal?.removeEventListener("abort", next.abort);
     next.resolve();
   };
-  return async (
+  const reader = async (
     file,
-    { signal, probe, onPhase, activeBudgetMs = 1800000 } = {},
+    { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow } = {},
   ) => {
+    pdfWindow = validatePdfWindow(pdfWindow);
+    if (pdfWindow && !/\.pdf$/i.test(file.name)) throw Error("INVALID_PDF_WINDOW");
     if (
       !Number.isFinite(activeBudgetMs) ||
       activeBudgetMs < 1 ||
@@ -257,6 +260,7 @@ export function createLinuxReader({ runtime, staging }) {
           name: file.name,
           size: file.size,
           hash: file.hash,
+          ...(pdfWindow ? { pdfWindow } : {}),
           ...(probe ? { probe } : {}),
         }),
         { mode: 0o400 },
@@ -305,4 +309,5 @@ export function createLinuxReader({ runtime, staging }) {
       }
     }
   };
+  return Object.assign(reader, { pdfWindows:true });
 }

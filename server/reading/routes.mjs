@@ -156,6 +156,10 @@ export function createReadingRoutes({
         state: c.state,
         readRanges: c.covered?.length || 0,
         unreadRanges: c.uncovered?.length || 0,
+        ...(c.pagination ? {pdfPages:{
+          checked:c.pagination.nextPage === null ? c.pagination.totalPages : c.pagination.nextPage - 1,
+          total:c.pagination.totalPages,
+        }} : {}),
       })),
       completedBlocks: e.db
         .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")

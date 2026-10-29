@@ -47,6 +47,7 @@ const {
   readingView,
   walletView,
   reuseView,
+  pdfProgressView,
   processingView,
   sourceLocation,
 } = require("../../lib/generated/desktop");
@@ -2134,6 +2135,7 @@ Page({
         actions,
         calls,
         reusedBlocks,
+        readingSummary,
         rootCalls,
         rootActiveSeconds,
       }) => ({
@@ -2143,6 +2145,7 @@ Page({
         hasOutput: !!output,
         calls: calls || 0,
         reuseLabel: reuseView(reusedBlocks),
+        pdfProgressLabel: pdfProgressView(readingSummary),
         rootCalls,
         rootActiveSeconds,
         canStop: actions?.includes("stop") || false,

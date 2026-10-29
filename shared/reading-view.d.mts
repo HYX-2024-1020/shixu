@@ -32,9 +32,11 @@ export interface ProcessingCoverage {
   partial: boolean;
   processed: ReadingRange[];
   pending: ReadingRange[];
+  unread?: ReadingRange[];
 }
 export function processingView(processing?: ProcessingCoverage): string;
 export function reuseView(count?: number): string;
+export function pdfProgressView(summary?: {name?:string;pdfPages?:{checked:number;total:number}}[]): string;
 export function walletView(wallet?: {
   spent?: number;
   available?: number;

@@ -56,6 +56,7 @@ interface Window {
         protocol?: number;
         calls?: number;
         reusedBlocks?: number;
+        readingSummary?: {name?:string;pdfPages?:{checked:number;total:number}}[];
         rootTaskId?: string;
         rootCalls?: number;
         rootActiveMs?: number;

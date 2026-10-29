@@ -8,7 +8,7 @@ try {
   const material = await readMaterial({
     ...descriptor,
     body: readFileSync("/input/original"),
-  });
+  }, { pdfWindow: descriptor.pdfWindow });
   const parsedAt = performance.now();
   const serialized = JSON.stringify(material);
   process.stdout.write('{"material":');

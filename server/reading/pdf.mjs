@@ -1,14 +1,16 @@
 import { getDocument } from "./pdf-api.mjs";
 import { WorkerMessageHandler } from "./pdf-core.mjs";
+import { validatePdfWindow, PDF_WINDOW_PAGES } from "./pdf-window.mjs";
 
-export const PDF_READER_VERSION = "pdf-text/2;pdfjs/6.2.108";
+export const PDF_READER_VERSION = "pdf-text/3;pdfjs/6.2.108";
 // A resource ceiling, not a document/page limit. Unvisited pages are reported.
 export const PDF_TEXT_UNITS = 8 * 1024 * 1024;
 
 // Production invokes this ONLY inside the broker's restricted process. The
 // API/worker pair runs in that same process; it has no canvas/native modules,
 // host fonts, URL loader, credentials, scripting manager or rendering calls.
-export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UNITS }) {
+export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UNITS, window }) {
+  window = validatePdfWindow(window);
   if (!Number.isSafeInteger(textUnitLimit) || textUnitLimit < 1 || textUnitLimit > PDF_TEXT_UNITS)
     throw Error("INVALID_PDF_TEXT_LIMIT");
   if (!bytes.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
@@ -44,9 +46,14 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
   });
   let document;
   let units = 0;
+  let pagination;
   try {
     document = await loading.promise;
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+    const first = window?.page || 1;
+    if (first > document.numPages) throw Error("PDF_CURSOR_OUT_OF_RANGE");
+    const last = window ? Math.min(document.numPages, first + PDF_WINDOW_PAGES - 1) : document.numPages;
+    pagination = { startPage:first, nextPage:first, totalPages:document.numPages };
+    for (let pageNumber = first; pageNumber <= last; pageNumber++) {
       // No fixed total page cap. Expanded text and the broker's total memory,
       // output and execution ceilings remain independent safety boundaries.
       if (units >= textUnitLimit) {
@@ -120,7 +127,11 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
       } finally {
         page?.cleanup();
       }
+      pagination.nextPage = pageNumber + 1;
     }
+    if (pagination.nextPage > document.numPages) pagination.nextPage = null;
+    else if (pagination.nextPage > last)
+      missing("PDF_WINDOW_PENDING", {kind:"pdf",page:pagination.nextPage,pageEnd:document.numPages});
   } catch (e) {
     missing(
       e.name === "PasswordException"
@@ -131,4 +142,5 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
   } finally {
     await loading.destroy();
   }
+  return window ? pagination : undefined;
 }
