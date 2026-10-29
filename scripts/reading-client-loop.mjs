@@ -40,6 +40,7 @@ export async function runClientLoop({
   reviseAfterPublication = false,
   rollbackRootAfterStop = false,
   auditAfterReadLimit = false,
+  auditUnknownTime = false,
   costAudit,
 }) {
   let originalNow = Date.now();
@@ -75,6 +76,25 @@ export async function runClientLoop({
       },
     } : {}),
     ...(auditAfterReadLimit ? {activeLimitMs:80,maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="extend-root-time"} : {}),
+    ...(auditUnknownTime
+      ? {
+          maintenanceAuthorize: ({ actor, operation }) =>
+            actor === "synthetic-maintainer" &&
+            operation === "reconcile-root-time",
+          maintenanceVerifyTime: ({ account, evidenceHash, review }) => ({
+            account,
+            evidenceHash,
+            rootTaskId: review.rootTaskId,
+            generation: review.generation,
+            watermark: review.watermark,
+            snapshotHash: review.snapshotHash,
+            stepIds: review.steps.map((s) => s.id),
+            additionalActiveMs: 321,
+            final: true,
+            reference: "synthetic-reader-confirmed-terminated-upper-bound",
+          }),
+        }
+      : {}),
     ...(originalQuota === undefined
       ? {}
       : { originals: { quota: originalQuota, now: () => originalNow } }),
@@ -89,10 +109,10 @@ export async function runClientLoop({
     provider: async (sources) => {
       calls++;
       if(costAudit && calls===2)throw Error("synthetic provider response lost");
-      if (auditAfterReadLimit || costAudit) auditText.push(...sources.map(s=>s.text));
+      if (auditAfterReadLimit || auditUnknownTime || costAudit) auditText.push(...sources.map(s=>s.text));
       if (calls === 1) {
         enter();
-        if (!auditAfterReadLimit && !costAudit) await held;
+        if (!auditAfterReadLimit && !auditUnknownTime && !costAudit) await held;
       }
       tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记"));
       return {
@@ -421,17 +441,17 @@ export async function runClientLoop({
       assert.equal(win.rootCalls, 0);
       assert.equal(calls, 0);
       assert.equal((await cloud.packets())[0].result, null);
-      if (auditAfterReadLimit) {
-        assert.equal(expectedReadPause,"EXECUTION_LIMIT");
+      if (auditAfterReadLimit || auditUnknownTime) {
+        assert.equal(expectedReadPause,auditUnknownTime ? "ACTIVE_TIME_RECONCILIATION" : "EXECUTION_LIMIT");
         await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${initial.job}/continue`,{
           contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,expectedRevision:win.inputRevision,
           actor:"synthetic-maintainer",newLimitMs:3600000,
-        }),/累计活跃时间已用尽/);
-        const review=service.readingRoutes.maintenanceReview(account,initial.job,"synthetic-maintainer");
+        }),auditUnknownTime ? /活跃时间待核对/ : /累计活跃时间已用尽/);
+        const review=service.readingRoutes[auditUnknownTime ? "timeMaintenanceReview" : "maintenanceReview"](account,initial.job,"synthetic-maintainer");
         const request={operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
-          newLimitMs:3600000,evidenceHash:createHash("sha256").update("synthetic active time review").digest("hex")};
-        const receipt=service.readingRoutes.extendExecutionLimit(account,initial.job,request,"synthetic-maintainer");
-        assert.deepEqual(service.readingRoutes.extendExecutionLimit(account,initial.job,request,"synthetic-maintainer"),receipt);
+          ...(auditUnknownTime ? {expectedLedgerSequence:review.ledgerSequence} : {newLimitMs:3600000}),evidenceHash:createHash("sha256").update("synthetic active time review").digest("hex")};
+        const receipt=service.readingRoutes[auditUnknownTime ? "reconcileRootTime" : "extendExecutionLimit"](account,initial.job,request,"synthetic-maintainer");
+        assert.deepEqual(service.readingRoutes[auditUnknownTime ? "reconcileRootTime" : "extendExecutionLimit"](account,initial.job,request,"synthetic-maintainer"),receipt);
         // Crash-persisted intents from before this audit must not become a
         // newly authorized model run merely because sync replays them later.
         const oldIntent={action:"continue",contractVersion:1,operationId:crypto.randomUUID(),
@@ -445,7 +465,7 @@ export async function runClientLoop({
         assert.equal(calls,0);
         await cloud.action("sync"); await page.sync();
         const reviewed=cloud.readJobs().find(j=>j.id===initial.job);
-        assert.equal(reviewed.reason,"EXECUTION_LIMIT_AUDITED");assert.match(reviewed.error,/维护核对已延长/);
+        assert.equal(reviewed.reason,auditUnknownTime ? "ACTIVE_TIME_AUDITED" : "EXECUTION_LIMIT_AUDITED");assert.match(reviewed.error,auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长/);
         assert.ok(reviewed.actions.includes("continue"));assert.equal(page.data.jobs.find(j=>j.id===initial.job).canContinue,true);
         assert.equal(calls,0);
         await page.taskAction({currentTarget:{dataset:{id:initial.job,action:"continue"}}});
@@ -463,7 +483,7 @@ export async function runClientLoop({
           assert.equal(storage.usedBytes,0);assert.equal(storage.originals[0].available,false);
           assert.equal(storage.originals[0].mode,"temporary");
         }
-        return {synthetic:true,realProviderCalls:0,auditedKnownTime:true,forgedUserAuditDenied:true,
+        return {synthetic:true,realProviderCalls:0,auditedKnownTime:!auditUnknownTime,auditedUnknownTime:auditUnknownTime,forgedUserAuditDenied:true,
           explicitUserContinue:true,rootCountersRetained:true,resultsEqual:true,tailSeen,simulatedProviderCalls:calls,spentMicros:calls*20,
           oldPendingReplayDeniedBoth:true,noModelBeforeFreshContinue:true,
           completeExpectedTextChecked:typeof original?.expectedText === "string",

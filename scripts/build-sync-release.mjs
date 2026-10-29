@@ -24,7 +24,7 @@ const files = [
   "server/reading/reuse.mjs",
   "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
   "server/reading/root-safety.mjs",
-  "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs",
+  "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs", "server/reading/time-maintenance.mjs",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",

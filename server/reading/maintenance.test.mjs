@@ -52,3 +52,41 @@ test(
     }
   },
 );
+
+test(
+  "unknown reader time is independently audited before both clients explicitly resume PDF windows",
+  { timeout: 30000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "shixu-unknown-time-loop-"));
+    let reads = 0;
+    try {
+      const report = await runClientLoop({
+        directory,
+        auditUnknownTime: true,
+        expectedReadPause: "ACTIVE_TIME_RECONCILIATION",
+        original: pdfWindowSample(),
+        originalQuota: 1,
+        sourceByMini: true,
+        expireBeforeStart: true,
+        startByMini: true,
+        reader: Object.assign(
+          async (f, options) => {
+            if (++reads === 1)
+              throw Object.assign(Error("synthetic missing reader timing"), {
+                timingUncertain: true,
+              });
+            return readMaterial(f, options);
+          },
+          { pdfWindows: true },
+        ),
+      });
+      assert.equal(report.auditedUnknownTime, true);
+      assert.equal(report.oldPendingReplayDeniedBoth, true);
+      assert.equal(report.completeExpectedTextChecked, true);
+      assert.equal(report.pdfPages, 19);
+      assert.ok(report.afterActiveMs >= report.beforeActiveMs + 321);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -8,6 +9,7 @@ import { createAttachmentStore } from "../sync-files.mjs";
 import { readMaterial, sha256 } from "./material.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
+import { ReadingTimeMaintenance } from "./time-maintenance.mjs";
 import { ReadingMaintenance } from "./maintenance.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
@@ -347,6 +349,7 @@ function fixture(
     ledger,
     tasks,
     taskArgs,
+    directory,
     put,
     enqueue,
     action,
@@ -1549,4 +1552,222 @@ test("invalid model source still settles valid usage but cannot become a reusabl
     0,
   );
   assert.equal(f.store.record("packet").data.result, null);
+});
+
+function timeAuditFixture(f, { mutate = (p) => p } = {}) {
+  const step = f.tasks.roots.safety.begin(
+    "task",
+    "task",
+    f.tasks.get("task").generation,
+  );
+  f.tasks.roots.safety.abandon(step);
+  f.tasks.roots.block("task", "ACTIVE_TIME_RECONCILIATION");
+  const authorize = ({ actor, operation }) =>
+    actor === "maintainer" && operation === "reconcile-root-time";
+  const verify = ({ account, evidenceHash, review }) =>
+    mutate({
+      account,
+      evidenceHash,
+      rootTaskId: review.rootTaskId,
+      generation: review.generation,
+      watermark: review.watermark,
+      snapshotHash: review.snapshotHash,
+      stepIds: review.steps.map((s) => s.id),
+      additionalActiveMs: 321,
+      final: true,
+      reference: "synthetic-termination-and-upper-bound",
+    });
+  const maintenance = new ReadingTimeMaintenance(f.tasks, authorize, verify);
+  const review = maintenance.preview("task", "maintainer");
+  const request = {
+    operationId: "time-audit",
+    evidenceHash: "b".repeat(64),
+    expectedGeneration: review.generation,
+    expectedWatermark: review.watermark,
+    expectedLedgerSequence: review.ledgerSequence,
+  };
+  return { maintenance, request, review, authorize, verify };
+}
+test("trusted termination and missing-time bound preserve paid results, fence old actions and allow explicit recovery", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop", "stop-before-time-audit");
+  const before = f.tasks.roots.stats("task"),
+    spent = f.ledger.wallet("synthetic").spent;
+  const a = timeAuditFixture(f);
+  assert.throws(
+    () => new ReadingTimeMaintenance(f.tasks, a.authorize),
+    /EVIDENCE_AUTHORITY/,
+  );
+  assert.throws(
+    () => a.maintenance.reconcile("task", a.request, "user"),
+    /FORBIDDEN/,
+  );
+  const receipt = a.maintenance.reconcile("task", a.request, "maintainer");
+  assert.equal(f.calls(), 1);
+  assert.equal(f.tasks.get("task").state, "cancelled");
+  assert.equal(f.tasks.roots.stats("task").activeMs, before.activeMs + 321);
+  assert.equal(f.tasks.roots.stats("task").reason, "");
+  assert.equal(f.tasks.roots.stats("task").calls, before.calls);
+  assert.equal(f.ledger.wallet("synthetic").spent, spent);
+  assert.deepEqual(
+    a.maintenance.reconcile("task", a.request, "maintainer"),
+    receipt,
+  );
+  assert.throws(
+    () =>
+      a.maintenance.reconcile(
+        "task",
+        { ...a.request, evidenceHash: "c".repeat(64) },
+        "maintainer",
+      ),
+    /IDEMPOTENCY_CONFLICT/,
+  );
+  assert.throws(
+    () => f.action("continue", "old-time-action"),
+    (e) => e.code === "STALE_TASK",
+  );
+  assert.throws(
+    () =>
+      f.tasks.enqueue({
+        id: "old-create",
+        packetId: "packet",
+        deviceId: f.windows.deviceId,
+      }),
+    (e) => e.code === "STALE_COST_REVIEW",
+  );
+  for (const table of ["reading_time_audits", "reading_time_finalizations"])
+    assert.throws(
+      () => f.ledger.db.exec("DELETE FROM " + table),
+      /APPEND_ONLY/,
+    );
+  const restarted = new ReadingTasks(f.taskArgs);
+  assert.equal(restarted.roots.stats("task").activeMs, before.activeMs + 321);
+  assert.equal(restarted.roots.stats("task").reason, "");
+  const task = restarted.get("task");
+  restarted.action(
+    "task",
+    {
+      operationId: "fresh-time-action",
+      expectedGeneration: task.generation,
+      expectedRevision: task.input_revision,
+      expectedMaintenanceOperation: restarted.maintenanceOperation("task"),
+    },
+    "continue",
+  );
+  assert.equal((await finish(restarted)).state, "done");
+  assert.equal(f.calls(), 1);
+});
+test("time evidence is exact, synchronous, final and cannot release rollback or other gates", async (t) => {
+  for (const mutate of [
+    (p) => ({ ...p, account: "other" }),
+    (p) => ({ ...p, final: false }),
+    (p) => ({ ...p, stepIds: [] }),
+    (p) => ({ ...p, additionalActiveMs: -1 }),
+    (p) => ({ ...p, snapshotHash: "c".repeat(64) }),
+    (p) => Promise.resolve(p),
+  ]) {
+    const f = fixture(t);
+    f.enqueue();
+    await f.tasks.run("task");
+    f.action("stop");
+    const a = timeAuditFixture(f, { mutate });
+    assert.throws(
+      () => a.maintenance.reconcile("task", a.request, "maintainer"),
+      /INVALID_TIME_EVIDENCE/,
+    );
+    assert.equal(
+      f.tasks.roots.stats("task").reason,
+      "ACTIVE_TIME_RECONCILIATION",
+    );
+    assert.equal(
+      f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_time_audits").get().n,
+      0,
+    );
+  }
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop");
+  f.store.db.exec("UPDATE reading_tasks SET active_ms=0 WHERE id='task'");
+  const a = timeAuditFixture(f);
+  assert.throws(
+    () => a.maintenance.reconcile("task", a.request, "maintainer"),
+    /SAFETY_RECONCILIATION/,
+  );
+});
+test("time audit receipt, tenant projection and final gate release recover conservatively at both cross-database boundaries", async (t) => {
+  for (const phase of ["receipt", "projection", "finalization"]) {
+    const f = fixture(t);
+    f.enqueue();
+    await f.tasks.run("task");
+    f.action("stop");
+    const a = timeAuditFixture(f),
+      before = f.tasks.roots.stats("task");
+    const db = phase === "projection" ? f.store.db : f.ledger.db;
+    const table =
+      phase === "receipt"
+        ? "reading_time_audits"
+        : phase === "projection"
+          ? "reading_tasks"
+          : "reading_time_finalizations";
+    const action = phase === "projection" ? "UPDATE" : "INSERT";
+    db.exec(
+      "CREATE TRIGGER fail_time_audit BEFORE " +
+        action +
+        " ON " +
+        table +
+        " BEGIN SELECT RAISE(ABORT,'INJECTED_TIME_FAILURE'); END;",
+    );
+    assert.throws(
+      () => a.maintenance.reconcile("task", a.request, "maintainer"),
+      /INJECTED_TIME_FAILURE/,
+    );
+    assert.equal(
+      f.tasks.roots.stats("task").reason,
+      "ACTIVE_TIME_RECONCILIATION",
+    );
+    assert.equal(f.calls(), 1);
+    db.exec("DROP TRIGGER fail_time_audit");
+    a.maintenance.reconcile("task", a.request, "maintainer");
+    assert.equal(f.tasks.roots.stats("task").activeMs, before.activeMs + 321);
+    assert.equal(f.tasks.roots.stats("task").reason, "");
+  }
+});
+
+test('independent disk reader retains finalized time receipt and paid cumulative watermark',async t=>{
+  const f=fixture(t);f.enqueue();await f.tasks.run('task');f.action('stop');
+  const a=timeAuditFixture(f);a.maintenance.reconcile('task',a.request,'maintainer');
+  const code=`import {ReadingLedger} from ${JSON.stringify(new URL('./ledger.mjs',import.meta.url).href)};
+    import {ReadingRootSafety} from ${JSON.stringify(new URL('./root-safety.mjs',import.meta.url).href)};
+    const ledger=new ReadingLedger(${JSON.stringify(join(f.directory,'ledger.sqlite'))});
+    const guard=new ReadingRootSafety(ledger,'synthetic');
+    console.log(JSON.stringify({receipt:guard.lastTimeAudit('task'),latest:guard.latest('task'),wallet:ledger.wallet('synthetic')}));ledger.close();`;
+  const child=spawnSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',timeout:5000,maxBuffer:16384});
+  assert.equal(child.status,0,child.stderr);const disk=JSON.parse(child.stdout);
+  assert.equal(disk.receipt.operation,a.request.operationId);assert.equal(disk.latest.reason,'');
+  assert.equal(disk.latest.active_ms,a.review.activeMs+321);assert.equal(disk.wallet.spent,20);
+  assert.equal(disk.wallet.costAuditOperation,f.ledger.recoveryOperation('synthetic'));
+});
+test('unknown fees, pending executors, stale reviews and concurrent proof mutations keep time audit closed',async t=>{
+  for(const mode of ['unknown','executor','stale','proof-race']){
+    const f=fixture(t);f.enqueue();await f.tasks.run('task');f.action('stop');
+    const a=timeAuditFixture(f);let request=a.request,maintenance=a.maintenance;
+    if(mode==='unknown'){
+      f.ledger.reserve({callId:'uncertain',account:'synthetic',task:'task',block:'unknown-block',generation:1,
+        priceId:'fixture',maxPromptTokens:10,maxOutputTokens:10,fingerprint:'unknown'});
+      f.ledger.sent('uncertain');f.ledger.unknown('uncertain');
+      request={...request,expectedLedgerSequence:f.ledger.sequence('synthetic')};
+    }
+    if(mode==='executor')f.tasks.executions.set('synthetic-active',{});
+    if(mode==='stale')request={...request,expectedWatermark:request.expectedWatermark-1};
+    if(mode==='proof-race')maintenance=new ReadingTimeMaintenance(f.tasks,a.authorize,args=>{
+      const proof=a.verify(args);f.tasks.roots.safety.begin('task','task',1);return proof;
+    });
+    try {assert.throws(()=>maintenance.reconcile('task',request,'maintainer'),/UNKNOWN_COST|TASK_STILL_DRAINING|STALE_MAINTENANCE_REVIEW/);}
+    finally {f.tasks.executions.delete('synthetic-active');}
+    assert.equal(f.ledger.db.prepare('SELECT COUNT(*) n FROM reading_time_audits').get().n,0);
+    assert.equal(f.calls(),1);
+  }
 });

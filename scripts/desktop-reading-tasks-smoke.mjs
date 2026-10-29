@@ -18,6 +18,7 @@ const costDisposition=process.argv.includes("--not-billed") ? "not-billed" : "us
 const costEvidence=new Map();
 const archiveWindows = process.argv.includes("--archive-windows") || costAudit;
 const safetyRollback = process.argv.includes("--safety-rollback");
+const auditUnknownTime=process.argv.includes("--audit-unknown-time");
 const auditTime = process.argv.includes("--audit-time");
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
@@ -31,7 +32,7 @@ const temporary = process.argv.includes("--temporary");
 const lifecycle = process.argv.includes("--originals") || temporary;
 const readFailure = process.argv.includes("--reader-limit") || auditTime
   ? "EXECUTION_LIMIT"
-  : process.argv.includes("--reader-time-unknown")
+  : process.argv.includes("--reader-time-unknown") || auditUnknownTime
     ? "ACTIVE_TIME_RECONCILIATION"
     : null;
 const original = archiveWindows ? (()=>{const f=archiveWindowSample();return {name:f.name,type:f.type,body:[...f.body]};})() : nativeFormat ? await (async()=> {
@@ -111,12 +112,31 @@ const reading = {
       const proof=costEvidence.get(evidenceHash);return proof && proof.callId===call.id && proof.fingerprint===call.fingerprint ? proof : null;
     }} : {}),
   ...(auditTime ? {maintenanceAuthorize:({actor,account})=>actor==="synthetic-maintainer" && account===fixture.invitation.userId} : {}),
+  ...(auditUnknownTime
+    ? {
+        maintenanceAuthorize: ({ actor, operation }) =>
+          actor === "synthetic-maintainer" &&
+          operation === "reconcile-root-time",
+        maintenanceVerifyTime: ({ account, evidenceHash, review }) => ({
+          account,
+          evidenceHash,
+          rootTaskId: review.rootTaskId,
+          generation: review.generation,
+          watermark: review.watermark,
+          snapshotHash: review.snapshotHash,
+          stepIds: review.steps.map((s) => s.id),
+          additionalActiveMs: 321,
+          final: true,
+          reference: "synthetic-executor-upper-bound",
+        }),
+      }
+    : {}),
   ...(temporary ? { originals: { quota: 1 } } : {}),
   enabled: true,
   ledger,
   ...(readFailure === "EXECUTION_LIMIT" ? { activeLimitMs: 80 } : {}),
   reader: Object.assign(async (f, { signal, pdfWindow, archiveWindow }) => {
-    if (readFailure === "ACTIVE_TIME_RECONCILIATION")
+    if (readFailure === "ACTIVE_TIME_RECONCILIATION" && (!auditUnknownTime || ++auditedReads===1))
       throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
         timingUncertain: true,
       });
@@ -140,7 +160,7 @@ const reading = {
   provider: async (sources, signal) => {
     calls++;
     if(costAudit && calls===2)throw Error("synthetic missing usage and response");
-    if (calls === 1 && !auditTime && !costAudit)
+    if (calls === 1 && !auditTime && !auditUnknownTime && !costAudit)
       await new Promise((done) => {
         signal.addEventListener("abort", () => setTimeout(done, 30), {
           once: true,
@@ -261,15 +281,15 @@ scenario: try {
     assert.equal(calls, 0);
     assert.ok(status.jobs[0].actions.includes("purge"));
     assert.equal(status.account.wallet.spent, 0);
-    if (auditTime) {
+    if (auditTime || auditUnknownTime) {
       const id=status.jobs[0].id,account=fixture.invitation.userId;
-      const review=fixture.service.readingRoutes.maintenanceReview(account,id,"synthetic-maintainer");
-      fixture.service.readingRoutes.extendExecutionLimit(account,id,{
+      const review=fixture.service.readingRoutes[auditUnknownTime ? "timeMaintenanceReview" : "maintenanceReview"](account,id,"synthetic-maintainer");
+      fixture.service.readingRoutes[auditUnknownTime ? "reconcileRootTime" : "extendExecutionLimit"](account,id,{
         operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
-        newLimitMs:3600000,evidenceHash:"a".repeat(64),
+        ...(auditUnknownTime ? {expectedLedgerSequence:review.ledgerSequence} : {newLimitMs:3600000}),evidenceHash:"a".repeat(64),
       },"synthetic-maintainer");
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
-      await expect(page.getByText(/维护核对已延长本投递时限/)).toBeVisible();
+      await expect(page.getByText(auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长本投递时限/)).toBeVisible();
       await page.getByRole("button",{name:"继续",exact:true}).click();
       await waitForPageState(page,async()=>{
         await window.desktop.cloud("sync");
@@ -286,7 +306,7 @@ scenario: try {
         const coverage=packets.find(p=>p.id==="task-ui").readingCoverage[0];
         assert.equal(coverage.pagination.nextPage,null);assert.equal(coverage.pagination.totalPages,19);
       }
-      console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,auditedKnownTime:true,
+      console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,auditedKnownTime:!auditUnknownTime,auditedUnknownTime:auditUnknownTime,
         explicitContinue:true,rootTimeRetained:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent,
         pdfPageWindows:pdfWindows,temporaryReupload:temporary}));
       break scenario;

@@ -228,7 +228,8 @@ export class ReadingTasks {
   maintenanceOperation(id) {
     const limit = this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
     const cost = this.ledger.lastCostAudit(this.account)?.operation;
-    return cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
+    const time=this.roots.safety.lastTimeAudit(this.roots.forTask(id).id)?.operation;
+    return time ? "audit:"+sha256(JSON.stringify([limit,cost || null,time])) : cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
   }
   auditedCostAvailable(id, root=this.roots.stats(id), wallet=this.ledger.wallet(this.account)) {
     return !root.reason && !!this.ledger.lastCostAudit(this.account,root.id) && !wallet.pausedReason;
@@ -260,7 +261,7 @@ export class ReadingTasks {
           throw error("IDEMPOTENCY_CONFLICT");
         return prior;
       }
-      if (expectedCostOperation !== (this.ledger.lastCostAudit(this.account)?.operation || null))throw error("STALE_COST_REVIEW");
+      if (expectedCostOperation !== this.ledger.recoveryOperation(this.account))throw error("STALE_COST_REVIEW");
       if (this.store.files.unlinked(packetId))
         throw error("ATTACHMENT_UNLINKED");
       if (

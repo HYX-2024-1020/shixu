@@ -34,6 +34,8 @@ export class ReadingRootSafety {
       "reading_safe_steps",
       "reading_safe_drains",
       "reading_safe_limit_audits",
+      "reading_time_audits",
+      "reading_time_finalizations",
     ])
       for (const action of ["UPDATE", "DELETE"])
         this.db
@@ -71,7 +73,20 @@ export class ReadingRootSafety {
       .map((r) => r.task);
   }
   lastLimit(root) {
-    return this.db.prepare("SELECT * FROM reading_safe_limit_audits WHERE account=? AND root=? ORDER BY new_limit DESC LIMIT 1").get(this.account,root);
+    return this.db
+      .prepare(
+        "SELECT * FROM reading_safe_limit_audits WHERE account=? AND root=? ORDER BY new_limit DESC LIMIT 1",
+      )
+      .get(this.account, root);
+  }
+  lastTimeAudit(root) {
+    return this.db
+      .prepare(
+        `SELECT a.* FROM reading_time_audits a JOIN reading_time_finalizations f
+      ON f.account=a.account AND f.operation=a.operation
+      WHERE a.account=? AND a.root=? ORDER BY a.rowid DESC LIMIT 1`,
+      )
+      .get(this.account, root);
   }
   latest(root) {
     return this.db
@@ -97,7 +112,9 @@ export class ReadingRootSafety {
       this.owned.delete(step);
     }
   }
-  abandon(step) { this.owned.delete(step); }
+  abandon(step) {
+    this.owned.delete(step);
+  }
   observe(root, stats, mismatch = false) {
     return this.transaction(() => this.observeLocked(root, stats, mismatch));
   }
