@@ -160,7 +160,27 @@ export class ReadingWindows {
       )
     )
       invalid();
-    if (p.pdf) {
+    if (p.image) {
+      // page is the server-owned intra-member cursor: PDF page or PNG tile.
+      // Image logical offsets count tiles, never characters or pixel bytes.
+      if (p.pdf || start.page > 64 || start.offset !== start.base + start.page - 1)
+        invalid();
+      if (material.segments.length !== material.covered.length ||
+          material.segments.some((s, i) => JSON.stringify(s.range) !== JSON.stringify(material.covered[i])))
+        invalid();
+      const covered = material.covered.map(r => ({
+        ...r, start: r.start - start.base, end: r.end - start.base,
+      }));
+      this.verify({
+        ...material, imagePagination: p.image, covered,
+        segments: material.segments.map((s, i) => ({ ...s, range: covered[i] })),
+      }, undefined, undefined, { tile: start.page });
+      const more = p.image.nextTile > start.page;
+      if (more !== (next?.entry === start.entry) ||
+          (more && next.page !== p.image.nextTile) ||
+          (next && next.offset !== start.base + p.image.startTile))
+        invalid();
+    } else if (p.pdf) {
       const relative = start.offset - start.base;
       this.verify(
         {
@@ -206,8 +226,12 @@ export class ReadingWindows {
       ...next.uncovered,
     ];
     const covered = [...previous.covered, ...next.covered];
+    const archiveImageTiles = [...new Map([
+      ...(previous.archiveImageTiles || []), ...(next.archiveImageTiles || []),
+    ].map(p => [p.archivePath, p])).values()];
     return {
       ...next,
+      ...(archiveImageTiles.length ? { archiveImageTiles } : {}),
       ...(previous.archivePdfPages || next.archivePdfPages
         ? {
             archivePdfPages: [

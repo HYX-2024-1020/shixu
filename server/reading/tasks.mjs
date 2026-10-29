@@ -846,6 +846,17 @@ export class ReadingTasks {
         if (selection.skip) return;
         const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
         if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
+        // Archive members require the same image capability gate as top-level
+        // images. Never substitute their descriptive placeholder for pixels.
+        if (material.segments.some(s => s.image) &&
+            (this.reader.imageWindows !== true || this.provider.imageInput !== true)) {
+          for (const segment of material.segments.filter(s => s.image))
+            material.uncovered.push({ ...segment.range, code: "IMAGE_PROVIDER_UNSUPPORTED" });
+          material.segments = material.segments.filter(s => !s.image);
+          material.covered = material.covered.filter(r => r.kind !== "image");
+          material.state = material.segments.length ? "partial" : "unsupported";
+          material.reasons.push("IMAGE_PROVIDER_UNSUPPORTED");
+        }
         materials.push(material);
       };
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a

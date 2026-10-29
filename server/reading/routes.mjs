@@ -173,6 +173,7 @@ export function createReadingRoutes({
         name: c.name,
         state: c.state,
         archivePdfPages:c.archivePdfPages,
+        archiveImageTiles:c.archiveImageTiles,
         imageTiles:c.imagePagination ? {checked:c.covered?.filter(r=>r.kind==="image").length||0,total:c.imagePagination.totalTiles}:undefined,
         readRanges: c.covered?.length || 0,
         unreadRanges: c.uncovered?.length || 0,

@@ -44,4 +44,4 @@ export function walletView(wallet?: {
   pausedReason?: string;
 }): string;
 
-export function imageProgressView(summary?: {name?:string;imageTiles?:{checked:number;total:number}}[]): string;
+export function imageProgressView(summary?: {name?:string;imageTiles?:{checked:number;total:number};archiveImageTiles?:{archivePath:string;checked:number;total:number}[]}[]): string;

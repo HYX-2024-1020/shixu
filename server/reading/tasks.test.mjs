@@ -1773,11 +1773,11 @@ test('unknown fees, pending executors, stale reviews and concurrent proof mutati
   }
 });
 
-test('PNG tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes',async t=>{
+for(const archived of [false,true])test(`${archived?'archive ':''}PNG tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes`,async t=>{
   const width=2051,height=4,pixels=Buffer.alloc(width*height*4,255);pixels[0]=0;pixels[pixels.length-4]=27;
   const png=encodePng(width,height,pixels);let tiles=[];
-  const f=fixture(t,{name:'图像.png',text:png,
-    reader:Object.assign(async(file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true}),
+  const f=fixture(t,{name:archived?'图像.zip':'图像.png',text:archived?zipBytes({'notice.png':png}):png,
+    reader:Object.assign(async(file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true,archiveWindows:archived}),
     provider:async sources=>{
       assert.equal(sources.length,1);const source=sources[0];if(!source.image)return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};tiles.push(source.id);
       return {usage:{prompt_tokens:10,completion_tokens:10},result:{...result(sources),
@@ -1813,6 +1813,19 @@ test('cumulative quote validation failure still settles trustworthy returned usa
   const f=fixture(t);f.tasks.boundQuotes=()=>{throw Error('INVALID_MODEL_SOURCE');};f.enqueue();
   const task=await f.tasks.run('task');assert.equal(task.state,'paused');assert.equal(f.calls(),1);
   assert.equal(f.ledger.wallet('synthetic').spent,20);assert.equal(f.ledger.wallet('synthetic').unknownRisk,0);
+});
+
+test('archive PNG without provider image capability remains unread and cannot send a text surrogate',async t=>{
+  const png=encodePng(2051,1,Buffer.alloc(2051*4,255));
+  const f=fixture(t,{name:'图片.zip',text:zipBytes({'notice.png':png}),
+    reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,archiveWindows:true,imageWindows:true})});
+  f.enqueue();const task=await finish(f.tasks);
+  assert.equal(task.reason,'NO_READABLE_MATERIAL');assert.equal(f.calls(),0);
+  assert.equal(f.ledger.wallet('synthetic').spent,0);
+  const coverage=JSON.parse(task.coverage)[0];
+  assert.equal(coverage.covered.length,0);
+  assert.equal(coverage.uncovered.filter(r=>r.code==='IMAGE_PROVIDER_UNSUPPORTED').length,3);
+  assert.ok(!JSON.stringify(coverage).includes('iVBORw0KGgo'));
 });
 
 test('image quote privacy cap retains locator-only paid reuse and its already-grounded deadline',async t=>{

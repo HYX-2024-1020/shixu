@@ -50,12 +50,12 @@ export async function readArchive(
   }
   const outerExpanded = budget.expanded - (archiveWindow?.expanded || 0);
   let offset = archiveWindow?.offset || 0;
-  let childPagination;
+  let childPagination, childImagePagination;
   let index = archiveWindow?.entry || 0;
   if (
     archiveWindow &&
     (index >= pkg.names.length ||
-      (archiveWindow.page > 1 && !/\.pdf$/i.test(pkg.names[index])))
+      (archiveWindow.page > 1 && !/\.(pdf|png)$/i.test(pkg.names[index])))
   ) {
     await pkg.close?.();
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -70,7 +70,7 @@ export async function readArchive(
         continue;
       }
       const extension = /\.([^.\/]+)$/.exec(path)?.[1].toLowerCase();
-      if (!["txt", "csv", "docx", "xlsx", "pdf"].includes(extension)) {
+      if (!["txt", "csv", "docx", "xlsx", "pdf", "png"].includes(extension)) {
         missing("FORMAT_UNSUPPORTED", path);
         continue;
       }
@@ -109,6 +109,9 @@ export async function readArchive(
           {
             windowCodepoints,
             expansionBudget: budget,
+            ...(extension === "png"
+              ? { imageWindow: { tile: archiveWindow?.page || 1 } }
+              : {}),
             ...(archiveWindow && extension === "pdf"
               ? {
                   pdfWindow: {
@@ -124,6 +127,7 @@ export async function readArchive(
         continue;
       }
       childPagination = child.pagination;
+      childImagePagination = child.imagePagination;
       const base = archiveWindow?.base ?? offset;
       for (const segment of child.segments) {
         const range = {
@@ -163,9 +167,10 @@ export async function readArchive(
   }
   if (archiveWindow) {
     const path = pkg.names[archiveWindow.entry];
-    const morePages = childPagination?.nextPage > archiveWindow.page;
+    const nextPage = childPagination?.nextPage ?? childImagePagination?.nextTile;
+    const morePages = nextPage > archiveWindow.page;
     const next = morePages
-      ? { ...archiveWindow, page: childPagination.nextPage, offset }
+      ? { ...archiveWindow, page: nextPage, offset }
       : index < pkg.names.length
         ? {
             entry: index,
@@ -181,10 +186,17 @@ export async function readArchive(
       entries: pkg.names.length,
       archivePath: path,
       ...(childPagination ? { pdf: childPagination } : {}),
+      ...(childImagePagination ? { image: childImagePagination } : {}),
     };
     // Future members are metadata only. They have not been read or modeled.
     for (const pending of pkg.names.slice(index))
       if (!pending.endsWith("/")) missing("ARCHIVE_WINDOW_PENDING", pending);
+    if (childImagePagination)
+      result.archiveImageTiles = [{
+        archivePath: path,
+        checked: childImagePagination.startTile,
+        total: childImagePagination.totalTiles,
+      }];
     if (childPagination)
       result.archivePdfPages = [
         {

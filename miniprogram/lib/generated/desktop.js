@@ -1111,7 +1111,15 @@ function pdfProgressView(summary) {
 }
 function imageProgressView(summary) {
   if (!Array.isArray(summary)) return "";
-  return summary.filter((c) => c && c.imageTiles && Number.isSafeInteger(c.imageTiles.checked) && Number.isSafeInteger(c.imageTiles.total) && c.imageTiles.total > 0 && c.imageTiles.checked >= 0 && c.imageTiles.checked <= c.imageTiles.total).map((c) => `${typeof c.name === "string" ? c.name.slice(0, 200) : "图像"}：已检查 ${c.imageTiles.checked} / ${c.imageTiles.total} 个图像区域`).join("；");
+  const rows = summary.flatMap((c) => {
+    if (!c || typeof c !== "object") return [];
+    const members = Array.isArray(c.archiveImageTiles) ? c.archiveImageTiles : [];
+    return [c, ...members.filter((p) => p && typeof p.archivePath === "string").map((p) => ({
+      name: `${typeof c.name === "string" ? c.name.slice(0, 200) : "归档"} · 包内 “${p.archivePath.slice(0, 512)}”`,
+      imageTiles: p
+    }))];
+  });
+  return rows.filter((c) => c && c.imageTiles && Number.isSafeInteger(c.imageTiles.checked) && Number.isSafeInteger(c.imageTiles.total) && c.imageTiles.total > 0 && c.imageTiles.checked >= 0 && c.imageTiles.checked <= c.imageTiles.total).map((c) => `${typeof c.name === "string" ? c.name.slice(0, 740) : "图像"}：已检查 ${c.imageTiles.checked} / ${c.imageTiles.total} 个图像区域`).join("；");
 }
 
 // <stdin>
