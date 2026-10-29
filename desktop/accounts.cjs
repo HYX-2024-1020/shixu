@@ -662,6 +662,7 @@ class AccountWorkspace extends CloudWorkspace {
             operationId: randomUUID(),
             expectedGeneration: task.generation,
             expectedRevision: task.inputRevision,
+            expectedMaintenanceOperation: task.maintenanceOperation || null,
           };
         this.writeJobs(jobs); // Persist intent before network; lost responses reuse the same operation.
         await this.pollJobs();

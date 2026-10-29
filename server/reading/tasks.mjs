@@ -24,6 +24,10 @@ const error = (code) =>
     code,
     code === "ACTIVE_TIME_RECONCILIATION"
       ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
+      : code === "STALE_TASK"
+        ? "任务状态已变化，请刷新后再操作"
+      : code === "EXECUTION_LIMIT"
+        ? "该投递累计活跃时间已用尽，请联系维护者核对"
       : code === "SAFETY_RECONCILIATION"
         ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
         : code === "SERVICE_CLOSING"
@@ -168,7 +172,8 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_block_ranges(task TEXT NOT NULL,fingerprint TEXT NOT NULL,ranges TEXT NOT NULL,PRIMARY KEY(task,fingerprint));
       CREATE TABLE IF NOT EXISTS reading_checkpoints(task TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,PRIMARY KEY(task,calls));
       CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_action_audits(operation TEXT PRIMARY KEY,maintenance_operation TEXT);`);
     this.reuse = new ReadingReuse(this.db, ledger, account);
     this.windows = new ReadingWindows(this.db);
     this.roots = new ReadingRoots(store, ledger, account);
@@ -208,6 +213,20 @@ export class ReadingTasks {
   get(id) {
     if (this.finalSnapshots) return this.finalSnapshots.get(id);
     return this.db.prepare("SELECT * FROM reading_tasks WHERE id=?").get(id);
+  }
+  executionLimit(id) {
+    const root = this.roots.forTask(id);
+    return Math.max(
+      this.activeLimitMs,
+      this.roots.safety.lastLimit(root.id)?.new_limit || 0,
+    );
+  }
+  auditedTimeAvailable(id) {
+    const root=this.roots.stats(id);
+    return !root.reason && !!this.roots.safety.lastLimit(root.id) && root.activeMs < this.executionLimit(id);
+  }
+  maintenanceOperation(id) {
+    return this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -276,7 +295,7 @@ export class ReadingTasks {
   }
   action(
     id,
-    { operationId, expectedGeneration, expectedRevision },
+    { operationId, expectedGeneration, expectedRevision, expectedMaintenanceOperation = null },
     action,
     deviceId,
   ) {
@@ -286,7 +305,8 @@ export class ReadingTasks {
     this.authorize(deviceId || target.device);
     if (
       !validId(operationId) ||
-      !["stop", "continue", "purge", "accept-partial"].includes(action)
+      !["stop", "continue", "purge", "accept-partial"].includes(action) ||
+      (expectedMaintenanceOperation !== null && (typeof expectedMaintenanceOperation !== "string" || !/^[\w:-]{1,160}$/.test(expectedMaintenanceOperation)))
     )
       throw error("INVALID_ACTION");
     const value = this.transaction(() => {
@@ -298,7 +318,8 @@ export class ReadingTasks {
           previous.task !== id ||
           previous.action !== action ||
           previous.generation !== expectedGeneration ||
-          JSON.parse(previous.response).input_revision !== expectedRevision
+          JSON.parse(previous.response).input_revision !== expectedRevision ||
+          (this.db.prepare("SELECT maintenance_operation FROM reading_action_audits WHERE operation=?").get(operationId)?.maintenance_operation || null) !== expectedMaintenanceOperation
         )
           throw error("IDEMPOTENCY_CONFLICT");
         return target.state === "purged"
@@ -312,6 +333,8 @@ export class ReadingTasks {
         task.generation !== expectedGeneration ||
         task.input_revision !== expectedRevision
       )
+        throw error("STALE_TASK");
+      if (action === "continue" && expectedMaintenanceOperation !== this.maintenanceOperation(id))
         throw error("STALE_TASK");
       if (action === "accept-partial") {
         if (
@@ -362,8 +385,8 @@ export class ReadingTasks {
         if (root.reason === "SAFETY_RECONCILIATION")
           throw error("SAFETY_RECONCILIATION");
         if (
-          root.activeMs >= this.activeLimitMs ||
-          task.reason === "EXECUTION_LIMIT"
+          root.activeMs >= this.executionLimit(id) ||
+          (task.reason === "EXECUTION_LIMIT" && !this.auditedTimeAvailable(id))
         )
           throw error("EXECUTION_LIMIT");
         if (
@@ -410,6 +433,7 @@ export class ReadingTasks {
           expectedGeneration,
           JSON.stringify(response),
         );
+      this.db.prepare("INSERT INTO reading_action_audits VALUES(?,?)").run(operationId,expectedMaintenanceOperation);
       return response;
     });
     if (value.acceptPartial) {
@@ -429,6 +453,7 @@ export class ReadingTasks {
               expectedGeneration,
               JSON.stringify(response),
             );
+          this.db.prepare("INSERT INTO reading_action_audits VALUES(?,?)").run(operationId,expectedMaintenanceOperation);
         },
       );
       this.clearMaterial(id);
@@ -605,6 +630,7 @@ export class ReadingTasks {
     if (inputRevision(this.store, task.packet) !== task.input_revision)
       throw error("INPUT_CHANGED");
     const root = this.roots.checkpoint(id);
+    const activeLimitMs = this.executionLimit(id);
     this.db
       .prepare("UPDATE reading_tasks SET state='running' WHERE id=?")
       .run(id);
@@ -647,7 +673,7 @@ export class ReadingTasks {
         clearTimeout(timer);
         if (queuedAt !== undefined) return;
         const remaining =
-          this.activeLimitMs -
+          activeLimitMs -
           root.activeMs -
           (performance.now() - started - excludedMs);
         const perRead =
@@ -668,7 +694,7 @@ export class ReadingTasks {
         Math.min(
           1800000,
           Math.floor(
-            this.activeLimitMs -
+            activeLimitMs -
               root.activeMs -
               (performance.now() - started - excludedMs),
           ),
@@ -740,7 +766,7 @@ export class ReadingTasks {
         if (!this.current(task)) throw Error("READING_ABORTED");
         if (
           root.activeMs + performance.now() - started - excludedMs >=
-          this.activeLimitMs
+          activeLimitMs
         )
           throw Error("EXECUTION_LIMIT");
         try {
@@ -760,7 +786,7 @@ export class ReadingTasks {
           )
             throw e;
           const remaining =
-            this.activeLimitMs -
+            activeLimitMs -
             root.activeMs -
             (performance.now() - started - excludedMs);
           const backoff = retries ? 300 : 100;
@@ -775,7 +801,7 @@ export class ReadingTasks {
     };
     try {
       if (root.reason) throw Error(root.reason);
-      if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
+      if (root.activeMs >= activeLimitMs) throw Error("EXECUTION_LIMIT");
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
       safetyStep = this.roots.safety.begin(root.id,id,task.generation);
@@ -856,7 +882,7 @@ export class ReadingTasks {
         if (!this.current(task)) return this.get(id);
         if (
           root.activeMs + performance.now() - started - excludedMs >=
-          this.activeLimitMs
+          activeLimitMs
         )
           throw Error("EXECUTION_LIMIT");
         this.authorize(task.device);
@@ -984,7 +1010,7 @@ export class ReadingTasks {
                   Math.min(
                     240000,
                     Math.floor(
-                      this.activeLimitMs -
+                      activeLimitMs -
                         root.activeMs -
                         (performance.now() - started - excludedMs),
                     ),

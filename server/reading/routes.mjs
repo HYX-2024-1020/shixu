@@ -1,6 +1,7 @@
 import { ReadingTasks } from "./tasks.mjs";
 import { createReadingScheduler } from "./scheduler.mjs";
 import { SyncError } from "../sync-store.mjs";
+import { ReadingMaintenance } from "./maintenance.mjs";
 
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
@@ -15,6 +16,7 @@ const shutdownMessages = {
   CHECKPOINT_NO_PROGRESS: "累计24次调用未取得新增有效块，需核对后继续",
   CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
   SAFETY_RECONCILIATION: "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留",
+  EXECUTION_LIMIT_AUDITED: "维护核对已延长本投递时限，累计费用与时间保留；可继续",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
   REUPLOAD_REQUIRED: "原件已清理，请从保留本机副本的设备重传核对后继续",
   READING_TIMEOUT: "单步读取超时，已完成进度保留；可稍后继续",
@@ -26,6 +28,7 @@ const fail = (status, code) => {
 // Explicitly injected into an isolated service. No automatic wallet grant,
 // migration, provider configuration or production enablement.
 export function createReadingRoutes({
+  maintenanceAuthorize,
   ledger,
   reader,
   provider,
@@ -105,17 +108,20 @@ export function createReadingRoutes({
   const view = (e, t, roots) => {
     const root = roots?.get(t.packet) || e.roots.stats(t.id);
     roots?.set(t.packet, root);
+    const auditedTimeAvailable=t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
+    const displayReason=root.reason || (auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : t.reason);
     return {
       contractVersion: 1,
       id: t.id,
       packetId: t.packet,
       state: t.state,
       generation: t.generation,
+      maintenanceOperation: e.maintenanceOperation(t.id),
       inputRevision: t.input_revision,
       calls: t.calls,
       reusedBlocks: e.reuse.count(t.id),
       activeMs: t.active_ms,
-      reason: root.reason || t.reason,
+      reason: displayReason,
       rootTaskId: root.id,
       rootCalls: root.calls,
       rootActiveMs: root.activeMs,
@@ -124,9 +130,7 @@ export function createReadingRoutes({
       checkpointCalls: root.checkpointCalls,
       nextCheckpointCalls: root.nextCheckpointCalls,
       error:
-        shutdownMessages[root.reason || t.reason] ||
-        root.reason ||
-        t.reason ||
+        shutdownMessages[displayReason] || displayReason ||
         "",
       protocol: 4,
       actions:
@@ -135,8 +139,8 @@ export function createReadingRoutes({
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
               ...(recoverable.includes(t.state) &&
-              t.reason !== "EXECUTION_LIMIT" &&
-              root.activeMs < e.activeLimitMs &&
+              (t.reason !== "EXECUTION_LIMIT" || auditedTimeAvailable) &&
+              root.activeMs < e.executionLimit(t.id) &&
               ![
                 "ACTIVE_TIME_RECONCILIATION",
                 "CHECKPOINT_RECONCILIATION",
@@ -242,6 +246,16 @@ export function createReadingRoutes({
           submissionBytes: 20 * 1024 * 1024,
         },
       };
+    },
+    maintenanceReview(account, id, actor) {
+      const e=engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingMaintenance(e,maintenanceAuthorize).preview(id,actor);
+    },
+    extendExecutionLimit(account, id, request, actor) {
+      const e=engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingMaintenance(e,maintenanceAuthorize).extend(id,request,actor);
     },
     async handle({
       account,
@@ -422,6 +436,7 @@ export function createReadingRoutes({
           operationId: value.operationId,
           expectedGeneration: value.expectedGeneration,
           expectedRevision: value.expectedRevision,
+          expectedMaintenanceOperation: value.expectedMaintenanceOperation,
         },
         match[2],
         device,

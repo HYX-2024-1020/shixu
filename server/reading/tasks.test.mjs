@@ -8,6 +8,7 @@ import { createAttachmentStore } from "../sync-files.mjs";
 import { readMaterial, sha256 } from "./material.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
+import { ReadingMaintenance } from "./maintenance.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
 import { readingView } from "../../shared/reading-view.mjs";
@@ -131,6 +132,111 @@ test("a failed final safety write abandons local ownership and leaves a conserva
   assert.equal(f.calls(), 1);
   assert.equal(f.ledger.wallet("synthetic").spent, 20);
 });
+test("audited root time extension preserves paid blocks and counters across restart, without new credit or automatic work", async t => {
+  const f=fixture(t);f.enqueue();await f.tasks.run("task");
+  f.tasks.activeLimitMs=1;
+  assert.equal((await f.tasks.run("task")).reason,"EXECUTION_LIMIT");
+  const before=f.tasks.roots.stats("task"),spent=f.ledger.wallet("synthetic").spent;
+  assert.throws(()=>new ReadingMaintenance(f.tasks),/MAINTENANCE_AUTHORITY_REQUIRED/);
+  const maintenance=new ReadingMaintenance(f.tasks,({actor})=>actor==="synthetic-maintainer");
+  assert.throws(()=>maintenance.preview("task","untrusted"),/MAINTENANCE_FORBIDDEN/);
+  const preview=maintenance.preview("task","synthetic-maintainer");
+  const request={operationId:"extend-one",expectedGeneration:preview.generation,expectedWatermark:preview.watermark,
+    newLimitMs:before.activeMs+1000,evidenceHash:sha256("synthetic time audit, not user content")};
+  assert.throws(()=>maintenance.extend("task",{...request,newLimitMs:0},"synthetic-maintainer"),/INVALID_MAINTENANCE_LIMIT/);
+  const receipt=maintenance.extend("task",request,"synthetic-maintainer");
+  assert.deepEqual(maintenance.extend("task",request,"synthetic-maintainer"),receipt);
+  assert.throws(()=>maintenance.extend("task",{...request,newLimitMs:request.newLimitMs+1},"synthetic-maintainer"),/IDEMPOTENCY_CONFLICT/);
+  assert.equal(f.calls(),1);assert.equal(f.ledger.wallet("synthetic").spent,spent);
+  assert.equal(f.tasks.get("task").state,"paused");
+  assert.throws(()=>f.ledger.db.exec("DELETE FROM reading_safe_limit_audits"),/SAFETY_APPEND_ONLY/);
+  const secondReview=maintenance.preview("task","synthetic-maintainer");
+  assert.throws(()=>maintenance.extend("task",{...request,operationId:"unneeded-second-audit",expectedWatermark:secondReview.watermark,
+    newLimitMs:request.newLimitMs+1000},"synthetic-maintainer"),/EXECUTION_LIMIT_NOT_REACHED/);
+  const actionRequest={operationId:"after-audit",expectedGeneration:f.tasks.get("task").generation,
+    expectedRevision:f.tasks.get("task").input_revision,expectedMaintenanceOperation:receipt.operation};
+  const tenantPrepare=f.store.db.prepare.bind(f.store.db);
+  f.store.db.prepare=sql=>{
+    if(sql.startsWith("INSERT INTO reading_action_audits"))throw Error("synthetic action proof failure");
+    return tenantPrepare(sql);
+  };
+  try{assert.throws(()=>f.tasks.action("task",actionRequest,"continue"),/synthetic action proof failure/);}
+  finally{f.store.db.prepare=tenantPrepare;}
+  assert.equal(f.tasks.get("task").state,"paused");
+  assert.equal(f.tasks.get("task").generation,actionRequest.expectedGeneration);
+  assert.equal(f.store.db.prepare("SELECT 1 FROM reading_actions WHERE operation='after-audit'").get(),undefined);
+  f.tasks.close();
+  const restarted=new ReadingTasks({...f.taskArgs,activeLimitMs:1});
+  try {
+    assert.equal(restarted.executionLimit("task"),request.newLimitMs);
+    const current=restarted.get("task");
+    assert.throws(()=>restarted.action("task",{operationId:"old-replay",expectedGeneration:current.generation,expectedRevision:current.input_revision},"continue"),e=>e.code==="STALE_TASK");
+    const continued=restarted.action("task",actionRequest,"continue");
+    assert.deepEqual({...restarted.action("task",actionRequest,"continue")},{...continued});
+    assert.throws(()=>restarted.action("task",{...actionRequest,expectedMaintenanceOperation:null},"continue"),e=>e.code==="IDEMPOTENCY_CONFLICT");
+    for(let n=0;n<5 && restarted.get("task").state==="queued";n++)await restarted.run("task");
+    assert.equal(restarted.get("task").state,"done");assert.equal(f.calls(),1);
+    assert.equal(f.ledger.wallet("synthetic").spent,spent);
+    assert.ok(restarted.roots.stats("task").activeMs >= before.activeMs);
+    assert.equal(restarted.roots.stats("task").calls,1);
+  } finally {restarted.close();}
+});
+
+test("time audit rejects stale reviews and failed receipt writes without granting time or changing fees",async t=>{
+  const f=fixture(t);f.enqueue();await f.tasks.run("task");f.tasks.activeLimitMs=1;await f.tasks.run("task");
+  const maintenance=new ReadingMaintenance(f.tasks,()=>true),actor="synthetic-maintainer";
+  const old=maintenance.preview("task",actor);
+  const request={operationId:"audit-write-failure",expectedGeneration:old.generation,expectedWatermark:old.watermark,
+    newLimitMs:old.activeMs+1000,evidenceHash:sha256("synthetic stale review")};
+  f.store.db.prepare("UPDATE reading_tasks SET active_ms=active_ms+1 WHERE id='task'").run();
+  const newer=maintenance.preview("task",actor);
+  assert.throws(()=>maintenance.extend("task",request,actor),/STALE_MAINTENANCE_REVIEW/);
+  const fresh={...request,expectedWatermark:newer.watermark};
+  const prepare=f.ledger.db.prepare.bind(f.ledger.db);
+  f.ledger.db.prepare=sql=>{
+    if(sql.startsWith("INSERT INTO reading_safe_limit_audits"))throw Error("synthetic receipt disk failure");
+    return prepare(sql);
+  };
+  try{assert.throws(()=>maintenance.extend("task",fresh,actor),/synthetic receipt disk failure/);}
+  finally{f.ledger.db.prepare=prepare;}
+  assert.equal(f.tasks.executionLimit("task"),1);
+  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
+  assert.equal(f.ledger.wallet("synthetic").spent,20);
+  maintenance.extend("task",fresh,actor);
+  assert.equal(f.tasks.executionLimit("task"),fresh.newLimitMs);assert.equal(f.calls(),1);
+});
+
+test("time audits cannot clear unknown fees, unknown active time or tenant rollback gates",async t=>{
+  for(const kind of ["cost","time","rollback"]){
+    const f=fixture(t,kind==="cost"?{provider:async()=>{throw Error("synthetic network unknown");}}
+      :kind==="time"?{reader:async()=>{throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"),{timingUncertain:true});}}:{});
+    f.enqueue();await f.tasks.run("task");f.tasks.activeLimitMs=1;
+    if(kind==="rollback"){
+      f.action("stop","rollback-before-audit");
+      f.store.db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id='task'").run();
+    }
+    const maintenance=new ReadingMaintenance(f.tasks,()=>true),review=maintenance.preview("task","synthetic-maintainer");
+    const risk=f.ledger.wallet("synthetic").unknownRisk;
+    assert.throws(()=>maintenance.extend("task",{operationId:"no-unknown-bypass",expectedGeneration:review.generation,
+      expectedWatermark:review.watermark,newLimitMs:review.activeMs+1000,evidenceHash:sha256("synthetic rejected audit")},"synthetic-maintainer"),
+      kind==="cost"?/UNKNOWN_COST/:/RECONCILIATION_REQUIRED/);
+    assert.equal(f.tasks.executionLimit("task"),1);assert.equal(f.ledger.wallet("synthetic").unknownRisk,risk);
+    assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
+  }
+});
+
+test("a trusted time audit cannot extend an in-flight step or cause an additional call",async t=>{
+  let release,enter;
+  const entered=new Promise(resolve=>enter=resolve);
+  const f=fixture(t,{reader:file=>new Promise(resolve=>{enter();release=()=>resolve(readMaterial(file));})});
+  f.enqueue();const pending=f.tasks.run("task");await entered;
+  const maintenance=new ReadingMaintenance(f.tasks,()=>true),review=maintenance.preview("task","synthetic-maintainer");
+  assert.throws(()=>maintenance.extend("task",{operationId:"no-live-extension",expectedGeneration:review.generation,
+    expectedWatermark:review.watermark,newLimitMs:3600000,evidenceHash:sha256("synthetic rejected live audit")},"synthetic-maintainer"),/TASK_STILL_DRAINING/);
+  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
+  release();await pending;assert.equal(f.calls(),1);
+});
+
 function fixture(
   t,
   {

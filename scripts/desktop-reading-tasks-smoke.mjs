@@ -13,6 +13,7 @@ import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
 import { DatabaseSync } from "node:sqlite";
 const safetyRollback = process.argv.includes("--safety-rollback");
+const auditTime = process.argv.includes("--audit-time");
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
 const pdfLimit = process.argv.includes("--pdf-limit");
@@ -22,7 +23,7 @@ const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
 const temporary = process.argv.includes("--temporary");
 const lifecycle = process.argv.includes("--originals") || temporary;
-const readFailure = process.argv.includes("--reader-limit")
+const readFailure = process.argv.includes("--reader-limit") || auditTime
   ? "EXECUTION_LIMIT"
   : process.argv.includes("--reader-time-unknown")
     ? "ACTIVE_TIME_RECONCILIATION"
@@ -94,7 +95,9 @@ ledger.freezePrice({
   outputMicrosPerMillion: 1000000,
 });
 let calls = 0;
+let auditedReads = 0;
 const reading = {
+  ...(auditTime ? {maintenanceAuthorize:({actor,account})=>actor==="synthetic-maintainer" && account===fixture.invitation.userId} : {}),
   ...(temporary ? { originals: { quota: 1 } } : {}),
   enabled: true,
   ledger,
@@ -104,7 +107,7 @@ const reading = {
       throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
         timingUncertain: true,
       });
-    if (readFailure === "EXECUTION_LIMIT")
+    if (readFailure === "EXECUTION_LIMIT" && (!auditTime || ++auditedReads === 1))
       return new Promise((resolve, reject) =>
         signal.addEventListener(
           "abort",
@@ -122,7 +125,7 @@ const reading = {
   priceId: "fixture",
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
-    if (++calls === 1)
+    if (++calls === 1 && !auditTime)
       await new Promise((done) => {
         signal.addEventListener("abort", () => setTimeout(done, 30), {
           once: true,
@@ -243,6 +246,36 @@ scenario: try {
     assert.equal(calls, 0);
     assert.ok(status.jobs[0].actions.includes("purge"));
     assert.equal(status.account.wallet.spent, 0);
+    if (auditTime) {
+      const id=status.jobs[0].id,account=fixture.invitation.userId;
+      const review=fixture.service.readingRoutes.maintenanceReview(account,id,"synthetic-maintainer");
+      fixture.service.readingRoutes.extendExecutionLimit(account,id,{
+        operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
+        newLimitMs:3600000,evidenceHash:"a".repeat(64),
+      },"synthetic-maintainer");
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await expect(page.getByText(/维护核对已延长本投递时限/)).toBeVisible();
+      await page.getByRole("button",{name:"继续",exact:true}).click();
+      await waitForPageState(page,async()=>{
+        await window.desktop.cloud("sync");
+        return (await window.desktop.cloud("status")).jobs[0].state==="done";
+      });
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
+      const after=await page.evaluate(()=>window.desktop.cloud("status"));
+      assert.ok(after.jobs[0].rootActiveMs >= review.activeMs);
+      assert.equal(after.account.wallet.spent,calls*20);
+      if (pdfWindows) {
+        await expect(page.getByText(/已检查 19 \/ 19 页/)).toBeVisible();
+        const packets=await page.evaluate(()=>window.desktop.store("packets"));
+        const coverage=packets.find(p=>p.id==="task-ui").readingCoverage[0];
+        assert.equal(coverage.pagination.nextPage,null);assert.equal(coverage.pagination.totalPages,19);
+      }
+      console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,auditedKnownTime:true,
+        explicitContinue:true,rootTimeRetained:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent,
+        pdfPageWindows:pdfWindows,temporaryReupload:temporary}));
+      break scenario;
+    }
     console.log(
       JSON.stringify({
         synthetic: true,

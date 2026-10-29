@@ -19,6 +19,12 @@ export class ReadingRootSafety {
       CREATE TABLE IF NOT EXISTS reading_safe_steps(
       id TEXT PRIMARY KEY,account TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,generation INTEGER NOT NULL,at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_safe_drains(step TEXT PRIMARY KEY,at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_safe_limit_audits(
+      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,actor TEXT NOT NULL,
+      evidence_hash TEXT NOT NULL,watermark INTEGER NOT NULL,generation INTEGER NOT NULL,
+      previous_limit INTEGER NOT NULL,new_limit INTEGER NOT NULL CHECK(new_limit>previous_limit),
+      active_ms INTEGER NOT NULL,calls INTEGER NOT NULL,request_hash TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,operation));
+      CREATE INDEX IF NOT EXISTS reading_safe_root_limits ON reading_safe_limit_audits(account,root,new_limit DESC);
       CREATE INDEX IF NOT EXISTS reading_safe_pending ON reading_safe_steps(account,root,id);
       CREATE INDEX IF NOT EXISTS reading_safe_latest ON reading_safe_events(account,root,seq DESC);`);
     for (const table of [
@@ -27,6 +33,7 @@ export class ReadingRootSafety {
       "reading_safe_events",
       "reading_safe_steps",
       "reading_safe_drains",
+      "reading_safe_limit_audits",
     ])
       for (const action of ["UPDATE", "DELETE"])
         this.db
@@ -62,6 +69,9 @@ export class ReadingRootSafety {
       )
       .all(this.account, root)
       .map((r) => r.task);
+  }
+  lastLimit(root) {
+    return this.db.prepare("SELECT * FROM reading_safe_limit_audits WHERE account=? AND root=? ORDER BY new_limit DESC LIMIT 1").get(this.account,root);
   }
   latest(root) {
     return this.db

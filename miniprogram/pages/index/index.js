@@ -2358,6 +2358,7 @@ Page({
           operationId: makeId(),
           expectedGeneration: job.generation,
           expectedRevision: job.inputRevision,
+          expectedMaintenanceOperation: job.maintenanceOperation || null,
         };
       this._saveJobs(this._jobs.map((j) => (j.id === id ? job : j)));
       await this._pollJobs();

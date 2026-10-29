@@ -6,6 +6,7 @@ import { createBrokerService } from "../server/reading/broker-service.mjs";
 
 const root = resolve(process.argv[2] || "");
 const originals = process.argv.includes("--originals");
+const timeAudit = process.argv.includes("--audit-time");
 const recovery = process.argv.includes("--reverify")
   ? "deleteBeforeStart:true,startByMini:true,sourceByMini:true,"
   : process.argv.includes("--expired")
@@ -65,7 +66,13 @@ try {
   const started = performance.now();
   const loop = await run(
     "nobody",
-    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${officeFormat ? `import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./${officeFormat}-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};` : "const original = undefined;"} const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader: createBrokerClient('${socketDirectory}/reader.sock'), original, ${recovery}${revision}${originals ? "originalQuota:1,sourceByMini:true," + (revision ? "" : "verifyLifecycle:true,") : ""} }); console.log(JSON.stringify(evidence));`,
+    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${officeFormat ? `import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./${officeFormat}-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};` : "const original = undefined;"}
+    const client=createBrokerClient('${socketDirectory}/reader.sock'); let reads=0;
+    const reader=Object.assign((file,options)=>{
+      if (${timeAudit} && ++reads===1) return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(Error('READING_ABORTED'),{timing:{waitingMs:0}})),{once:true}));
+      return client(file,options);
+    },{pdfWindows:client.pdfWindows});
+    const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader, original, ${timeAudit ? "auditAfterReadLimit:true,expectedReadPause:'EXECUTION_LIMIT'," : ""}${recovery}${revision}${originals ? "originalQuota:1,sourceByMini:true," + (revision ? "" : "verifyLifecycle:true,") : ""} }); console.log(JSON.stringify(evidence));`,
   );
   assert.equal(loop.exit, 0, loop.errors);
   const rejected = await run(

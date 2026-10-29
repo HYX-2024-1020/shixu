@@ -39,6 +39,7 @@ export async function runClientLoop({
   deleteBeforeStart = false,
   reviseAfterPublication = false,
   rollbackRootAfterStop = false,
+  auditAfterReadLimit = false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -62,7 +63,9 @@ export async function runClientLoop({
   let calls = 0,
     parserRuns = 0,
     tailSeen = false;
+  const auditText=[];
   const reading = {
+    ...(auditAfterReadLimit ? {activeLimitMs:80,maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="extend-root-time"} : {}),
     ...(originalQuota === undefined
       ? {}
       : { originals: { quota: originalQuota, now: () => originalNow } }),
@@ -75,10 +78,11 @@ export async function runClientLoop({
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {
+      if (auditAfterReadLimit) auditText.push(...sources.map(s=>s.text));
       calls++;
       if (calls === 1) {
         enter();
-        await held;
+        if (!auditAfterReadLimit) await held;
       }
       tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记"));
       return {
@@ -319,6 +323,56 @@ export async function runClientLoop({
       assert.equal(win.rootCalls, 0);
       assert.equal(calls, 0);
       assert.equal((await cloud.packets())[0].result, null);
+      if (auditAfterReadLimit) {
+        assert.equal(expectedReadPause,"EXECUTION_LIMIT");
+        await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${initial.job}/continue`,{
+          contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,expectedRevision:win.inputRevision,
+          actor:"synthetic-maintainer",newLimitMs:3600000,
+        }),/累计活跃时间已用尽/);
+        const review=service.readingRoutes.maintenanceReview(account,initial.job,"synthetic-maintainer");
+        const request={operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
+          newLimitMs:3600000,evidenceHash:createHash("sha256").update("synthetic active time review").digest("hex")};
+        const receipt=service.readingRoutes.extendExecutionLimit(account,initial.job,request,"synthetic-maintainer");
+        assert.deepEqual(service.readingRoutes.extendExecutionLimit(account,initial.job,request,"synthetic-maintainer"),receipt);
+        // Crash-persisted intents from before this audit must not become a
+        // newly authorized model run merely because sync replays them later.
+        const oldIntent={action:"continue",contractVersion:1,operationId:crypto.randomUUID(),
+          expectedGeneration:win.generation,expectedRevision:win.inputRevision};
+        cloud.writeJobs(cloud.readJobs().map(j=>j.id===initial.job?{...j,pendingAction:oldIntent}:j));
+        page._saveJobs(page._jobs.map(j=>j.id===initial.job?{...j,pendingAction:{...oldIntent,operationId:crypto.randomUUID(),expectedMaintenanceOperation:null}}:j));
+        await assert.rejects(cloud.pollJobs(),e=>e.code==="STALE_TASK");
+        await assert.rejects(page._pollJobs(),e=>e.code==="STALE_TASK");
+        assert.equal(cloud.readJobs().find(j=>j.id===initial.job).pendingAction,null);
+        assert.equal(page._jobs.find(j=>j.id===initial.job).pendingAction,null);
+        assert.equal(calls,0);
+        await cloud.action("sync"); await page.sync();
+        const reviewed=cloud.readJobs().find(j=>j.id===initial.job);
+        assert.equal(reviewed.reason,"EXECUTION_LIMIT_AUDITED");assert.match(reviewed.error,/维护核对已延长/);
+        assert.ok(reviewed.actions.includes("continue"));assert.equal(page.data.jobs.find(j=>j.id===initial.job).canContinue,true);
+        assert.equal(calls,0);
+        await page.taskAction({currentTarget:{dataset:{id:initial.job,action:"continue"}}});
+        while(service.readingRoutes.snapshot().accounts)await tick();
+        await page.sync();await cloud.action("sync");
+        const finished=cloud.readJobs().find(j=>j.id===initial.job);
+        assert.equal(finished.state,"done");assert.ok(finished.rootActiveMs >= review.activeMs);
+        const winPacket=(await cloud.packets())[0],miniPacket=page._record("packet").data;
+        assert.deepEqual(JSON.parse(JSON.stringify(winPacket.result)),JSON.parse(JSON.stringify(miniPacket.result)));
+        assert.ok(tailSeen);assert.equal(ledger.wallet(account).spent,calls*20);
+        if (typeof original?.expectedText === "string") assert.equal(auditText.join(""),original.expectedText);
+        if(original?.expectedPdfPages)assert.equal(winPacket.readingCoverage[0].pagination.totalPages,original.expectedPdfPages);
+        if(originalQuota===1){
+          const storage=await cloud.request(cloud.config.active,"GET","/api/v4/storage");
+          assert.equal(storage.usedBytes,0);assert.equal(storage.originals[0].available,false);
+          assert.equal(storage.originals[0].mode,"temporary");
+        }
+        return {synthetic:true,realProviderCalls:0,auditedKnownTime:true,forgedUserAuditDenied:true,
+          explicitUserContinue:true,rootCountersRetained:true,resultsEqual:true,tailSeen,simulatedProviderCalls:calls,spentMicros:calls*20,
+          oldPendingReplayDeniedBoth:true,noModelBeforeFreshContinue:true,
+          completeExpectedTextChecked:typeof original?.expectedText === "string",
+          temporaryOriginalNotRevived:originalQuota===1,
+          beforeActiveMs:review.activeMs,afterActiveMs:finished.rootActiveMs,pdfPages:original?.expectedPdfPages,
+          miniTransport:"actual Page lifecycle with Node wx adapter, not native WeChat",desktopTransport:"AccountWorkspace signed HTTP"};
+      }
       return {
         synthetic: true,
         realProviderCalls: 0,
