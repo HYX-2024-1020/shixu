@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const NATIVE_ARCHIVE_SOURCE = Object.freeze({
   version: "26.05",
-  protocol: "shixu-raw-path/1",
+  protocol: "shixu-raw-path/2",
   url: "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-src.tar.xz",
   sha256: "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
 });
@@ -50,7 +50,105 @@ ${original
         }`;
 // Private property is used ONLY by technical listing. Extraction retains the
 // upstream OS-path handling. Raw metadata must precede display normalization.
+const rar4RawDecoder = `// Shixu raw-path v2: no locale guessing, incomplete Unicode or C-string aliases.
+static bool ShixuRar4RawName(const Byte *p, unsigned size, bool unicode, UString &raw)
+{
+  raw.Empty();
+  if (size == 0) return false;
+  unsigned asciiSize = 0;
+  while (asciiSize < size && p[asciiSize] != 0) asciiSize++;
+  if (!unicode)
+  {
+    if (asciiSize != size) return false;
+    for (unsigned j = 0; j < size; j++)
+    {
+      if (p[j] >= 128) return false;
+      raw += (wchar_t)p[j];
+    }
+    return true;
+  }
+  if (asciiSize == size)
+  {
+    AString utf8;
+    utf8.SetFrom((const char *)p, size);
+    return ConvertUTF8ToUnicode(utf8, raw) && !raw.IsEmpty();
+  }
+  unsigned pos = asciiSize + 1;
+  if (pos >= size) return false;
+  const unsigned high = (unsigned)p[pos++] << 8;
+  unsigned decoded = 0;
+  while (pos < size)
+  {
+    const unsigned flags = p[pos++];
+    if (pos == size) return false;
+    for (unsigned shift = 8; shift != 0 && pos < size;)
+    {
+      shift -= 2;
+      const unsigned mode = (flags >> shift) & 3;
+      unsigned value = p[pos++];
+      unsigned count = 1;
+      unsigned correction = 0;
+      bool corrected = false;
+      if (mode == 1) value |= high;
+      else if (mode == 2)
+      {
+        if (pos == size) return false;
+        value |= (unsigned)p[pos++] << 8;
+      }
+      else if (mode == 3)
+      {
+        corrected = (value & 128) != 0;
+        count = (value & 127) + 2;
+        if (corrected)
+        {
+          if (pos == size) return false;
+          correction = p[pos++];
+        }
+        if (decoded > asciiSize || count > asciiSize - decoded) return false;
+      }
+      for (unsigned j = 0; j < count; j++, decoded++)
+      {
+        if (mode == 3) value = corrected ? (((unsigned)p[decoded] + correction) & 255) | high : p[decoded];
+        if (value == 0 || decoded >= 512) return false;
+        raw += (wchar_t)value;
+      }
+    }
+  }
+  return decoded != 0;
+}
+
+`;
 const handlerPatches = [
+  [
+    "CPP/7zip/Archive/Rar/RarHandler.cpp",
+    "  item.Flags = m_BlockHeader.Flags;",
+    "  item.Flags = m_BlockHeader.Flags;\n  // Shixu: reject split, encryption, solid, comments, versions and unknown flags before filtering.\n  if (item.Flags & (UInt16)~0x93e0) return false;",
+  ],
+  [
+    "CPP/7zip/Archive/Rar/RarHandler.cpp",
+    "        if (item.IgnoreItem())\n          continue;",
+    "        if (item.IgnoreItem())\n          return E_FAIL; // Shixu: never silently omit volume-label entries.",
+  ],
+  [
+    "CPP/7zip/Archive/Rar/RarItem.h",
+    "  UString UnicodeName;",
+    "  UString UnicodeName;\n  UString ShixuRawName;\n  bool ShixuRawNameDefined = false;",
+  ],
+  [
+    "CPP/7zip/Archive/Rar/RarItem.h",
+    "    UnicodeName.Empty();",
+    "    UnicodeName.Empty();\n    ShixuRawName.Empty();\n    ShixuRawNameDefined = false;",
+  ],
+  [
+    "CPP/7zip/Archive/Rar/RarHandler.cpp",
+    "void CInArchive::ReadName(const Byte *p, unsigned nameSize, CItem &item)\n{\n  item.UnicodeName.Empty();",
+    rar4RawDecoder + "void CInArchive::ReadName(const Byte *p, unsigned nameSize, CItem &item)\n{\n  item.ShixuRawNameDefined = ShixuRar4RawName(p, nameSize, item.HasUnicodeName(), item.ShixuRawName);\n  item.UnicodeName.Empty();",
+  ],
+  [
+    "CPP/7zip/Archive/Rar/RarHandler.cpp",
+    "    case kpidPath:\n    {",
+    "    case (PROPID)0x7f000001:\n    {\n      if (!item.ShixuRawNameDefined) return E_FAIL;\n      prop = item.ShixuRawName;\n      break;\n    }\n    case kpidPath:\n    {",
+  ],
   [
     "CPP/7zip/Archive/Rar/Rar5Handler.cpp",
     "    item.Name.SetFrom_CalcLen((const char *)Get_Buf_Data(), (unsigned)len);",

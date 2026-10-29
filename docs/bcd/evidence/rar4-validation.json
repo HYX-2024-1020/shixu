@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-30",
+  "baseline": "c92a07daaba32921258d993332a50fed9a0a12cc",
+  "protocol": "shixu-raw-path/2",
+  "sourceVersion": "26.05",
+  "sourceSha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+  "builderSha256": "75f54d009434c0ee91ce6a1a1a108f512e9b4758c8621aa966f17409ce5e05f4",
+  "patchSha256": "bc6550c9137b17014b469ffb3680761ed63f71281d9022bb3e1c47e406262ee5",
+  "windows": {
+    "toolSha256": "0cce0d36dbbfc1354d3bd82befe34419f45d2cffafa5f1e366a4dc036e511b45",
+    "compiler": "g++ (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r4) 16.1.0",
+    "finalRar4": 8,
+    "nativeAndWindowRelated": 22,
+    "independentRelease": 2,
+    "groupsOverlap": true,
+    "noUiWindow": true
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261030-rar4",
+    "buildUid": "nobody",
+    "buildJobs": 1,
+    "nice": 10,
+    "compileMs": 113342.72670099999,
+    "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "toolSha256": "b7fa1ab64d005273cdfbf7e990e1da03590718e6547f6a9cf4e5e6d3d384248e",
+    "firstAffectedCases": 15,
+    "finalRar4Cases": 8,
+    "protectedBrokerReport": "rar4-clients-linux.json",
+    "permissionsRestoredBeforeBroker": true
+  },
+  "golden": {
+    "uuSha256": "1c36a76e84bf08d1fdf7597b43737fa174a0813bf2715bf181fd3afb6f6f1f11",
+    "derivedArchiveSha256": "53e52fd5312e1da1194240bbfd15d6eab5493697ef1e03b50cfb218195487ee2",
+    "unpackedBytes": 20111,
+    "wholeUnpackedSha256": "ee16390e87152d7dec632ae2b37566da6135966e46b5166e6f40a1c827fa61ad",
+    "oracle": "Unmodified official 7-Zip26.05 from locked 7zip-bin-full26.5.1, read-only stdout",
+    "license": "fixtures/rar4-compressed.LICENSE"
+  },
+  "api": {
+    "newCalls": 0,
+    "totalNewCallsThisConversation": 1,
+    "totalUsageEstimatedCny": 0.002316
+  },
+  "reused": {
+    "commit": "c92a07daaba32921258d993332a50fed9a0a12cc",
+    "ci": "https://github.com/HYX-2024-1020/shixu/actions/runs/40907917423",
+    "allSixRequiredPassed": true,
+    "localHistoricalUiNotRepeated": true
+  },
+  "reproduced": [
+    "Baseline rejects all RAR4 as unsupported",
+    "Technical Version is a decompressor version for RAR4, not permission to allow old-version records",
+    "Initial permissive native handling of unverified flags and filtered volume labels needed strict header/handler rejection",
+    "Windows case-insensitive includes concatenated A.txt/a.txt; explicit -ssc fixes without weakening CRC or lengths"
+  ],
+  "remaining": [
+    "Solid/per-member shared-block accounting",
+    "Ambiguous old codepages and unimplemented RAR4 features",
+    "Other image formats/scanned PDF/embedded images/streaming/semantic merge/other AI shared billing/full safety recovery and migration",
+    "Source Electron new visible behavior/native WeChat/phone/installer not verified"
+  ],
+  "productionModified": false,
+  "bcdImplementationComplete": false,
+  "newHeadCi": "Check its own six required results after push, final status by comments"
+}

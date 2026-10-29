@@ -950,7 +950,7 @@ var reasons = {
   PNG_MALFORMED: "PNG结构损坏",
   ARCHIVE_WINDOW_PENDING: "后续包内材料等待读取，尚未进入整理结果",
   ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
-  ARCHIVE_RAR4_UNSUPPORTED: "旧版 RAR 的原路径与编码尚未验证，暂不支持",
+  ARCHIVE_RAR4_UNSUPPORTED: "对应服务端尚未安全核验此RAR4材料，请核对工具版本与编码",
   NATIVE_READER_UNSUPPORTED: "服务端安全归档读取工具未就绪，请联系维护者",
   ARCHIVE_NESTED_UNSUPPORTED: "嵌套归档暂不支持，未展开",
   ARCHIVE_ENTRY_LIMIT: "包内文件超过单件安全限制，未读取",

@@ -122,3 +122,48 @@ export function rarBytes(entries) {
     header(5, 0, 0),
   ]);
 }
+
+// Project-authored RAR 2.x/3.x/4.x stored blocks. No external compressor needed.
+export function rar4Bytes(entries,{unicode=false,archiveFlags=0,fileFlags=0}={}){
+  const header=(type,flags,body)=>{
+    const b=Buffer.alloc(7+body.length);b[2]=type;b.writeUInt16LE(flags,3);b.writeUInt16LE(b.length,5);body.copy(b,7);
+    b.writeUInt16LE(crc32(b.subarray(2))&65535);return b;
+  };
+  const pathBytes=name=>{
+    if(unicode!=='encoded')return Buffer.from(name);
+    const words=Buffer.from(name,'utf16le'),encoded=[0];
+    for(let offset=0;offset<words.length;offset+=8){encoded.push(0xaa,...words.subarray(offset,offset+8));}
+    return Buffer.concat([Buffer.from('legacy'),Buffer.from([0]),Buffer.from(encoded)]);
+  };
+  return Buffer.concat([Buffer.from('526172211a0700','hex'),header(0x73,archiveFlags,Buffer.alloc(6)),
+    ...(Array.isArray(entries)?entries:Object.entries(entries)).flatMap(([name,value])=>{
+      const body=Buffer.from(value),filename=pathBytes(name),meta=Buffer.alloc(25);
+      meta.writeUInt32LE(body.length);meta.writeUInt32LE(body.length,4);meta[8]=3;meta.writeUInt32LE(crc32(body),9);
+      meta.writeUInt32LE(0x00210000,13);meta[17]=20;meta[18]=0x30;meta.writeUInt16LE(filename.length,19);meta.writeUInt32LE(0o100644,21);
+      return [header(0x74,0x8000|(unicode?0x200:0)|fileFlags,Buffer.concat([meta,filename])),body];
+    }),header(0x7b,0,Buffer.alloc(0))]);
+}
+
+export function decodeUuFixture(encoded){
+  const chunks=[];
+  for(const line of encoded.split(/\r?\n/).slice(1)){
+    if(line==='end')break;if(!line)continue;
+    const length=(line.charCodeAt(0)-32)&63,bytes=[];
+    for(let i=1;i<line.length;i+=4){const a=(line.charCodeAt(i)-32)&63,b=(line.charCodeAt(i+1)-32)&63,
+      c=(line.charCodeAt(i+2)-32)&63,d=(line.charCodeAt(i+3)-32)&63;
+      bytes.push((a<<2)|(b>>4),((b&15)<<4)|(c>>2),((c&3)<<6)|d);}
+    chunks.push(Buffer.from(bytes.slice(0,length)));
+  }
+  return Buffer.concat(chunks);
+}
+// The upstream normal-compression archive also has links and backslash aliases.
+// Keep its original first file header and compressed payload byte-for-byte,
+// omit the other members, and append our authored empty RAR4 end header.
+export function rar4FirstCompressedFixture(encoded){
+  const original=decodeUuFixture(encoded),start=7+original.readUInt16LE(12);
+  if(original[start+2]!==0x74||(original.readUInt16LE(10)&8)||
+    (original.readUInt16LE(start+3)&0x117))throw Error('FIXTURE_STRUCTURE');
+  const size=original.readUInt16LE(start+5),packed=original.readUInt32LE(start+7),unpacked=original.readUInt32LE(start+11),
+    name=original.subarray(start+32,start+32+original.readUInt16LE(start+26)).toString('ascii');
+  return {original,name,unpacked,body:Buffer.concat([original.subarray(0,start+size+packed),rar4Bytes({}).subarray(-7)])};
+}

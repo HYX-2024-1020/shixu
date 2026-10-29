@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, chown, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
+const rar4=process.argv.includes("--rar4");
 const costAudit=process.argv.includes("--cost-audit");
 const base = resolve(process.argv[2] || "");
 if (
@@ -11,7 +12,7 @@ if (
   !/^\/opt\/shixu-bcd-test-[\w-]+$/.test(base)
 )
   throw Error("SYNTHETIC_ROOT_REQUIRED");
-const prefix=costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
+const prefix=rar4 ? "/run/shixu-rar4-windows" : costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
 const socketDir = prefix+"-socket", staging=prefix+"-input";
 await mkdir(socketDir, { mode: 0o750 });
 await chown(socketDir, 0, 65534);
@@ -44,7 +45,7 @@ try {
     staging,
   });
   const cases = [];
-  for (const format of (costAudit ? ["usage","not-billed"] : ["zip", "rar", "7z"])) {
+  for (const format of (costAudit ? ["usage","not-billed"] : rar4 ? ["rar4","rar4-deleted"] : ["zip", "rar", "7z"])) {
     const directory = await mkdtemp(join(base, "clients-"));
     directories.push(directory);
     await chown(directory, 65534, 65534);
@@ -54,7 +55,7 @@ try {
       `
       ${costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
       import { createBrokerClient } from './server/reading/broker-service.mjs';
-      const result=await ${costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${costAudit ? "disposition" : "format"}:'${format}',deleted:${costAudit ? format === "not-billed" : format === "7z"},reader:createBrokerClient('${socketPath}')});
+      const result=await ${costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${costAudit ? "disposition" : "format"}:'${format==="rar4-deleted"?"rar4":format}',deleted:${costAudit ? format === "not-billed" : format === "7z" || format === "rar4-deleted"},reader:createBrokerClient('${socketPath}')});
       console.log(JSON.stringify(result));`,
     );
     assert.equal(result.exit, 0, result.errors);
@@ -88,7 +89,7 @@ try {
     cases,
   };
   await writeFile(
-    join(base, costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
+    join(base, rar4 ? "rar4-clients-linux.json" : costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report));

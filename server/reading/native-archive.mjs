@@ -16,6 +16,42 @@ const fail = (code) => {
   throw Error(code);
 };
 
+// RAR4's generic handler can omit service/volume-label records. Walk opaque
+// headers first so a skipped record cannot make a package look fully read.
+// Names and compressed data are still handled by the verified native tool.
+function preflightRar4(bytes) {
+  if (bytes.length < 27 || bytes[9] !== 0x73 ||
+    bytes.readUInt16LE(12) !== 13 || (bytes.readUInt16LE(10) & ~0x104))
+    fail("PACKAGE_UNSUPPORTED");
+  if ((crc32(bytes.subarray(9,20)) & 65535) !== bytes.readUInt16LE(7))
+    fail("PACKAGE_INVALID");
+  let position=20,entries=0;
+  while(position<bytes.length){
+    if(position+7>bytes.length)fail("PACKAGE_INVALID");
+    const type=bytes[position+2],flags=bytes.readUInt16LE(position+3),size=bytes.readUInt16LE(position+5);
+    const end=position+size;
+    if(size<7||end>bytes.length||(crc32(bytes.subarray(position+2,end))&65535)!==bytes.readUInt16LE(position))
+      fail("PACKAGE_INVALID");
+    if(type===0x7b){
+      if(flags||size!==7||end!==bytes.length)fail("PACKAGE_UNSUPPORTED");
+      return;
+    }
+    if(type!==0x74||(flags&~0x93e0))fail("PACKAGE_UNSUPPORTED");
+    if(size<32)fail("PACKAGE_INVALID");
+    if(++entries>PACKAGE_LIMITS.entries)fail("PACKAGE_LIMIT");
+    const packed=bytes.readUInt32LE(position+7),host=bytes[position+15],attr=bytes.readUInt32LE(position+28);
+    if(host>3||(host<3&&(attr&8)))fail("PACKAGE_UNSUPPORTED");
+    if(host===3 && ![0o100000,0o040000].includes(attr&0o170000))fail("PACKAGE_PATH");
+    const extra=(flags&0x100)?8:0;
+    if(size<32+extra)fail("PACKAGE_INVALID");
+    if(extra && (bytes.readUInt32LE(position+32)||bytes.readUInt32LE(position+36)))fail("PACKAGE_LIMIT");
+    const nameSize=bytes.readUInt16LE(position+26);
+    if(!nameSize||32+extra+nameSize>size||end+packed>bytes.length)fail("PACKAGE_INVALID");
+    position=end+packed;
+  }
+  fail("PACKAGE_INVALID"); // An explicit validated end record is required.
+}
+
 // No system 7z, environment override, caller-supplied executable or shell.
 async function verifiedTool() {
   try {
@@ -27,7 +63,7 @@ async function verifiedTool() {
       await readFile(join(generated, "manifest.json"), "utf8"),
     );
     if (
-      manifest.protocol !== "shixu-raw-path/1" ||
+      manifest.protocol !== "shixu-raw-path/2" ||
       manifest.sha256 !== sourceHash ||
       manifest.platform !== process.platform + "-" + process.arch ||
       sha256(await readFile(binary)) !== manifest.toolSha256
@@ -100,6 +136,7 @@ export function parseNativeListing(text, format, inputBytes, budget) {
     archive.Solid !== "-" ||
     (format === "Rar5" &&
       (archive.Encrypted !== "-" || archive.Multivolume !== "-")) ||
+    (format === "Rar" && (archive.Multivolume !== "-" || archive.Volumes !== "1")) ||
     archive.Multivolume === "+" ||
     (archive.Volumes && archive.Volumes !== "1") ||
     archive["Offset"] ||
@@ -132,6 +169,7 @@ export function parseNativeListing(text, format, inputBytes, budget) {
     if (
       !["+", "-"].includes(p.Folder) ||
       p.Encrypted !== "-" ||
+      (format === "Rar" && !["15","20","26","29","36"].includes(p.Version)) ||
       [
         "Encrypted",
         "Solid",
@@ -145,7 +183,7 @@ export function parseNativeListing(text, format, inputBytes, budget) {
         "Copy Link",
         "NT Security",
         "Version",
-      ].some((k) => p[k])
+      ].some((k) => p[k] && !(format === "Rar" && k === "Version" && ["15","20","26","29","36"].includes(p[k])))
     )
       fail("PACKAGE_UNSUPPORTED");
     // Unix special files and Windows reparse attributes must never be treated
@@ -200,14 +238,9 @@ export async function openNativeArchive(bytes, { budget, extension }) {
       : extension === "rar" &&
           bytes.subarray(0, 8).toString("hex") === "526172211a070100"
         ? "Rar5"
-        : null;
-  if (!format)
-    fail(
-      extension === "rar" &&
-        bytes.subarray(0, 7).toString("hex") === "526172211a0700"
-        ? "ARCHIVE_RAR4_UNSUPPORTED"
-        : "FORMAT_MISMATCH",
-    );
+        : extension === "rar" && bytes.subarray(0,7).toString("hex") === "526172211a0700" ? "Rar" : null;
+  if (!format) fail("FORMAT_MISMATCH");
+  if(format === 'Rar')preflightRar4(bytes);
   const binary = await verifiedTool();
   // The Linux broker offers only /scratch as writable tmpfs. A directory is
   // owned by this invocation and contains only the original opaque archive.
@@ -227,7 +260,7 @@ export async function openNativeArchive(bytes, { budget, extension }) {
       if (remaining <= 0) return reject(Error("ARCHIVE_ENTRY_FAILED"));
       const child = spawn(
         binary,
-        [...args, "-mmt=1", "-bd", "-sccUTF-8", "-t" + format, "--", input],
+        [...args, "-mmt=1", "-bd", "-ssc", "-sccUTF-8", "-t" + format, "--", input],
         {
           cwd: directory,
           windowsHide: true,

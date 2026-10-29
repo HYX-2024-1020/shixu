@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { archiveWindowSample } from "../server/reading/archive-fixtures.mjs";
 import {
   rarBytes,
+  rar4Bytes,
   sevenZipBytes,
 } from "../server/reading/native-archive-fixtures.mjs";
 import { sha256 } from "../server/reading/material.mjs";
@@ -18,7 +19,7 @@ export async function runArchiveWindowsClients({
   const body =
     format === "zip"
       ? sample.body
-      : format === "rar"
+      : format === "rar4" ? rar4Bytes(sample.entries,{unicode:"encoded"}) : format === "rar"
         ? rarBytes(sample.entries)
         : await sevenZipBytes(sample.entries);
   const seen = new Map(),
@@ -53,7 +54,7 @@ export async function runArchiveWindowsClients({
     original: {
       ...sample,
       body,
-      name: "包内分页." + format,
+      name: "包内分页." + (format==="rar4" ? "rar" : format),
       verify({ win, mini, page, cloud }) {
         assert.equal([...seen.values()].join(""), sample.expectedText);
         assert.deepEqual(win.readingCoverage, mini.readingCoverage);

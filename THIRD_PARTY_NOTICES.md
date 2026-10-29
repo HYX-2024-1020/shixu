@@ -1,8 +1,10 @@
 # 第三方代码、素材与样本
 
-RAR5/7z服务读取另用[官方7-Zip26.05完整源](https://github.com/ip7z/7zip/releases/tag/26.05)，源SHA-256 `0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e`。项目构建器修改原路径元数据查询/编码与RAR5 NUL拒绝；保留上游版权，修改同样适用上游许可。7-Zip包含LGPL-2.1-or-later、BSD及unRAR限制，不能将npm包装器MIT当作二进制许可。自包含服务包携带`generated-native/License.txt`、完整原始源码tar及精确补丁构建器，生成物不提交Git。已有桌面包装依赖固定为7zip-bin-full26.5.1，实际官方二进制26.05。
+RAR4/RAR5/7z服务读取另用[官方7-Zip26.05完整源](https://github.com/ip7z/7zip/releases/tag/26.05)，源SHA-256 `0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e`。项目构建器修改原路径元数据查询/编码、RAR5 NUL拒绝，以及RAR4严格编码/不完整名称与隐式省略拒绝（原路径协议v2）；保留上游版权，修改同样适用上游许可。7-Zip包含LGPL-2.1-or-later、BSD及unRAR限制，不能将npm包装器MIT当作二进制许可。自包含服务包携带`generated-native/License.txt`、完整原始源码tar及精确补丁构建器，生成物不提交Git。已有桌面包装依赖固定为7zip-bin-full26.5.1，实际官方二进制26.05。
 
 独立压缩RAR5样本来自[libarchive v3.8.2](https://github.com/libarchive/libarchive/blob/v3.8.2/libarchive/test/test_read_format_rar5_compressed.rar.uu)，保留原uu编码于[fixtures](server/reading/fixtures/rar5-compressed.uu)，SHA-256 `7a87af5035430d2307f9a183b2da8a71c95b3c0a5b8e8d1f172ef3343d4b8620`；附[BSD两条款许可及版权](server/reading/fixtures/rar5-compressed.LICENSE)。预期1200字节按上游`verify_data`公式独立生成核对。其他RAR5/7z样本由项目生成，无真实个人资料。
+
+独立压缩RAR4样本来自[libarchive v3.8.1](https://github.com/libarchive/libarchive/blob/v3.8.1/libarchive/test/test_read_format_rar_compress_normal.rar.uu)，保留[原uu文件](server/reading/fixtures/rar4-compressed.uu)及[BSD两条款版权许可](server/reading/fixtures/rar4-compressed.LICENSE)。uu SHA-256为1c36a76e84bf08d1fdf7597b43737fa174a0813bf2715bf181fd3afb6f6f1f11；测试仅保留首件原头/压缩流并加项目生成结束块，派生包SHA为53e52fd5312e1da1194240bbfd15d6eab5493697ef1e03b50cfb218195487ee2。独立官方26.05工具核对其20111原字节全文SHA ee16390e87152d7dec632ae2b37566da6135966e46b5166e6f40a1c827fa61ad，不把上游其他链接/危险路径当作可支持材料；其他RAR4样本为项目合成，无RAR压缩实现。
 
 ZIP联合样本由项目在 `server/reading/archive-fixtures.mjs` 自行生成，沿用现有 fflate（MIT，lockfile固定）只作测试写入器，运行时解包仅用Node内置zlib和项目结构校验器，无新增第三方解压二进制。包内Office/PDF同样为项目合成材料，依赖许可沿下文既有记录。
 
