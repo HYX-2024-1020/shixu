@@ -1,5 +1,7 @@
 ## 2026-10-29 B/C/D RAR5/7z联合读取（#73，整体未完成）
 
+原生工具构建已按普通UID修正官方只读源文件的补丁权限：仅改独立构建缓存，不改双端产品/账本/运行隔离。nobody从头构建及8项读取专项通过，工具SHA保持一致；详见[普通UID证据](bcd/evidence/native-builder-uid.json)，CI自身状态单独记录。
+
 受控服务使用固定官方源构建的安全工具读取非solid RAR5/7z中的TXT/CSV/DOCX/XLSX/PDF文字层；完整预检后仅stdout读取，保留原路径、Unicode范围、页/表/段落来源及逐项遗漏。Windows与微信设置说明一致，缺少匹配工具、旧RAR、solid、加密、多卷明确拒绝；仍不读取图片或扫描页。
 
 同一任务/账本/根水位管线覆盖停止、重启、temporary过期后的同hash补传、有效付费块复用与发布；不恢复原件期限/额度/下载权限。源码Electron与实际小程序Page/Node签名HTTP分别核对来源与遗漏，官方模板编译和Linux真实隔离独立记证。实际结果、性能与未验收边界见[原生归档验证](bcd/native-archive-verification.md)。仍保持Draft，原生微信、手机、安装版和生产迁移没有交付。

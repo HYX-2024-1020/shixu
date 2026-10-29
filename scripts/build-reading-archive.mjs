@@ -220,12 +220,16 @@ export async function buildReadingArchive({ jobs = 2 } = {}) {
       if (text.split(original).length !== 2)
         throw Error("NATIVE_PATCH_REVIEW_REQUIRED");
       const updated = text.replace(original, replacement);
+      // Upstream tar entries are read-only. Only make the owned cache copy
+      // writable; a root development build must not mask unprivileged CI.
+      await chmod(listFile, 0o600);
       await writeFile(listFile, updated);
       for (const [relative, before, after] of handlerPatches) {
         const path = join(src, relative);
         const text = (await readFile(path, "utf8")).replace(/\r\n/g, "\n");
         if (text.split(before).length !== 2)
           throw Error("NATIVE_HANDLER_PATCH_REVIEW_REQUIRED: " + relative);
+        await chmod(path, 0o600);
         await writeFile(path, text.replace(before, after));
       }
       await writeFile(
