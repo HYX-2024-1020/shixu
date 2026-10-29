@@ -9,11 +9,12 @@ import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
-import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
+import { pdfBytes, pdfLimitSample } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
-const pdf = process.argv.includes("--pdf");
+const pdfLimit = process.argv.includes("--pdf-limit");
+const pdf = process.argv.includes("--pdf") || pdfLimit;
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
 const temporary = process.argv.includes("--temporary");
@@ -26,6 +27,9 @@ const readFailure = process.argv.includes("--reader-limit")
 const original = zip ? (() => {
   const f = archiveSample({ long: true });
   return { name: f.name, type: f.type, body: [...f.body] };
+})() : pdfLimit ? (() => {
+  const f = pdfLimitSample();
+  return { name:f.name, type:f.type, body:[...f.body] };
 })() : pdf
   ? {
       name: "合成.pdf",
@@ -107,7 +111,7 @@ const reading = {
           { once: true },
         ),
       );
-    return readMaterial(f);
+    return readMaterial(f, pdfLimit ? {pdfTextUnits:pdfLimitSample().textUnitLimit} : {});
   },
   priceId: "fixture",
   modelVersion: "synthetic/1",
@@ -368,6 +372,8 @@ try {
       if (zip) {
         await expect(materials.getByText(/包内 “未读\/嵌套.zip”.*嵌套归档/)).toBeVisible();
         await expect(materials.getByText(/包内 “页面\/正文.pdf”.*第 2 页/)).toBeVisible();
+      } else if (pdfLimit) {
+        await expect(materials.getByText(/PDF 第 5–6 页.*安全资源限制/)).toBeVisible();
       } else if (pdf) {
         await expect(
           materials.getByText(/PDF 第 181 页.*未提取到文字/),
@@ -404,6 +410,7 @@ try {
         published: true,
         format: zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
         crossRevisionReuse: revisionReuse,
+        pdfResourceSuffix: pdfLimit,
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,
       }),

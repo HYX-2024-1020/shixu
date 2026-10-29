@@ -3,6 +3,7 @@ import { mkdir, chmod, writeFile, rm } from "node:fs/promises";
 import { createLinuxReader } from "../server/reading/linux-broker.mjs";
 import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
 import { sha256 } from "../server/reading/material.mjs";
+import { PDF_TEXT_UNITS } from "../server/reading/pdf.mjs";
 const base = process.argv[2];
 if (
   process.platform !== "linux" ||
@@ -46,11 +47,20 @@ try {
   );
   assert.ok(m.covered.every((r) => r.page < 241));
   assert.ok(!m.segments.some((s) => s.text.includes("不可假称已读的尾页")));
+  const pageText = ("资源".repeat(50) + "\n").repeat(400);
+  const expectedPages = Math.floor(PDF_TEXT_UNITS / pageText.length);
+  const expectedHash = sha256(pageText.repeat(expectedPages));
+  assert.equal(sha256(m.segments.map(s => s.text).join("")), expectedHash);
+  assert.deepEqual(m.covered.map(r => r.page), Array.from({length:expectedPages}, (_, i) => i + 1));
+  assert.ok(m.covered.every((r,i) => r.start === i * pageText.length && r.end === (i+1) * pageText.length));
   report = {
     synthetic: true,
     realProviderCalls: 0,
     originalBytes: body.length,
     expandedResourceLimit: true,
+    completePages: expectedPages,
+    independentPrefixHash: expectedHash,
+    fullPrefixAndCoordinatesChecked: true,
     unreadSuffix: m.uncovered.at(-1),
     elapsedMs: performance.now() - started,
     ...out.metrics,

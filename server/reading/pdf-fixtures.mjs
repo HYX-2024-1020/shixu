@@ -99,3 +99,14 @@ export function pdfBytes(
   );
   return Buffer.concat(parts);
 }
+
+export function pdfLimitSample() {
+  const text = ("合成😀".repeat(20) + "\n").repeat(400);
+  const pages = Array.from({length:4}, (_, i) => ({ text:
+    (i === 0 ? "尾部唯一标记（位于可读前缀）\n" : "") + text +
+    (i === 3 ? "已读前缀的最后内容" : "") }));
+  const expectedText = pages.map(p => p.text.endsWith("\n") ? p.text : p.text + "\n").join("");
+  return { name: "资源范围.pdf", type: "application/pdf",
+    body: pdfBytes([...pages, {text}, {text:"不得假称已读的后缀"}], {compress:true}),
+    expectedText, textUnitLimit: expectedText.length + 50 };
+}

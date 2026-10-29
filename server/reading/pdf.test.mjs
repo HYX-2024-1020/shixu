@@ -8,6 +8,7 @@ import {
   coverageOnly,
 } from "./material.mjs";
 import { readingView, sourceLocation } from "../../shared/reading-view.mjs";
+import { execFileSync } from "node:child_process";
 const read = (body, options) =>
   readMaterial(
     {
@@ -19,6 +20,19 @@ const read = (body, options) =>
     },
     options,
   );
+test("PDF text resource limit drains queued chunks and exits normally with a complete-page prefix", async () => {
+  // A child makes unhandled stream enqueue errors observable as a process exit.
+  const source = `import {readMaterial,sha256} from './server/reading/material.mjs';
+    import {pdfBytes} from './server/reading/pdf-fixtures.mjs';
+    const body=pdfBytes([{text:'安全前页😀'},{text:('资源'.repeat(50)+'\\n').repeat(400)},{text:'不得标成已读的尾页'}],{compress:true});
+    const result=await readMaterial({id:'pdf',name:'a.pdf',body,size:body.length,hash:sha256(body)},{pdfTextUnits:120});
+    console.log(JSON.stringify({text:result.segments.map(s=>s.text).join(''),covered:result.covered.map(r=>r.page),unread:result.uncovered.at(-1),state:result.state}));`;
+  const out = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", source], {
+    cwd: new URL("../../", import.meta.url), encoding: "utf8", timeout: 10000,
+  }));
+  assert.deepEqual(out, { text: "安全前页😀\n", covered: [1],
+    unread: { kind: "pdf", page: 2, pageEnd: 3, code: "PDF_RESOURCE_LIMIT" }, state: "partial" });
+});
 test("PDF preserves complete Unicode, page order, rotation and honest missing visual ranges", async () => {
   const m = await read(
     pdfBytes([

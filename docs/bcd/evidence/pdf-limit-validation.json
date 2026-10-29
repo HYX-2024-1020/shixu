@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Shanghai",
+  "baseline": "07327211b130b4f2a10a5dae3f960562301f345e",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "affectedReadingTasksClientsPassed": 78,
+  "desktopDataPassed": 18,
+  "prAndParityGatesPassed": 8,
+  "electronSourcePdfResourceSuffix": {
+    "command": "node scripts/desktop-reading-tasks-smoke.mjs --pdf-limit --temporary",
+    "passed": true,
+    "internalLowerLimitFixture": true,
+    "stopReuploadContinuePublishReload": true,
+    "unreadPagesVisible": "5-6",
+    "installedDesktop": false
+  },
+  "linuxOrdinaryUidPdfAndClientTestsPassed": 6,
+  "defaultTextLimitIsolation": {
+    "originalBytes": 531269,
+    "totalPages": 241,
+    "completePages": 207,
+    "unreadPages": "208-241",
+    "independentFullPrefixAndCoordinatesVerified": true,
+    "fullPdfReading": false
+  },
+  "reusedUnchangedEvidenceFrom": "0732721",
+  "reusedChecks": ["official WXML/WXSS compile", "15 generated files", "web and desktop build", "92 browser tests", "17 existing Electron source UI suites"],
+  "notVerified": ["remaining-page cursor execution", "arbitrary-size PDF streaming", "scanned PDF and vision semantics", "native WeChat", "phone", "installed desktop", "production migration", "E/F"]
+}

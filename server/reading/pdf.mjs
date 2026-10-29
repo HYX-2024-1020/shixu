@@ -1,14 +1,16 @@
 import { getDocument } from "./pdf-api.mjs";
 import { WorkerMessageHandler } from "./pdf-core.mjs";
 
-export const PDF_READER_VERSION = "pdf-text/1;pdfjs/6.2.108";
+export const PDF_READER_VERSION = "pdf-text/2;pdfjs/6.2.108";
 // A resource ceiling, not a document/page limit. Unvisited pages are reported.
 export const PDF_TEXT_UNITS = 8 * 1024 * 1024;
 
 // Production invokes this ONLY inside the broker's restricted process. The
 // API/worker pair runs in that same process; it has no canvas/native modules,
 // host fonts, URL loader, credentials, scripting manager or rendering calls.
-export async function readPdf(bytes, { add, missing }) {
+export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UNITS }) {
+  if (!Number.isSafeInteger(textUnitLimit) || textUnitLimit < 1 || textUnitLimit > PDF_TEXT_UNITS)
+    throw Error("INVALID_PDF_TEXT_LIMIT");
   if (!bytes.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
     missing("FORMAT_MISMATCH");
     return;
@@ -47,7 +49,7 @@ export async function readPdf(bytes, { add, missing }) {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       // No fixed total page cap. Expanded text and the broker's total memory,
       // output and execution ceilings remain independent safety boundaries.
-      if (units >= PDF_TEXT_UNITS) {
+      if (units >= textUnitLimit) {
         missing("PDF_RESOURCE_LIMIT", {
           kind: "pdf",
           page: pageNumber,
@@ -64,22 +66,34 @@ export async function readPdf(bytes, { add, missing }) {
             includeMarkedContent: false,
           })
           .getReader();
-        let text = "";
+        let text = "", overLimit = false;
         try {
           for (;;) {
             const { value, done } = await stream.read();
             if (done) break;
+            // Drain the current page without retaining more text once limited.
+            // Cancelling this in-process PDF.js stream races queued enqueue
+            // messages and can terminate Node before a trusted prefix is sent.
+            if (overLimit) continue;
             for (const item of value.items) {
               if (typeof item.str !== "string") continue;
               const part =
                 item.str.replace(/\r\n?/g, "\n") + (item.hasEOL ? "\n" : "");
               units += part.length;
-              if (units > PDF_TEXT_UNITS) throw Error("PDF_RESOURCE_LIMIT");
+              if (units > textUnitLimit) {
+                overLimit = true;
+                text = "";
+                break;
+              }
               text += part;
             }
           }
         } finally {
-          await stream.cancel().catch(() => {});
+          stream.releaseLock();
+        }
+        if (overLimit) {
+          missing("PDF_RESOURCE_LIMIT", { kind: "pdf", page: pageNumber, pageEnd: document.numPages });
+          break;
         }
         const range = { kind: "pdf", page: pageNumber, rotation: page.rotate };
         if (text.trim()) {

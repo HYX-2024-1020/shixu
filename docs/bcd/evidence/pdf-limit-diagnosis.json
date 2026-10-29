@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "purpose": "identify memory versus wall-clock rejection of the existing fixed dense PDF",
+  "result": {
+    "synthetic": true,
+    "realProviderCalls": 0,
+    "originalBytes": 531269,
+    "expandedResourceLimit": false,
+    "outerResourceRejection": "ISOLATED_READING_FAILED",
+    "elapsedMs": 23249.579134
+  },
+  "samples": 231,
+  "maxObservedBytes": 88162304,
+  "last": {
+    "memoryBytes": 20557824,
+    "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "cpu": "usage_usec 11578824\nuser_usec 11278298\nsystem_usec 300526\ncore_sched.force_idle_usec 0\nnr_periods 231\nnr_throttled 231\nthrottled_usec 16145347\nnr_bursts 0\nburst_usec 0\n"
+  }
+}
