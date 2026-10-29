@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-29",
+  "baseCommit": "930a76c0a2d7a7465c9117a0469b8b5352eb87e3",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "budget": "Historical cumulative DeepSeek spend against the CNY 10 development cap remains unknown. No live provider invocation.",
+  "local": [
+    {
+      "command": "node --test server/reading/*.test.mjs",
+      "passed": 191,
+      "note": "Before final under-reservation receipt-failure fence; final affected cost-maintenance group rerun below. Counts overlap."
+    },
+    {
+      "command": "node --test server/reading/cost-maintenance.test.mjs",
+      "passed": 12,
+      "purpose": "Final price-fault fence survives receipt rollback; disk restart, proof rejection, action/create replay and known-cost conflicts"
+    },
+    {
+      "command": "npm run test:sync",
+      "passed": 125
+    },
+    {
+      "command": "npm test",
+      "passed": 93
+    },
+    {
+      "command": "node --test deploy/sync/release.test.mjs deploy/sync/configure-secrets.test.mjs deploy/sync/accounts-deployment.test.mjs desktop/*.test.cjs server/server.test.mjs",
+      "passed": 23,
+      "groups": {
+        "release": 4,
+        "desktopData": 18,
+        "personalService": 1
+      }
+    },
+    {
+      "command": "node --test server/reading/cost-maintenance.test.mjs deploy/sync/release.test.mjs deploy/sync/configure-secrets.test.mjs deploy/sync/accounts-deployment.test.mjs",
+      "passed": 15,
+      "note": "11 cost cases plus 4 release cases before the final twelfth cost fault case; overlapping check."
+    },
+    {
+      "command": "node scripts/desktop-reading-tasks-smoke.mjs --audit-cost --temporary; node scripts/desktop-reading-tasks-smoke.mjs --audit-cost --not-billed --temporary",
+      "results": [
+        {
+          "synthetic": true,
+          "realProviderCalls": 0,
+          "electronSourceUI": true,
+          "sshTunnelToIsolatedLinux": false,
+          "originalUpload": true,
+          "originalLifecycle": true,
+          "originalOfflineLock": true,
+          "temporaryCleanupAndReupload": true,
+          "stopContinueButtons": true,
+          "cumulativeWallet": true,
+          "published": true,
+          "format": "zip",
+          "costReconciliation": "usage",
+          "crossRevisionReuse": false,
+          "pdfResourceSuffix": false,
+          "archivePdfWindows": true,
+          "pdfPageWindows": false,
+          "simulatedCalls": 7
+        },
+        {
+          "synthetic": true,
+          "realProviderCalls": 0,
+          "electronSourceUI": true,
+          "sshTunnelToIsolatedLinux": false,
+          "originalUpload": true,
+          "originalLifecycle": true,
+          "originalOfflineLock": true,
+          "temporaryCleanupAndReupload": true,
+          "stopContinueButtons": true,
+          "cumulativeWallet": true,
+          "published": true,
+          "format": "zip",
+          "costReconciliation": "not-billed",
+          "crossRevisionReuse": false,
+          "pdfResourceSuffix": false,
+          "archivePdfWindows": true,
+          "pdfPageWindows": false,
+          "simulatedCalls": 7
+        }
+      ]
+    },
+    {
+      "command": "npm run build; npm run desktop:build",
+      "passed": true
+    },
+    {
+      "command": "npm run mini:build; npm run mini:check",
+      "generatedFiles": 15,
+      "passed": true,
+      "note": "Generated content unchanged; no direct generated edits."
+    },
+    {
+      "command": "npm run mini:compile",
+      "passed": true,
+      "compiler": "Installed official wcc/wcsc explicitly selected by WECHAT_COMPILER_DIR",
+      "note": "Not a native IDE session or phone acceptance."
+    },
+    {
+      "command": "node --test scripts/check-pr.test.mjs scripts/check-client-parity.test.mjs",
+      "passed": 8
+    },
+    {
+      "command": "node scripts/check-docs.mjs",
+      "markdownEntries": 78,
+      "passed": true
+    }
+  ],
+  "reused": {
+    "commit": "930a76c0a2d7a7465c9117a0469b8b5352eb87e3",
+    "ci": "https://github.com/HYX-2024-1020/shixu/actions/runs/40851387482",
+    "localBrowserScenarios": 92,
+    "existingElectronUISuites": 17,
+    "reason": "Renderer/shared/layout and legacy UI paths unchanged; local new cost-audit Electron/actual Page scenarios run on current source. New head mandatory CI still runs the complete browser and Windows suites.",
+    "readingPressureSample": "241-page archive pressure measurement reused; parser, worker, isolation and window sizes unchanged."
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261029-cost-audit",
+    "runtime": "/opt/shixu-bcd-test-20261028/runtime",
+    "ordinaryUid": {
+      "command": "runuser -u nobody -- node --test server/reading/cost-maintenance.test.mjs server/reading/root-safety.test.mjs server/reading/maintenance.test.mjs",
+      "passed": 16,
+      "note": "Before final price-fault case; final affected 12-case cost group rerun with the last fault fence. Counts overlap."
+    },
+    "finalSafetyGroup": {
+      "command": "runuser -u nobody -- node --test server/reading/cost-maintenance.test.mjs",
+      "passed": 12
+    },
+    "protectedBroker": "cost-audit-clients-linux.json",
+    "note": "Explicit traversable synthetic cwd, no production or private database reads."
+  },
+  "reproducedAndFixed": [
+    "A sent call projected as released without an immutable nonbilling receipt incorrectly passed ledger audit; a failing assertion now rejects it.",
+    "A pending task in another root was not initially excluded from cost reconciliation; failing regression added an account-wide active-task gate, and new creation requests also bind the cost receipt.",
+    "An initial forged-usage test reached REUPLOAD_REQUIRED first; it now verifies cleanup, reuploads exact bytes, then proves UNKNOWN_COST still rejects forged usage. No product integrity gate was relaxed."
+  ],
+  "boundaries": [
+    "Trusted host callback contract only; no authenticated real supplier billing evidence integration",
+    "No ordinary-user maintenance HTTP route",
+    "No production migration, deployment, client installation, native WeChat/phone/installer acceptance",
+    "Unknown time/checkpoint reconciliation and full independent safety recovery remain incomplete",
+    "BCD incomplete, PR remains Draft"
+  ]
+}

@@ -13,7 +13,10 @@ import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf
 import { archiveSample, archiveWindowSample } from "../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../server/reading/native-archive-fixtures.mjs";
 import { DatabaseSync } from "node:sqlite";
-const archiveWindows = process.argv.includes("--archive-windows");
+const costAudit=process.argv.includes("--audit-cost");
+const costDisposition=process.argv.includes("--not-billed") ? "not-billed" : "usage";
+const costEvidence=new Map();
+const archiveWindows = process.argv.includes("--archive-windows") || costAudit;
 const safetyRollback = process.argv.includes("--safety-rollback");
 const auditTime = process.argv.includes("--audit-time");
 const revisionReuse = process.argv.includes("--reuse");
@@ -103,6 +106,10 @@ ledger.freezePrice({
 let calls = 0;
 let auditedReads = 0;
 const reading = {
+  ...(costAudit ? {maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-call-cost",
+    maintenanceVerifyCost:({call,evidenceHash})=>{
+      const proof=costEvidence.get(evidenceHash);return proof && proof.callId===call.id && proof.fingerprint===call.fingerprint ? proof : null;
+    }} : {}),
   ...(auditTime ? {maintenanceAuthorize:({actor,account})=>actor==="synthetic-maintainer" && account===fixture.invitation.userId} : {}),
   ...(temporary ? { originals: { quota: 1 } } : {}),
   enabled: true,
@@ -131,7 +138,9 @@ const reading = {
   priceId: "fixture",
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
-    if (++calls === 1 && !auditTime)
+    calls++;
+    if(costAudit && calls===2)throw Error("synthetic missing usage and response");
+    if (calls === 1 && !auditTime && !costAudit)
       await new Promise((done) => {
         signal.addEventListener("abort", () => setTimeout(done, 30), {
           once: true,
@@ -294,6 +303,29 @@ scenario: try {
     );
   } else {
     await expect(page.getByText(/累计已消费/)).toBeVisible();
+    if(costAudit) {
+      await waitForPageState(page,async()=>{
+        await window.desktop.cloud("sync");
+        return (await window.desktop.cloud("status")).jobs[0]?.reason==="UNKNOWN_COST";
+      });
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
+      const before=await page.evaluate(()=>window.desktop.cloud("status"));
+      const task=before.jobs[0],account=fixture.invitation.userId;
+      assert.equal(calls,2);assert.equal(before.account.wallet.spent,20);
+      const review=fixture.service.readingRoutes.costMaintenanceReview(account,task.id,"synthetic-maintainer"),call=review.unknownCalls[0];
+      const evidenceHash="a".repeat(64);
+      costEvidence.set(evidenceHash,{account,callId:call.id,fingerprint:call.fingerprint,priceId:call.price,evidenceHash,
+        reference:"synthetic-ui-final-bill",final:true,disposition:costDisposition,
+        usage:costDisposition==="usage"?{prompt_tokens:30,completion_tokens:10}:null});
+      fixture.service.readingRoutes.reconcileCallCost(account,task.id,{operationId:crypto.randomUUID(),
+        expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence,
+        callId:call.id,evidenceHash},"synthetic-maintainer");
+      assert.equal(calls,2);
+      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await expect(page.getByText(/缺失结果继续整理可能再次计费/)).toBeVisible();
+      await expect(page.getByRole("button",{name:"继续",exact:true})).toBeVisible();
+    } else {
     if (!remote)
       await expect.poll(() => calls, { timeout: 20000 }).toBeGreaterThan(0);
     await page.getByRole("button", { name: "停止", exact: true }).click();
@@ -321,6 +353,7 @@ scenario: try {
       break scenario;
     }
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    }
     await page.getByRole("button", { name: "继续", exact: true }).click();
     await waitForPageState(page, async () => {
       await window.desktop.cloud("sync");
@@ -336,6 +369,11 @@ scenario: try {
     ).toBeVisible();
     const status = await page.evaluate(() => window.desktop.cloud("status"));
     assert.ok(status.account.wallet.spent > 0);
+    if(costAudit) {
+      assert.equal(calls,7);
+      assert.equal(status.account.wallet.spent,120+(costDisposition==="usage"?40:0));
+      assert.equal(status.jobs[0].rootCalls,7);
+    }
     assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
     if (lifecycle) {
       await page.getByRole("button", { name: "立即同步", exact: true }).click();
@@ -486,6 +524,7 @@ scenario: try {
         cumulativeWallet: true,
         published: true,
         format: archiveWindows ? "zip" : nativeFormat || (zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt"),
+        costReconciliation: costAudit ? costDisposition : null,
         crossRevisionReuse: revisionReuse,
         pdfResourceSuffix: pdfLimit,
         archivePdfWindows: archiveWindows,

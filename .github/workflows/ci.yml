@@ -134,6 +134,7 @@ jobs:
       - run: node scripts/desktop-reading-tasks-smoke.mjs --pdf-limit --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --pdf-windows --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --archive-windows --temporary
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --audit-cost --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --safety-rollback
       - run: node scripts/desktop-reading-tasks-smoke.mjs --audit-time --pdf-windows --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --zip --temporary

@@ -40,6 +40,7 @@ export async function runClientLoop({
   reviseAfterPublication = false,
   rollbackRootAfterStop = false,
   auditAfterReadLimit = false,
+  costAudit,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -64,7 +65,15 @@ export async function runClientLoop({
     parserRuns = 0,
     tailSeen = false;
   const auditText=[];
+  const costEvidence=new Map();
   const reading = {
+    ...(costAudit ? {
+      maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-call-cost",
+      maintenanceVerifyCost:({call,evidenceHash})=>{
+        const proof=costEvidence.get(evidenceHash);
+        return proof && proof.callId===call.id && proof.fingerprint===call.fingerprint ? proof : null;
+      },
+    } : {}),
     ...(auditAfterReadLimit ? {activeLimitMs:80,maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="extend-root-time"} : {}),
     ...(originalQuota === undefined
       ? {}
@@ -78,11 +87,12 @@ export async function runClientLoop({
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {
-      if (auditAfterReadLimit) auditText.push(...sources.map(s=>s.text));
       calls++;
+      if(costAudit && calls===2)throw Error("synthetic provider response lost");
+      if (auditAfterReadLimit || costAudit) auditText.push(...sources.map(s=>s.text));
       if (calls === 1) {
         enter();
-        if (!auditAfterReadLimit) await held;
+        if (!auditAfterReadLimit && !costAudit) await held;
       }
       tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记"));
       return {
@@ -301,6 +311,94 @@ export async function runClientLoop({
         kind: "organize",
         packetId: "packet",
       });
+    if(costAudit) {
+      while(service.readingRoutes.snapshot().accounts)await tick();
+      await cloud.action("sync");await page.sync();
+      const win=cloud.readJobs().find(j=>j.id===initial.job),mini=page._jobs.find(j=>j.id===initial.job);
+      assert.equal(win.reason,"UNKNOWN_COST");assert.equal(mini.reason,win.reason);
+      assert.ok(!win.actions.includes("continue"));assert.equal(page.data.jobs.find(j=>j.id===initial.job).canContinue,false);
+      assert.equal(calls,2);assert.equal(ledger.wallet(account).spent,20);assert.ok(ledger.wallet(account).unknownRisk>0);
+      const cleaned=await cloud.request(cloud.config.active,"GET","/api/v4/storage");
+      if(originalQuota===1 || deleteBeforeStart)assert.equal(cleaned.originals[0].available,false);
+      await cloud.reuploadTemporary("packet");
+      await assert.rejects(cloud.request(cloud.config.active,"POST","/api/v4/maintenance/reconcile-cost",{
+        contractVersion:1,actor:"synthetic-maintainer",usage:{prompt_tokens:0,completion_tokens:0},notBilled:true,
+      }),e=>e.code==="NOT_FOUND");
+      await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${initial.job}/continue`,{
+        contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,expectedRevision:win.inputRevision,
+        actor:"synthetic-maintainer",usage:{prompt_tokens:0,completion_tokens:0},notBilled:true,
+      }),e=>e.code==="UNKNOWN_COST");
+      const review=service.readingRoutes.costMaintenanceReview(account,initial.job,"synthetic-maintainer");
+      const call=review.unknownCalls[0];
+      const evidenceHash=createHash("sha256").update(`synthetic billing ${costAudit}:${call.id}`).digest("hex");
+      costEvidence.set(evidenceHash,{account,callId:call.id,fingerprint:call.fingerprint,priceId:call.price,evidenceHash,
+        reference:"synthetic-final-statement",final:true,disposition:costAudit,usage:costAudit==="usage"?{prompt_tokens:30,completion_tokens:10}:null});
+      const request={operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
+        expectedLedgerSequence:review.ledgerSequence,callId:call.id,evidenceHash};
+      const receipt=service.readingRoutes.reconcileCallCost(account,initial.job,request,"synthetic-maintainer");
+      assert.deepEqual(service.readingRoutes.reconcileCallCost(account,initial.job,request,"synthetic-maintainer"),receipt);
+      const oldCreation={id:crypto.randomUUID(),packetId:"packet",kind:"organize",contractVersion:1,
+        epoch:cloud.config.devices[cloud.config.active].epoch,baseVersion:1,expectedCostOperation:null};
+      cloud.writeJobs([...cloud.readJobs(),{id:oldCreation.id,state:"submitting",protocol:4,request:oldCreation}]);
+      const miniCreation={...oldCreation,id:crypto.randomUUID()};
+      page._saveJobs([...page._jobs,{id:miniCreation.id,state:"submitting",protocol:4,request:miniCreation}]);
+      const miniCreationId=miniCreation.id;
+      await cloud.pollJobs();await page._pollJobs();
+      assert.equal(cloud.readJobs().find(j=>j.id===oldCreation.id).state,"error");
+      assert.match(cloud.readJobs().find(j=>j.id===oldCreation.id).error,/费用核对状态已变化/);
+      assert.equal(page._jobs.find(j=>j.id===miniCreationId).state,"error");
+      assert.match(page._jobs.find(j=>j.id===miniCreationId).error,/费用核对状态已变化/);
+      assert.equal(calls,2);
+      const oldIntent={action:"continue",contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,
+        expectedRevision:win.inputRevision,expectedMaintenanceOperation:win.maintenanceOperation};
+      cloud.writeJobs(cloud.readJobs().map(j=>j.id===initial.job?{...j,pendingAction:oldIntent}:j));
+      page._saveJobs(page._jobs.map(j=>j.id===initial.job?{...j,pendingAction:{...oldIntent,operationId:crypto.randomUUID()}}:j));
+      await assert.rejects(cloud.pollJobs(),e=>e.code==="STALE_TASK");
+      await assert.rejects(page._pollJobs(),e=>e.code==="STALE_TASK");
+      assert.equal(cloud.readJobs().find(j=>j.id===initial.job).pendingAction,null);
+      assert.equal(page._jobs.find(j=>j.id===initial.job).pendingAction,null);assert.equal(calls,2);
+      await cloud.action("sync");await page.sync();
+      const audited=cloud.readJobs().find(j=>j.id===initial.job);
+      assert.equal(audited.reason,"COST_RECONCILIATION_AUDITED");
+      assert.match(audited.error,/缺失结果继续整理可能再次计费/);
+      assert.equal(page._jobs.find(j=>j.id===initial.job).error,audited.error);
+      assert.ok(audited.actions.includes("continue"));assert.equal(page.data.jobs.find(j=>j.id===initial.job).canContinue,true);
+      assert.equal(calls,2);assert.equal(ledger.wallet(account).unknownRisk,0);
+      await page.taskAction({currentTarget:{dataset:{id:initial.job,action:"continue"}}});
+      while(service.readingRoutes.snapshot().accounts)await tick();
+      await page.sync();await cloud.action("sync");
+      const finished=cloud.readJobs().find(j=>j.id===initial.job),winPacket=(await cloud.packets())[0],miniPacket=page._record("packet").data;
+      assert.equal(finished.state,"done");assert.equal(finished.rootCalls,calls);assert.ok(finished.rootActiveMs>=review.activeMs);
+      assert.equal(ledger.wallet(account).spent,(calls-1)*20+(costAudit==="usage"?40:0));
+      assert.equal(auditText.join(""),original.expectedText);assert.ok(tailSeen);
+      assert.deepEqual(JSON.parse(JSON.stringify(winPacket.result)),JSON.parse(JSON.stringify(miniPacket.result)));
+      assert.deepEqual(winPacket.readingCoverage,JSON.parse(JSON.stringify(miniPacket.readingCoverage)));
+      if(original.verify)await original.verify({win:winPacket,mini:miniPacket,page,cloud,service});
+      const storage=await cloud.request(cloud.config.active,"GET","/api/v4/storage");
+      if(originalQuota===1 || deleteBeforeStart){assert.equal(storage.usedBytes,0);assert.equal(storage.originals[0].available,false);}
+      if(deleteBeforeStart)assert.equal(storage.originals[0].state,"deleted");
+      await page._startJob("organize","packet");assert.equal(page.data.error,"");
+      const fresh=page._jobs.at(-1);
+      assert.equal(fresh.request.expectedCostOperation,receipt.operation);
+      while(service.readingRoutes.snapshot().accounts)await tick();
+      await page.sync();await cloud.action("sync");
+      const freshDone=cloud.readJobs().find(j=>j.id===fresh.id);
+      assert.equal(freshDone.state,"done");assert.equal(freshDone.reusedBlocks,6);assert.equal(calls,7);
+      const winFresh=await cloud.action("ai",{kind:"organize",packetId:"packet"});
+      assert.equal(cloud.readJobs().find(j=>j.id===winFresh.job).request.expectedCostOperation,receipt.operation);
+      while(service.readingRoutes.snapshot().accounts)await tick();
+      await cloud.action("sync");await page.sync();
+      const winFreshDone=cloud.readJobs().find(j=>j.id===winFresh.job);
+      assert.equal(winFreshDone.state,"done");assert.equal(winFreshDone.reusedBlocks,6);assert.equal(calls,7);
+      return {synthetic:true,realProviderCalls:0,auditedUnknownCost:true,disposition:costAudit,
+        oldCreationReplayDeniedBoth:true,freshCreationNonceBoundBoth:true,freshCreationReusedBlocks:freshDone.reusedBlocks,windowsFreshCreationReusedBlocks:winFreshDone.reusedBlocks,
+        simulatedProviderCalls:calls,spentMicros:ledger.wallet(account).spent,rootCalls:finished.rootCalls,
+        spentBeforeAudit:review.spentMicros,spentAfterAudit:receipt.spent_after,unknownRiskBefore:review.unknownRiskMicros,unknownRiskAfter:ledger.wallet(account).unknownRisk,
+        beforeActiveMs:review.activeMs,afterActiveMs:finished.rootActiveMs,oldPendingReplayDeniedBoth:true,
+        noModelBeforeFreshContinue:true,forgedUserUsageDenied:true,paidPrefixPreserved:true,
+        wholeExpectedTextOrderTailChecked:true,resultsAndCoverageEqual:true,originalNotRevived:originalQuota===1||deleteBeforeStart,
+        miniTransport:"actual Page with Node wx adapter, not native WeChat",desktopTransport:"AccountWorkspace signed HTTP"};
+    }
     if (expectedReadPause) {
       while (service.readingRoutes.snapshot().accounts) await tick();
       await cloud.action("sync");

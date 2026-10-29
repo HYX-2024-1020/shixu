@@ -352,7 +352,10 @@ class AccountWorkspace extends CloudWorkspace {
         kind: value.kind,
         epoch: row ? this.config.devices[this.config.active].epoch : null,
         baseVersion: row.version,
-        ...(v4 ? { contractVersion: 1 } : {}),
+        ...(v4 ? {
+          contractVersion: 1,
+          expectedCostOperation: this.accountState?.wallet?.costAuditOperation || null,
+        } : {}),
         ...(value.kind === "chat"
           ? { itemId: value.itemId, instruction: value.instruction }
           : {}),

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, chown, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
+const costAudit=process.argv.includes("--cost-audit");
 const base = resolve(process.argv[2] || "");
 if (
   process.platform !== "linux" ||
@@ -10,8 +11,8 @@ if (
   !/^\/opt\/shixu-bcd-test-[\w-]+$/.test(base)
 )
   throw Error("SYNTHETIC_ROOT_REQUIRED");
-const socketDir = "/run/shixu-archive-windows-socket",
-  staging = "/run/shixu-archive-windows-input";
+const prefix=costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
+const socketDir = prefix+"-socket", staging=prefix+"-input";
 await mkdir(socketDir, { mode: 0o750 });
 await chown(socketDir, 0, 65534);
 await mkdir(staging, { mode: 0o700 });
@@ -43,7 +44,7 @@ try {
     staging,
   });
   const cases = [];
-  for (const format of ["zip", "rar", "7z"]) {
+  for (const format of (costAudit ? ["usage","not-billed"] : ["zip", "rar", "7z"])) {
     const directory = await mkdtemp(join(base, "clients-"));
     directories.push(directory);
     await chown(directory, 65534, 65534);
@@ -51,9 +52,9 @@ try {
     const result = await run(
       "nobody",
       `
-      import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';
+      ${costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
       import { createBrokerClient } from './server/reading/broker-service.mjs';
-      const result=await runArchiveWindowsClients({directory:${JSON.stringify(directory)},format:'${format}',deleted:${format === "7z"},reader:createBrokerClient('${socketPath}')});
+      const result=await ${costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${costAudit ? "disposition" : "format"}:'${format}',deleted:${costAudit ? format === "not-billed" : format === "7z"},reader:createBrokerClient('${socketPath}')});
       console.log(JSON.stringify(result));`,
     );
     assert.equal(result.exit, 0, result.errors);
@@ -87,7 +88,7 @@ try {
     cases,
   };
   await writeFile(
-    join(base, "archive-windows-clients-linux.json"),
+    join(base, costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report));

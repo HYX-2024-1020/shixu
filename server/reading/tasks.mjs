@@ -226,7 +226,12 @@ export class ReadingTasks {
     return !root.reason && !!this.roots.safety.lastLimit(root.id) && root.activeMs < this.executionLimit(id);
   }
   maintenanceOperation(id) {
-    return this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
+    const limit = this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
+    const cost = this.ledger.lastCostAudit(this.account)?.operation;
+    return cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
+  }
+  auditedCostAvailable(id, root=this.roots.stats(id), wallet=this.ledger.wallet(this.account)) {
+    return !root.reason && !!this.ledger.lastCostAudit(this.account,root.id) && !wallet.pausedReason;
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -239,7 +244,7 @@ export class ReadingTasks {
       throw e;
     }
   }
-  enqueue({ id, packetId, deviceId }) {
+  enqueue({ id, packetId, deviceId, expectedCostOperation = null }) {
     if (this.finalSnapshots) throw error("SERVICE_CLOSING");
     this.authorize(deviceId);
     if (![id, packetId, deviceId].every(validId)) throw error("INVALID_TASK");
@@ -255,6 +260,7 @@ export class ReadingTasks {
           throw error("IDEMPOTENCY_CONFLICT");
         return prior;
       }
+      if (expectedCostOperation !== (this.ledger.lastCostAudit(this.account)?.operation || null))throw error("STALE_COST_REVIEW");
       if (this.store.files.unlinked(packetId))
         throw error("ATTACHMENT_UNLINKED");
       if (
@@ -404,7 +410,8 @@ export class ReadingTasks {
         if (inputRevision(this.store, task.packet) !== task.input_revision)
           throw error("INPUT_CHANGED");
         this.ledger.audit(this.account);
-        this.ledger.wallet(this.account);
+        const wallet = this.ledger.wallet(this.account);
+        if(wallet.pausedReason) throw error(wallet.pausedReason);
         if (
           this.ledger.db
             .prepare(

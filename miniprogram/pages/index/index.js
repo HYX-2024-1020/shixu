@@ -2287,13 +2287,18 @@ Page({
       if (!record || record.deletedAt || record.conflict)
         throw new Error("请先恢复投递并解决同步冲突");
       const status = await this._transport("GET", "/api/v2/status");
+      const costWallet = this._reading
+        ? await this._transport("GET", "/api/v4/wallet") : null;
       const request = {
         id: makeId(),
         kind,
         packetId,
         baseVersion: record.version,
         epoch: status.epoch,
-        ...(this._reading ? { contractVersion: 1 } : {}),
+        ...(this._reading ? {
+          contractVersion: 1,
+          expectedCostOperation: costWallet?.costAuditOperation || null,
+        } : {}),
         ...(kind === "chat" ? { itemId, instruction } : {}),
       };
       const entry = {

@@ -69,6 +69,16 @@ export class ReadingLedger {
         account TEXT NOT NULL,call TEXT,amount INTEGER NOT NULL,at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_controls(id INTEGER PRIMARY KEY CHECK(id=1),paused INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS reading_envelopes(call TEXT PRIMARY KEY REFERENCES reading_calls(id),fingerprint TEXT NOT NULL,result TEXT NOT NULL,usage TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_cost_audits(seq INTEGER PRIMARY KEY,account TEXT NOT NULL,operation TEXT NOT NULL,
+        root TEXT NOT NULL,task TEXT NOT NULL,call_id TEXT NOT NULL UNIQUE REFERENCES reading_calls(id),actor TEXT NOT NULL,evidence_hash TEXT NOT NULL,
+        reference TEXT NOT NULL,disposition TEXT NOT NULL CHECK(disposition IN ('usage','not-billed')),request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,
+        ledger_sequence INTEGER NOT NULL,watermark INTEGER NOT NULL,generation INTEGER NOT NULL,
+        spent_before INTEGER NOT NULL,spent_after INTEGER NOT NULL,actual INTEGER,usage TEXT,at INTEGER NOT NULL,
+        UNIQUE(account,operation));
+      CREATE INDEX IF NOT EXISTS reading_cost_audits_account ON reading_cost_audits(account,seq DESC);
+      CREATE INDEX IF NOT EXISTS reading_cost_audits_root ON reading_cost_audits(account,root,seq DESC);
+      CREATE TRIGGER IF NOT EXISTS reading_cost_audits_no_update BEFORE UPDATE ON reading_cost_audits BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_cost_audits_no_delete BEFORE DELETE ON reading_cost_audits BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
       INSERT OR IGNORE INTO reading_controls(id) VALUES(1);
       CREATE TRIGGER IF NOT EXISTS reading_events_no_update BEFORE UPDATE ON reading_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
       CREATE TRIGGER IF NOT EXISTS reading_events_no_delete BEFORE DELETE ON reading_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
@@ -166,6 +176,26 @@ export class ReadingLedger {
       .prepare("SELECT * FROM reading_calls WHERE id=?")
       .get(callId);
   }
+  sequence(account) {
+    return this.db
+      .prepare(
+        "SELECT COALESCE(MAX(seq),0) n FROM reading_events WHERE account=?",
+      )
+      .get(account).n;
+  }
+  lastCostAudit(account, root) {
+    return root === undefined
+      ? this.db
+          .prepare(
+            "SELECT * FROM reading_cost_audits WHERE account=? ORDER BY seq DESC LIMIT 1",
+          )
+          .get(account)
+      : this.db
+          .prepare(
+            "SELECT * FROM reading_cost_audits WHERE account=? AND root=? ORDER BY seq DESC LIMIT 1",
+          )
+          .get(account, root);
+  }
   price(priceId) {
     const row = this.db
       .prepare("SELECT body FROM reading_prices WHERE id=?")
@@ -193,6 +223,7 @@ export class ReadingLedger {
       .get().paused;
     return {
       ...w,
+      costAuditOperation: this.lastCostAudit(account)?.operation || null,
       reserved,
       unknownRisk,
       available: Math.max(0, w.granted - w.spent - reserved - unknownRisk),
@@ -323,32 +354,71 @@ export class ReadingLedger {
   settle(callId, usage) {
     const normalized = validateUsage(usage),
       serialized = JSON.stringify(normalized);
-    return this.transaction(() => {
-      const c = this.call(callId);
-      if (!c) throw Error("CALL_NOT_FOUND");
-      if (c.state === "settled") {
-        if (c.usage !== serialized) throw Error("USAGE_CONFLICT");
-        return c;
+    const result = this.transaction(() =>
+      this.settleLocked(callId, normalized, serialized),
+    );
+    if (result?.conflict) throw Error(result.conflict);
+    return result;
+  }
+  // Used by the authenticated maintenance coordinator in the same ledger transaction.
+  settleLocked(callId, normalized, serialized = JSON.stringify(normalized)) {
+    const c = this.call(callId);
+    if (!c) throw Error("CALL_NOT_FOUND");
+    if (c.state === "settled") {
+      if (c.usage !== serialized) {
+        if (
+          !this.db
+            .prepare("SELECT 1 FROM reading_cost_audits WHERE call_id=?")
+            .get(callId)
+        )
+          throw Error("USAGE_CONFLICT");
+        this.db.exec("UPDATE reading_controls SET paused=1 WHERE id=1");
+        const operation =
+          "cost-usage-conflict:" + callId + ":" + sha256(serialized);
+        if (
+          !this.db
+            .prepare("SELECT 1 FROM reading_events WHERE operation=?")
+            .get(operation)
+        )
+          this.event(operation, "cost-proof-conflict", c.account, callId, 0);
+        return { conflict: "USAGE_CONFLICT" };
       }
-      if (!["sent", "unknown"].includes(c.state))
-        throw Error("INVALID_CALL_TRANSITION");
-      const actual = estimatedCost(this.price(c.price), normalized);
+      return c;
+    }
+    const deniedBilling =
+      c.state === "released" &&
       this.db
         .prepare(
-          "UPDATE reading_calls SET state='settled',actual=?,usage=? WHERE id=?",
+          "SELECT 1 FROM reading_cost_audits WHERE call_id=? AND disposition='not-billed'",
         )
-        .run(actual, serialized, callId);
-      this.db
-        .prepare("UPDATE reading_wallets SET spent=spent+? WHERE account=?")
-        .run(actual, c.account);
-      this.event("settle:" + callId, "settle", c.account, callId, actual);
-      if (
-        actual > c.reserved ||
-        this.wallet(c.account).spent > this.wallet(c.account).granted
+        .get(callId);
+    if (!["sent", "unknown"].includes(c.state) && !deniedBilling)
+      throw Error("INVALID_CALL_TRANSITION");
+    const actual = estimatedCost(this.price(c.price), normalized);
+    this.db
+      .prepare(
+        "UPDATE reading_calls SET state='settled',actual=?,usage=? WHERE id=?",
       )
-        this.db.exec("UPDATE reading_controls SET paused=1 WHERE id=1");
-      return this.call(callId);
-    });
+      .run(actual, serialized, callId);
+    this.db
+      .prepare("UPDATE reading_wallets SET spent=spent+? WHERE account=?")
+      .run(actual, c.account);
+    this.event("settle:" + callId, "settle", c.account, callId, actual);
+    if (deniedBilling)
+      this.event(
+        "cost-proof-conflict:" + callId,
+        "cost-proof-conflict",
+        c.account,
+        callId,
+        0,
+      );
+    if (
+      deniedBilling ||
+      actual > c.reserved ||
+      this.wallet(c.account).spent > this.wallet(c.account).granted
+    )
+      this.db.exec("UPDATE reading_controls SET paused=1 WHERE id=1");
+    return this.call(callId);
   }
   releaseUnsent(callId) {
     return this.transaction(() => {
@@ -405,6 +475,59 @@ export class ReadingLedger {
           )
           .get("reserve:" + call.id, wallet.account);
         valid &&= reserve?.amount === call.reserved;
+        if (call.state === "released") {
+          const sent = this.db
+            .prepare(
+              "SELECT 1 FROM reading_events WHERE operation=? AND account=? AND call=? AND kind='sent'",
+            )
+            .get("sent:" + call.id, wallet.account, call.id);
+          const release = this.db
+            .prepare(
+              "SELECT amount FROM reading_events WHERE operation=? AND account=? AND call=? AND kind=?",
+            )
+            .get(
+              (sent ? "cost-release:" : "release:") + call.id,
+              wallet.account,
+              call.id,
+              sent ? "reconcile-release" : "release",
+            );
+          const receipt =
+            sent &&
+            this.db
+              .prepare(
+                "SELECT 1 FROM reading_cost_audits WHERE account=? AND call_id=? AND disposition='not-billed'",
+              )
+              .get(wallet.account, call.id);
+          valid &&=
+            release?.amount === call.reserved &&
+            (!sent || !!receipt) &&
+            call.actual === null &&
+            call.usage === null;
+        }
+        const receipt = this.db
+          .prepare(
+            "SELECT * FROM reading_cost_audits WHERE account=? AND call_id=?",
+          )
+          .get(wallet.account, call.id);
+        if (receipt) {
+          const conflict = this.db
+            .prepare(
+              "SELECT 1 FROM reading_events WHERE account=? AND call=? AND kind='cost-proof-conflict'",
+            )
+            .get(wallet.account, call.id);
+          valid &&=
+            receipt.disposition === "usage"
+              ? call.state === "settled" &&
+                call.usage === receipt.usage &&
+                call.actual === receipt.actual
+              : call.state === "released" ||
+                (call.state === "settled" && !!conflict);
+          if (conflict)
+            valid &&=
+              this.db
+                .prepare("SELECT paused FROM reading_controls WHERE id=1")
+                .get().paused === 1;
+        }
         if (call.state === "settled") {
           const settle = this.db
             .prepare(
