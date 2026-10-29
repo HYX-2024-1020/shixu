@@ -1,3 +1,4 @@
+import { validateModelImage } from "./image.mjs";
 import { coverageOnly } from "./material.mjs";
 import { PDF_WINDOW_PAGES } from "./pdf-window.mjs";
 import {
@@ -19,12 +20,16 @@ export class ReadingWindows {
       .prepare("SELECT * FROM reading_windows WHERE task=? ORDER BY rowid")
       .all(task);
   }
-  select(task, file, { archiveWindows = false } = {}) {
+  select(task, file, { archiveWindows = false, imageWindows = false } = {}) {
     const row = this.db
       .prepare("SELECT * FROM reading_windows WHERE task=? AND attachment=?")
       .get(task, file.id);
     if (row && row.content_hash !== file.hash) throw Error("INPUT_CHANGED");
     if (row?.next_page === 0) return { skip: true };
+    if(/\.png$/i.test(file.name)){
+      if(!imageWindows)throw Error('READER_WINDOW_REQUIRED');
+      return {skip:false,imageWindow:{tile:row?.next_page||1}};
+    }
     const saved = row && JSON.parse(row.coverage).archivePagination;
     if (saved && !archiveWindows) throw Error("READER_WINDOW_REQUIRED");
     return {
@@ -46,7 +51,25 @@ export class ReadingWindows {
         : {}),
     };
   }
-  verify(material, requested, archiveWindow) {
+  verify(material, requested, archiveWindow, imageWindow) {
+    if(imageWindow){
+      const p=material.imagePagination;
+      if(!p){if(material.segments?.length)throw Error('INVALID_READER_WINDOW');return;}
+      const r=material.covered?.[0];
+      const columns=Math.ceil(p.width/1024),rows=Math.ceil(p.height/1024),x=((p.startTile-1)%columns)*1024,y=Math.floor((p.startTile-1)/columns)*1024;
+      const image=material.segments?.[0]?.image;
+      if(p.startTile!==imageWindow.tile||!Number.isSafeInteger(p.totalTiles)||p.totalTiles<1||p.totalTiles>64||
+        p.startTile>p.totalTiles||p.nextTile!==(p.startTile<p.totalTiles?p.startTile+1:null)||
+        material.covered?.length!==1||material.segments?.length!==1||r?.kind!=='image'||r.tile!==p.startTile||
+        r.start!==p.startTile-1||r.end!==p.startTile||!image||
+        !Number.isSafeInteger(p.width)||!Number.isSafeInteger(p.height)||p.width<1||p.height<1||p.width>16384||p.height>16384||p.width*p.height>32_000_000||
+        p.totalTiles!==columns*rows||r.x!==x||r.y!==y||r.width!==Math.min(1024,p.width-x)||r.height!==Math.min(1024,p.height-y)||
+        image.width!==r.width||image.height!==r.height||image.hash!==r.imageHash||r.sourceId!==material.segments[0].sourceId||
+        JSON.stringify(material.segments[0].range)!==JSON.stringify(r))
+        throw Error('INVALID_READER_WINDOW');
+      validateModelImage(image);
+      return;
+    }
     if (archiveWindow) return this.verifyArchive(material, archiveWindow);
     if (!requested) return;
     const p = material.pagination;
@@ -178,7 +201,7 @@ export class ReadingWindows {
     const uncovered = [
       ...previous.uncovered.filter(
         (r) =>
-          !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING"].includes(r.code),
+          !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code),
       ),
       ...next.uncovered,
     ];
@@ -203,7 +226,7 @@ export class ReadingWindows {
         ...new Set([
           ...previous.reasons.filter(
             (c) =>
-              !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING"].includes(c),
+              !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(c),
           ),
           ...next.reasons,
         ]),
@@ -239,7 +262,7 @@ export class ReadingWindows {
     );
     for (const material of materials) {
       const p = material.pagination;
-      const next = material.archivePagination
+      const next = material.imagePagination ? material.imagePagination.nextTile || 0 : material.archivePagination
         ? material.archivePagination.next
           ? 1
           : 0

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { encodePng } from "./image.mjs";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -1770,4 +1771,63 @@ test('unknown fees, pending executors, stale reviews and concurrent proof mutati
     assert.equal(f.ledger.db.prepare('SELECT COUNT(*) n FROM reading_time_audits').get().n,0);
     assert.equal(f.calls(),1);
   }
+});
+
+test('PNG tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes',async t=>{
+  const width=2051,height=4,pixels=Buffer.alloc(width*height*4,255);pixels[0]=0;pixels[pixels.length-4]=27;
+  const png=encodePng(width,height,pixels);let tiles=[];
+  const f=fixture(t,{name:'图像.png',text:png,
+    reader:Object.assign(async(file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true}),
+    provider:async sources=>{
+      assert.equal(sources.length,1);const source=sources[0];if(!source.image)return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};tiles.push(source.id);
+      return {usage:{prompt_tokens:10,completion_tokens:10},result:{...result(sources),
+        items:[{...result(sources).items[0],evidence:[{sourceId:source.id,quote:'合成图像可见文字'}]}]}};
+    }});
+  f.tasks.provider.imageInput=true;f.enqueue();const firstPng=await f.tasks.run('task');assert.equal(firstPng.state,'queued',JSON.stringify({reason:firstPng.reason,tiles,calls:f.calls()}));f.action('stop','png-stop');
+  assert.equal(f.calls(),1);const original=f.tasks.get('task');
+  const restarted=new ReadingTasks(f.taskArgs);restarted.provider.imageInput=true;
+  restarted.action('task',{operationId:'png-continue',expectedGeneration:original.generation,expectedRevision:original.input_revision},'continue');
+  assert.equal((await finish(restarted)).state,'done');assert.equal(f.calls(),3);
+  assert.equal(new Set(tiles).size,3);assert.equal(f.ledger.wallet('synthetic').spent,60);
+  const published=f.store.record('packet').data;assert.equal(published.readingCoverage[0].covered.length,3);
+  assert.ok(!published.readingCoverage[0].uncovered.some(r=>r.code==='IMAGE_WINDOW_PENDING'));
+  assert.ok(published.result.warnings.some(w=>w.includes('图像内容由模型识别')));
+  const tables=['reading_tasks','reading_blocks','reading_block_ranges','reading_windows'];
+  for(const table of tables){const data=JSON.stringify(f.store.db.prepare('SELECT * FROM '+table).all());
+    assert.ok(!data.includes('base64'));assert.ok(!data.includes('iVBORw0KGgo'));}
+  f.put({text:'新的补充要求'});restarted.enqueue({id:'revised-png',packetId:'packet',deviceId:f.windows.deviceId});
+  for(let i=0;i<15&&restarted.get('revised-png').state==='queued';i++)await restarted.run('revised-png');
+  assert.equal(restarted.get('revised-png').state,'done');assert.equal(restarted.reuse.count('revised-png'),3);
+});
+
+test('unconfigured image provider and malformed PNG do not issue model calls or save pixel payloads',async t=>{
+  for(const enabled of [false,true]){
+    const f=fixture(t,{name:'图像.png',text:enabled?Buffer.from('not PNG'):encodePng(1,1,Buffer.from([1,2,3,255])),
+      reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true})});
+    f.tasks.provider.imageInput=enabled;f.enqueue();const task=await finish(f.tasks);
+    assert.equal(task.reason,'NO_READABLE_MATERIAL');assert.equal(f.calls(),0);assert.equal(f.ledger.wallet('synthetic').spent,0);
+    assert.equal(f.tasks.materials.size,0);
+  }
+});
+test('cumulative quote validation failure still settles trustworthy returned usage',async t=>{
+  const f=fixture(t);f.tasks.boundQuotes=()=>{throw Error('INVALID_MODEL_SOURCE');};f.enqueue();
+  const task=await f.tasks.run('task');assert.equal(task.state,'paused');assert.equal(f.calls(),1);
+  assert.equal(f.ledger.wallet('synthetic').spent,20);assert.equal(f.ledger.wallet('synthetic').unknownRisk,0);
+});
+
+test('image quote privacy cap retains locator-only paid reuse and its already-grounded deadline',async t=>{
+  const quote=('2026年10月30日18:00。'+'合成'.repeat(300)).slice(0,500);
+  const f=fixture(t,{name:'长图.png',text:encodePng(4097,1,Buffer.alloc(4097*4,255)),
+    reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true}),
+    provider:async sources=>({usage:{prompt_tokens:10,completion_tokens:10},result:sources[0].image?{
+      ...result(sources),items:[{...result(sources).items[0],evidence:[{sourceId:sources[0].id,quote}],
+        due:{date:'2026-10-30',time:'18:00',anchor:'2026年10月30日18:00',sourceId:sources[0].id}}]}:result(sources)})});
+  f.tasks.provider.imageInput=true;f.enqueue();for(let i=0;i<30&&f.tasks.get('task').state==='queued';i++)await f.tasks.run('task');
+  assert.equal(f.tasks.get('task').state,'done');assert.equal(f.calls(),5);
+  const original=f.store.record('packet').data.result;assert.equal(original.items.at(-1).evidence[0].quote,'');
+  assert.equal(original.items.at(-1).due.time,'18:00');
+  f.put({text:'补充要求'});f.tasks.enqueue({id:'quote-revision',packetId:'packet',deviceId:f.windows.deviceId});
+  for(let i=0;i<30&&f.tasks.get('quote-revision').state==='queued';i++)await f.tasks.run('quote-revision');
+  assert.equal(f.tasks.get('quote-revision').state,'done');assert.equal(f.tasks.reuse.count('quote-revision'),5);assert.equal(f.calls(),6);
+  assert.equal(f.store.record('packet').data.result.items.at(-1).due.time,'18:00');
 });

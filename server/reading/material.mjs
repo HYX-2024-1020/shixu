@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 import { validateArchiveWindow } from "./archive-window.mjs";
+import { validateImageWindow } from "./image.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
 export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/3";
@@ -92,7 +93,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow, imageWindow } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -136,6 +137,9 @@ export function readMaterial(
   if (archiveWindow && !/\.(zip|rar|7z)$/i.test(name)) throw Error("INVALID_ARCHIVE_WINDOW");
   pdfWindow = validatePdfWindow(pdfWindow);
   if (pdfWindow && !/\.pdf$/i.test(name)) throw Error("INVALID_PDF_WINDOW");
+  imageWindow=validateImageWindow(imageWindow);
+  if(imageWindow && !/\.png$/i.test(name))throw Error('INVALID_IMAGE_WINDOW');
+  if(/\.png$/i.test(name))return import('./image.mjs').then(({readImage})=>readImage(bytes,result,imageWindow));
   let offset = pdfWindow?.offset || 0,
     index = 0;
   const add = (raw, locator, structure) => {
@@ -349,6 +353,7 @@ export function coverageOnly({ segments, ...coverage }) {
 export function modelMaterial(material) {
   const segments = [];
   for (const segment of material.segments) {
+    if(segment.image){segments.push(segment);continue;}
     let start = 0,
       point = segment.range.start,
       part = 0;
@@ -391,7 +396,7 @@ export function* modelBatches(materials) {
       if (!s.text.trim()) continue;
       if (
         batch.length &&
-        (units + s.text.length > 120000 || batch.length >= 128)
+        (units + s.text.length > 120000 || batch.length >= 128 || (s.image && batch.filter(s=>s.image).length>=2))
       ) {
         yield batch;
         batch = [];

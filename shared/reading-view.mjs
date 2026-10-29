@@ -5,6 +5,16 @@ const labels = {
   failed: "读取失败",
 };
 const reasons = {
+  IMAGE_PROVIDER_UNSUPPORTED:'服务端安全图像读取或模型图像输入尚未就绪',
+  IMAGE_WINDOW_PENDING:'后续图像区域等待读取，尚未进入整理结果',
+  PNG_ENCODING_UNSUPPORTED:'此PNG位深或交错编码暂不支持',
+  PNG_COLOR_OR_ORIENTATION_UNSUPPORTED:'此图像色彩或方向元数据尚未支持，未擅自忽略',
+  IMAGE_ANIMATION_UNSUPPORTED:'动画图像暂不支持，未只读取第一帧',
+  IMAGE_PIXEL_LIMIT:'图像尺寸超过隔离解码上限',
+  IMAGE_TILE_LIMIT:'图像区域超过安全范围',
+  IMAGE_DECODE_FAILED:'图像解码失败',
+  PNG_CRC:'PNG完整性校验失败',
+  PNG_MALFORMED:'PNG结构损坏',
   ARCHIVE_WINDOW_PENDING: "后续包内材料等待读取，尚未进入整理结果",
   ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
   ARCHIVE_RAR4_UNSUPPORTED: "旧版 RAR 的原路径与编码尚未验证，暂不支持",
@@ -76,6 +86,11 @@ function location(range) {
   if (typeof range.archivePath === "string") {
     const { archivePath, ...inner } = range;
     return `包内 “${archivePath.slice(0, 512)}” · ${location(inner)}`;
+  }
+  if(range.kind==='image'){
+    const n=v=>Number.isSafeInteger(v)&&v>=0;
+    if([range.x,range.y,range.width,range.height].every(n))return `图像模型识别 · 第 ${range.tile} 块 · 像素(${range.x},${range.y},${range.width},${range.height})`;
+    return Number.isSafeInteger(range.tile)?`图像第 ${range.tile}${range.tileEnd?'–'+range.tileEnd:''} 块`:'整份图像';
   }
   if (range.kind === "pdf") {
     const valid = (n) => Number.isSafeInteger(n) && n > 0;
@@ -211,4 +226,11 @@ export function pdfProgressView(summary) {
     Number.isSafeInteger(c.pdfPages.total) && c.pdfPages.total > 0 && c.pdfPages.checked >= 0 &&
     c.pdfPages.checked <= c.pdfPages.total).map(c =>
       `${typeof c.name === "string" ? c.name.slice(0, 740) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`).join("；");
+}
+
+export function imageProgressView(summary){
+  if(!Array.isArray(summary))return '';
+  return summary.filter(c=>c && c.imageTiles && Number.isSafeInteger(c.imageTiles.checked) &&
+    Number.isSafeInteger(c.imageTiles.total) && c.imageTiles.total>0 && c.imageTiles.checked>=0 &&
+    c.imageTiles.checked<=c.imageTiles.total).map(c=>`${typeof c.name==='string'?c.name.slice(0,200):'图像'}：已检查 ${c.imageTiles.checked} / ${c.imageTiles.total} 个图像区域`).join('；');
 }

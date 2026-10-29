@@ -33,6 +33,7 @@ export class ReadingReuse {
           s.range,
           sha256(s.text),
           s.structure || null,
+          ...(s.image ? [s.image.hash] : []),
         ]),
       ]),
     );

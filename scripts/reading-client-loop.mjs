@@ -103,7 +103,7 @@ export async function runClientLoop({
     reader: Object.assign(async (...args) => {
       parserRuns++;
       return reader(...args);
-    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true}),
+    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true,imageWindows:reader.imageWindows===true}),
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {
@@ -114,7 +114,7 @@ export async function runClientLoop({
         enter();
         if (!auditAfterReadLimit && !auditUnknownTime && !costAudit) await held;
       }
-      tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记"));
+      tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
       return {
         usage: { prompt_tokens: 10, completion_tokens: 10 },
         result: {
@@ -141,6 +141,7 @@ export async function runClientLoop({
       };
     },
   };
+  if(reader.imageWindows===true)reading.provider.imageInput=true;
   const service = createMultiUserService({
     directory: join(directory, "server"),
     secret: "synthetic-v4-client-secret-with-32-characters",

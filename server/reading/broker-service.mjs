@@ -6,6 +6,7 @@ import { createLinuxReader, SANDBOX_LIMITS } from "./linux-broker.mjs";
 import { MAX_FILE_BYTES } from "./material.mjs";
 import { randomUUID } from "node:crypto";
 import { validateArchiveWindow } from "./archive-window.mjs";
+import { validateImageWindow } from "./image.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
 async function protectedPath(path) {
@@ -68,7 +69,7 @@ export async function createBrokerService({ socketPath, runtime, staging }) {
     let accepted = false,
       readId,
       cancellationOwned = false;
-    const streamed = ["2","3","4"].includes(req.headers["x-shixu-reader-protocol"]);
+    const streamed = ["2","3","4","5"].includes(req.headers["x-shixu-reader-protocol"]);
     const frame = (value) => {
       if (res.destroyed) return;
       if (!res.headersSent)
@@ -124,8 +125,10 @@ export async function createBrokerService({ socketPath, runtime, staging }) {
       const fields = Object.keys(descriptor).sort().join(",");
       if (fields !== "hash,id,name,size" &&
           !(req.headers["x-shixu-reader-protocol"] === "3" && fields === "hash,id,name,pdfWindow,size") &&
-          !(req.headers["x-shixu-reader-protocol"] === "4" && fields === "archiveWindow,hash,id,name,size"))
+          !(req.headers["x-shixu-reader-protocol"] === "4" && fields === "archiveWindow,hash,id,name,size") &&
+          !(req.headers["x-shixu-reader-protocol"] === "5" && fields === "hash,id,imageWindow,name,size"))
         throw Error();
+      const imageWindow=validateImageWindow(descriptor.imageWindow);
       const pdfWindow = validatePdfWindow(descriptor.pdfWindow);
       const archiveWindow = validateArchiveWindow(descriptor.archiveWindow);
       let size = 0;
@@ -141,6 +144,7 @@ export async function createBrokerService({ socketPath, runtime, staging }) {
           signal: controller.signal,
           pdfWindow,
           archiveWindow,
+          imageWindow,
           ...(streamed
             ? {
                 activeBudgetMs: Number(req.headers["x-shixu-active-budget-ms"]),
@@ -192,7 +196,7 @@ export function createBrokerClient(socketPath) {
     !/^\/run\/shixu-[\w-]+\/reader\.sock$/.test(socketPath)
   )
     throw Error("INVALID_SOCKET");
-  const client = (file, { signal, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow } = {}) =>
+  const client = (file, { signal, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow } = {}) =>
     new Promise((done, reject) => {
       if (signal?.aborted)
         return reject(
@@ -231,7 +235,7 @@ export function createBrokerClient(socketPath) {
           path: "/read",
           method: "POST",
           headers: {
-            "X-Shixu-Reader-Protocol": archiveWindow ? "4" : pdfWindow ? "3" : "2",
+            "X-Shixu-Reader-Protocol": imageWindow ? "5" : archiveWindow ? "4" : pdfWindow ? "3" : "2",
             "X-Shixu-Read-Id": id,
             "X-Shixu-Active-Budget-Ms": String(activeBudgetMs),
             "Content-Type": "application/octet-stream",
@@ -243,6 +247,7 @@ export function createBrokerClient(socketPath) {
                 size: file.size,
                 hash: file.hash,
                 ...(pdfWindow ? {pdfWindow:validatePdfWindow(pdfWindow)} : {}),
+                ...(imageWindow ? {imageWindow:validateImageWindow(imageWindow)} : {}),
                 ...(archiveWindow ? {archiveWindow:validateArchiveWindow(archiveWindow)} : {}),
               }),
             ).toString("base64url"),
@@ -329,7 +334,7 @@ export function createBrokerClient(socketPath) {
       signal?.addEventListener("abort", cancel, { once: true });
       request.end(file.body);
     });
-  return Object.assign(client, { pdfWindows:true, archiveWindows:true });
+  return Object.assign(client, { pdfWindows:true, archiveWindows:true, imageWindows:true });
 }
 
 if (

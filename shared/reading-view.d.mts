@@ -43,3 +43,5 @@ export function walletView(wallet?: {
   lowBalance?: boolean;
   pausedReason?: string;
 }): string;
+
+export function imageProgressView(summary?: {name?:string;imageTiles?:{checked:number;total:number}}[]): string;

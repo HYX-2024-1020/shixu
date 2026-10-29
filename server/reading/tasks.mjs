@@ -41,7 +41,7 @@ const versions = {
   schema: "bucket/1",
 };
 
-function validatePaidResult(raw, sources, date) {
+function validatePaidResult(raw, sources, date, {certifiedReuse=false}={}) {
   if (
     !raw ||
     Buffer.byteLength(JSON.stringify(raw)) > 1024 * 1024 ||
@@ -50,7 +50,7 @@ function validatePaidResult(raw, sources, date) {
     typeof raw.summary !== "string" ||
     raw.summary.length > 1600 ||
     !Array.isArray(raw.warnings) ||
-    raw.warnings.length > 8
+    raw.warnings.length > (sources.some(s=>s.image)?9:8)
   )
     throw Error("INVALID_MODEL_OUTPUT");
   for (const item of raw.items) {
@@ -76,7 +76,7 @@ function validatePaidResult(raw, sources, date) {
         !source ||
         typeof quote.quote !== "string" ||
         quote.quote.length > 500 ||
-        !source.text.includes(quote.quote)
+        (!source.image && !source.text.includes(quote.quote))
       )
         throw Error("INVALID_MODEL_SOURCE");
     }
@@ -84,7 +84,21 @@ function validatePaidResult(raw, sources, date) {
       if (item[field].some((s) => typeof s !== "string" || s.length > 500))
         throw Error("INVALID_MODEL_OUTPUT");
   }
-  return validateResult(raw, sources, date);
+  // Exact reuse has already verified the immutable paid-result hash, current
+  // image hashes, range IDs, capture date and model/prompt/schema context. Keep
+  // locator-only citations after the shared 2000-character privacy cap without
+  // inventing a transcription or paying again to reconstruct discarded quotes.
+  if(certifiedReuse && sources.every(s=>s.image))return structuredClone(raw);
+  const validatedSources=sources.map(source=>{
+    if(!source.image)return source;
+    const quotes=raw.items.flatMap(item=>item.evidence.filter(e=>e.sourceId===source.id).map(e=>e.quote));
+    if(quotes.reduce((n,q)=>n+q.length,0)>2000)throw Error('INVALID_MODEL_SOURCE');
+    return {...source,text:quotes.length ? quotes.join('\n') : source.text};
+  });
+  const validated=validateResult(raw, validatedSources, date);
+  const imageWarning='图像内容由模型识别，请对照原图核对文字、日期和关系';
+  if(sources.some(s=>s.image)&&!validated.warnings.includes(imageWarning))validated.warnings.push(imageWarning);
+  return validated;
 }
 
 export function inputRevision(store, packetId) {
@@ -575,7 +589,7 @@ export class ReadingTasks {
     const processingCoverage = {
       partial,
       processed,
-      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING"].includes(r.code))
+      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code))
         .map(r => ({...r,name:c.name}))),
       pending: coverage
         .flatMap((c) => c.covered || [])
@@ -650,7 +664,7 @@ export class ReadingTasks {
     this.executions.set(id, execution);
     let excludedMs = 0;
     let safetyStep;
-    const read = async (file, pdfWindow, archiveWindow) => {
+    const read = async (file, pdfWindow, archiveWindow, imageWindow) => {
       const readAt = performance.now(),
         before = excludedMs;
       const deadline = new AbortController();
@@ -729,6 +743,7 @@ export class ReadingTasks {
                 signal,
                 pdfWindow,
                 archiveWindow,
+                imageWindow,
                 activeBudgetMs,
                 onPhase: (phase) => {
                   if (signal.aborted || finished || this.finalSnapshots) return;
@@ -770,7 +785,7 @@ export class ReadingTasks {
         clearTimeout(drainTimer);
       }
     };
-    const readSafe = async (file, pdfWindow, archiveWindow) => {
+    const readSafe = async (file, pdfWindow, archiveWindow, imageWindow) => {
       for (let retries = 0; ; retries++) {
         if (!this.current(task)) throw Error("READING_ABORTED");
         if (
@@ -779,7 +794,7 @@ export class ReadingTasks {
         )
           throw Error("EXECUTION_LIMIT");
         try {
-          return { ...(await read(file, pdfWindow, archiveWindow)), readRetries: retries };
+          return { ...(await read(file, pdfWindow, archiveWindow, imageWindow)), readRetries: retries };
         } catch (e) {
           e.readRetries = retries;
           // Only a fixed broker admission rejection proves no worker started.
@@ -823,10 +838,14 @@ export class ReadingTasks {
       const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
       const pendingInputs = [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
       const readInput = async file => {
-        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true}) : {};
+        if(/\.png$/i.test(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
+          materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
+            state:'unsupported',covered:[],uncovered:[{kind:'image',code:'IMAGE_PROVIDER_UNSUPPORTED'}],reasons:['IMAGE_PROVIDER_UNSUPPORTED'],segments:[]});return;
+        }
+        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true}) : {};
         if (selection.skip) return;
-        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow);
-        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow);
+        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
+        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
         materials.push(material);
       };
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
@@ -883,7 +902,7 @@ export class ReadingTasks {
         if (paged) {
           this.transaction(() => this.windows.advance(id,readable));
           this.dropMaterial(id);
-          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true})) return this.get(id);
+          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true})) return this.get(id);
         }
         throw Error("NO_READABLE_MATERIAL");
       }
@@ -926,6 +945,7 @@ export class ReadingTasks {
                 ([...s.range.archivePath].length > 90 ? "…" : "")
               : s.range.name,
           text: s.text,
+          ...(s.image ? {image:s.image} : {}),
         }));
         const reuseKey = this.reuse.key(batch, readable, {
           versions,
@@ -934,7 +954,7 @@ export class ReadingTasks {
           maxOutputTokens: this.maxOutputTokens,
         });
         const reused = this.reuse.find(task, reuseKey, (raw) =>
-          validatePaidResult(raw, sources, packet.captureDate),
+          validatePaidResult(raw, sources, packet.captureDate,{certifiedReuse:true}),
         );
         if (reused) {
           const result = this.boundQuotes(
@@ -1063,7 +1083,7 @@ export class ReadingTasks {
           this.ledger.settle(callId, response.usage);
           throw e;
         }
-        this.boundQuotes(id, result, readable, batch);
+        try {this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage);throw e;}
         this.ledger.saveEnvelope(callId, fingerprint, result, response.usage);
         this.ledger.settle(callId, response.usage);
         this.db
@@ -1081,7 +1101,7 @@ export class ReadingTasks {
       if (paged) {
         this.transaction(() => this.windows.advance(id,readable));
         this.dropMaterial(id);
-        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true})) return this.get(id);
+        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true})) return this.get(id);
       }
       return this.publish(task, coverage);
     } catch (e) {
@@ -1180,7 +1200,7 @@ export class ReadingTasks {
         if (
           !segment ||
           evidence.quote.length > 500 ||
-          !segment.text.includes(evidence.quote)
+          (!segment.image && !segment.text.includes(evidence.quote))
         )
           throw Error("INVALID_MODEL_SOURCE");
         const attachment = readable.find((m) =>

@@ -48,6 +48,7 @@ const {
   walletView,
   reuseView,
   pdfProgressView,
+  imageProgressView,
   processingView,
   sourceLocation,
 } = require("../../lib/generated/desktop");
@@ -2145,7 +2146,7 @@ Page({
         hasOutput: !!output,
         calls: calls || 0,
         reuseLabel: reuseView(reusedBlocks),
-        pdfProgressLabel: pdfProgressView(readingSummary),
+        pdfProgressLabel: [pdfProgressView(readingSummary),imageProgressView(readingSummary)].filter(Boolean).join("；"),
         rootCalls,
         rootActiveSeconds,
         canStop: actions?.includes("stop") || false,

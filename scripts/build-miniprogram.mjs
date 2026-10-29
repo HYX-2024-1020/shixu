@@ -155,7 +155,7 @@ const bundled = await build({
     export { cardCopy } from './src/bucket/card-copy';
     export { mergeCardOrder } from './src/bucket/card-order';
     export { buildGroups, itemRef } from './shared/relations.mjs';
-    export { readingView, sourceLocation, processingView, walletView, reuseView, pdfProgressView } from './shared/reading-view.mjs';`,
+    export { readingView, sourceLocation, processingView, walletView, reuseView, pdfProgressView, imageProgressView } from './shared/reading-view.mjs';`,
     resolveDir: root,
   },
   bundle: true,

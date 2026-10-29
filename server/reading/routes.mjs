@@ -173,6 +173,7 @@ export function createReadingRoutes({
         name: c.name,
         state: c.state,
         archivePdfPages:c.archivePdfPages,
+        imageTiles:c.imagePagination ? {checked:c.covered?.filter(r=>r.kind==="image").length||0,total:c.imagePagination.totalTiles}:undefined,
         readRanges: c.covered?.length || 0,
         unreadRanges: c.uncovered?.length || 0,
         ...(c.pagination ? {pdfPages:{
@@ -236,7 +237,8 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx", "pdf"],
+          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png"] : [])],
+          imageTiles:reader.imageWindows===true && provider.imageInput===true,
           pdfTextOnly: true,
           registration,
           originalLifecycle: true,
