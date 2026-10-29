@@ -938,6 +938,8 @@ var labels = {
 };
 var reasons = {
   ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
+  ARCHIVE_RAR4_UNSUPPORTED: "旧版 RAR 的原路径与编码尚未验证，暂不支持",
+  NATIVE_READER_UNSUPPORTED: "服务端安全归档读取工具未就绪，请联系维护者",
   ARCHIVE_NESTED_UNSUPPORTED: "嵌套归档暂不支持，未展开",
   ARCHIVE_ENTRY_LIMIT: "包内文件超过单件安全限制，未读取",
   ARCHIVE_ENTRY_FAILED: "包内文件完整性校验或读取失败，其他安全文件继续",
@@ -959,7 +961,7 @@ var reasons = {
   READING_TIMEOUT: "读取步骤超时，本次未读取",
   READING_QUEUE_FULL: "读取队列已满，可稍后重试",
   PACKAGE_INVALID: "文件压缩结构或完整性校验失败",
-  PACKAGE_UNSUPPORTED: "加密、ZIP64或此压缩方式暂不支持",
+  PACKAGE_UNSUPPORTED: "加密、多卷、solid、ZIP64或此归档特性暂不支持",
   PACKAGE_PATH: "文件内含不安全路径或链接",
   PACKAGE_LIMIT: "文件展开超过安全资源限制",
   PACKAGE_PART_MISSING: "文件所需组成部分缺失",

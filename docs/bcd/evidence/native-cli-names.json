@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-29",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "tool": "7-Zip26.04 from existing 7zip-bin-full26.4.1, Windows x64",
+  "command": "l -slt -sccUTF-8 -- synthetic-fixture.zip",
+  "originalNames": ["a\nb.txt", "a_b.txt"],
+  "displayedPaths": ["Path = a_b.txt", "Path = a_b.txt"],
+  "lossy": true,
+  "conclusion": "ordinary technical listing is not an authoritative original-path interface"
+}

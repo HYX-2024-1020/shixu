@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;zip/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/2";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -159,7 +159,7 @@ export function readMaterial(
       offset += chunk.size;
     }
   };
-  if (/\.zip$/i.test(name)) {
+  if (/\.(zip|rar|7z)$/i.test(name)) {
     return import("./archive.mjs").then(({ readArchive }) =>
       readArchive(bytes, result, { windowCodepoints }),
     );

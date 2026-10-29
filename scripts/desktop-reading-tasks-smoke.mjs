@@ -11,11 +11,13 @@ import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
+import { nativeArchiveSample } from "../server/reading/native-archive-fixtures.mjs";
 import { DatabaseSync } from "node:sqlite";
 const safetyRollback = process.argv.includes("--safety-rollback");
 const auditTime = process.argv.includes("--audit-time");
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
+const nativeFormat=process.argv.includes("--rar")?"rar":process.argv.includes("--7z")?"7z":null;
 const pdfLimit = process.argv.includes("--pdf-limit");
 const pdfWindows = process.argv.includes("--pdf-windows");
 const pdf = process.argv.includes("--pdf") || pdfLimit || pdfWindows;
@@ -28,7 +30,10 @@ const readFailure = process.argv.includes("--reader-limit") || auditTime
   : process.argv.includes("--reader-time-unknown")
     ? "ACTIVE_TIME_RECONCILIATION"
     : null;
-const original = zip ? (() => {
+const original = nativeFormat ? await (async()=> {
+  const f=await nativeArchiveSample(nativeFormat,{long:true});
+  return {name:f.name,type:f.type,body:[...f.body]};
+})() : zip ? (() => {
   const f = archiveSample({ long: true });
   return { name: f.name, type: f.type, body: [...f.body] };
 })() : pdfWindows ? (() => {
@@ -432,7 +437,10 @@ scenario: try {
       await expect(
         materials.getByText(original.name + " · 部分读取"),
       ).toBeVisible();
-      if (zip) {
+      if (nativeFormat) {
+        await expect(materials.getByText(/包内 “05页面.pdf”.*第 2 页/)).toBeVisible();
+        await expect(materials.getByText(/包内 “06未读.png”.*此格式暂不支持/)).toBeVisible();
+      } else if (zip) {
         await expect(materials.getByText(/包内 “未读\/嵌套.zip”.*嵌套归档/)).toBeVisible();
         await expect(materials.getByText(/包内 “页面\/正文.pdf”.*第 2 页/)).toBeVisible();
       } else if (pdfWindows) {
@@ -473,7 +481,7 @@ scenario: try {
         stopContinueButtons: true,
         cumulativeWallet: true,
         published: true,
-        format: zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
+        format: nativeFormat || (zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt"),
         crossRevisionReuse: revisionReuse,
         pdfResourceSuffix: pdfLimit,
         pdfPageWindows: pdfWindows,

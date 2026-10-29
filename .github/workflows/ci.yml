@@ -72,6 +72,7 @@ jobs:
       - run: node scripts/check-docs.mjs
       - run: node --test scripts/stage-a/*.test.mjs
       - run: node scripts/stage-a/rehearse.mjs
+      - run: npm run reading:archive:build
       - run: node --test server/reading/*.test.mjs
       - run: npm run build
       - run: npm run test:server
@@ -121,6 +122,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run reading:archive:build
       - run: npm run test:desktop
       - run: npm run desktop:build
       - run: npm run test:desktop:ui
@@ -134,6 +136,8 @@ jobs:
       - run: node scripts/desktop-reading-tasks-smoke.mjs --safety-rollback
       - run: node scripts/desktop-reading-tasks-smoke.mjs --audit-time --pdf-windows --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --zip --temporary
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --rar --temporary
+      - run: node scripts/desktop-reading-tasks-smoke.mjs --7z --temporary
       - run: node scripts/desktop-reading-tasks-smoke.mjs --reuse
       - run: node scripts/desktop-reading-tasks-smoke.mjs --originals
       - run: node scripts/desktop-reading-tasks-smoke.mjs --temporary

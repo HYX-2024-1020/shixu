@@ -1,5 +1,7 @@
 # 独立同步后端：私有测试部署
 
+本分支服务归档读取先在对应平台的独立构建目录运行 `npm run reading:archive:build`，再运行发布包构建。需要已有GCC/g++、make（Windows为MinGW g++/mingw32-make）及tar；脚本不安装宿主软件包，下载并核对固定官方源，生成静态x64工具、源码及许可。Windows生成物不能复制冒充Linux工具；缺少匹配工具时服务归档失败关闭，不调用系统7z。发布包按显式清单包含工具和完整修改源，Linux可执行位保留。此步骤不部署、安装或迁移生产，隔离broker仍是必需条件。边界见[归档验证](../../docs/bcd/native-archive-verification.md)。
+
 ## 邀请账号版 v3
 
 Issue #40 的账号版必须使用 `install-accounts.sh`，不能用下方旧 v2 安装器冒充账号部署。新安装器会保存原服务 unit、配置和旧单用户数据库备份，停服后备份账号注册表与所有用户数据库，再切换同一个 shixu-sync.service 的入口；失败恢复旧代码与 unit，不删除新旧资料。旧 workspace.sqlite 保持封存，不复制给新账号。
