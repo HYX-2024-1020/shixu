@@ -15,6 +15,7 @@ for (const deleted of [false, true]) test(
       await runClientLoop({ directory, reader: readMaterial,
         sourceByMini: true, startByMini: true,
         ...(deleted ? { deleteBeforeStart: true } : { originalQuota: 1, expireBeforeStart: true }),
+        reviseAfterPublication: true,
         original: { ...archiveSample({ long: true }), verify({ win, mini, page }) {
           assert.deepEqual(win.readingCoverage, mini.readingCoverage);
           const c = win.readingCoverage[0];

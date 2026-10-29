@@ -31,7 +31,9 @@ export class ReadingRoots {
           this.block(task.id, "ACTIVE_TIME_RECONCILIATION");
         for (const block of this.db
           .prepare(
-            "SELECT fingerprint,call_id FROM reading_blocks WHERE task=?",
+            `SELECT b.fingerprint,b.call_id FROM reading_blocks b
+             LEFT JOIN reading_reused_blocks r ON r.task=b.task AND r.fingerprint=b.fingerprint
+             WHERE b.task=? AND r.task IS NULL`,
           )
           .all(task.id))
           if (ledger.call(block.call_id)?.state === "settled")

@@ -36,6 +36,7 @@ export async function runClientLoop({
   expireBeforeStart = false,
   startByMini = false,
   deleteBeforeStart = false,
+  reviseAfterPublication = false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -417,6 +418,36 @@ export async function runClientLoop({
     );
     if (original?.verify)
       await original.verify({ win, mini, page, cloud, service });
+    let revisionEvidence;
+    if (reviseAfterPublication) {
+      const previousCalls = calls, previousSpent = ledger.wallet(account).spent;
+      const previousJob = cloud.readJobs().find(j => j.id === task.id);
+      page._client.put("packet", { text: "补充新的材料要求" });
+      await page.sync();
+      assert.equal(page.data.error, "");
+      await page._startJob("organize", "packet");
+      assert.equal(page.data.error, "");
+      const revisionId = page._jobs.at(-1).id;
+      while (service.readingRoutes.snapshot().accounts) await tick();
+      await page.sync();
+      await cloud.action("sync");
+      const revised = cloud.readJobs().find(j => j.id === revisionId);
+      const miniRevised = page._jobs.find(j => j.id === revisionId);
+      assert.equal(revised.state, "done");
+      assert.equal(calls, previousCalls + 1);
+      assert.equal(revised.calls, 1);
+      assert.equal(revised.reusedBlocks, previousJob.completedBlocks);
+      assert.equal(miniRevised.reusedBlocks, revised.reusedBlocks);
+      assert.equal(revised.rootCalls, previousJob.rootCalls + 1);
+      assert.equal(ledger.wallet(account).spent, previousSpent + 20);
+      assert.match(page.data.jobs.find(j => j.id === revisionId).reuseLabel, /已核验当前材料/);
+      const revisedWin = (await cloud.packets())[0];
+      assert.deepEqual(revisedWin.result, JSON.parse(JSON.stringify(page._record("packet").data.result)));
+      assert.deepEqual(revisedWin.readingCoverage.filter(c => c.attachmentId !== "input"), win.readingCoverage);
+      revisionEvidence = { reusedBlocks: revised.reusedBlocks, newCalls: revised.calls,
+        rootCalls: revised.rootCalls, newSpentMicros: ledger.wallet(account).spent - previousSpent,
+        currentOriginalRevalidated: true, dualClientResultAndLabelAgree: true };
+    }
     if (deleteBeforeStart) {
       const storage = await cloud.request(
         cloud.config.active,
@@ -503,6 +534,7 @@ export async function runClientLoop({
       startByMini,
       deleteBeforeStart,
       lifecycleVerified: verifyLifecycle,
+      ...(revisionEvidence ? { revisionEvidence } : {}),
     };
   } finally {
     release();

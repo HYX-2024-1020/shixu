@@ -55,6 +55,7 @@ interface Window {
         output?: unknown;
         protocol?: number;
         calls?: number;
+        reusedBlocks?: number;
         rootTaskId?: string;
         rootCalls?: number;
         rootActiveMs?: number;

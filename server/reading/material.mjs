@@ -164,12 +164,18 @@ export function readMaterial(
   if (/\.pdf$/i.test(name)) {
     return import("./pdf.mjs").then(async ({ readPdf, PDF_READER_VERSION }) => {
       result.readerVersion = PDF_READER_VERSION;
-      await readPdf(bytes, { add, missing: (code, range = { kind: "file" }) => {
-        result.uncovered.push({ ...range, code });
-        if (!result.reasons.includes(code)) result.reasons.push(code);
-      } });
-      result.state = result.segments.some((s) => s.text.trim()) ? "partial"
-        : result.reasons.includes("PDF_ENCRYPTED_UNSUPPORTED") ? "unsupported" : "failed";
+      await readPdf(bytes, {
+        add,
+        missing: (code, range = { kind: "file" }) => {
+          result.uncovered.push({ ...range, code });
+          if (!result.reasons.includes(code)) result.reasons.push(code);
+        },
+      });
+      result.state = result.segments.some((s) => s.text.trim())
+        ? "partial"
+        : result.reasons.includes("PDF_ENCRYPTED_UNSUPPORTED")
+          ? "unsupported"
+          : "failed";
       return result;
     });
   }
@@ -367,9 +373,11 @@ export function modelMaterial(material) {
 }
 
 export function* modelBatches(materials) {
-  let batch = [],
-    units = 0;
-  for (const material of materials)
+  // Original boundaries make windows stable when another input is revised.
+  // Small originals can now require separate calls; all calls retain budgets.
+  for (const material of materials) {
+    let batch = [],
+      units = 0;
     for (const s of material.segments) {
       if (!s.text.trim()) continue;
       if (
@@ -383,5 +391,6 @@ export function* modelBatches(materials) {
       batch.push(s);
       units += s.text.length;
     }
-  if (batch.length) yield batch;
+    if (batch.length) yield batch;
+  }
 }

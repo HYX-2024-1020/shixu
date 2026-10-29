@@ -46,6 +46,7 @@ __export(stdin_exports, {
   parseSkinCollection: () => parseSkinCollection,
   processingView: () => processingView,
   readingView: () => readingView,
+  reuseView: () => reuseView,
   setDeadline: () => setDeadline,
   skinSound: () => skinSound,
   sourceLocation: () => sourceLocation,
@@ -1070,6 +1071,9 @@ function walletView(wallet) {
   if (!Number.isFinite(wallet.spent) || !Number.isFinite(wallet.available))
     return "额度状态待核对";
   return `累计已消费 ¥${(wallet.spent / 1e6).toFixed(4)} · 可用 ¥${(wallet.available / 1e6).toFixed(2)}（不按天重置）${wallet.lowBalance ? " · 余额不足¥3" : ""}`;
+}
+function reuseView(count) {
+  return Number.isSafeInteger(count) && count > 0 ? `复用 ${count} 个已付费块（已核验当前材料）` : "";
 }
 
 // <stdin>

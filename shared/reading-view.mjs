@@ -188,3 +188,7 @@ export function walletView(wallet) {
     return "额度状态待核对";
   return `累计已消费 ¥${(wallet.spent / 1000000).toFixed(4)} · 可用 ¥${(wallet.available / 1000000).toFixed(2)}（不按天重置）${wallet.lowBalance ? " · 余额不足¥3" : ""}`;
 }
+export function reuseView(count) {
+  return Number.isSafeInteger(count) && count > 0
+    ? `复用 ${count} 个已付费块（已核验当前材料）` : "";
+}

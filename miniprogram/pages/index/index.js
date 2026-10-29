@@ -46,6 +46,7 @@ const {
   habitCheckin,
   readingView,
   walletView,
+  reuseView,
   processingView,
   sourceLocation,
 } = require("../../lib/generated/desktop");
@@ -2132,6 +2133,7 @@ Page({
         output,
         actions,
         calls,
+        reusedBlocks,
         rootCalls,
         rootActiveSeconds,
       }) => ({
@@ -2140,6 +2142,7 @@ Page({
         error,
         hasOutput: !!output,
         calls: calls || 0,
+        reuseLabel: reuseView(reusedBlocks),
         rootCalls,
         rootActiveSeconds,
         canStop: actions?.includes("stop") || false,

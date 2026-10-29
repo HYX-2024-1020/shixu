@@ -11,6 +11,7 @@ const recovery = process.argv.includes("--reverify")
   : process.argv.includes("--expired")
     ? "expireBeforeStart:true,startByMini:true,"
     : "";
+const revision = process.argv.includes("--reuse") ? "reviseAfterPublication:true," : "";
 const officeFormat = process.argv.includes("--zip") ? "zip" : process.argv.includes("--pdf")
   ? "pdf"
   : process.argv.includes("--xlsx")
@@ -64,7 +65,7 @@ try {
   const started = performance.now();
   const loop = await run(
     "nobody",
-    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${officeFormat ? `import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./${officeFormat}-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};` : "const original = undefined;"} const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader: createBrokerClient('${socketDirectory}/reader.sock'), original, ${recovery}${originals ? "originalQuota:1,sourceByMini:true,verifyLifecycle:true," : ""} }); console.log(JSON.stringify(evidence));`,
+    `import { runClientLoop } from './scripts/reading-client-loop.mjs'; import { createBrokerClient } from './server/reading/broker-service.mjs'; ${officeFormat ? `import { readFileSync } from 'node:fs'; const f = JSON.parse(readFileSync('./${officeFormat}-loop-fixture.json','utf8')); const original = {...f, body:Buffer.from(f.body,'base64')};` : "const original = undefined;"} const evidence = await runClientLoop({ directory: ${JSON.stringify(directory)}, reader: createBrokerClient('${socketDirectory}/reader.sock'), original, ${recovery}${revision}${originals ? "originalQuota:1,sourceByMini:true," + (revision ? "" : "verifyLifecycle:true,") : ""} }); console.log(JSON.stringify(evidence));`,
   );
   assert.equal(loop.exit, 0, loop.errors);
   const rejected = await run(

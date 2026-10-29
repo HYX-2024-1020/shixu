@@ -11,7 +11,8 @@ import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
 import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample } from "../server/reading/archive-fixtures.mjs";
-const zip = process.argv.includes("--zip");
+const revisionReuse = process.argv.includes("--reuse");
+const zip = process.argv.includes("--zip") || revisionReuse;
 const pdf = process.argv.includes("--pdf");
 const docx = process.argv.includes("--docx");
 const xlsx = process.argv.includes("--xlsx");
@@ -327,6 +328,23 @@ try {
       assert.equal(storage.usedBytes, 0);
       assert.equal(storage.originals[0].state, "deleted");
     }
+    if (revisionReuse) {
+      const previousCalls = calls;
+      await page.evaluate(async () => {
+        const packet = (await window.desktop.store("packets"))[0];
+        await window.desktop.store("savePackets", [{ ...packet, text: "补充新的材料要求" }]);
+        await window.desktop.cloud("sync");
+        await window.desktop.cloud("ai", { kind: "organize", packetId: "task-ui" });
+      });
+      await waitForPageState(page, async () => {
+        await window.desktop.cloud("sync");
+        const jobs = (await window.desktop.cloud("status")).jobs;
+        return jobs.some(j => j.state === "done" && j.reusedBlocks > 0);
+      });
+      await page.getByRole("button", { name: "立即同步", exact: true }).click();
+      await expect(page.getByText(/复用 [1-9]\d* 个已付费块（已核验当前材料）/)).toBeVisible();
+      assert.equal(calls, previousCalls + 1);
+    }
     if (original) {
       await page.getByRole("button", { name: "关闭设置", exact: true }).click();
       // IPC submission updates the main-process projection; verify persisted
@@ -385,6 +403,7 @@ try {
         cumulativeWallet: true,
         published: true,
         format: zip ? "zip" : pdf ? "pdf" : xlsx ? "xlsx" : docx ? "docx" : "txt",
+        crossRevisionReuse: revisionReuse,
         simulatedCalls: status.jobs.find((j) => j.packetId === "task-ui")
           ?.calls,
       }),

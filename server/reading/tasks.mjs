@@ -12,6 +12,7 @@ import {
 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
 import { ReadingRoots } from "./roots.mjs";
+import { ReadingReuse } from "./reuse.mjs";
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -29,7 +30,7 @@ const error = (code) =>
 const versions = {
   reader: READER_VERSION,
   normalization: NORMALIZATION_VERSION,
-  prompt: "reading/1",
+  prompt: "reading/2-original-windows",
   schema: "bucket/1",
 };
 
@@ -104,6 +105,7 @@ export function inputRevision(store, packetId) {
   return sha256(
     JSON.stringify({
       text: (r.data.text || "").replace(/\r\n?/g, "\n"),
+      captureDate: r.data.captureDate,
       files,
       versions,
     }),
@@ -164,6 +166,7 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_checkpoints(task TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,PRIMARY KEY(task,calls));
       CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);`);
+    this.reuse = new ReadingReuse(this.db, ledger, account);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
@@ -325,6 +328,7 @@ export class ReadingTasks {
           actingDevice: deviceId || task.device,
         };
       } else if (action === "purge") {
+        this.reuse.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
           .prepare("DELETE FROM reading_block_ranges WHERE task=?")
@@ -745,13 +749,9 @@ export class ReadingTasks {
             root.activeMs -
             (performance.now() - started - excludedMs);
           const backoff = retries ? 300 : 100;
-          await delay(
-            Math.max(1, Math.min(backoff, remaining)),
-            undefined,
-            {
-              signal: controller.signal,
-            },
-          );
+          await delay(Math.max(1, Math.min(backoff, remaining)), undefined, {
+            signal: controller.signal,
+          });
           // Node rounds timer delays down. A sub-millisecond early wake must
           // not admit another read when the budget cannot cover the backoff.
           if (remaining <= backoff) throw Error("EXECUTION_LIMIT");
@@ -761,6 +761,8 @@ export class ReadingTasks {
     try {
       if (root.reason) throw Error(root.reason);
       if (root.activeMs >= this.activeLimitMs) throw Error("EXECUTION_LIMIT");
+      const wallet = this.ledger.wallet(this.account);
+      if (wallet.pausedReason) throw Error(wallet.pausedReason);
       const packet = this.store.record(task.packet).data,
         cached = this.materials.get(id),
         materials = cached || [];
@@ -851,8 +853,56 @@ export class ReadingTasks {
           existing &&
           this.ledger.call(existing.call_id)?.state === "settled"
         ) {
-          this.roots.progress(id, fingerprint);
+          if (!this.reuse.copied(id, fingerprint))
+            this.roots.progress(id, fingerprint);
           continue;
+        }
+        const sources = batch.map((s) => ({
+          id: s.sourceId,
+          name:
+            typeof s.range.archivePath === "string"
+              ? "包内 " +
+                [...s.range.archivePath].slice(0, 90).join("") +
+                ([...s.range.archivePath].length > 90 ? "…" : "")
+              : s.range.name,
+          text: s.text,
+        }));
+        const reuseKey = this.reuse.key(batch, readable, {
+          versions,
+          model: this.modelVersion,
+          captureDate: packet.captureDate,
+          maxOutputTokens: this.maxOutputTokens,
+        });
+        const reused = this.reuse.find(task, reuseKey, (raw) =>
+          validatePaidResult(raw, sources, packet.captureDate),
+        );
+        if (reused) {
+          const result = this.boundQuotes(
+            id,
+            reused.validated,
+            readable,
+            batch,
+          );
+          this.transaction(() => {
+            if (!this.current(task)) throw error("STALE_TASK");
+            this.db
+              .prepare("INSERT INTO reading_blocks VALUES(?,?,?,?)")
+              .run(id, fingerprint, reused.call_id, JSON.stringify(result));
+            this.db
+              .prepare("INSERT INTO reading_block_ranges VALUES(?,?,?)")
+              .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
+            this.db
+              .prepare("INSERT INTO reading_reused_blocks VALUES(?,?,?,?,?)")
+              .run(
+                id,
+                fingerprint,
+                reused.task,
+                reused.fingerprint,
+                reused.call_id,
+              );
+          });
+          // Yield fairly, without a new call, settlement or root progress.
+          return this.get(id);
         }
         const recovered = this.ledger.completedEnvelope(
           this.account,
@@ -869,17 +919,15 @@ export class ReadingTasks {
             )
             .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
           this.ledger.clearEnvelope(recovered.call_id);
+          this.reuse.certify(
+            id,
+            fingerprint,
+            reuseKey,
+            JSON.parse(recovered.result),
+          );
           this.roots.progress(id, fingerprint);
           continue;
         }
-        const sources = batch.map((s) => ({
-          id: s.sourceId,
-          name: typeof s.range.archivePath === "string"
-            ? "包内 " + [...s.range.archivePath].slice(0, 90).join("") +
-              ([...s.range.archivePath].length > 90 ? "…" : "")
-            : s.range.name,
-          text: s.text,
-        }));
         const prepared = this.provider.prepare?.(sources, {
           captureDate: packet.captureDate,
           maxOutputTokens: this.maxOutputTokens,
@@ -955,47 +1003,7 @@ export class ReadingTasks {
           this.ledger.settle(callId, response.usage);
           throw e;
         }
-        const quoteTotals = new Map();
-        for (const row of this.db
-          .prepare("SELECT result FROM reading_blocks WHERE task=?")
-          .all(id))
-          for (const item of JSON.parse(row.result).items)
-            for (const evidence of item.evidence) {
-              const attachment = readable.find((m) =>
-                m.segments.some((s) => s.sourceId === evidence.sourceId),
-              )?.attachmentId;
-              if (attachment)
-                quoteTotals.set(
-                  attachment,
-                  (quoteTotals.get(attachment) || 0) + evidence.quote.length,
-                );
-            }
-        for (const item of result.items)
-          for (const evidence of item.evidence) {
-            const segment = batch.find((s) => s.sourceId === evidence.sourceId);
-            if (
-              !segment ||
-              evidence.quote.length > 500 ||
-              !segment.text.includes(evidence.quote)
-            )
-              throw Error("INVALID_MODEL_SOURCE");
-            const attachment = readable.find((m) =>
-              m.segments.some((s) => s.sourceId === evidence.sourceId),
-            ).attachmentId;
-            const available = Math.max(
-              0,
-              2000 - (quoteTotals.get(attachment) || 0),
-            );
-            if (evidence.quote.length > available) {
-              evidence.quote = evidence.quote.slice(0, available);
-              if (/[\ud800-\udbff]$/.test(evidence.quote))
-                evidence.quote = evidence.quote.slice(0, -1);
-            }
-            quoteTotals.set(
-              attachment,
-              (quoteTotals.get(attachment) || 0) + evidence.quote.length,
-            );
-          }
+        this.boundQuotes(id, result, readable, batch);
         this.ledger.saveEnvelope(callId, fingerprint, result, response.usage);
         this.ledger.settle(callId, response.usage);
         this.db
@@ -1004,10 +1012,9 @@ export class ReadingTasks {
         this.db
           .prepare("INSERT OR REPLACE INTO reading_block_ranges VALUES(?,?,?)")
           .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
+        this.reuse.certify(id, fingerprint, reuseKey, result);
         this.ledger.clearEnvelope(callId);
         this.roots.progress(id, fingerprint);
-        // One bounded call returns control to the caller scheduler. It may run a
-        // different account next; checkpoints never reset cumulative counters.
         return this.get(id);
       }
       if (!this.current(task)) return this.get(id);
@@ -1036,6 +1043,7 @@ export class ReadingTasks {
               "ACTIVE_TIME_RECONCILIATION",
               "REUPLOAD_REQUIRED",
               "READING_TIMEOUT",
+              "LEDGER_PAUSED",
             ].includes(reason)
               ? reason
               : "READING_TASK_FAILED",
@@ -1078,5 +1086,49 @@ export class ReadingTasks {
         }
       }
     }
+  }
+  boundQuotes(id, result, readable, batch) {
+    const quoteTotals = new Map();
+    for (const row of this.db
+      .prepare("SELECT result FROM reading_blocks WHERE task=?")
+      .all(id))
+      for (const item of JSON.parse(row.result).items)
+        for (const evidence of item.evidence) {
+          const attachment = readable.find((m) =>
+            m.segments.some((s) => s.sourceId === evidence.sourceId),
+          )?.attachmentId;
+          if (attachment)
+            quoteTotals.set(
+              attachment,
+              (quoteTotals.get(attachment) || 0) + evidence.quote.length,
+            );
+        }
+    for (const item of result.items)
+      for (const evidence of item.evidence) {
+        const segment = batch.find((s) => s.sourceId === evidence.sourceId);
+        if (
+          !segment ||
+          evidence.quote.length > 500 ||
+          !segment.text.includes(evidence.quote)
+        )
+          throw Error("INVALID_MODEL_SOURCE");
+        const attachment = readable.find((m) =>
+          m.segments.some((s) => s.sourceId === evidence.sourceId),
+        ).attachmentId;
+        const available = Math.max(
+          0,
+          2000 - (quoteTotals.get(attachment) || 0),
+        );
+        if (evidence.quote.length > available) {
+          evidence.quote = evidence.quote.slice(0, available);
+          if (/[\ud800-\udbff]$/.test(evidence.quote))
+            evidence.quote = evidence.quote.slice(0, -1);
+        }
+        quoteTotals.set(
+          attachment,
+          (quoteTotals.get(attachment) || 0) + evidence.quote.length,
+        );
+      }
+    return result;
   }
 }

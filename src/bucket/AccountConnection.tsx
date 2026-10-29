@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { walletView } from "../../shared/reading-view.mjs";
+import { walletView, reuseView } from "../../shared/reading-view.mjs";
 type State = Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>;
 export default function AccountConnection({
   canSwitch,
@@ -473,6 +473,7 @@ export default function AccountConnection({
                   } as Record<string, string>
                 )[task.state] || "需核对"}{" "}
                 · 本任务已调用 {task.calls || 0} 次
+                {reuseView(task.reusedBlocks) && ` · ${reuseView(task.reusedBlocks)}`}
                 {typeof task.rootCalls === "number" && (
                   <>
                     {" "}

@@ -112,6 +112,7 @@ export function createReadingRoutes({
       generation: t.generation,
       inputRevision: t.input_revision,
       calls: t.calls,
+      reusedBlocks: e.reuse.count(t.id),
       activeMs: t.active_ms,
       reason: t.reason,
       rootTaskId: root.id,

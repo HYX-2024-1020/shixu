@@ -301,6 +301,7 @@
 <view wx:if="{{tab === 'settings' && jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
     ><text>模型任务 · {{jobLabels[item.state] || "待核对"}} · 本任务已调用 {{item.calls}} 次</text
+    ><text wx:if="{{item.reuseLabel}}"> · {{item.reuseLabel}}</text
     ><text wx:if="{{item.rootCalls !== undefined}}"> · 该投递累计 {{item.rootCalls}} 次 · 活跃 {{item.rootActiveSeconds}} 秒</text
     ><button wx:if="{{item.canStop}}" data-id="{{item.id}}" data-action="stop" bindtap="taskAction" disabled="{{jobBusy}}">停止</button
     ><button wx:if="{{item.canContinue}}" data-id="{{item.id}}" data-action="continue" bindtap="taskAction" disabled="{{jobBusy}}">继续</button

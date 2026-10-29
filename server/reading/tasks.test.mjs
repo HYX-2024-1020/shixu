@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SyncStore } from "../sync-store.mjs";
 import { createAttachmentStore } from "../sync-files.mjs";
-import { readMaterial } from "./material.mjs";
+import { readMaterial, sha256 } from "./material.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";
@@ -156,6 +156,135 @@ async function finish(tasks) {
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
+
+test("editing packet text revalidates and reuses unchanged paid ZIP blocks across revisions", async (t) => {
+  const sample = archiveSample({ long: true });
+  let parses = 0;
+  const f = fixture(t, { name: sample.name, text: sample.body, reader: async file => { parses++; return readMaterial(file); } });
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  const previousCalls = f.calls(), previousSpent = f.ledger.wallet("synthetic").spent;
+  f.put({ text: "补充新的材料要求" });
+  f.tasks.enqueue({ id: "revised", packetId: "packet", deviceId: f.wechat.deviceId });
+  for (let i = 0; i < 15 && f.tasks.get("revised").state === "queued"; i++) await f.tasks.run("revised");
+  assert.equal(f.tasks.get("revised").state, "done");
+  assert.equal(f.calls(), previousCalls + 1, "unchanged ZIP must not be charged again");
+  assert.equal(f.ledger.wallet("synthetic").spent, previousSpent + 20);
+  assert.ok(parses >= 3, "current text and ZIP bytes are actually read again");
+  assert.equal(f.tasks.reuse.count("revised"), previousCalls);
+  assert.equal(f.tasks.roots.stats("revised").calls, previousCalls + 1);
+  assert.equal(f.tasks.roots.stats("revised").completed, previousCalls + 1);
+  f.tasks.close();
+  const restarted = new ReadingTasks(f.taskArgs);
+  assert.equal(restarted.reuse.count("revised"), previousCalls);
+  assert.equal(restarted.roots.stats("revised").completed, previousCalls + 1,
+    "restart cannot count borrowed results as new root progress");
+  restarted.close();
+});
+
+for (const mismatch of ["date", "model", "output", "hash", "purged", "legacy", "reader", "certificate", "quote", "call"])
+  test(`cross-revision reuse rejects ${mismatch} mismatch`, async t => {
+    const f = fixture(t, { text: "可信原件内容与尾部", name: "材料.txt" });
+    f.enqueue();
+    assert.equal((await finish(f.tasks)).state, "done");
+    if (mismatch === "date") f.put({ captureDate: "2026-10-29" });
+    if (mismatch === "model") f.tasks.modelVersion = "synthetic/changed";
+    if (mismatch === "output") f.tasks.maxOutputTokens = 3000;
+    if (mismatch === "legacy") f.store.db.exec("DELETE FROM reading_reuse_keys");
+    if (mismatch === "reader") f.tasks.reader = async file => ({ ...(await readMaterial(file)), readerVersion: "changed-reader/1" });
+    if (mismatch === "hash") {
+      const changed = f.store.files.put("packet", "different", { name: "材料.txt", body: Buffer.from("可信原件内容与改变的尾部"), type: "text/plain", epoch: f.store.epoch });
+      f.put({ attachments: [{ ...f.store.record("packet").data.attachments[0], deletedAt: "2026-10-28T01:00:00Z" }, changed] });
+    }
+    if (mismatch === "purged") f.action("purge");
+    if (mismatch === "certificate") f.store.db.prepare("UPDATE reading_reuse_keys SET result_hash='invalid'").run();
+    if (mismatch === "quote") {
+      const row = f.store.db.prepare("SELECT * FROM reading_blocks").get();
+      const result = JSON.parse(row.result);
+      result.items[0].evidence[0].quote = "不在当前来源的引用";
+      const body = JSON.stringify(result);
+      f.store.db.prepare("UPDATE reading_blocks SET result=?").run(body);
+      f.store.db.prepare("UPDATE reading_reuse_keys SET result_hash=?").run(sha256(body));
+    }
+    if (mismatch === "call") f.store.db.prepare("UPDATE reading_blocks SET call_id='absent'").run();
+    f.tasks.enqueue({ id: "different", packetId: "packet", deviceId: f.windows.deviceId });
+    for (let i = 0; i < 5 && f.tasks.get("different").state === "queued"; i++) await f.tasks.run("different");
+    assert.equal(f.tasks.get("different").state, "done");
+    assert.equal(f.tasks.reuse.count("different"), 0);
+    assert.equal(f.calls(), 2);
+  });
+
+test("unknown fees and root reconciliation cannot be bypassed by fully reusable results", async t => {
+  for (const mode of ["unknown", "root"]) {
+    const f = fixture(t);
+    f.enqueue();
+    await finish(f.tasks);
+    if (mode === "unknown") {
+      f.ledger.reserve({ callId: "unknown", account: "synthetic", task: "task", block: "uncertain", generation: 1,
+        priceId: "fixture", maxPromptTokens: 10, maxOutputTokens: 10 });
+      f.ledger.sent("unknown"); f.ledger.unknown("unknown");
+    } else f.tasks.roots.block("task", "ACTIVE_TIME_RECONCILIATION");
+    f.tasks.enqueue({ id: "next", packetId: "packet", deviceId: f.wechat.deviceId });
+    assert.equal((await f.tasks.run("next")).reason, mode === "unknown" ? "UNKNOWN_COST" : "ACTIVE_TIME_RECONCILIATION");
+    assert.equal(f.tasks.reuse.count("next"), 0);
+    assert.equal(f.calls(), 1);
+  }
+});
+
+test("paid results cannot cross packets or stand in for missing original bytes", async t => {
+  const f = fixture(t);
+  f.enqueue(); await finish(f.tasks);
+  const data = f.store.record("packet").data;
+  const original = f.store.files.get("packet", "a");
+  const put = patch => f.store.apply(f.windows.deviceId, { id: "other", opId: crypto.randomUUID(), type: "put",
+    baseVersion: f.store.record("other")?.version || 0, data: patch }, f.store.epoch);
+  put({ id: "other", text: data.text, captureDate: data.captureDate,
+    attachments: [], result: null, sources: [], status: "pending" });
+  const file = f.store.files.put("other", "a", { name: original.name, body: original.body, type: original.type, epoch: f.store.epoch });
+  put({ attachments: [file] });
+  f.tasks.enqueue({ id: "other-task", packetId: "other", deviceId: f.wechat.deviceId });
+  for (let i = 0; i < 5 && f.tasks.get("other-task").state === "queued"; i++) await f.tasks.run("other-task");
+  assert.equal(f.tasks.get("other-task").state, "done");
+  assert.equal(f.tasks.reuse.count("other-task"), 0);
+  assert.equal(f.calls(), 2);
+  f.store.files.purge("packet");
+  assert.throws(() => f.tasks.enqueue({ id: "missing", packetId: "packet", deviceId: f.windows.deviceId }),
+    e => e.code === "REUPLOAD_REQUIRED");
+  assert.equal(f.calls(), 2);
+});
+
+test("changing capture date invalidates same-task continuation before old relative dates can be reused", async t => {
+  const f = fixture(t, { text: "明天交报告。".repeat(30000) });
+  f.enqueue(); await f.tasks.run("task");
+  f.action("stop");
+  f.put({ captureDate: "2026-10-29" });
+  assert.throws(() => f.action("continue", "changed-day"), e => e.code === "INPUT_CHANGED");
+  assert.equal(f.calls(), 1);
+});
+
+test("reuse receipt failure rolls back block/range writes and retries without a new charge", async t => {
+  const f = fixture(t);
+  f.enqueue(); await finish(f.tasks);
+  f.tasks.enqueue({ id: "next", packetId: "packet", deviceId: f.wechat.deviceId });
+  const prepare = f.store.db.prepare.bind(f.store.db);
+  f.store.db.prepare = sql => {
+    if (sql.startsWith("INSERT INTO reading_reused_blocks")) throw Error("synthetic receipt failure");
+    return prepare(sql);
+  };
+  try { assert.equal((await f.tasks.run("next")).state, "paused"); }
+  finally { f.store.db.prepare = prepare; }
+  assert.equal(prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task='next'").get().n, 0);
+  assert.equal(prepare("SELECT COUNT(*) n FROM reading_block_ranges WHERE task='next'").get().n, 0);
+  assert.equal(f.calls(), 1);
+  const current = f.tasks.get("next");
+  f.tasks.action("next", { operationId: "recover-receipt", expectedGeneration: current.generation,
+    expectedRevision: current.input_revision }, "continue", f.wechat.deviceId);
+  for (let i = 0; i < 5 && f.tasks.get("next").state === "queued"; i++) await f.tasks.run("next");
+  assert.equal(f.tasks.get("next").state, "done");
+  assert.equal(f.tasks.reuse.count("next"), 1);
+  assert.equal(f.calls(), 1);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+});
 
 test("ZIP paid block survives stop/resume without duplicate consumption and passes package paths to the provider", async (t) => {
   const sample = archiveSample({ long: true });

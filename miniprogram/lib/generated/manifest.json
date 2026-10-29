@@ -3,7 +3,7 @@
   "files": {
     "miniprogram/lib/generated/client-ui.wxss": "170f2b667331d3acbe8dc4304e594a9a58b6a92f9877b80c2a08067d346949d3",
     "miniprogram/pages/index/index.wxss": "10ff58d7161020da65b7a99cd51ff54994d9f15f4b06aad519e96387d3934aad",
-    "miniprogram/lib/generated/desktop.js": "b5c1444bd4d9cbcb1feff8131120cf06083ddc26e37a41ae8ec84750ce884f91",
+    "miniprogram/lib/generated/desktop.js": "6a64d78e1fa88d0121bc33f4afc03d42705493c5375800b883e08ccdc84d4e48",
     "server/generated/ai-core.mjs": "4993cbb9173b1ce7429e037f289acf8b6fc1335463f528615214bd8c71d1079a",
     "desktop/generated/sync-client.cjs": "146f6a6605c5836253d56d3e5c4dab5de0f535e5b67cd62f377e7d6337c43ed2",
     "desktop/generated/reading-transport.cjs": "6695aa05ac7b545a35b43d320a851bd4fc469898fb2709c8c9a882259dc2fc2c",

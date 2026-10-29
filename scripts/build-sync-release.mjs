@@ -20,6 +20,7 @@ const files = [
   "server/reading/xlsx-reader.cjs", "server/reading/xlsx-reader.LICENSE",
   "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
   "server/reading/archive.mjs",
+  "server/reading/reuse.mjs",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",
