@@ -28,3 +28,10 @@
 ## 验证范围
 
 使用合成材料与模拟模型检查 iPhone WebKit 的文字投递、附件预览、事项对话、DDL、完成、关闭标签页后再开、独立存储及备份恢复。浏览器模拟不替代 iPhone 真机；有效个人密钥的真实费用/质量和运营商网络需要用户试用核对。部署后需核对管理员入口和其 version.json 的 revision，不能只看根页面版本。
+
+
+## 主屏幕图标
+
+管理员测试版使用 Windows 当前黄色黑字“拾”图标。`node scripts/admin-icons.mjs` 从已交付的 `public/desktop-icon.png` 生成不透明的 180/192/512px 图标，不重新绘制字形；仅此入口更新，原网页版/Windows/微信图标不变。
+
+已经添加的 iOS 图标可能仍保留添加时的外观。先在当前主屏幕 App 内备份资料，再用 Safari 刷新测试版入口，按 [Apple 的添加说明](https://support.apple.com/en-eg/guide/iphone/iphea86e5236/ios) 添加到主屏幕并核对预览。确认新入口与资料可用前保留旧入口，不为换图标清除网站数据。实际已安装图标刷新仍需 iPhone 验收。
