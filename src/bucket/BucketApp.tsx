@@ -48,6 +48,9 @@ import {
 } from "./demo";
 import Connection from "./Connection";
 import InstallGuide from "./InstallGuide";
+import { ADMIN_TEST, EDITION_HOME } from "./edition";
+import AdminTestGuide from "./AdminTestGuide";
+import "./admin-test.css";
 import DeliverySources from "./DeliverySources";
 import ItemDialog from "./ItemDialog";
 import { useTransientUI } from "./useTransientUI";
@@ -77,7 +80,9 @@ import { ingestAttachment, supportedFiles, type Coverage } from "./ingest";
 const DEMO = new URLSearchParams(location.search).has("preview");
 const CONFIG_KEY = DEMO
   ? "shixu-bucket-connection-demo"
-  : "shixu-bucket-connection";
+  : ADMIN_TEST
+    ? "shixu-admin-test-connection"
+    : "shixu-bucket-connection";
 function initialConfig() {
   if (window.desktop)
     return { key: "", model: DEFAULT_MODEL, rememberKey: false };
@@ -157,6 +162,7 @@ export default function BucketApp() {
     );
     return () => cancelAnimationFrame(frame);
   }, [currentCaptureId]);
+  const [draftStatus, setDraftStatus] = useState("正在恢复本机资料…");
   const [dropVisible, setDropVisible] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
@@ -561,6 +567,21 @@ export default function BucketApp() {
   }, [notify]);
   useEffect(() => {
     if (!loaded) return;
+    if (ADMIN_TEST) {
+      let active = true;
+      setDraftStatus("正在保存草稿，请稍候…");
+      void writeDraft({ text, attachments })
+        .then(() => {
+          if (active) setDraftStatus("草稿已保存在此设备");
+        })
+        .catch((error) => {
+          if (active) setDraftStatus("草稿保存失败，请复制文字留存");
+          notify(message(error));
+        });
+      return () => {
+        active = false;
+      };
+    }
     const timeout = setTimeout(() => {
       void writeDraft({ text, attachments }).catch((error) =>
         notify(message(error)),
@@ -597,7 +618,7 @@ export default function BucketApp() {
     };
   }, [text, attachments]);
   useEffect(() => {
-    if (DEMO || window.desktop) return;
+    if (DEMO || window.desktop || ADMIN_TEST) return;
     let active = true;
     const detect = async () => {
       const result = await detectService();
@@ -1695,7 +1716,7 @@ export default function BucketApp() {
       }}
     >
       <header className="bucket-header">
-        <a href={import.meta.env.BASE_URL} className="bucket-brand">
+        <a href={EDITION_HOME} className="bucket-brand">
           <span>拾</span>
           拾序<small>SHIXU</small>
         </a>
@@ -1757,6 +1778,7 @@ export default function BucketApp() {
           </button>
         </nav>
       </header>
+      {ADMIN_TEST && <AdminTestGuide />}
       <main className="bucket-main">
         <div hidden={workspace !== "ddl"}>
           <DDL
@@ -2082,6 +2104,11 @@ export default function BucketApp() {
             </div>
           )}
 
+          {ADMIN_TEST && (
+            <p className="admin-draft-status" role="status">
+              {draftStatus}
+            </p>
+          )}
           {!window.desktop && <InstallGuide />}
         </div>
         <footer className="bucket-footer">
