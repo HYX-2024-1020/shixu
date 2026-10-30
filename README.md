@@ -1,5 +1,7 @@
 # 拾序 Shixu
 
+[管理员测试版（iPhone 应急直连）](https://hyx-2024-1020.github.io/shixu/admin-test/) · [使用说明](docs/guides/admin-test.md)
+
 **一个，什么都能放的桶。**
 
 把通知、截图、附件和零散想法放进同一个输入框。拾序调用你配置的 DeepSeek，整理成可编辑的事项卡片，保留原文和附件：在「桶」里接住内容，在「世界」里管理后续，在「DDL」里查看截止事项。

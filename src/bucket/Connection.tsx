@@ -6,6 +6,8 @@ import type { Packet } from "./types";
 import { getModels, KNOWN_MODELS, modelLabel } from "./model-api";
 import AccountConnection from "./AccountConnection";
 import UsagePanel from "./UsagePanel";
+import { ADMIN_TEST } from "./edition";
+import AdminBackup from "./AdminBackup";
 import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection(
@@ -350,7 +352,8 @@ function LegacyConnection({
             </p>
           </>
         )}
-        {!window.desktop && (
+        {ADMIN_TEST && <AdminBackup canUse={canSwitchCloud} notify={notify} />}
+        {!window.desktop && !ADMIN_TEST && (
           <button
             disabled={busy}
             onClick={async () => {
@@ -394,7 +397,7 @@ function LegacyConnection({
           >
             查看开源项目与部署说明
           </a>
-          {!window.desktop && (
+          {!window.desktop && !ADMIN_TEST && (
             <a href={`${import.meta.env.BASE_URL}?legacy=1`}>
               打开旧版资料空间
             </a>

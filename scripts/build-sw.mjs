@@ -19,6 +19,21 @@ const buildInfo =
     2,
   ) + "\n";
 await writeFile("dist/version.json", buildInfo);
+await writeFile(
+  "dist/admin-test/version.json",
+  JSON.stringify(
+    {
+      application: "shixu",
+      edition: "admin-test",
+      name: "管理员测试版",
+      version,
+      revision,
+      platform: "web",
+    },
+    null,
+    2,
+  ) + "\n",
+);
 const files = await readdir("dist", { recursive: true, withFileTypes: true });
 const assets = files
   .filter((file) => file.isFile())

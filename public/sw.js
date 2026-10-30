@@ -42,7 +42,13 @@ async function serveShell(request) {
   if (cached) return cached;
 
   if (request.mode === "navigate") {
-    const home = await current.match(self.registration.scope, {
+    const path = new URL(request.url).pathname;
+    const admin = new URL("admin-test/", self.registration.scope);
+    const entry =
+      path === admin.pathname || path === admin.pathname + "index.html"
+        ? new URL("index.html", admin).href
+        : self.registration.scope;
+    const home = await current.match(entry, {
       ignoreVary: true,
     });
     if (home) return home;

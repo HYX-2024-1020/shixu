@@ -3,6 +3,7 @@
 ## 使用拾序
 
 - [Windows 安装、投递、皮肤与备份](guides/windows.md)
+- [管理员测试版：iPhone 应急直连](guides/admin-test.md)
 - [网页与手机浏览器](guides/web.md) · [皮肤市场](skin-market.md)
 - [隐私与数据](../PRIVACY.md) · [安全与漏洞报告](../SECURITY.md)
 
