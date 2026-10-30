@@ -512,7 +512,7 @@
             bindinput="onEdit"
             maxlength="4000"
             placeholder="只针对当前事项提问或修改"
-          /><text class="quiet">使用服务端配置的模型，发送会产生调用费用。</text
+          /><text class="quiet">新版服务端对话依据已保存事项与本轮指令，不重新读取原件；发送会产生调用费用。</text
           ><button
             hover-class="btn-press" class="small-button"
             bindtap="chatWithItem"

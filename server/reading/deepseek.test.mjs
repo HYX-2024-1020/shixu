@@ -98,3 +98,20 @@ test("independent ledger audit rejects refunded projections and accounts for unk
     ledger.close();
   }
 });
+
+test('chat provider prepares only saved context and uses the common no-retry usage adapter',async()=>{
+  let calls=0;
+  const provider=createDeepSeekReadingProvider({apiKey:'synthetic',priceAt:()=>deepseekPriceSnapshots(1)[0].id,fetcher:async(url,init)=>{
+    calls++;const body=JSON.parse(init.body);
+    assert.equal(body.messages.length,2);assert.match(body.messages[0].content,/没有重新读取原件/);
+    assert.equal(body.max_tokens,4000);assert.equal(body.tools,undefined);assert.equal(body.stream,false);
+    const context=JSON.parse(body.messages[1].content);assert.equal(context.instruction,'只问问题');
+    return Response.json({usage:{prompt_tokens:30,completion_tokens:10},choices:[{finish_reason:'stop',message:{content:JSON.stringify({reply:'回答',patch:{}})}}]});
+  }});
+  const sources=[{id:'chat',text:JSON.stringify({schema:'saved-item-chat/1',today:'2026-10-30',instruction:'只问问题',currentItem:{title:'合成'}})}];
+  const prepared=provider.chat.prepare(sources);
+  assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));
+  const result=await provider.chat(sources,undefined,{prepared});
+  assert.deepEqual(result.result,{reply:'回答',patch:{}});assert.equal(result.usage.prompt_tokens,30);assert.equal(calls,1);
+  assert.throws(()=>provider.chat.prepare([...sources,...sources]),/INVALID_PROVIDER_INPUT/);
+});

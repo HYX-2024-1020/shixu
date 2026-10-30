@@ -2175,7 +2175,7 @@ Page({
           else
             jobs.push({
               ...task,
-              request: { packetId: task.packetId, kind: "organize" },
+              request: { packetId: task.packetId, kind: task.kind || "organize", ...(task.itemId?{itemId:task.itemId}:{}) },
             });
         }
         this._saveJobs(jobs);

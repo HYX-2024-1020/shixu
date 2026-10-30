@@ -198,7 +198,7 @@ class AccountWorkspace extends CloudWorkspace {
         else
           jobs.push({
             ...task,
-            request: { packetId: task.packetId, kind: "organize" },
+            request: { packetId: task.packetId, kind: task.kind || "organize", ...(task.itemId?{itemId:task.itemId}:{}) },
           });
       }
       this.writeJobs(jobs);
@@ -322,7 +322,7 @@ class AccountWorkspace extends CloudWorkspace {
       throw Error("请先完成这次投递的同步");
     const jobs = this.readJobs();
     const v4 = !!this.accountState?.reading;
-    if (v4 && value.kind !== "organize")
+    if (v4 && value.kind === "chat" && !this.accountState?.reading?.features?.itemChat)
       throw Error("事项对话尚未接入累计账本，暂不可用");
     if (v4) await this.reuploadTemporary(value.packetId);
     let saved = jobs.find(

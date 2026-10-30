@@ -14,6 +14,7 @@ import { validateUsage } from "./ledger.mjs";
 import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
+import { ReadingChat } from './chat.mjs';
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -190,6 +191,7 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_action_audits(operation TEXT PRIMARY KEY,maintenance_operation TEXT);`);
     this.reuse = new ReadingReuse(this.db, ledger, account);
     this.windows = new ReadingWindows(this.db);
+    this.chat = new ReadingChat(this);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
@@ -259,13 +261,24 @@ export class ReadingTasks {
       throw e;
     }
   }
-  enqueue({ id, packetId, deviceId, expectedCostOperation = null }) {
+  revision(task) {
+    return this.chat.revision(task.id,inputRevision(this.store,task.packet));
+  }
+  enqueue({ id, packetId, deviceId, expectedCostOperation = null, chat = null }) {
     if (this.finalSnapshots) throw error("SERVICE_CLOSING");
     this.authorize(deviceId);
     if (![id, packetId, deviceId].every(validId)) throw error("INVALID_TASK");
     return this.transaction(() => {
-      const revision = inputRevision(this.store, packetId),
-        prior = this.get(id);
+      const prior = this.get(id);
+      if (prior && (chat || this.chat.isChat(id))) {
+        if(prior.packet!==packetId || prior.device!==deviceId || !this.chat.sameRequest(id,packetId,deviceId,chat,expectedCostOperation))
+          throw error('IDEMPOTENCY_CONFLICT');
+        return prior;
+      }
+      if(!chat && this.chat.isChat(id))throw error('IDEMPOTENCY_CONFLICT');
+      const base = inputRevision(this.store,packetId);
+      const prepared = chat ? this.chat.prepare(id,packetId,deviceId,chat,expectedCostOperation) : null;
+      const revision = this.chat.revision(id,base,prepared);
       if (prior) {
         if (
           prior.packet !== packetId ||
@@ -310,6 +323,7 @@ export class ReadingTasks {
           revision,
           this.store.record(packetId).version,
         );
+      if(prepared)this.chat.register(this.get(id),prepared);
       this.roots.attach(this.get(id));
       return this.get(id);
     });
@@ -358,12 +372,13 @@ export class ReadingTasks {
       if (action === "continue" && expectedMaintenanceOperation !== this.maintenanceOperation(id))
         throw error("STALE_TASK");
       if (action === "accept-partial") {
+        if(this.chat.isChat(id))throw error("INVALID_TASK_TRANSITION");
         if (
           !["paused", "interrupted", "error", "conflict"].includes(task.state)
         )
           throw error("INVALID_TASK_TRANSITION");
         if (this.controllers.has(id)) throw error("TASK_STILL_DRAINING");
-        if (inputRevision(this.store, task.packet) !== task.input_revision)
+        if (this.revision(task) !== task.input_revision)
           throw error("INPUT_CHANGED");
         if (
           !this.db.prepare("SELECT 1 FROM reading_blocks WHERE task=?").get(id)
@@ -378,6 +393,7 @@ export class ReadingTasks {
       } else if (action === "purge") {
         this.reuse.purge(id);
         this.windows.purge(id);
+        this.chat.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
           .prepare("DELETE FROM reading_block_ranges WHERE task=?")
@@ -422,7 +438,7 @@ export class ReadingTasks {
             .get(id, ...occupies)
         )
           throw error("TASK_SLOT_FULL");
-        if (inputRevision(this.store, task.packet) !== task.input_revision)
+        if (this.revision(task) !== task.input_revision)
           throw error("INPUT_CHANGED");
         this.ledger.audit(this.account);
         const wallet = this.ledger.wallet(this.account);
@@ -568,13 +584,14 @@ export class ReadingTasks {
   }
   publish(task, coverage, partial = false, afterPublication) {
     const id = task.id;
+    const isChat = this.chat.isChat(id);
     const blocks = this.db
       .prepare(
         "SELECT b.result FROM reading_blocks b WHERE task=? ORDER BY rowid",
       )
       .all(id)
       .map((b) => JSON.parse(b.result));
-    const result = {
+    const result = isChat ? null : {
       summary: blocks.map((b) => b.summary).join("\n"),
       warnings: blocks.flatMap((b) => b.warnings),
       items: blocks.flatMap((b) => b.items),
@@ -604,7 +621,7 @@ export class ReadingTasks {
         id: task.packet,
         type: "put",
         baseVersion: task.base_version,
-        data: {
+        data: isChat ? this.chat.publication(task) : {
           result,
           status: "ready",
           readingCoverage: coverage,
@@ -618,6 +635,11 @@ export class ReadingTasks {
       {
         taskId: id,
         generation: task.generation,
+        beforeValidate: () => {
+          // A chat changes its saved-item dependency; verify the old context
+          // inside this transaction before applying the patch itself.
+          if(isChat && this.revision(task)!==task.input_revision)throw error('INPUT_CHANGED');
+        },
         beforeCommit: (response) => {
           const current = this.get(id);
           if (
@@ -627,7 +649,7 @@ export class ReadingTasks {
             )
           )
             throw error("STALE_TASK");
-          if (inputRevision(this.store, task.packet) !== task.input_revision)
+          if (!isChat && this.revision(task) !== task.input_revision)
             throw error("INPUT_CHANGED");
           this.db
             .prepare("INSERT INTO reading_publications VALUES(?,?)")
@@ -649,8 +671,11 @@ export class ReadingTasks {
       throw error("INVALID_TASK_TRANSITION");
     if (this.controllers.has(id)) throw error("TASK_STILL_DRAINING");
     this.authorize(task.device);
-    if (inputRevision(this.store, task.packet) !== task.input_revision)
+    if (this.revision(task) !== task.input_revision)
       throw error("INPUT_CHANGED");
+    const isChat = this.chat.isChat(id);
+    const callProvider = isChat ? this.provider.chat : this.provider;
+    const taskVersions = isChat ? {...versions,reader:"saved-item/1",normalization:"json/1",prompt:"item-chat/1",schema:"item-chat/1"} : versions;
     const root = this.roots.checkpoint(id);
     const activeLimitMs = this.executionLimit(id);
     this.db
@@ -834,9 +859,12 @@ export class ReadingTasks {
       const packet = this.store.record(task.packet).data,
         cached = this.materials.get(id),
         materials = cached || [];
-      const inputBytes = packet.text?.trim() ? Buffer.from(packet.text) : null;
+      const chatMaterial = isChat ? this.chat.material(task) : null;
+      const inputBytes = !isChat && packet.text?.trim() ? Buffer.from(packet.text) : null;
       const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
-      const pendingInputs = [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
+      const pendingInputs = isChat ? [{id:chatMaterial.attachmentId,name:chatMaterial.name,hash:chatMaterial.contentHash}] : [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
+      if(isChat && typeof callProvider!=="function")throw Error("CHAT_NOT_READY");
+      if(isChat && !cached && (!paged || !this.windows.select(id,pendingInputs[0]).skip))materials.push(chatMaterial);
       const readInput = async file => {
         if(/\.(png|jpe?g)$/i.test(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
           materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
@@ -862,7 +890,7 @@ export class ReadingTasks {
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
       // per-step adaptation, never a total material cap.
       if (!this.materials.has(id) && input) await readInput(input);
-      for (const f of this.materials.has(id)
+      for (const f of (isChat || this.materials.has(id))
         ? []
         : (packet.attachments || []).filter((f) => !f.deletedAt)) {
         if (!this.current(task)) return this.get(id);
@@ -902,7 +930,7 @@ export class ReadingTasks {
         }
       }
       if (!this.current(task)) return this.get(id);
-      const readable = cached || materials.map(modelMaterial);
+      const readable = cached || (isChat ? materials : materials.map(modelMaterial));
       this.materials.set(id, readable);
       const coverage = paged ? this.windows.coverage(id,readable) : readable.map(coverageOnly);
       this.db
@@ -929,7 +957,7 @@ export class ReadingTasks {
         const fingerprint = sha256(
           JSON.stringify([
             task.input_revision,
-            versions,
+            taskVersions,
             this.modelVersion,
             batch.map((s) => s.range),
           ]),
@@ -943,6 +971,7 @@ export class ReadingTasks {
           existing &&
           this.ledger.call(existing.call_id)?.state === "settled"
         ) {
+          if(isChat)this.chat.verifyBlock(task,existing);
           if (!this.reuse.copied(id, fingerprint))
             this.roots.progress(id, fingerprint);
           continue;
@@ -959,12 +988,12 @@ export class ReadingTasks {
           ...(s.image ? {image:s.image} : {}),
         }));
         const reuseKey = this.reuse.key(batch, readable, {
-          versions,
+          versions:taskVersions,
           model: this.modelVersion,
           captureDate: packet.captureDate,
           maxOutputTokens: this.maxOutputTokens,
         });
-        const reused = this.reuse.find(task, reuseKey, (raw) =>
+        const reused = !isChat && this.reuse.find(task, reuseKey, (raw) =>
           validatePaidResult(raw, sources, packet.captureDate,{certifiedReuse:true}),
         );
         if (reused) {
@@ -1001,6 +1030,7 @@ export class ReadingTasks {
           fingerprint,
         );
         if (recovered) {
+          if(isChat)this.chat.certify(task,fingerprint,recovered.call_id,JSON.parse(recovered.result));
           this.db
             .prepare("INSERT OR REPLACE INTO reading_blocks VALUES(?,?,?,?)")
             .run(id, fingerprint, recovered.call_id, recovered.result);
@@ -1010,7 +1040,7 @@ export class ReadingTasks {
             )
             .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
           this.ledger.clearEnvelope(recovered.call_id);
-          this.reuse.certify(
+          if(!isChat)this.reuse.certify(
             id,
             fingerprint,
             reuseKey,
@@ -1019,7 +1049,8 @@ export class ReadingTasks {
           this.roots.progress(id, fingerprint);
           continue;
         }
-        const prepared = this.provider.prepare?.(sources, {
+        if(isChat)this.chat.guardLostBlock(task,fingerprint);
+        const prepared = callProvider.prepare?.(sources, {
           captureDate: packet.captureDate,
           maxOutputTokens: this.maxOutputTokens,
         });
@@ -1041,7 +1072,7 @@ export class ReadingTasks {
         let response;
         execution.phase = "provider";
         try {
-          response = await this.provider(
+          response = await callProvider(
             sources,
             AbortSignal.any([
               controller.signal,
@@ -1085,7 +1116,7 @@ export class ReadingTasks {
         }
         let result;
         try {
-          result = validatePaidResult(
+          result = isChat ? this.chat.validate(task,response.result) : validatePaidResult(
             response.result,
             sources,
             packet.captureDate,
@@ -1094,16 +1125,17 @@ export class ReadingTasks {
           this.ledger.settle(callId, response.usage);
           throw e;
         }
-        try {this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage);throw e;}
+        try {if(!isChat)this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage);throw e;}
         this.ledger.saveEnvelope(callId, fingerprint, result, response.usage);
         this.ledger.settle(callId, response.usage);
+        if(isChat)this.chat.certify(task,fingerprint,callId,result);
         this.db
           .prepare("INSERT OR REPLACE INTO reading_blocks VALUES(?,?,?,?)")
           .run(id, fingerprint, callId, JSON.stringify(result));
         this.db
           .prepare("INSERT OR REPLACE INTO reading_block_ranges VALUES(?,?,?)")
           .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
-        this.reuse.certify(id, fingerprint, reuseKey, result);
+        if(!isChat)this.reuse.certify(id, fingerprint, reuseKey, result);
         this.ledger.clearEnvelope(callId);
         this.roots.progress(id, fingerprint);
         return this.get(id);

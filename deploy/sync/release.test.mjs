@@ -27,6 +27,25 @@ test("account service and protected CLI run from the self-contained release", as
     const current = join(directory, "current");
     await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
     const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
+    const {SyncStore}=await import(pathToFileURL(join(release,'server/sync-store.mjs')));
+    const {ReadingLedger}=await import(pathToFileURL(join(release,'server/reading/ledger.mjs')));
+    const {ReadingTasks}=await import(pathToFileURL(join(release,'server/reading/tasks.mjs')));
+    const chatStore=new SyncStore(':memory:'),chatLedger=new ReadingLedger(':memory:');
+    const {createAttachmentStore}=await import(pathToFileURL(join(release,'server/sync-files.mjs')));
+    createAttachmentStore(chatStore);
+    let chatTasks;
+    try {
+      chatLedger.freezePrice({id:'synthetic',model:'synthetic',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});
+      chatLedger.grantInitial('synthetic');
+      const device=chatStore.createDevice('synthetic').deviceId;
+      chatStore.apply(device,{id:'packet',opId:'seed',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],itemIds:['item1'],result:{summary:'',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],evidence:[],due:null}]}}},chatStore.epoch);
+      const provider=Object.assign(async()=>{throw Error('unexpected organize');},{chat:async()=>({usage:{prompt_tokens:1,completion_tokens:1},result:{reply:'合成回答',patch:{group:'独立包'}}})});
+      chatTasks=new ReadingTasks({store:chatStore,ledger:chatLedger,account:'synthetic',provider,reader:()=>{throw Error('unexpected parser');},priceId:'synthetic',modelVersion:'synthetic',authorize:id=>assert.equal(id,device)});
+      chatTasks.enqueue({id:'chat',packetId:'packet',deviceId:device,chat:{itemId:'item1',instruction:'放到独立包组',baseVersion:chatStore.record('packet').version,epoch:chatStore.epoch}});
+      for(let i=0;i<4&&chatTasks.get('chat').state==='queued';i++)await chatTasks.run('chat');
+      assert.equal(chatTasks.get('chat').state,'done');
+      assert.equal(chatStore.record('packet').data.itemState.item1.group,'独立包');
+    }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
     const {readMaterial,sha256} = await import(pathToFileURL(join(release,"server/reading/material.mjs")));
     const {encodePng,decodePng}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
     const png=encodePng(1,1,Buffer.from([10,20,30,255]));
@@ -93,7 +112,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

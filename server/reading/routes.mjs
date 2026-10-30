@@ -115,7 +115,9 @@ export function createReadingRoutes({
     inflight.set(key, pending);
   }
   const view = (e, t, roots) => {
-    const root = roots?.get(t.packet) || e.roots.stats(t.id);
+    const info=e.chat.publicInfo(t.id);
+    const savedRoot=roots?.get(t.packet)||e.roots.stats(t.id);
+    const root={...savedRoot,reason:savedRoot.reason||info.chatSafetyReason||""};
     roots?.set(t.packet, root);
     const wallet=(()=>{try{return ledger.wallet(e.account);}catch{return {available:0,pausedReason:"RECONCILIATION_REQUIRED"};}})();
     const auditedCostAvailable=recoverable.includes(t.state) && ["UNKNOWN_COST","SHUTDOWN_TIMEOUT",""].includes(t.reason) && e.auditedCostAvailable(t.id,root,wallet);
@@ -123,6 +125,7 @@ export function createReadingRoutes({
     const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
     return {
       contractVersion: 1,
+      ...info,
       id: t.id,
       packetId: t.packet,
       state: t.state,
@@ -161,7 +164,7 @@ export function createReadingRoutes({
               ].includes(root.reason)
                 ? ["continue"]
                 : []),
-              ...(["paused", "interrupted", "error", "conflict"].includes(
+              ...(info.kind!=="chat" && ["paused", "interrupted", "error", "conflict"].includes(
                 t.state,
               )
                 ? ["accept-partial"]
@@ -238,8 +241,9 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png"] : [])],
+          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
+          itemChat:typeof provider.chat==='function',
           pdfTextOnly: true,
           registration,
           originalLifecycle: true,
@@ -435,7 +439,7 @@ export function createReadingRoutes({
       }
       if (url.pathname === "/api/v4/tasks" && method === "POST") {
         if (!enabled()) fail(503, "AI_DISABLED");
-        if (value.contractVersion !== 1 || value.kind !== "organize")
+        if (value.contractVersion !== 1 || !["organize","chat"].includes(value.kind))
           fail(426, "CLIENT_UPGRADE_REQUIRED");
         if (value.epoch !== store.epoch) fail(409, "RESET_REQUIRED");
         try {
@@ -456,6 +460,7 @@ export function createReadingRoutes({
           packetId: value.packetId,
           deviceId: device,
           expectedCostOperation:value.expectedCostOperation ?? null,
+          ...(value.kind==='chat' ? {chat:{itemId:value.itemId,instruction:value.instruction,baseVersion:value.baseVersion,epoch:value.epoch}} : {}),
         });
         if (task.state === "queued") schedule(e, task.id);
         return view(e, task);

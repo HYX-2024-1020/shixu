@@ -1,0 +1,53 @@
+{
+  "dateBeijing": "2026-10-31",
+  "syntheticOnly": true,
+  "realProviderCalls": 0,
+  "sourceHashes": {
+    "server/reading/chat.mjs": "8b623ef1390271fc4aeeeae3ff642552ed22504fbe4a12c26022192350d17cc8",
+    "server/reading/tasks.mjs": "f418c51539a22a33b9ef9c68689e07325b4df0787bc1b20b26364925b5970e23",
+    "server/reading/deepseek.mjs": "c5b37b32fa51de74e4599d0105bc318b2577fe87455f6b185a0cfdca71f031f8",
+    "server/reading/routes.mjs": "c4b0aaee804a4f774f755aa0ddd5df100e41b80fcd52aac4386f90aa7b6ed7ea",
+    "server/reading/chat.test.mjs": "ead91be2be0a3974400030f538e523ff7017c83479db0c706b162b2683dbcfdc",
+    "server/reading/chat-clients.test.mjs": "df76c169968f1f61559d52301ceeace049b4f54ff7a0497ebf46ed28d9d47767",
+    "src/bucket/item-chat.ts": "e8b6bc1c826bc07d4ec364444ab65bd2a6268724899048e6ab631f70f2ddd2f2"
+  },
+  "windows": {
+    "relatedKernelRoutesProviderEarlier": 88,
+    "syncAndMini": 125,
+    "chatAndSignedClients": 17,
+    "selfContainedRelease": 2,
+    "core": 93,
+    "officialWxmlWxss": true,
+    "browserWindows": 0
+  },
+  "linux": {
+    "chatClientsAndProviderTests": 20,
+    "readOnlySource": true,
+    "failed": 0,
+    "newBrokerValidation": false,
+    "realProviderCalls": 0,
+    "uid": "nobody",
+    "passed": 20,
+    "directory": "/opt/shixu-bcd-test-20261031-chat"
+  },
+  "priorCommittedHead": {
+    "requiredJobsPassed": 6,
+    "workflowRun": 41036133145,
+    "sha": "2b4ad584019b6c0c84042ecf553db62758cfbd81"
+  },
+  "latestIncrementCI": "Pending push; see PR #74 for exact-head results",
+  "limits": {
+    "siteBeijingDailyMicros": 50000000,
+    "callCheckpoint": 24,
+    "taskConcurrentReserveMicros": 2000000,
+    "rootActiveSeconds": 1800,
+    "accountCumulativeMicros": 20000000
+  },
+  "notValidated": [
+    "Real model chat semantics",
+    "Native WeChat and phone",
+    "Installed client",
+    "Production deployment or migration",
+    "Final whole B/C/D acceptance"
+  ]
+}

@@ -176,7 +176,7 @@ outputs.set(
 );
 const ai = await build({
   stdin: {
-    contents: `export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem } from './src/bucket/item-chat';`,
+    contents: `export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs';`,
     resolveDir: root,
   },
   bundle: true,

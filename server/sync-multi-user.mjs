@@ -429,11 +429,7 @@ export function createMultiUserService({
               ? reading.enabled === true && !registry.aiPaused()
               : !!ai?.organize && limits.enabled && !registry.aiPaused(),
             readingTasks: !!readingRoutes,
-            itemChat:
-              !readingRoutes &&
-              !!ai?.chat &&
-              limits.enabled &&
-              !registry.aiPaused(),
+            itemChat: readingRoutes ? typeof reading.provider.chat==='function' && reading.enabled===true && !registry.aiPaused() : !!ai?.chat && limits.enabled && !registry.aiPaused(),
           },
         });
         return;
