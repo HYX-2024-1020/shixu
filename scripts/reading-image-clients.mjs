@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { encodingPng } from "../server/reading/png-encoding-fixtures.mjs";
 import { encodePng } from "../server/reading/image.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
 import { zipBytes } from "../server/reading/archive-fixtures.mjs";
@@ -15,12 +16,24 @@ export async function runImageClients({
   reader,
   deleted = false,
   archiveFormat,
+  packed = false,
 }) {
   const width = 2051,
-    height = 4,
-    pixels = Buffer.alloc(width * height * 4, 255);
+    height = 4;
+  let pixels = Buffer.alloc(width * height * 4, 255);
   for (let x = 0; x < width; x++) pixels[x * 4] = x % 256;
-  const png = encodePng(width, height, pixels);
+  const encoded = packed
+    ? encodingPng({
+        width,
+        height,
+        depth: 2,
+        color: 3,
+        interlace: 1,
+        transparency: true,
+      })
+    : null;
+  if (encoded) pixels = encoded.pixels;
+  const png = encoded?.body || encodePng(width, height, pixels);
   const entries = {
     "01.txt": Buffer.from("包内前言"),
     "02.png": png,
@@ -95,6 +108,13 @@ export async function runImageClients({
   return {
     ...result,
     imageTiles: 3,
+    ...(packed
+      ? {
+          packedAdam7: true,
+          originalImageHash: sha256(png),
+          pixelsHash: sha256(pixels),
+        }
+      : {}),
     ...(archiveFormat
       ? {
           archiveFormat,

@@ -940,7 +940,7 @@ var labels = {
 var reasons = {
   IMAGE_PROVIDER_UNSUPPORTED: "服务端安全图像读取或模型图像输入尚未就绪",
   IMAGE_WINDOW_PENDING: "后续图像区域等待读取，尚未进入整理结果",
-  PNG_ENCODING_UNSUPPORTED: "此PNG位深或交错编码暂不支持",
+  PNG_ENCODING_UNSUPPORTED: "此PNG位深或编码方式暂不支持",
   PNG_COLOR_OR_ORIENTATION_UNSUPPORTED: "此图像色彩或方向元数据尚未支持，未擅自忽略",
   IMAGE_ANIMATION_UNSUPPORTED: "动画图像暂不支持，未只读取第一帧",
   IMAGE_PIXEL_LIMIT: "图像尺寸超过隔离解码上限",

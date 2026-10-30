@@ -1,3 +1,5 @@
+2026-10-30：PNG新增1/2/4位灰度/调色板及Adam7交错，沿顶层/归档同一规范化模型通道恢复；88固定样本与独立原生oracle逐像素一致，普通UID隔离/双端及8MP资源记录见[编码验证](png-encoding-verification.md)。16位、高级色彩及动画仍未支持。
+
 2026-10-30：归档内静态PNG现沿ZIP/明确编码非solid RAR4/RAR5/7z逐成员及逐瓦片接续，保留包内路径、像素坐标、累计展开预算和付费复用，双端分别显示包内图片进度。四格式完整像素、Page/HTTP及Linux受保护broker temporary/deleted两链通过；见[归档图像验证](archive-images-verification.md)。Office图像、扫描PDF、其他编码和语义合并仍未实现。
 
 RAR4标准非solid文件现支持ASCII、显式UTF-8及压缩UTF-16原路径，工具协议v2严格拒绝损坏/不完整名称及隐式省略，保持全部归档资源边界。独立压缩字节golden、包内19+2页PDF的停止/临时或删除核验/付费复用与双端链已验证；未知传统代码页、solid及未实现旧特性仍unsupported。见[RAR4验证](rar4-verification.md)。当前实施与真实剩余项见[实施状态清单](implementation-status.md)，B/C/D尚未实施全部完成。

@@ -1,3 +1,7 @@
+## 2026-10-30 B/C/D PNG低位深与交错编码（#73，整体未完成）
+
+Windows与微信共同说明静态PNG新增1/2/4位灰度或调色板以及Adam7，继续显示像素来源、包内路径、区域进度和模型识别核对提示；16位/高级色彩/动画仍未读。Page/Node wx与Windows AccountWorkspace签名HTTP、普通UID受保护Linux broker的顶层temporary/包内deleted恢复与修订复用通过；官方编译通过，无本机窗口重复回归。原生微信/手机/安装版边界保留。详见[PNG编码验证](bcd/png-encoding-verification.md)。
+
 ## 2026-10-30 B/C/D 归档内 PNG 区域接续（#73，整体未完成）
 
 Windows 与微信共同显示包内图片路径、瓦片像素来源和逐图区域进度；停止、补传、已删除墓碑和跨修订精确复用沿现有任务。模型未启用图像输入时明确未读，不将占位文字送模型。实际 Windows AccountWorkspace 与 Page/Node wx 经签名 HTTP，以及普通 UID 的受保护 Linux broker temporary/deleted 两链通过；每条修订复用 5 块，官方编译通过。未开本机窗口，源码可见交互/原生微信/手机/安装版边界仍保留。见[归档图像开发证据](bcd/archive-images-verification.md)。

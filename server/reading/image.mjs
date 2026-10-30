@@ -1,7 +1,7 @@
 import { inflateSync, deflateSync } from "node:zlib";
 import { sha256 } from "./material.mjs";
 
-export const IMAGE_READER_VERSION = "png-tiles/1;zlib-node/24";
+export const IMAGE_READER_VERSION = "png-tiles/2;zlib-node/24";
 export const IMAGE_TILE_EDGE = 1024;
 export function validateModelImage(image) {
   if (
@@ -143,6 +143,7 @@ export function decodePng(bytes) {
         height: body.readUInt32BE(4),
         depth: body[8],
         color: body[9],
+        interlace: body[12],
       };
       if (
         !header.width ||
@@ -155,8 +156,10 @@ export function decodePng(bytes) {
       if (
         body[10] ||
         body[11] ||
-        body[12] ||
-        header.depth !== 8 ||
+        header.interlace > 1 ||
+        !([0, 3].includes(header.color) ? [1, 2, 4, 8] : [8]).includes(
+          header.depth,
+        ) ||
         ![0, 2, 3, 4, 6].includes(header.color)
       )
         throw Error("PNG_ENCODING_UNSUPPORTED");
@@ -175,6 +178,7 @@ export function decodePng(bytes) {
         !size ||
         size % 3 ||
         size > 768 ||
+        (header.color === 3 && size / 3 > 2 ** header.depth) ||
         [0, 4].includes(header.color)
       )
         throw Error("PNG_MALFORMED");
@@ -206,81 +210,125 @@ export function decodePng(bytes) {
     offset = end;
   }
   if (!ended || (header.color === 3 && !palette)) throw Error("PNG_MALFORMED");
-  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[header.color],
-    stride = header.width * channels;
+  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[header.color];
+  // PNG section 8: each nonempty Adam7 pass is a separate reduced image,
+  // with its own previous row and byte-oriented filters. Packed samples use
+  // a one-byte filter distance; padding never contributes a pixel.
+  const passes = (
+    header.interlace
+      ? [
+          [0, 0, 8, 8],
+          [4, 0, 8, 8],
+          [0, 4, 4, 8],
+          [2, 0, 4, 4],
+          [0, 2, 2, 4],
+          [1, 0, 2, 2],
+          [0, 1, 1, 2],
+        ]
+      : [[0, 0, 1, 1]]
+  )
+    .map(([x, y, dx, dy]) => ({
+      x,
+      y,
+      dx,
+      dy,
+      width: Math.max(0, Math.ceil((header.width - x) / dx)),
+      height: Math.max(0, Math.ceil((header.height - y) / dy)),
+    }))
+    .filter((p) => p.width && p.height);
+  const expected = passes.reduce(
+    (n, p) =>
+      n + (Math.ceil((p.width * channels * header.depth) / 8) + 1) * p.height,
+    0,
+  );
+  const filterBytes = Math.max(1, Math.ceil((channels * header.depth) / 8));
+  const sampleMask = (1 << header.depth) - 1;
   const compressedBytes = Buffer.concat(compressed);
   const decoded = inflateSync(compressedBytes, {
-    maxOutputLength: (stride + 1) * header.height,
+    maxOutputLength: expected,
     info: true,
   });
   const inflated = decoded.buffer;
   if (decoded.engine.bytesWritten !== compressedBytes.length)
     throw Error("PNG_MALFORMED");
-  if (inflated.length !== (stride + 1) * header.height)
-    throw Error("PNG_MALFORMED");
-  const pixels = Buffer.alloc(header.width * header.height * 4),
-    previous = Buffer.alloc(stride),
-    row = Buffer.alloc(stride);
-  for (let y = 0; y < header.height; y++) {
-    const base = y * (stride + 1),
-      filter = inflated[base];
-    if (filter > 4) throw Error("PNG_MALFORMED");
-    for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? row[x - channels] : 0,
-        b = previous[x],
-        c = x >= channels ? previous[x - channels] : 0;
-      row[x] =
-        (inflated[base + x + 1] +
-          (filter === 0
-            ? 0
-            : filter === 1
-              ? a
-              : filter === 2
-                ? b
-                : filter === 3
-                  ? Math.floor((a + b) / 2)
-                  : paeth(a, b, c))) &
-        255;
-    }
-    for (let x = 0; x < header.width; x++) {
-      const p = (y * header.width + x) * 4,
-        i = x * channels;
-      let r,
-        g,
-        b,
-        a = 255;
-      if (header.color === 0 || header.color === 4) {
-        r = g = b = row[i];
-        if (header.color === 4) a = row[i + 1];
-        else if (alpha && r === (alpha.readUInt16BE(0) & 255)) a = 0;
-      } else if (header.color === 3) {
-        const index = row[i];
-        if (index * 3 >= palette.length) throw Error("PNG_MALFORMED");
-        r = palette[index * 3];
-        g = palette[index * 3 + 1];
-        b = palette[index * 3 + 2];
-        a = alpha?.[index] ?? 255;
-      } else {
-        r = row[i];
-        g = row[i + 1];
-        b = row[i + 2];
-        if (header.color === 6) a = row[i + 3];
-        else if (
-          alpha &&
-          r === (alpha.readUInt16BE(0) & 255) &&
-          g === (alpha.readUInt16BE(2) & 255) &&
-          b === (alpha.readUInt16BE(4) & 255)
-        )
-          a = 0;
+  if (inflated.length !== expected) throw Error("PNG_MALFORMED");
+  const pixels = Buffer.alloc(header.width * header.height * 4);
+  let consumed = 0;
+  for (const pass of passes) {
+    const stride = Math.ceil((pass.width * channels * header.depth) / 8);
+    const previous = Buffer.alloc(stride),
+      row = Buffer.alloc(stride);
+    for (let y = 0; y < pass.height; y++) {
+      const base = consumed,
+        filter = inflated[base];
+      consumed += stride + 1;
+      if (filter > 4) throw Error("PNG_MALFORMED");
+      for (let x = 0; x < stride; x++) {
+        const a = x >= filterBytes ? row[x - filterBytes] : 0,
+          b = previous[x],
+          c = x >= filterBytes ? previous[x - filterBytes] : 0;
+        row[x] =
+          (inflated[base + x + 1] +
+            (filter === 0
+              ? 0
+              : filter === 1
+                ? a
+                : filter === 2
+                  ? b
+                  : filter === 3
+                    ? Math.floor((a + b) / 2)
+                    : paeth(a, b, c))) &
+          255;
       }
-      // Flatten transparency onto white explicitly; hidden RGB is never sent.
-      pixels[p] = Math.round((r * a + 255 * (255 - a)) / 255);
-      pixels[p + 1] = Math.round((g * a + 255 * (255 - a)) / 255);
-      pixels[p + 2] = Math.round((b * a + 255 * (255 - a)) / 255);
-      pixels[p + 3] = 255;
+      for (let x = 0; x < pass.width; x++) {
+        const p =
+            ((pass.y + y * pass.dy) * header.width + pass.x + x * pass.dx) * 4,
+          i = x * channels;
+        const sample =
+          header.depth === 8
+            ? row[i]
+            : (row[Math.floor((x * header.depth) / 8)] >>>
+                (8 - header.depth - ((x * header.depth) % 8))) &
+              sampleMask;
+        let r,
+          g,
+          b,
+          a = 255;
+        if (header.color === 0 || header.color === 4) {
+          r = g = b = Math.round((sample * 255) / sampleMask);
+          if (header.color === 4) a = row[i + 1];
+          else if (alpha && sample === (alpha.readUInt16BE(0) & sampleMask))
+            a = 0;
+        } else if (header.color === 3) {
+          const index = sample;
+          if (index * 3 >= palette.length) throw Error("PNG_MALFORMED");
+          r = palette[index * 3];
+          g = palette[index * 3 + 1];
+          b = palette[index * 3 + 2];
+          a = alpha?.[index] ?? 255;
+        } else {
+          r = row[i];
+          g = row[i + 1];
+          b = row[i + 2];
+          if (header.color === 6) a = row[i + 3];
+          else if (
+            alpha &&
+            r === (alpha.readUInt16BE(0) & 255) &&
+            g === (alpha.readUInt16BE(2) & 255) &&
+            b === (alpha.readUInt16BE(4) & 255)
+          )
+            a = 0;
+        }
+        // Flatten transparency onto white explicitly; hidden RGB is never sent.
+        pixels[p] = Math.round((r * a + 255 * (255 - a)) / 255);
+        pixels[p + 1] = Math.round((g * a + 255 * (255 - a)) / 255);
+        pixels[p + 2] = Math.round((b * a + 255 * (255 - a)) / 255);
+        pixels[p + 3] = 255;
+      }
+      row.copy(previous);
     }
-    row.copy(previous);
   }
+  if (consumed !== expected) throw Error("PNG_MALFORMED");
   return { ...header, pixels };
 }
 export function readImage(bytes, result, window) {
