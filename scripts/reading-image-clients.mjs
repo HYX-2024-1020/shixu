@@ -17,6 +17,7 @@ export async function runImageClients({
   deleted = false,
   archiveFormat,
   packed = false,
+  jpeg = false,
 }) {
   const width = 2051,
     height = 4;
@@ -33,14 +34,20 @@ export async function runImageClients({
       })
     : null;
   if (encoded) pixels = encoded.pixels;
-  const png = encoded?.body || encodePng(width, height, pixels);
+  const jpegFixture = jpeg
+    ? await import("../server/reading/jpeg-fixtures.mjs")
+    : null;
+  const imageBody = jpeg
+    ? jpegFixture.jpegSample({ width: height, height: width, orientation: 6 })
+        .body
+    : encoded?.body || encodePng(width, height, pixels);
   const entries = {
     "01.txt": Buffer.from("包内前言"),
-    "02.png": png,
+    [jpeg ? "02.jpg" : "02.png"]: imageBody,
     "03.txt": Buffer.from("尾部唯一标记"),
   };
   const body = !archiveFormat
-    ? png
+    ? imageBody
     : archiveFormat === "zip"
       ? zipBytes(entries)
       : archiveFormat === "rar4"
@@ -60,8 +67,14 @@ export async function runImageClients({
     original: {
       name: archiveFormat
         ? "包内图像." + (archiveFormat === "rar4" ? "rar" : archiveFormat)
-        : "合成图像.png",
-      type: archiveFormat ? "application/octet-stream" : "image/png",
+        : jpeg
+          ? "合成图像.jpg"
+          : "合成图像.png",
+      type: archiveFormat
+        ? "application/octet-stream"
+        : jpeg
+          ? "image/jpeg"
+          : "image/png",
       body,
       expectedImageTiles: 3,
       verify({ win, mini, page, cloud }) {
@@ -70,7 +83,7 @@ export async function runImageClients({
         if (archiveFormat) {
           assert.equal(c.archivePagination.next, null);
           assert.deepEqual(c.archiveImageTiles, [
-            { archivePath: "02.png", checked: 3, total: 3 },
+            { archivePath: jpeg ? "02.jpg" : "02.png", checked: 3, total: 3 },
           ]);
         } else {
           assert.equal(c.imagePagination.nextTile, null);
@@ -78,7 +91,9 @@ export async function runImageClients({
         }
         const images = c.covered.filter((r) => r.kind === "image");
         if (archiveFormat)
-          assert.ok(images.every((r) => r.archivePath === "02.png"));
+          assert.ok(
+            images.every((r) => r.archivePath === (jpeg ? "02.jpg" : "02.png")),
+          );
         assert.deepEqual(
           images.map((r) => [r.tile, r.x, r.y, r.width, r.height]),
           [
@@ -108,18 +123,21 @@ export async function runImageClients({
   return {
     ...result,
     imageTiles: 3,
+    ...(jpeg
+      ? { jpeg: true, exifOrientation: 6, originalImageHash: sha256(imageBody) }
+      : {}),
     ...(packed
       ? {
           packedAdam7: true,
-          originalImageHash: sha256(png),
-          pixelsHash: sha256(pixels),
+          originalImageHash: sha256(imageBody),
+          ...(jpeg ? {} : { pixelsHash: sha256(pixels) }),
         }
       : {}),
     ...(archiveFormat
       ? {
           archiveFormat,
           archiveHash: sha256(body),
-          originalImageHash: sha256(png),
+          originalImageHash: sha256(imageBody),
           pixelsHash: sha256(pixels),
         }
       : {}),

@@ -1,3 +1,7 @@
+## 2026-10-30 B/C/D JPEG与原图方向（#73，整体未完成）
+
+Windows与微信共同接收顶层及包内JPG/JPEG，显示方向校正后的像素坐标、原编码尺寸/方向、包内路径和区域进度。8种方向/两种字节序、渐进/重启和严格失败边界已补；未安全支持的色彩/多图元数据明确未读。实际Windows AccountWorkspace与Page/Node wx签名HTTP、普通UID受保护Linux broker temporary/deleted两链及内核重建通过；官方编译通过，无本机UI窗口。真实合成旋转照片1次保留编号/明确时刻/命名和尾部，仍有语义重复与推断，不能冒称完美识别；原生微信/手机/安装版未验。见[JPEG开发证据](bcd/jpeg-verification.md)。
+
 ## 2026-10-30 B/C/D PNG低位深与交错编码（#73，整体未完成）
 
 Windows与微信共同说明静态PNG新增1/2/4位灰度或调色板以及Adam7，继续显示像素来源、包内路径、区域进度和模型识别核对提示；16位/高级色彩/动画仍未读。Page/Node wx与Windows AccountWorkspace签名HTTP、普通UID受保护Linux broker的顶层temporary/包内deleted恢复与修订复用通过；官方编译通过，无本机窗口重复回归。原生微信/手机/安装版边界保留。详见[PNG编码验证](bcd/png-encoding-verification.md)。

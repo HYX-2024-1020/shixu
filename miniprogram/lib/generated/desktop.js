@@ -948,6 +948,10 @@ var reasons = {
   IMAGE_DECODE_FAILED: "图像解码失败",
   PNG_CRC: "PNG完整性校验失败",
   PNG_MALFORMED: "PNG结构损坏",
+  JPEG_MALFORMED: "JPEG结构或完整性校验失败",
+  JPEG_METADATA_UNSUPPORTED: "JPEG色彩、方向或多图元数据尚未安全支持",
+  JPEG_ENCODING_UNSUPPORTED: "此JPEG编码暂不支持",
+  JPEG_RESOURCE_LIMIT: "JPEG展开超过隔离解码资源限制",
   ARCHIVE_WINDOW_PENDING: "后续包内材料等待读取，尚未进入整理结果",
   ARCHIVE_ENCODING_UNSUPPORTED: "归档路径编码不明确，暂不支持",
   ARCHIVE_RAR4_UNSUPPORTED: "对应服务端尚未安全核验此RAR4材料，请核对工具版本与编码",
@@ -1021,7 +1025,7 @@ function location(range) {
   }
   if (range.kind === "image") {
     const n = (v) => Number.isSafeInteger(v) && v >= 0;
-    if ([range.x, range.y, range.width, range.height].every(n)) return `图像模型识别 · 第 ${range.tile} 块 · 像素(${range.x},${range.y},${range.width},${range.height})`;
+    if ([range.x, range.y, range.width, range.height].every(n)) return `图像模型识别 · 第 ${range.tile} 块 · ${range.orientation > 1 ? "按原图方向校正 · " : ""}像素(${range.x},${range.y},${range.width},${range.height})`;
     return Number.isSafeInteger(range.tile) ? `图像第 ${range.tile}${range.tileEnd ? "–" + range.tileEnd : ""} 块` : "整份图像";
   }
   if (range.kind === "pdf") {

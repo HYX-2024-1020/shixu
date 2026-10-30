@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { MAX_FILE_BYTES, sha256 } from "./material.mjs";
 import { validateArchiveWindow } from "./archive-window.mjs";
-import { validateImageWindow } from "./image.mjs";
+import { isImageName, validateImageWindow } from "./image.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
 const moduleDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -202,7 +202,7 @@ export function createLinuxReader({ runtime, staging }) {
     { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow } = {},
   ) => {
     imageWindow=validateImageWindow(imageWindow);
-    if(imageWindow&&!/\.png$/i.test(file.name))throw Error("INVALID_IMAGE_WINDOW");
+    if(imageWindow&&!isImageName(file.name))throw Error("INVALID_IMAGE_WINDOW");
     archiveWindow = validateArchiveWindow(archiveWindow);
     if (archiveWindow && !/\.(zip|rar|7z)$/i.test(file.name)) throw Error("INVALID_ARCHIVE_WINDOW");
     pdfWindow = validatePdfWindow(pdfWindow);

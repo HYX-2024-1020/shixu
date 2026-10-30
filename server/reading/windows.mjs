@@ -1,4 +1,4 @@
-import { validateModelImage } from "./image.mjs";
+import { isImageName, validateModelImage } from "./image.mjs";
 import { coverageOnly } from "./material.mjs";
 import { PDF_WINDOW_PAGES } from "./pdf-window.mjs";
 import {
@@ -26,7 +26,7 @@ export class ReadingWindows {
       .get(task, file.id);
     if (row && row.content_hash !== file.hash) throw Error("INPUT_CHANGED");
     if (row?.next_page === 0) return { skip: true };
-    if(/\.png$/i.test(file.name)){
+    if(isImageName(file.name)){
       if(!imageWindows)throw Error('READER_WINDOW_REQUIRED');
       return {skip:false,imageWindow:{tile:row?.next_page||1}};
     }
@@ -64,10 +64,19 @@ export class ReadingWindows {
         r.start!==p.startTile-1||r.end!==p.startTile||!image||
         !Number.isSafeInteger(p.width)||!Number.isSafeInteger(p.height)||p.width<1||p.height<1||p.width>16384||p.height>16384||p.width*p.height>32_000_000||
         p.totalTiles!==columns*rows||r.x!==x||r.y!==y||r.width!==Math.min(1024,p.width-x)||r.height!==Math.min(1024,p.height-y)||
-        image.width!==r.width||image.height!==r.height||image.hash!==r.imageHash||r.sourceId!==material.segments[0].sourceId||
+        image.width!==r.width||image.height!==r.height||r.imageWidth!==p.width||r.imageHeight!==p.height||image.hash!==r.imageHash||r.sourceId!==material.segments[0].sourceId||
         JSON.stringify(material.segments[0].range)!==JSON.stringify(r))
         throw Error('INVALID_READER_WINDOW');
       validateModelImage(image);
+      if (/\.jpe?g$/i.test(r.archivePath || material.name) && p.orientation === undefined)
+        throw Error('INVALID_READER_WINDOW');
+      if (p.orientation !== undefined || r.orientation !== undefined) {
+        if (!Number.isSafeInteger(p.orientation) || p.orientation < 1 || p.orientation > 8 ||
+            r.orientation !== p.orientation || r.encodedWidth !== p.encodedWidth || r.encodedHeight !== p.encodedHeight ||
+            p.encodedWidth !== (p.orientation >= 5 ? p.height : p.width) ||
+            p.encodedHeight !== (p.orientation >= 5 ? p.width : p.height))
+          throw Error('INVALID_READER_WINDOW');
+      }
       return;
     }
     if (archiveWindow) return this.verifyArchive(material, archiveWindow);

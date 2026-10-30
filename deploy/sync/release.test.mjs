@@ -17,6 +17,7 @@ import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
 import { archiveSample, archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
+import {jpegSample} from '../../server/reading/jpeg-fixtures.mjs';
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
@@ -31,6 +32,10 @@ test("account service and protected CLI run from the self-contained release", as
     const png=encodePng(1,1,Buffer.from([10,20,30,255]));
     const visual=await readMaterial({id:'image',name:'独立包.png',body:png,size:png.length,hash:sha256(png)},{imageWindow:{tile:1}});
     assert.deepEqual([...decodePng(Buffer.from(visual.segments[0].image.data,'base64')).pixels],[10,20,30,255]);
+    const jpeg=jpegSample({width:2,height:3,orientation:6});
+    const photo=await readMaterial({id:'jpeg',name:'独立包.jpg',body:jpeg.body,size:jpeg.body.length,hash:sha256(jpeg.body)},{imageWindow:{tile:1}});
+    assert.deepEqual([photo.covered[0].width,photo.covered[0].height,photo.covered[0].orientation],[3,2,6]);
+    assert.equal(photo.segments[0].image.mime,'image/png');
     const original = docxBytes(paragraph("独立包DOCX原文😀"));
     assert.equal(readMaterial({id:"docx",name:"合成.docx",body:original,size:original.length,hash:sha256(original)}).segments.map(s=>s.text).join(""),"独立包DOCX原文😀\n");
     const accountDirectory = join(directory, "accounts");
@@ -88,7 +93,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "image.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

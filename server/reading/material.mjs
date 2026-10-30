@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 import { validateArchiveWindow } from "./archive-window.mjs";
-import { validateImageWindow } from "./image.mjs";
+import { isImageName, validateImageWindow } from "./image.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/5";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/6";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -138,8 +138,8 @@ export function readMaterial(
   pdfWindow = validatePdfWindow(pdfWindow);
   if (pdfWindow && !/\.pdf$/i.test(name)) throw Error("INVALID_PDF_WINDOW");
   imageWindow=validateImageWindow(imageWindow);
-  if(imageWindow && !/\.png$/i.test(name))throw Error('INVALID_IMAGE_WINDOW');
-  if(/\.png$/i.test(name))return import('./image.mjs').then(({readImage})=>readImage(bytes,result,imageWindow));
+  if(imageWindow && !isImageName(name))throw Error('INVALID_IMAGE_WINDOW');
+  if(isImageName(name))return import('./image.mjs').then(({readImage})=>readImage(bytes,result,imageWindow));
   let offset = pdfWindow?.offset || 0,
     index = 0;
   const add = (raw, locator, structure) => {

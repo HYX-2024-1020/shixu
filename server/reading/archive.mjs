@@ -55,7 +55,7 @@ export async function readArchive(
   if (
     archiveWindow &&
     (index >= pkg.names.length ||
-      (archiveWindow.page > 1 && !/\.(pdf|png)$/i.test(pkg.names[index])))
+      (archiveWindow.page > 1 && !/\.(pdf|png|jpe?g)$/i.test(pkg.names[index])))
   ) {
     await pkg.close?.();
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -70,7 +70,7 @@ export async function readArchive(
         continue;
       }
       const extension = /\.([^.\/]+)$/.exec(path)?.[1].toLowerCase();
-      if (!["txt", "csv", "docx", "xlsx", "pdf", "png"].includes(extension)) {
+      if (!["txt", "csv", "docx", "xlsx", "pdf", "png", "jpg", "jpeg"].includes(extension)) {
         missing("FORMAT_UNSUPPORTED", path);
         continue;
       }
@@ -109,7 +109,7 @@ export async function readArchive(
           {
             windowCodepoints,
             expansionBudget: budget,
-            ...(extension === "png"
+            ...(["png", "jpg", "jpeg"].includes(extension)
               ? { imageWindow: { tile: archiveWindow?.page || 1 } }
               : {}),
             ...(archiveWindow && extension === "pdf"

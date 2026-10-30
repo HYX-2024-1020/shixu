@@ -1,5 +1,7 @@
 # 第三方代码、素材与样本
 
+JPEG 使用固定 [jpeg-js 0.4.4](https://github.com/jpeg-js/jpeg-js)：包许可 BSD-3-Clause，解码器沿用 notmasteryet 的 Apache-2.0；[解码器许可](server/reading/jpeg-reader.LICENSE)保留两者完整许可和原始声明。构建器明确记录本项目的扫描填充/EOB/终态及最后重启间隔修正，生成自包含 `jpeg-reader.cjs`，服务包不依赖任意系统解码器或宿主 node_modules。仅测试使用的 [JPEG 编码器](server/reading/fixtures/jpeg-encoder.LICENSE)保留 Adobe 2008 与上游 BSD 声明，排除于服务发布包。渐进/重启 JPEG 是项目自行构造像素并用已有 Pillow 12.3.0/libjpeg 生成的合成样本，无外部照片；生成脚本和逐像素 golden 同库保存。
+
 RAR4/RAR5/7z服务读取另用[官方7-Zip26.05完整源](https://github.com/ip7z/7zip/releases/tag/26.05)，源SHA-256 `0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e`。项目构建器修改原路径元数据查询/编码、RAR5 NUL拒绝，以及RAR4严格编码/不完整名称与隐式省略拒绝（原路径协议v2）；保留上游版权，修改同样适用上游许可。7-Zip包含LGPL-2.1-or-later、BSD及unRAR限制，不能将npm包装器MIT当作二进制许可。自包含服务包携带`generated-native/License.txt`、完整原始源码tar及精确补丁构建器，生成物不提交Git。已有桌面包装依赖固定为7zip-bin-full26.5.1，实际官方二进制26.05。
 
 独立压缩RAR5样本来自[libarchive v3.8.2](https://github.com/libarchive/libarchive/blob/v3.8.2/libarchive/test/test_read_format_rar5_compressed.rar.uu)，保留原uu编码于[fixtures](server/reading/fixtures/rar5-compressed.uu)，SHA-256 `7a87af5035430d2307f9a183b2da8a71c95b3c0a5b8e8d1f172ef3343d4b8620`；附[BSD两条款许可及版权](server/reading/fixtures/rar5-compressed.LICENSE)。预期1200字节按上游`verify_data`公式独立生成核对。其他RAR5/7z样本由项目生成，无真实个人资料。

@@ -158,7 +158,7 @@ test("Office expansion remains cumulative across archive windows, matching the u
 
 test("a trailing empty directory cannot turn unread archive members into a fully read file", async () => {
   const file = descriptor(
-    zipBytes({ "未读.jpg": Buffer.from("image"), "尾目录/": new Uint8Array() }),
+    zipBytes({ "未读.bin": Buffer.from("image"), "尾目录/": new Uint8Array() }),
   );
   let cursor = FIRST_ARCHIVE_WINDOW,
     coverage;

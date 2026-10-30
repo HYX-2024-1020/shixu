@@ -7,6 +7,7 @@ const path = require("node:path");
 const assert = require("node:assert/strict");
 const { pathToFileURL } = require("node:url");
 const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
+const jpegMode = process.argv.includes("--jpeg");
 if (
   !probe ||
   path.dirname(probe) !== path.resolve(tmpdir()) ||
@@ -19,6 +20,7 @@ const existing =
   process.env.SHIXU_LIVE_PROFILE ||
   path.join(process.env.APPDATA, "ShixuDesktop");
 let bootstrapError;
+let phase = "bootstrap";
 try {
   app.setPath("userData", probe);
 } catch (error) {
@@ -43,17 +45,15 @@ app
         );
         return;
       }
-      const key = (
-        await safeStorage.decryptStringAsync(
-          readFileSync(path.join(existing, "api-key.enc")),
-        )
-      ).result;
+      phase = "imports";
       const { Resvg } = require("@resvg/resvg-js");
       const { ReadingLedger } = await load("server/reading/ledger.mjs");
       const { ReadingTasks } = await load("server/reading/tasks.mjs");
       const { SyncStore } = await load("server/sync-store.mjs");
       const { createAttachmentStore } = await load("server/sync-files.mjs");
-      const { readMaterial } = await load("server/reading/material.mjs");
+      const { readMaterial, sha256 } = await load(
+        "server/reading/material.mjs",
+      );
       const { createDeepSeekReadingProvider, deepseekPriceSnapshots } =
         await load("server/reading/deepseek.mjs");
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="white"/>
@@ -63,23 +63,113 @@ app
       <text x="40" y="310">格式：PDF，命名：学号_姓名。</text>
       <text x="40" y="390">要求：说明算法思路与时间复杂度。</text>
       <text x="40" y="530">尾部核对：7319，禁止遗漏此编号。</text></g></svg>`;
-      const body = new Resvg(svg).render().asPng();
+      const sourceSvg = jpegMode
+        ? svg
+            .replaceAll("图像开发验证：合成通知", "JPEG验证：旋转照片")
+            .replaceAll("7319", "8642")
+            .replaceAll("2026年10月30日18:00", "2026年11月2日17:30")
+        : svg;
+      const rendered = new Resvg(sourceSvg).render();
+      phase = "fixture";
+      let body = rendered.asPng();
+      if (jpegMode) {
+        const encode = require("../server/reading/fixtures/jpeg-encoder.cjs");
+        const { jpegExif, jpegApp } = await load(
+          "server/reading/jpeg-fixtures.mjs",
+        );
+        const upright = Buffer.from(rendered.pixels),
+          rotated = Buffer.alloc(upright.length);
+        for (let y = 0; y < 600; y++)
+          for (let x = 0; x < 900; x++)
+            upright.copy(
+              rotated,
+              ((899 - x) * 600 + y) * 4,
+              (y * 900 + x) * 4,
+              (y * 900 + x + 1) * 4,
+            );
+        const plain = encode(
+          { width: 600, height: 900, data: rotated },
+          85,
+        ).data;
+        body = Buffer.concat([
+          plain.subarray(0, 2),
+          jpegApp(0xe1, jpegExif(6)),
+          plain.subarray(2),
+        ]);
+      }
+      const normalized = jpegMode
+        ? await readMaterial(
+            {
+              id: "image",
+              name: "合成旋转照片.jpg",
+              body,
+              size: body.length,
+              hash: sha256(body),
+            },
+            { imageWindow: { tile: 1 } },
+          )
+        : null;
+      if (jpegMode && normalized.segments.length !== 1)
+        throw Error("JPEG_FIXTURE_NORMALIZATION_FAILED");
       ledger = new ReadingLedger(
         process.env.SHIXU_IMAGE_LEDGER_PATH ||
           path.join(probe, "ledger.sqlite"),
       );
+      phase = "ledger";
       ledger.grantInitial("synthetic-image-development");
       const prices = deepseekPriceSnapshots(Date.now());
       for (const price of prices) ledger.freezePrice(price);
       const beijingHour = new Date(Date.now() + 8 * 3600000).getUTCHours();
       // Only run this small probe in an unambiguous offpeak hour. No inferred
       // holiday calendar and no automatic retries or changes to provider credit.
-      if (beijingHour >= 9 && beijingHour < 18)
+      let price = prices[1];
+      if (jpegMode) {
+        const day = new Date(Date.now() + 8 * 3600000)
+          .toISOString()
+          .slice(0, 10);
+        const period = process.env.SHIXU_VERIFIED_PRICE_PERIOD;
+        if (
+          process.env.SHIXU_VERIFIED_PRICE_DAY !== day ||
+          !["peak", "offpeak"].includes(period)
+        )
+          throw Error("VERIFIED_TARIFF_DAY_REQUIRED");
+        const weekday = new Date(Date.now() + 8 * 3600000).getUTCDay();
+        const clockPeak =
+          weekday >= 1 &&
+          weekday <= 5 &&
+          ((beijingHour >= 9 && beijingHour < 12) ||
+            (beijingHour >= 14 && beijingHour < 18));
+        if ((period === "peak") !== clockPeak)
+          throw Error("VERIFIED_TARIFF_CLOCK_CHANGED");
+        // The explicit day/period requires independent official holiday review.
+        price = prices.find((p) => p.id.endsWith("-" + period));
+        if (!price) throw Error("VERIFIED_TARIFF_SNAPSHOT_MISSING");
+      } else if (beijingHour >= 9 && beijingHour < 18)
         throw Error("RUN_PROBE_IN_VERIFIED_OFFPEAK_HOUR");
+      if (process.argv.includes("--prepare-only")) {
+        console.log(
+          JSON.stringify({
+            prepared: true,
+            browserWindows: 0,
+            realProviderCalls: 0,
+            priceId: price.id,
+            inputHash: sha256(body),
+            normalizedImageHash: normalized?.covered?.[0]?.imageHash,
+            readerVersion: normalized?.readerVersion,
+          }),
+        );
+        return;
+      }
+      const key = (
+        await safeStorage.decryptStringAsync(
+          readFileSync(path.join(existing, "api-key.enc")),
+        )
+      ).result;
+      phase = "provider";
       let providerCalls = 0;
       const provider = createDeepSeekReadingProvider({
         apiKey: key,
-        priceAt: () => prices[1].id,
+        priceAt: () => price.id,
         fetcher: async (...args) => {
           providerCalls++;
           return fetch(...args);
@@ -104,14 +194,14 @@ app
         text: "",
         sources: [],
         attachments: [],
-        captureDate: "2026-10-29",
+        captureDate: jpegMode ? "2026-10-30" : "2026-10-29",
         result: null,
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: "合成通知.png",
+        name: jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
-        type: "image/png",
+        type: jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
       });
       put({ attachments: [f] });
@@ -124,8 +214,8 @@ app
           imageWindows: true,
         }),
         provider,
-        priceId: prices[1].id,
-        modelVersion: prices[1].model,
+        priceId: price.id,
+        modelVersion: price.model,
         authorize: (id) => assert.equal(id, device),
       });
       tasks.enqueue({ id: "image-task", packetId: "packet", deviceId: device });
@@ -137,11 +227,18 @@ app
       const serialized = JSON.stringify(packet.result || {});
       const checks = {
         published: task.state === "done",
-        taskNumber: serialized.includes("7319"),
+        ...(jpegMode
+          ? {
+              orientation:
+                packet.readingCoverage?.[0]?.covered?.[0]?.orientation === 6,
+            }
+          : {}),
+        taskNumber: serialized.includes(jpegMode ? "8642" : "7319"),
         format: serialized.includes("PDF"),
         filename: serialized.includes("学号_姓名"),
         deadline:
-          serialized.includes("2026-10-30") && serialized.includes("18:00"),
+          serialized.includes(jpegMode ? "2026-11-02" : "2026-10-30") &&
+          serialized.includes(jpegMode ? "17:30" : "18:00"),
         algorithm: serialized.includes("算法"),
         complexity: serialized.includes("复杂度"),
         imageWarning:
@@ -155,10 +252,13 @@ app
         )
         .all();
       const report = {
-        kind: "synthetic-real-image-development",
+        kind: jpegMode
+          ? "synthetic-real-rotated-jpeg-development"
+          : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),
         realProviderCalls: providerCalls,
-        price: prices[1],
+        price,
+        inputHash: sha256(body),
         checks,
         state: task.state,
         reason: task.reason,
@@ -215,6 +315,8 @@ app
       // Do not print supplier bodies, request payloads, key or decrypted settings.
       console.error(
         "SYNTHETIC_IMAGE_PROBE_FAILED",
+        phase,
+        error.stack?.match(/reading-image-live\.cjs:\d+:\d+/)?.[0] || "",
         error.code || error.name || "Error",
       );
       app.exit(1);

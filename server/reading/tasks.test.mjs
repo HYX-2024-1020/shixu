@@ -1773,10 +1773,10 @@ test('unknown fees, pending executors, stale reviews and concurrent proof mutati
   }
 });
 
-for(const archived of [false,true])test(`${archived?'archive ':''}PNG tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes`,async t=>{
+for(const [archived,jpegInput] of [[false,false],[true,false],[false,true],[true,true]])test(`${archived?'archive ':''}${jpegInput?'JPEG':'PNG'} tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes`,async t=>{
   const width=2051,height=4,pixels=Buffer.alloc(width*height*4,255);pixels[0]=0;pixels[pixels.length-4]=27;
-  const png=encodePng(width,height,pixels);let tiles=[];
-  const f=fixture(t,{name:archived?'图像.zip':'图像.png',text:archived?zipBytes({'notice.png':png}):png,
+  const png=jpegInput ? (await import('./jpeg-fixtures.mjs')).jpegSample({width:4,height:2051,orientation:6}).body : encodePng(width,height,pixels);let tiles=[];
+  const f=fixture(t,{name:archived?'图像.zip':jpegInput?'图像.jpg':'图像.png',text:archived?zipBytes({[jpegInput?'notice.jpg':'notice.png']:png}):png,
     reader:Object.assign(async(file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true,archiveWindows:archived}),
     provider:async sources=>{
       assert.equal(sources.length,1);const source=sources[0];if(!source.image)return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};tiles.push(source.id);

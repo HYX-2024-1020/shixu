@@ -838,7 +838,7 @@ export class ReadingTasks {
       const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
       const pendingInputs = [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
       const readInput = async file => {
-        if(/\.png$/i.test(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
+        if(/\.(png|jpe?g)$/i.test(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
           materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
             state:'unsupported',covered:[],uncovered:[{kind:'image',code:'IMAGE_PROVIDER_UNSUPPORTED'}],reasons:['IMAGE_PROVIDER_UNSUPPORTED'],segments:[]});return;
         }

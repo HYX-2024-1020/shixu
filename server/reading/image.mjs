@@ -3,6 +3,7 @@ import { sha256 } from "./material.mjs";
 
 export const IMAGE_READER_VERSION = "png-tiles/2;zlib-node/24";
 export const IMAGE_TILE_EDGE = 1024;
+export const isImageName = (name) => /\.(png|jpe?g)$/i.test(name);
 export function validateModelImage(image) {
   if (
     !image ||
@@ -331,12 +332,19 @@ export function decodePng(bytes) {
   if (consumed !== expected) throw Error("PNG_MALFORMED");
   return { ...header, pixels };
 }
-export function readImage(bytes, result, window) {
+export async function readImage(bytes, result, window) {
   window = validateImageWindow(window) || { tile: 1 };
   result.readerVersion = IMAGE_READER_VERSION;
   result.normalizationVersion = "png-rgba-white-tiles/1";
   try {
-    const image = decodePng(bytes),
+    const jpeg = /\.jpe?g$/i.test(result.name)
+      ? await import("./jpeg.mjs")
+      : null;
+    if (jpeg) {
+      result.readerVersion = jpeg.JPEG_READER_VERSION;
+      result.normalizationVersion = "jpeg-oriented-png-rgba-tiles/1";
+    }
+    const image = jpeg ? jpeg.decodeJpeg(bytes) : decodePng(bytes),
       columns = Math.ceil(image.width / IMAGE_TILE_EDGE),
       rows = Math.ceil(image.height / IMAGE_TILE_EDGE);
     const total = columns * rows;
@@ -348,13 +356,33 @@ export function readImage(bytes, result, window) {
     const width = Math.min(IMAGE_TILE_EDGE, image.width - x),
       height = Math.min(IMAGE_TILE_EDGE, image.height - y),
       tile = Buffer.alloc(width * height * 4);
-    for (let row = 0; row < height; row++)
-      image.pixels.copy(
-        tile,
-        row * width * 4,
-        ((y + row) * image.width + x) * 4,
-        ((y + row) * image.width + x + width) * 4,
-      );
+    if (jpeg && image.orientation !== 1) {
+      for (let row = 0; row < height; row++)
+        for (let column = 0; column < width; column++) {
+          const source = jpeg.jpegPixelIndex(image, x + column, y + row);
+          image.pixels.copy(
+            tile,
+            (row * width + column) * 4,
+            source,
+            source + 4,
+          );
+        }
+    } else {
+      for (let row = 0; row < height; row++)
+        image.pixels.copy(
+          tile,
+          row * width * 4,
+          ((y + row) * image.width + x) * 4,
+          ((y + row) * image.width + x + width) * 4,
+        );
+    }
+    const orientation = jpeg
+      ? {
+          orientation: image.orientation,
+          encodedWidth: image.encodedWidth,
+          encodedHeight: image.encodedHeight,
+        }
+      : {};
     const png = encodePng(width, height, tile),
       sourceId = `${result.attachmentId.slice(0, 64)}_${sha256(result.attachmentId).slice(0, 12)}_i${window.tile}`;
     const range = {
@@ -368,6 +396,7 @@ export function readImage(bytes, result, window) {
       height,
       imageWidth: image.width,
       imageHeight: image.height,
+      ...orientation,
       start: index,
       end: index + 1,
       imageHash: sha256(png),
@@ -393,6 +422,7 @@ export function readImage(bytes, result, window) {
       totalTiles: total,
       width: image.width,
       height: image.height,
+      ...orientation,
     };
     if (window.tile < total) {
       result.state = "partial";
@@ -408,7 +438,7 @@ export function readImage(bytes, result, window) {
     }
   } catch (e) {
     if (e.message === "IMAGE_CURSOR_OUT_OF_RANGE") throw e;
-    const code = /^(FORMAT_MISMATCH|PNG_|IMAGE_)/.test(e.message)
+    const code = /^(FORMAT_MISMATCH|PNG_|JPEG_|IMAGE_)/.test(e.message)
       ? e.message
       : "IMAGE_DECODE_FAILED";
     result.state = /UNSUPPORTED/.test(code) ? "unsupported" : "failed";

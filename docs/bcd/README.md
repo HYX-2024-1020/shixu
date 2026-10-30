@@ -1,3 +1,5 @@
+2026-10-30：JPEG/JPG新增受控顺序/渐进解码和8种EXIF方向，顶层/四种归档按瓦片接续，双端来源/恢复及真实模型合成旋转照片1次通过关键字段核对；质量仍有重复事项和推断延伸。固定构建严格修复扫描尾部宽容，证据见[JPEG验证](jpeg-verification.md)。本轮新增API现共2次、usage估算¥0.008794，不据此宣称全部B/C/D完成。
+
 2026-10-30：PNG新增1/2/4位灰度/调色板及Adam7交错，沿顶层/归档同一规范化模型通道恢复；88固定样本与独立原生oracle逐像素一致，普通UID隔离/双端及8MP资源记录见[编码验证](png-encoding-verification.md)。16位、高级色彩及动画仍未支持。
 
 2026-10-30：归档内静态PNG现沿ZIP/明确编码非solid RAR4/RAR5/7z逐成员及逐瓦片接续，保留包内路径、像素坐标、累计展开预算和付费复用，双端分别显示包内图片进度。四格式完整像素、Page/HTTP及Linux受保护broker temporary/deleted两链通过；见[归档图像验证](archive-images-verification.md)。Office图像、扫描PDF、其他编码和语义合并仍未实现。

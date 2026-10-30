@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, chown, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
+const jpegInput=process.argv.includes("--jpeg");
 const packed=process.argv.includes("--packed-png");
 const archiveImages=process.argv.includes("--archive-images");
 const rar4=process.argv.includes("--rar4");
@@ -14,7 +15,7 @@ if (
   !/^\/opt\/shixu-bcd-test-[\w-]+$/.test(base)
 )
   throw Error("SYNTHETIC_ROOT_REQUIRED");
-const prefix=packed ? "/run/shixu-packed-png" : archiveImages ? "/run/shixu-archive-images" : rar4 ? "/run/shixu-rar4-windows" : costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
+const prefix=jpegInput ? "/run/shixu-jpeg" : packed ? "/run/shixu-packed-png" : archiveImages ? "/run/shixu-archive-images" : rar4 ? "/run/shixu-rar4-windows" : costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
 const socketDir = prefix+"-socket", staging=prefix+"-input";
 await mkdir(socketDir, { mode: 0o750 });
 await chown(socketDir, 0, 65534);
@@ -47,7 +48,7 @@ try {
     staging,
   });
   const cases = [];
-  for (const format of (packed ? ["png","rar4"] : archiveImages ? ["zip","rar4"] : costAudit ? ["usage","not-billed"] : rar4 ? ["rar4","rar4-deleted"] : ["zip", "rar", "7z"])) {
+  for (const format of (jpegInput ? ["jpeg","rar4"] : packed ? ["png","rar4"] : archiveImages ? ["zip","rar4"] : costAudit ? ["usage","not-billed"] : rar4 ? ["rar4","rar4-deleted"] : ["zip", "rar", "7z"])) {
     const directory = await mkdtemp(join(base, "clients-"));
     directories.push(directory);
     await chown(directory, 65534, 65534);
@@ -55,9 +56,9 @@ try {
     const result = await run(
       "nobody",
       `
-      ${archiveImages || packed ? "import { runImageClients } from './scripts/reading-image-clients.mjs';" : costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
+      ${archiveImages || packed || jpegInput ? "import { runImageClients } from './scripts/reading-image-clients.mjs';" : costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
       import { createBrokerClient } from './server/reading/broker-service.mjs';
-      const result=await ${archiveImages || packed ? "runImageClients" : costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${archiveImages || packed ? "archiveFormat" : costAudit ? "disposition" : "format"}:${packed && format==='png'?'undefined':JSON.stringify(format==="rar4-deleted"?"rar4":format)},packed:${packed},deleted:${archiveImages || packed ? format === "rar4" : costAudit ? format === "not-billed" : format === "7z" || format === "rar4-deleted"},reader:createBrokerClient('${socketPath}')});
+      const result=await ${archiveImages || packed || jpegInput ? "runImageClients" : costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${archiveImages || packed || jpegInput ? "archiveFormat" : costAudit ? "disposition" : "format"}:${(packed && format==='png') || (jpegInput && format==='jpeg')?'undefined':JSON.stringify(format==="rar4-deleted"?"rar4":format)},packed:${packed},jpeg:${jpegInput},deleted:${archiveImages || packed || jpegInput ? format === "rar4" : costAudit ? format === "not-billed" : format === "7z" || format === "rar4-deleted"},reader:createBrokerClient('${socketPath}')});
       console.log(JSON.stringify(result));`,
     );
     assert.equal(result.exit, 0, result.errors);
@@ -102,6 +103,28 @@ try {
     resource={width:4096,height:2048,interlace:1,color:6,depth:8,tile:8,inputHash:sha256(fixture.body),
       expectedPixelsHash:sha256(expected),actualPixelsHash:sha256(pixels),elapsedMs:performance.now()-started,...read.metrics};
   }
+  if (jpegInput) {
+    const {jpegSample}=await import('../server/reading/jpeg-fixtures.mjs');
+    const {decodeJpeg,jpegPixelIndex}=await import('../server/reading/jpeg.mjs');
+    const {decodePng}=await import('../server/reading/image.mjs');
+    const {sha256}=await import('../server/reading/material.mjs');
+    const {createLinuxReader}=await import('../server/reading/linux-broker.mjs');
+    const fixture=jpegSample({width:2048,height:2048,orientation:6});
+    const started=performance.now();
+    const read=await createLinuxReader({runtime:'/opt/shixu-bcd-test-20261028/runtime',staging})(
+      {id:'jpeg',name:'rotated.jpg',body:fixture.body,size:fixture.body.length,hash:sha256(fixture.body)},
+      {imageWindow:{tile:4}},
+    );
+    const source=read.material.segments[0],range=source.range;
+    assert.deepEqual([range.x,range.y,range.width,range.height,range.orientation],[1024,1024,1024,1024,6]);
+    const pixels=decodePng(Buffer.from(source.image.data,'base64')).pixels,expected=Buffer.alloc(pixels.length),image=decodeJpeg(fixture.body);
+    for(let y=0;y<1024;y++)for(let x=0;x<1024;x++){
+      const index=jpegPixelIndex(image,x+1024,y+1024);image.pixels.copy(expected,(y*1024+x)*4,index,index+4);
+    }
+    assert.deepEqual(pixels,expected);
+    resource={width:2048,height:2048,orientation:6,tile:4,inputBytes:fixture.body.length,inputHash:sha256(fixture.body),
+      expectedPixelsHash:sha256(expected),actualPixelsHash:sha256(pixels),elapsedMs:performance.now()-started,...read.metrics};
+  }
   const report = {
     synthetic: true,
     realProviderCalls: 0,
@@ -112,7 +135,7 @@ try {
     cases,
   };
   await writeFile(
-    join(base, packed ? "png-encoding-linux.json" : archiveImages ? "archive-images-linux.json" : rar4 ? "rar4-clients-linux.json" : costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
+    join(base, jpegInput ? "jpeg-linux.json" : packed ? "png-encoding-linux.json" : archiveImages ? "archive-images-linux.json" : rar4 ? "rar4-clients-linux.json" : costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report));
