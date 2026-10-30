@@ -8,6 +8,7 @@ import AccountConnection from "./AccountConnection";
 import UsagePanel from "./UsagePanel";
 import { ADMIN_TEST } from "./edition";
 import AdminBackup from "./AdminBackup";
+import AdminTestGuide from "./AdminTestGuide";
 import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection(
@@ -353,6 +354,7 @@ function LegacyConnection({
           </>
         )}
         {ADMIN_TEST && <AdminBackup canUse={canSwitchCloud} notify={notify} />}
+        {ADMIN_TEST && <AdminTestGuide />}
         {!window.desktop && !ADMIN_TEST && (
           <button
             disabled={busy}
