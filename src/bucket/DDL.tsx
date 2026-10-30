@@ -2,8 +2,7 @@ import SkinArt from "./SkinArt";
 import type { Skin } from "./skins";
 import CardFiles from "./CardFiles";
 import { itemDeadlineTime } from "../../shared/deadline-time.mjs";
-import { Check, GripVertical } from "lucide-react";
-import { ADMIN_TEST } from "./edition";
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   absoluteItem,
@@ -290,18 +289,6 @@ export default function DDL({
             </button>
           </div>
           <CardFiles attachments={p.attachments} onOpen={() => setOpen(id)} />
-          {ADMIN_TEST && (
-            <button
-              type="button"
-              className="mobile-card-sort"
-              data-card-drag-handle
-              aria-label={"长按拖动排序：" + item.title}
-              title="长按这里拖动排序"
-            >
-              <GripVertical size={20} />
-              排序
-            </button>
-          )}
           {open === id && (
             <div className="ddl-panel">
               <h4>完整要求 · 时间依据</h4>

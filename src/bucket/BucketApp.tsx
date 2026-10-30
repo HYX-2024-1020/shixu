@@ -49,7 +49,6 @@ import {
 import Connection from "./Connection";
 import InstallGuide from "./InstallGuide";
 import { ADMIN_TEST, EDITION_HOME } from "./edition";
-import AdminTestGuide from "./AdminTestGuide";
 import "./admin-test.css";
 import DeliverySources from "./DeliverySources";
 import ItemDialog from "./ItemDialog";
@@ -1778,7 +1777,6 @@ export default function BucketApp() {
           </button>
         </nav>
       </header>
-      {ADMIN_TEST && <AdminTestGuide />}
       <main className="bucket-main">
         <div hidden={workspace !== "ddl"}>
           <DDL

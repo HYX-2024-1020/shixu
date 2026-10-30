@@ -216,6 +216,7 @@ export function useCardDrag(
     // Only the explicit grip opts a touch into the long-press sorting gesture.
     if (
       ADMIN_TEST &&
+      event.currentTarget.matches(".result-card") &&
       event.pointerType === "touch" &&
       !(event.target as Element).closest(".mobile-card-sort")
     )

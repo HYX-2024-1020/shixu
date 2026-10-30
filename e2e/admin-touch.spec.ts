@@ -147,6 +147,8 @@ test("native touch swipes over card bodies scroll after a pause; grips still reo
   await expect(page.getByRole("dialog", { name: "事项详情" })).toBeVisible();
   await page.getByLabel("关闭事项详情").tap();
   await page.getByRole("button", { name: "DDL", exact: true }).click();
-  await swipeBody(".ddl-item .ddl-copy", 550);
-  await swipeBody(".ddl-item .time-rail", 0);
+  await expect(
+    page.getByRole("region", { name: "DDL 截止事项" }),
+  ).toBeVisible();
+  await expect(page.locator(".ddl-item .mobile-card-sort")).toHaveCount(0);
 });

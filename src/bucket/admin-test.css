@@ -1,13 +1,9 @@
 .admin-test-guide {
-  margin: 0 auto 12px;
-  padding: 12px 16px;
-  max-width: 880px;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
   color: #111;
-  background: #ffe66d;
-  border: 2px solid #111;
-  border-radius: 12px;
-  box-shadow: 3px 3px 0 #111;
+  background: transparent;
 }
 .admin-test-guide summary {
   min-height: 32px;
@@ -39,7 +35,7 @@
 }
 @media (max-width: 600px) {
   .admin-test-guide {
-    margin: 0 16px 12px;
+    margin: 0;
   }
   .admin-test-guide summary span {
     display: block;
@@ -48,9 +44,7 @@
 }
 
 /* Scrolling is decided at touch-down; never disable it across the whole card. */
-html[data-edition="admin-test"] .result-card,
-html[data-edition="admin-test"] .ddl-copy,
-html[data-edition="admin-test"] .ddl-item .time-rail {
+html[data-edition="admin-test"] .result-card {
   touch-action: pan-y pinch-zoom;
 }
 html[data-edition="admin-test"] .bucket-app .mobile-card-sort {

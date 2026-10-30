@@ -55,9 +55,12 @@ test("iPhone direct edition retains text, completion, chat, originals and merges
   await models(page);
   await page.goto("/admin-test/");
   await expect(page).toHaveTitle("拾序 · 管理员测试版");
-  await expect(page.getByText("管理员测试版", { exact: true })).toBeVisible();
+  await expect(page.locator(".bucket-app > .admin-test-guide")).toHaveCount(0);
   await expect(page.getByLabel("往桶里放入内容")).toBeEnabled();
   await page.getByRole("button", { name: "连接与设置" }).click();
+  await expect(
+    page.getByText("使用说明与本机数据", { exact: true }),
+  ).toBeVisible();
   await page
     .getByLabel("DeepSeek API 密钥", { exact: true })
     .fill("fixture-secret-not-real");

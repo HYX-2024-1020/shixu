@@ -3,7 +3,7 @@ export default function AdminTestGuide() {
     <aside className="admin-test-guide" aria-label="管理员测试版说明">
       <details>
         <summary>
-          <strong>管理员测试版</strong>
+          <strong>使用说明与本机数据</strong>
           <span>手机本地 · API 直连</span>
         </summary>
         <ol>
