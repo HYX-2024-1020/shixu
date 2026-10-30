@@ -6,6 +6,7 @@ import {
   type RefObject,
 } from "react";
 import { settle } from "./motion";
+import { ADMIN_TEST } from "./edition";
 
 type Options = {
   ids: string[];
@@ -209,6 +210,14 @@ export function useCardDrag(
       session.current ||
       event.button !== 0 ||
       !event.isPrimary
+    )
+      return;
+    // Body touches belong to the browser, including a pause before swiping.
+    // Only the explicit grip opts a touch into the long-press sorting gesture.
+    if (
+      ADMIN_TEST &&
+      event.pointerType === "touch" &&
+      !(event.target as Element).closest(".mobile-card-sort")
     )
       return;
     if (

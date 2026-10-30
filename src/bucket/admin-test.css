@@ -46,3 +46,28 @@
     margin: 6px 0 0;
   }
 }
+
+/* Scrolling is decided at touch-down; never disable it across the whole card. */
+html[data-edition="admin-test"] .result-card,
+html[data-edition="admin-test"] .ddl-copy,
+html[data-edition="admin-test"] .ddl-item .time-rail {
+  touch-action: pan-y pinch-zoom;
+}
+html[data-edition="admin-test"] .bucket-app .mobile-card-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 4px;
+  background: transparent;
+  color: #595644;
+  border: 1px solid #d4cba8;
+  border-radius: 6px;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}

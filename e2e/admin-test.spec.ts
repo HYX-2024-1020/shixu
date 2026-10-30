@@ -67,19 +67,37 @@ test("iPhone direct edition retains text, completion, chat, originals and merges
   await page
     .getByLabel("往桶里放入内容")
     .fill("2026年11月1日下午三点提交测试报告");
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "合成附件.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("附件内容"),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "合成附件.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("附件内容"),
+  });
   await page.getByRole("button", { name: "丢进去", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "查看 提交测试报告", exact: true }),
   ).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
+  const scrollBody = page.locator(".results-workspace .card-open").first();
+  expect(
+    await scrollBody.evaluate(
+      (el) => getComputedStyle(el.closest(".result-card")!).touchAction,
+    ),
+  ).toContain("pan-y");
+  await scrollBody.dispatchEvent("pointerdown", {
+    pointerType: "touch",
+    pointerId: 101,
+    button: 0,
+    isPrimary: true,
+    clientX: 150,
+    clientY: 400,
+  });
+  await page.waitForTimeout(550);
+  await expect(page.locator(".card-drag-preview")).toHaveCount(0);
+  await scrollBody.dispatchEvent("pointercancel", {
+    pointerType: "touch",
+    pointerId: 101,
+  });
   await page
     .getByRole("button", { name: "查看 提交测试报告", exact: true })
     .click();
@@ -121,13 +139,11 @@ test("iPhone direct edition retains text, completion, chat, originals and merges
   await q.goto(baseURL + "/admin-test/");
   await expect(q.getByLabel("往桶里放入内容")).toHaveValue("");
   await q.getByRole("button", { name: "连接与设置" }).click();
-  await q
-    .getByLabel("选择管理员测试版备份")
-    .setInputFiles({
-      name: "test.zip",
-      mimeType: "application/zip",
-      buffer: zip,
-    });
+  await q.getByLabel("选择管理员测试版备份").setInputFiles({
+    name: "test.zip",
+    mimeType: "application/zip",
+    buffer: zip,
+  });
   await q.getByRole("button", { name: "确认合并恢复" }).click();
   await expect(q.getByLabel("往桶里放入内容")).toHaveValue("未投递的文字草稿");
   await q.getByRole("button", { name: "整理结果", exact: true }).click();
@@ -141,13 +157,11 @@ test("iPhone direct edition retains text, completion, chat, originals and merges
     q.getByText("草稿已保存在此设备", { exact: true }),
   ).toBeVisible();
   await q.getByRole("button", { name: "连接与设置" }).click();
-  await q
-    .getByLabel("选择管理员测试版备份")
-    .setInputFiles({
-      name: "again.zip",
-      mimeType: "application/zip",
-      buffer: zip,
-    });
+  await q.getByLabel("选择管理员测试版备份").setInputFiles({
+    name: "again.zip",
+    mimeType: "application/zip",
+    buffer: zip,
+  });
   await q.getByRole("button", { name: "确认合并恢复" }).click();
   await expect(q.getByLabel("往桶里放入内容")).toHaveValue(
     "恢复后继续输入的新草稿",

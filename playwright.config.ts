@@ -11,7 +11,11 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      testIgnore: ["**/apple.spec.ts", "**/admin-test.spec.ts"],
+      testIgnore: [
+        "**/apple.spec.ts",
+        "**/admin-test.spec.ts",
+        "**/admin-touch.spec.ts",
+      ],
       use: {
         ...devices["Desktop Chrome"],
         channel,
@@ -20,7 +24,11 @@ export default defineConfig({
     },
     {
       name: "mobile",
-      testIgnore: ["**/apple.spec.ts", "**/admin-test.spec.ts"],
+      testIgnore: [
+        "**/apple.spec.ts",
+        "**/admin-test.spec.ts",
+        "**/admin-touch.spec.ts",
+      ],
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium", channel },
     },
     {
@@ -31,6 +39,11 @@ export default defineConfig({
         browserName: "webkit",
         channel: undefined,
       },
+    },
+    {
+      name: "admin-touch",
+      testMatch: "**/admin-touch.spec.ts",
+      use: { ...devices["iPhone 13"], browserName: "chromium", channel },
     },
     ...["iPhone 13", "iPad (gen 7)", "iPad (gen 7) landscape"].map(
       (device) => ({
