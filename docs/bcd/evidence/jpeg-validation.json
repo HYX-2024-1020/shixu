@@ -4,9 +4,9 @@
   "sourceHashes": {
     "server/reading/jpeg.mjs": "744e3c5b83f967a051f06fde5ee6dbeea2a5603e0dcfdc8cb1466821404d28e7",
     "server/reading/jpeg-reader.cjs": "56a316259915b31e013e1dc2035fbc7437d7602296f944ac803b343b6b2b9276",
-    "server/reading/jpeg-reader.LICENSE": "8ecf8a805aac017215e143cc03735cd28c8eba955fdc27b17f64938581ce32cd",
+    "server/reading/jpeg-reader.LICENSE": "1ec4282112ac505faefc0365a489603b0985f4cd956099622aed47fe120ce78d",
     "node_modules/jpeg-js/lib/decoder.js": "a3f175fd6f62d142aad94d3bd90f3a30be4e076baf9b6a6fa31c8e84d9d4aa9f",
-    "scripts/build-reading-parser.mjs": "0c07b08943347498e74c050390aacdd8aefc5dca4fa9a0a54a1e56b69d88ea55"
+    "scripts/build-reading-parser.mjs": "ab7e103fe5f0332e6b3ccd26663331df9a04083972fe6fe5cb3ce860d8bce66a"
   },
   "decoderVersion": "jpeg-js/0.4.4;strict-jpeg/2",
   "npmAudit": {

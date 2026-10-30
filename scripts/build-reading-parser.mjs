@@ -72,9 +72,12 @@ for (const codec of ["decoder", "encoder"]) {
     stem.split("/").at(-1) +
     ".LICENSE.\n" +
     result.outputFiles[0].text;
+  // Preserve every notice/condition while keeping generated text compatible
+  // with the repository's whitespace gate on both platforms.
+  const normalizedLicense=license.replaceAll('\r\n','\n').replace(/[ \t]+$/gm,'').trimEnd()+'\n';
   for (const [name, body] of [
     [stem + ".cjs", generated],
-    [stem + ".LICENSE", license],
+    [stem + ".LICENSE", normalizedLicense],
   ]) {
     const path = new URL("../server/reading/" + name, import.meta.url);
     if (process.argv.includes("--check")) {
