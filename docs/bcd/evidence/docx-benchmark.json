@@ -1,0 +1,172 @@
+{
+  "synthetic": true,
+  "repetitions": 5,
+  "realProviderCalls": 0,
+  "samples": [
+    {
+      "name": "small.txt",
+      "variant": "baseline",
+      "bytes": 6800,
+      "state": "read",
+      "segments": 1,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 196.85027200000002,
+      "parseP95Ms": 9.792125999999996,
+      "peakWorkerRssKiB": 52936
+    },
+    {
+      "name": "small.txt",
+      "variant": "current",
+      "bytes": 6800,
+      "state": "read",
+      "segments": 1,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 179.08136100000002,
+      "parseP95Ms": 52.231946,
+      "peakWorkerRssKiB": 53056
+    },
+    {
+      "name": "medium.txt",
+      "variant": "baseline",
+      "bytes": 294000,
+      "state": "read",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 188.81923700000016,
+      "parseP95Ms": 59.195406999999996,
+      "peakWorkerRssKiB": 61944
+    },
+    {
+      "name": "medium.txt",
+      "variant": "current",
+      "bytes": 294000,
+      "state": "read",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 262.809268,
+      "parseP95Ms": 69.11304899999999,
+      "peakWorkerRssKiB": 61964
+    },
+    {
+      "name": "long.txt",
+      "variant": "baseline",
+      "bytes": 7980021,
+      "state": "read",
+      "segments": 32,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 794.7469019999999,
+      "parseP95Ms": 459.729063,
+      "peakWorkerRssKiB": 102848
+    },
+    {
+      "name": "long.txt",
+      "variant": "current",
+      "bytes": 7980021,
+      "state": "read",
+      "segments": 32,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 723.9837709999993,
+      "parseP95Ms": 382.445652,
+      "peakWorkerRssKiB": 102988
+    },
+    {
+      "name": "table.csv",
+      "variant": "baseline",
+      "bytes": 270021,
+      "state": "read",
+      "segments": 79,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 294.9951620000011,
+      "parseP95Ms": 160.318123,
+      "peakWorkerRssKiB": 65592
+    },
+    {
+      "name": "table.csv",
+      "variant": "current",
+      "bytes": 270021,
+      "state": "read",
+      "segments": 79,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 303.61377100000027,
+      "parseP95Ms": 107.328304,
+      "peakWorkerRssKiB": 64488
+    },
+    {
+      "name": "dense.csv",
+      "variant": "baseline",
+      "bytes": 100000,
+      "state": "read",
+      "segments": 782,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 441.1422219999986,
+      "parseP95Ms": 293.371442,
+      "peakWorkerRssKiB": 65460
+    },
+    {
+      "name": "dense.csv",
+      "variant": "current",
+      "bytes": 100000,
+      "state": "read",
+      "segments": 782,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 375.8766820000019,
+      "parseP95Ms": 212.891279,
+      "peakWorkerRssKiB": 64784
+    },
+    {
+      "name": "partial.csv",
+      "variant": "baseline",
+      "bytes": 15,
+      "state": "partial",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 181.81715199999962,
+      "parseP95Ms": 2.6326879999999946,
+      "peakWorkerRssKiB": 49352
+    },
+    {
+      "name": "partial.csv",
+      "variant": "current",
+      "bytes": 15,
+      "state": "partial",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 187.01851499999975,
+      "parseP95Ms": 2.1083270000000027,
+      "peakWorkerRssKiB": 50500
+    },
+    {
+      "name": "small.docx",
+      "variant": "docx",
+      "bytes": 1219,
+      "state": "read",
+      "segments": 4,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 212.0582859999995,
+      "parseP95Ms": 64.761135,
+      "peakWorkerRssKiB": 54344
+    },
+    {
+      "name": "long.docx",
+      "variant": "docx",
+      "bytes": 822935,
+      "state": "read",
+      "segments": 1504,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 548.5073139999986,
+      "parseP95Ms": 393.194827,
+      "peakWorkerRssKiB": 79768
+    },
+    {
+      "name": "partial.docx",
+      "variant": "docx",
+      "bytes": 1012,
+      "state": "partial",
+      "segments": 1,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 212.8843820000002,
+      "parseP95Ms": 67.950273,
+      "peakWorkerRssKiB": 52036
+    }
+  ]
+}

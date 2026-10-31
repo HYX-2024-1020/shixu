@@ -1,0 +1,130 @@
+{
+  "kind": "synthetic-real-semantic-quality",
+  "variant": "apng-complement/v1",
+  "testedAt": "2026-10-31T18:22:16.023Z",
+  "realProviderCalls": 1,
+  "simulatedUpstreamCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793470934959,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "state": "done",
+  "reason": "",
+  "qualityError": null,
+  "realSpentMicros": 1346,
+  "realCalls": [
+    {
+      "id": "f931be5c-939f-455f-b386-cae3a5cddef4",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 23485,
+      "actual": 1346,
+      "usage": "{\"prompt_tokens\":1270,\"completion_tokens\":19,\"prompt_cache_hit_tokens\":0}"
+    }
+  ],
+  "result": {
+    "summary": "固定APNG已核对输出，模拟上游",
+    "warnings": [],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告",
+        "summary": "",
+        "facts": [
+          "任务来源标题为“图像开发验证：合成通知”。",
+          "需提交图像实验报告，任务编号 7319。",
+          "截止时间：2026年10月30日18:00。",
+          "格式：PDF，命名：学号_姓名。",
+          "要求：说明算法思路与时间复杂度。",
+          "提交报告编号7319时，另附源代码。",
+          "源代码须为UTF-8编码。",
+          "图片中写有“尾部补充核对：7319。”",
+          "补充摘要：提交报告编号7319时需另附源代码，源代码须为UTF-8编码。"
+        ],
+        "nextSteps": [
+          "先按“学号_姓名.pdf”建立报告文件，再补齐算法思路与时间复杂度说明。",
+          "建议在提交前确认报告编号为7319，并检查源码文件以UTF-8保存"
+        ],
+        "uncertainties": [
+          "通知未给出具体提交渠道或平台。",
+          "通知未说明报告是否需要包含其他固定章节或模板。",
+          "图像依据待核对（不作为原文要求）：按通知要求完成图像实验报告，PDF格式、以“学号_姓名”命名，说明算法思路与时间复杂度，并在尾部保留任务编号7319。（图中无要求在尾部保留编号）",
+          "图像依据待核对（不作为原文要求）：尾部核对：7319，禁止遗漏此编号。（页尾核对仅为标记，非禁止遗漏要求）",
+          "图像依据待核对（不作为原文要求）：提交前对照通知逐项检查：PDF格式、文件名、内容要求及尾部7319编号。（把页尾标记变成尾部编号检查要求）",
+          "未给出提交截止时间",
+          "未说明提交平台或提交方式",
+          "未说明“尾部补充核对：7319”具体指报告末尾还是源码末尾",
+          "未说明所属课程或项目",
+          "图像依据待核对（不作为原文要求）：建议核对是否已按“尾部补充核对：7319”做好标记（页尾核对标记非提交标记要求）"
+        ],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "请提交图像实验报告，任务编号 7319。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "截止：2026年10月30日18:00。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "尾部核对：7319，禁止遗漏此编号。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "提交报告编号7319时，另附源代码。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "源代码须为UTF-8编码。"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "尾部补充核对：7319。"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_0_m0"
+        ],
+        "due": {
+          "date": "2026-10-30",
+          "time": "18:00",
+          "anchor": "2026年10月30日18:00",
+          "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "association": {
+    "links": []
+  },
+  "semanticMerge": {
+    "version": "paid-semantic-pairs/4",
+    "originalItems": 2,
+    "mergedItems": 1,
+    "complete": true
+  },
+  "boundaries": [
+    "Only semantic call is real; upstream recognition simulated",
+    "No UI window",
+    "No final B/C/D acceptance"
+  ]
+}

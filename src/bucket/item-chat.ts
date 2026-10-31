@@ -156,17 +156,21 @@ export async function chatWithItem(
     ],
     options,
   );
-  const validated = validateChat(
-    response,
-    instruction,
-    options.captureDate,
-    item.due,
-  );
+  return validateChatUpdate(response, item, instruction, options.captureDate);
+}
+
+export function validateChatUpdate(
+  value: unknown,
+  item: BucketItem,
+  instruction: string,
+  today: string,
+) {
+  const validated = validateChat(value, instruction, today, item.due);
   if ("due" in validated.patch) {
     const next = setDeadline(
       { ...item, ...validated.patch, due: item.due },
       validated.patch.due ?? null,
-      options.captureDate,
+      today,
     );
     validated.patch.dueCleared = next.dueCleared;
     for (const key of ["title", "summary", "facts"] as const) {

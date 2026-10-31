@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "simulatedProviderCalls": 3,
+  "bytes": 523254,
+  "parserRuns": 2,
+  "tailSeen": true,
+  "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+  "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+  "stopFromOtherDevice": true,
+  "continueFromOtherDevice": true,
+  "lateResponseDiscarded": true,
+  "resultsEqual": true,
+  "v3AIBlocked": true,
+  "spentMicros": 60,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "clientProbeInjectionDenied": true,
+  "elapsedMs": 2289.823246
+}

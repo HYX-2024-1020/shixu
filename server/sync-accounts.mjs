@@ -35,13 +35,18 @@ export class AccountRegistry {
       CREATE TABLE IF NOT EXISTS bindings(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES accounts(id),
         kind TEXT NOT NULL CHECK(kind IN ('windows','wechat')),identity TEXT NOT NULL,public_key TEXT,
         revoked INTEGER NOT NULL DEFAULT 0,expires INTEGER NOT NULL);
-      CREATE UNIQUE INDEX IF NOT EXISTS active_slot ON bindings(user_id,kind) WHERE revoked=0;
       CREATE UNIQUE INDEX IF NOT EXISTS active_identity ON bindings(kind,identity) WHERE revoked=0;
       CREATE TABLE IF NOT EXISTS nonces(binding_id TEXT NOT NULL,nonce TEXT NOT NULL,expires INTEGER NOT NULL,
         PRIMARY KEY(binding_id,nonce));
       CREATE TABLE IF NOT EXISTS request_rates(key TEXT PRIMARY KEY,window INTEGER NOT NULL,n INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS ai_usage(user_id TEXT NOT NULL,job_id TEXT NOT NULL,fingerprint TEXT NOT NULL,
         day TEXT NOT NULL,reserved_micros INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(user_id,job_id));`);
+    if (
+      !this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get()
+    )
+      this.db.exec(
+        "CREATE UNIQUE INDEX IF NOT EXISTS active_slot ON bindings(user_id,kind) WHERE revoked=0",
+      );
     const check = digest(secret);
     const previous = this.db
       .prepare("SELECT value FROM account_meta WHERE key='secret_check'")
@@ -106,6 +111,8 @@ export class AccountRegistry {
     );
   }
   bind(invite, kind, identity, publicKey = null) {
+    if (this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get())
+      reject(426, "CLIENT_UPGRADE_REQUIRED", "请使用账号密码注册或登录");
     if (typeof invite !== "string" || invite.length > 100)
       reject(401, "INVALID_INVITE", "邀请码无效");
     return this.transaction(() => {
@@ -166,6 +173,12 @@ export class AccountRegistry {
     if (!binding || !safeEqual(token, this.token(binding)))
       reject(401, "UNAUTHORIZED", "设备授权已撤销或失效，本地资料仍保留");
     this.account(binding.user_id);
+    if (this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get())
+      this.db
+        .prepare(
+          "UPDATE account_device_slots SET last_seen=? WHERE binding=? AND last_seen<?",
+        )
+        .run(Date.now(), binding.id, Date.now() - 60000);
     return binding;
   }
   proof(binding, method, path, body, headers) {

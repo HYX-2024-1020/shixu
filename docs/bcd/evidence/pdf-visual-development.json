@@ -1,0 +1,62 @@
+{
+  "synthetic": true,
+  "sourceSha256": {
+    "server/reading/pdf-visual.mjs": "86291f52d03556bcf6cffed4a70a7b6a5d937e5ae4d47e1c57a3c85434474a84",
+    "server/reading/pdf-canvas.mjs": "0c2ecae79faa43d78dc9e9c64d34433627da518978856ba5802ac72ddaa07eb4",
+    "server/reading/material.mjs": "3e35786ef0ca9a016d8f65e4ce6c85b7fb827d9d02ce6259f2b0878eae42bc7e",
+    "server/reading/windows.mjs": "2d7917012f457172a208953eaec1033ad3008a55ee2884966a870386d28f0e7f",
+    "server/reading/archive-window.mjs": "82a66324838415af2a17314067780a6c638e4d686cb8b1c04bb2b2c31d3b22c6",
+    "server/reading/archive.mjs": "77acc3b49fdc6d17202096fa27a0ea112a2339e367314972ba06eb7cb25d2f54",
+    "server/reading/broker-service.mjs": "aabb64965900219e11d9f01cce881a323633483a7b67be5d2f978b6bd03787c2",
+    "server/reading/linux-broker.mjs": "6fe5b7435863033bb5ad3376f9c904800045804e19e61f26dbaacc194e411003",
+    "scripts/build-reading-pdf-visual.mjs": "d859e6a8fc29d418879ccba2f12524c88a5728c12c688afc14e534707a91112c"
+  },
+  "windows": {
+    "related": 92,
+    "pixelAndSafety": 6,
+    "dualClientFormats": [
+      "top-level",
+      "zip",
+      "rar4",
+      "rar5",
+      "7z"
+    ],
+    "releaseNativePixelCheck": true,
+    "core": 97,
+    "sync": 125,
+    "personalServer": 1,
+    "headlessDesktop": 18,
+    "build": true,
+    "miniBuildCheck": true,
+    "officialMiniCompile": true,
+    "policy": 8
+  },
+  "linux": {
+    "uid": "nobody",
+    "pixelAndSafety": 6,
+    "dualClientFormats": [
+      "top-level",
+      "zip",
+      "rar4",
+      "rar5",
+      "7z"
+    ],
+    "protectedBrokerFormats": [
+      "top-level",
+      "rar4"
+    ],
+    "ownedRuntimeAddedSystemLibrary": "librt.so.1",
+    "hostPackagesInstalled": false,
+    "productionModified": false
+  },
+  "realCallsInBatch": 2,
+  "realSpentMicros": 4391,
+  "continuationRealCalls": 15,
+  "continuationSpentMicros": 28579,
+  "qualityLimitations": [
+    "One real result was rejected before publication; first raw response unavailable, specific validator reason cannot be recovered.",
+    "Published result invents a hard requirement to write the footer marker in the report."
+  ],
+  "finalBCDWholeAcceptance": false,
+  "nativeWeChatPhoneInstalledClientTested": false
+}

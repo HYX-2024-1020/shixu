@@ -1,0 +1,90 @@
+{
+  "resource": {
+    "members": 7,
+    "inputBytes": 3577818,
+    "inputHash": "ce74462d51c13417faadc11814ae625addc821b6f6a20830944d6d47dcea50f2",
+    "sharedBlock": {
+      "block": 0,
+      "packedBytes": 3577639,
+      "expandedBytes": 25165853,
+      "members": 7
+    },
+    "tailHash": "350651b9d3988d0e33ef0a38110a4cfccc9392bc6b0bd56ae825f722e66bd9a3",
+    "elapsedMs": 802.7429059999995,
+    "parseMs": 604.026898,
+    "serializationAndTransferMs": 1.1974840000000313,
+    "maxRssKiB": 62808
+  },
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 8,
+      "bytes": 26491,
+      "parserRuns": 14,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 160,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 6,
+        "newCalls": 1,
+        "rootCalls": 8,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "solidBlocks": 1,
+      "pdfPages": 19,
+      "blockBudgetEqualBoth": true
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 8,
+      "bytes": 26491,
+      "parserRuns": 14,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 160,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 6,
+        "newCalls": 1,
+        "rootCalls": 8,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "solidBlocks": 1,
+      "pdfPages": 19,
+      "blockBudgetEqualBoth": true
+    }
+  ]
+}

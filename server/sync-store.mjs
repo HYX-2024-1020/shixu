@@ -37,7 +37,7 @@ function canonical(value) {
     );
   return value;
 }
-function validateData(data, id) {
+function validateData(data, id, maxBytes = 800000) {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new SyncError(400, "INVALID_DATA", "投递资料必须是对象");
   assertJSON(data);
@@ -64,12 +64,12 @@ function validateData(data, id) {
       Array.isArray(data.itemState))
   )
     throw new SyncError(400, "INVALID_DATA", "事项状态无效");
-  if (Buffer.byteLength(JSON.stringify(data)) > 800000)
+  if (Buffer.byteLength(JSON.stringify(data)) > maxBytes)
     throw new SyncError(413, "TOO_LARGE", "单次同步资料超过限制");
 }
 // Partial top-level updates retain fields an older client does not understand.
 // Item fields are merged independently so toggling done does not erase AI chat.
-function mergeData(before, patch, id) {
+function mergeData(before, patch, id, maxBytes = 800000) {
   const next = { ...before, ...patch, id };
   if (patch.itemState) {
     next.itemState = { ...before?.itemState };
@@ -84,7 +84,7 @@ function mergeData(before, patch, id) {
       next.itemState[itemId] = { ...before?.itemState?.[itemId], ...changes };
     }
   }
-  validateData(next, id);
+  validateData(next, id, maxBytes);
   return next;
 }
 
@@ -213,7 +213,7 @@ export class SyncStore {
       records: selected.map((row) => this.record(row.id)),
     };
   }
-  apply(deviceId, operation, epoch) {
+  apply(deviceId, operation, epoch, internal = {}) {
     if (epoch !== this.epoch)
       fail("RESET_REQUIRED", "服务器资料版本已变化，请先核对本地资料", {
         epoch: this.epoch,
@@ -233,7 +233,12 @@ export class SyncStore {
         "INVALID_OPERATION",
         "同步操作 ID、类型或基准版本无效",
       );
-    if (type === "put") validateData(data, id);
+    if (type === "put")
+      validateData(
+        data,
+        id,
+        internal.taskId ? Number.MAX_SAFE_INTEGER : 800000,
+      );
     else if (data !== undefined)
       throw new SyncError(
         400,
@@ -269,6 +274,24 @@ export class SyncStore {
         return response;
       }
       const current = this.record(id);
+      // Trusted in-process task integration only; HTTP handlers never accept
+      // this context. Guards run inside the same write transaction.
+      this.validateOperation?.(operation, internal);
+      if (
+        type === "put" &&
+        ["readingCoverage", "processingCoverage"].some(
+          (field) =>
+            field in data &&
+            JSON.stringify(data[field]) !==
+              JSON.stringify(current?.data?.[field]),
+        ) &&
+        !internal.taskId
+      )
+        throw new SyncError(
+          422,
+          "SERVER_FIELD_READONLY",
+          "服务端读取覆盖不能由设备改写",
+        );
       if ((current?.version || 0) !== baseVersion)
         fail("REVISION_CONFLICT", "另一台设备已修改这次投递，本机修改已保留", {
           current,
@@ -287,9 +310,22 @@ export class SyncStore {
         fail("NOT_DELETED", "投递当前不在最近删除中", { current });
       const version = this.sequence + 1;
       const nextData =
-        type === "put" ? mergeData(current?.data, data, id) : current.data;
+        type === "put"
+          ? mergeData(
+              current?.data,
+              data,
+              id,
+              internal.taskId
+                ? Number.MAX_SAFE_INTEGER
+                : Buffer.byteLength(JSON.stringify(current?.data || {})) >
+                    800000
+                  ? Buffer.byteLength(JSON.stringify(current.data)) + 800000
+                  : 800000,
+            )
+          : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      internal.beforeValidate?.();
       if (type === "put") this.validateStorage?.(nextData, current);
       if (type === "put") {
         if (this.files)
@@ -331,6 +367,8 @@ export class SyncStore {
         record: this.record(id),
         replayed: false,
       };
+      internal.beforeCommit?.(response);
+      this.afterOperation?.(operation, response);
       this.db.exec("COMMIT");
       return response;
     } catch (error) {

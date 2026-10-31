@@ -37,16 +37,21 @@
     "mini:build": "node scripts/build-miniprogram.mjs",
     "mini:check": "node scripts/build-miniprogram.mjs --check",
     "mini:compile": "node scripts/check-miniprogram-compiler.mjs",
+    "reading:archive:build": "node scripts/build-reading-archive.mjs",
+    "reading:webp:build": "node scripts/build-reading-webp.mjs",
+    "reading:pdf:visual:build": "node scripts/build-reading-pdf-visual.mjs",
     "test:mini": "node --test miniprogram/tests/*.test.cjs",
     "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs"
   },
   "dependencies": {
-    "7zip-bin-full": "^26.4.1",
+    "7zip-bin-full": "26.5.1",
     "fflate": "^0.8.3",
+    "jpeg-js": "0.4.4",
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "sax": "1.6.1",
     "word-extractor": "^1.0.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },

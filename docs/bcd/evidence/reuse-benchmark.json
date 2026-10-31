@@ -1,0 +1,163 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "repetitions": 5,
+  "originalBytes": 579143,
+  "originalHash": "39dd8f7a3fc1a7d8b09c56501e2038d6c3cfd98e4104a74423aa4d50d8778615",
+  "independentTextHash": "fa7a6569242894687d8e514e782e83c392f5ffe5189146350fc4294a7e38bc59",
+  "runs": [
+    {
+      "initialMs": 731.809629,
+      "revisedMs": 866.1423609999999,
+      "initialCalls": 2,
+      "newCalls": 1,
+      "reusedBlocks": 2,
+      "rootCalls": 3,
+      "rootCompleted": 3,
+      "spentMicros": 60,
+      "metrics": [
+        {
+          "id": "a",
+          "parseMs": 416.659641,
+          "serializationAndTransferMs": 8.076377999999977,
+          "maxRssKiB": 78724
+        },
+        {
+          "id": "input",
+          "parseMs": 2.029429999999998,
+          "serializationAndTransferMs": 3.5007749999999973,
+          "maxRssKiB": 49476
+        },
+        {
+          "id": "a",
+          "parseMs": 399.22908800000005,
+          "serializationAndTransferMs": 6.813812999999982,
+          "maxRssKiB": 78732
+        }
+      ]
+    },
+    {
+      "initialMs": 727.2170860000001,
+      "revisedMs": 845.5063259999997,
+      "initialCalls": 2,
+      "newCalls": 1,
+      "reusedBlocks": 2,
+      "rootCalls": 3,
+      "rootCompleted": 3,
+      "spentMicros": 60,
+      "metrics": [
+        {
+          "id": "a",
+          "parseMs": 398.147501,
+          "serializationAndTransferMs": 9.13291700000002,
+          "maxRssKiB": 78084
+        },
+        {
+          "id": "input",
+          "parseMs": 1.7021879999999996,
+          "serializationAndTransferMs": 4.057798999999996,
+          "maxRssKiB": 49476
+        },
+        {
+          "id": "a",
+          "parseMs": 468.292446,
+          "serializationAndTransferMs": 9.535000999999966,
+          "maxRssKiB": 80696
+        }
+      ]
+    },
+    {
+      "initialMs": 712.1817180000003,
+      "revisedMs": 882.9756909999996,
+      "initialCalls": 2,
+      "newCalls": 1,
+      "reusedBlocks": 2,
+      "rootCalls": 3,
+      "rootCompleted": 3,
+      "spentMicros": 60,
+      "metrics": [
+        {
+          "id": "a",
+          "parseMs": 415.950335,
+          "serializationAndTransferMs": 7.088070000000016,
+          "maxRssKiB": 80044
+        },
+        {
+          "id": "input",
+          "parseMs": 1.664550999999996,
+          "serializationAndTransferMs": 2.6920800000000042,
+          "maxRssKiB": 49348
+        },
+        {
+          "id": "a",
+          "parseMs": 498.36743800000005,
+          "serializationAndTransferMs": 7.819997999999941,
+          "maxRssKiB": 78132
+        }
+      ]
+    },
+    {
+      "initialMs": 702.1668879999997,
+      "revisedMs": 873.0181409999996,
+      "initialCalls": 2,
+      "newCalls": 1,
+      "reusedBlocks": 2,
+      "rootCalls": 3,
+      "rootCompleted": 3,
+      "spentMicros": 60,
+      "metrics": [
+        {
+          "id": "a",
+          "parseMs": 460.183179,
+          "serializationAndTransferMs": 5.743357000000003,
+          "maxRssKiB": 81068
+        },
+        {
+          "id": "input",
+          "parseMs": 1.5906930000000017,
+          "serializationAndTransferMs": 2.3973439999999897,
+          "maxRssKiB": 49336
+        },
+        {
+          "id": "a",
+          "parseMs": 425.716431,
+          "serializationAndTransferMs": 6.815728999999976,
+          "maxRssKiB": 79048
+        }
+      ]
+    },
+    {
+      "initialMs": 705.5928539999995,
+      "revisedMs": 837.089727999999,
+      "initialCalls": 2,
+      "newCalls": 1,
+      "reusedBlocks": 2,
+      "rootCalls": 3,
+      "rootCompleted": 3,
+      "spentMicros": 60,
+      "metrics": [
+        {
+          "id": "a",
+          "parseMs": 412.715642,
+          "serializationAndTransferMs": 7.434875000000034,
+          "maxRssKiB": 78944
+        },
+        {
+          "id": "input",
+          "parseMs": 1.4887130000000042,
+          "serializationAndTransferMs": 2.630696999999998,
+          "maxRssKiB": 49348
+        },
+        {
+          "id": "a",
+          "parseMs": 390.866431,
+          "serializationAndTransferMs": 16.19724500000001,
+          "maxRssKiB": 78620
+        }
+      ]
+    }
+  ],
+  "revisedP50Ms": 866.1423609999999,
+  "revisedP95Ms": 882.9756909999996,
+  "maxWorkerRssKiB": 81068
+}

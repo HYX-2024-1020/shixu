@@ -1,8 +1,11 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
+const { sha256: originalHash } = require("../../lib/originals");
 const {
   CONNECTION,
   SERVICE_ORIGIN,
+  accountServiceOrigin,
+  credentials: accountCredentials,
   activate: activateAccount,
   spaceKey,
   accountTransport,
@@ -41,6 +44,14 @@ const {
   absoluteItem,
   setDeadline,
   habitCheckin,
+  readingView,
+  walletView,
+  reuseView,
+  pdfProgressView,
+  imageProgressView,
+  mergeProgressView,
+  processingView,
+  sourceLocation,
 } = require("../../lib/generated/desktop");
 const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
 const SKINS = "shixu:mini:skins:v1";
@@ -181,6 +192,13 @@ Page({
     jobs: [],
     chatInput: "",
     jobBusy: false,
+    accountUsername: "",
+    accountPassword: "",
+    accountNewPassword: "",
+    loginDevices: [],
+    accountDevices: [],
+    passwordAccounts: false,
+    accountClaimed: false,
     jobLabels: {
       submitting: "正在提交",
       queued: "等待整理",
@@ -190,6 +208,10 @@ Page({
       error: "未完成",
       conflict: "有新修改，请核对结果",
       interrupted: "已中断，请核对后重试",
+      paused: "已暂停",
+      cancelled: "已停止",
+      partial: "已收下部分",
+      purged: "已清除",
     },
   },
   onLoad() {
@@ -227,6 +249,7 @@ Page({
       this._error(error);
     }
     this._network = (result) => {
+      this.setData({ offline: !result.isConnected });
       if (result.isConnected) this.syncQuietly();
     };
     wx.onNetworkStatusChange(this._network);
@@ -257,20 +280,32 @@ Page({
   _activate(connection) {
     const environment = wx.getAccountInfoSync().miniProgram.envVersion;
     const base = normalizeServiceURL(connection.base, environment);
-    if (connection.protocolVersion === 3 && base !== SERVICE_ORIGIN)
+    if (connection.protocolVersion === 3 && base !== accountServiceOrigin(wx))
       throw new Error("激活服务地址无效");
+    this._reading = null;
     const transport =
       connection.protocolVersion === 3
         ? accountTransport(connection, wx, (account) => {
+            this._reading = account.reading || null;
+            this.setData({
+              passwordAccounts: !!account.authentication,
+              accountClaimed: !!account.authentication?.claimed,
+              accountUsername:
+                this.data.accountUsername ||
+                account.authentication?.username ||
+                "",
+            });
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
             this.setData({
               activationState: "已激活",
-              accountAiState: !account.ai.enabled
-                ? "服务端 AI 暂未启用"
-                : used >= account.ai.dailyLimit
-                  ? "今日 AI 额度已用完；记录和同步仍可用"
-                  : `今日 ${used} / ${account.ai.dailyLimit} 次，UTC 零点重置`,
+              accountAiState: account.reading
+                ? walletView(account.wallet)
+                : !account.ai.enabled
+                  ? "服务端 AI 暂未启用"
+                  : used >= account.ai.dailyLimit
+                    ? "今日 AI 额度已用完；记录和同步仍可用"
+                    : `今日 ${used} / ${account.ai.dailyLimit} 次，UTC 零点重置`,
             });
           })
         : createTransport(base, () => connection.token);
@@ -524,7 +559,11 @@ Page({
       }
       this.setData({
         error: "",
-        notice: "原件已保存在本机；丢进去后与文字一起投递",
+        notice: library
+          .entries(this._draftId, this._draftSpace())
+          .some((e) => e.volatile)
+          ? "本机原件保存失败，仅本次会话可用；上传后请核对云端保存结果，关闭前另存副本"
+          : "原件已保存在本机；丢进去后与文字一起投递",
       });
     } catch (error) {
       this._error(error);
@@ -556,6 +595,95 @@ Page({
       );
     this.setData({ filesBusy: true });
     try {
+      if (this._reading?.features?.submissionManifest) {
+        const pending = library.entries(null, base).filter((e) => !e.remote);
+        for (const packetId of new Set(pending.map((e) => e.packetId))) {
+          const row = this._record(packetId);
+          if (!row || row.deletedAt || row.conflict) continue;
+          const entries = library.entries(packetId, base);
+          const newFiles = entries.map((e) => ({
+            id: e.id,
+            name: e.name,
+            type: e.type,
+            size: e.size,
+            hash: e.remote?.hash || originalHash(library.bytes(e)),
+          }));
+          const manifest = [
+            ...(row.data.attachments || []).filter(
+              (f) => !newFiles.some((n) => n.id === f.id),
+            ),
+            ...newFiles,
+          ];
+          const key = `shixu:submission:${base}:${packetId}`;
+          let saved = wx.getStorageSync(key);
+          if (
+            !saved ||
+            JSON.stringify(saved.manifest) !== JSON.stringify(manifest)
+          ) {
+            saved = { id: makeId(), manifest, baseVersion: row.version };
+            wx.setStorageSync(key, saved);
+          }
+          const submission = await this._transport(
+            "POST",
+            "/api/v4/submissions",
+            {
+              submissionId: saved.id,
+              packetId,
+              manifest,
+              epoch,
+              storageIntent: "retained",
+            },
+          );
+          this.setData({ originalNotice: submission.warning });
+          if (
+            submission.mode === "temporary" &&
+            entries.some((e) => e.volatile)
+          ) {
+            const answer = await new Promise((resolve) =>
+              wx.showModal({
+                title: "原件未保存",
+                content:
+                  "本机保存失败且云端空间不足，只能临时整理；停止、失败或关闭后需重新选择原件。仍继续？",
+                success: resolve,
+                fail: () => resolve({ confirm: false }),
+              }),
+            );
+            if (!answer.confirm)
+              throw Error("已保留本次会话材料，请先另存原件后重试");
+          }
+          for (const entry of entries)
+            await transport.uploadSubmission(
+              saved.id,
+              entry,
+              library.bytes(entry),
+            );
+          await this._transport(
+            "POST",
+            `/api/v4/submissions/${saved.id}/commit`,
+            {
+              manifestHash: submission.manifestHash,
+              epoch,
+              operation: {
+                opId: saved.id,
+                id: packetId,
+                type: "put",
+                baseVersion: saved.baseVersion,
+                data: { attachments: manifest },
+              },
+            },
+          );
+          for (const entry of entries)
+            library.markUploaded(
+              entry,
+              manifest.find((f) => f.id === entry.id),
+            );
+          wx.setStorageSync(key, null);
+        }
+        if (pending.length) await this._client.sync();
+        const storage = await this._transport("GET", "/api/v4/storage");
+        this.setData({ originalStorage: storage });
+        return;
+      }
       let changed = false;
       for (const entry of library
         .entries(null, base)
@@ -582,6 +710,135 @@ Page({
         changed = true;
       }
       if (changed) await this._client.sync();
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  async _reuploadTemporary(packetId) {
+    if (!this._reading?.features?.submissionManifest) return;
+    const storage = await this._transport(
+      "GET",
+      `/api/v4/storage?packetId=${encodeURIComponent(packetId)}`,
+    );
+    const library = this._library();
+    const transport = createFileTransport(
+      this._connection.base,
+      () => this._connection.token,
+      wx,
+      3,
+    );
+    for (const f of storage.originals.filter(
+      (f) =>
+        f.packetId === packetId &&
+        !f.available &&
+        !f.readingAvailable &&
+        (f.mode === "temporary" || ["deleted", "cleaned"].includes(f.state)),
+    )) {
+      const entry = library
+        ?.entries(packetId, this._space())
+        .find((e) => e.id === f.id);
+      if (!entry)
+        throw Error("原件已清理，请在有本地副本的设备继续，或重新选择同一原件");
+      if (["deleted", "cleaned"].includes(f.state)) {
+        await transport.verifyOriginal(packetId, entry, library.bytes(entry));
+        this.setData({
+          notice: "云端原件保持已清除；本次仅临时核验，停止或结束后清理",
+        });
+      } else
+        await transport.uploadSubmission(
+          f.submissionId,
+          entry,
+          library.bytes(entry),
+        );
+    }
+  },
+  async originalAction(event) {
+    const { id, packet, action } = event.currentTarget.dataset;
+    const f = this.data.originalStorage?.originals.find(
+      (f) => f.id === id && f.packetId === packet,
+    );
+    if (!f || this.data.filesBusy) return;
+    if (this.data.offline) {
+      this._error(Error("离线时不能修改云端原件；联网后刷新再操作"));
+      return;
+    }
+    if (action === "delete") {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "删除云端原件",
+          content: "会停止对应任务并清理云端原件；本机副本保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ filesBusy: true, error: "" });
+    try {
+      if (action === "download") {
+        const bytes = await createFileTransport(
+          this._connection.base,
+          () => this._connection.token,
+          wx,
+          3,
+        ).download(packet, id, this._epoch);
+        if (originalHash(bytes) !== f.hash)
+          throw Error("下载校验不一致，未保存原件");
+        this._library().cache(f, packet, this._space(), bytes);
+        this.setData({ notice: "原件已校验并保存到本机，可从材料中打开" });
+        return;
+      }
+      const key = `shixu:original-action:${this._space()}:${packet}:${id}:${f.version}:${action}`;
+      let operationId = wx.getStorageSync(key);
+      if (!operationId) {
+        operationId = makeId();
+        wx.setStorageSync(key, operationId);
+      }
+      const result = await this._transport(
+        "POST",
+        `/api/v4/originals/${action}`,
+        {
+          operationId,
+          ids: [{ packetId: packet, id, expectedVersion: f.version }],
+          stopTask: action === "delete",
+        },
+      );
+      wx.setStorageSync(key, null);
+      if (result.results.some((r) => r.code !== "OK"))
+        throw Error("原件状态已变化，请刷新后重试");
+      this.setData({
+        originalStorage: await this._transport("GET", "/api/v4/storage"),
+      });
+    } catch (e) {
+      this._error(e);
+    } finally {
+      this.setData({ filesBusy: false });
+    }
+  },
+  async moreOriginals() {
+    if (
+      !this.data.originalStorage?.hasMore ||
+      this.data.filesBusy ||
+      this.data.offline
+    )
+      return;
+    this.setData({ filesBusy: true });
+    try {
+      const next = await this._transport(
+        "GET",
+        `/api/v4/storage?cursor=${this.data.originalStorage.nextCursor}`,
+      );
+      this.setData({
+        originalStorage: {
+          ...next,
+          originals: [
+            ...this.data.originalStorage.originals,
+            ...next.originals,
+          ],
+        },
+      });
+    } catch (e) {
+      this._error(e);
     } finally {
       this.setData({ filesBusy: false });
     }
@@ -631,7 +888,7 @@ Page({
         path = library.cache(file, packet, space, bytes);
       }
       const ext = extension(file.name);
-      if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext))
+      if (["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(ext))
         wx.previewImage({
           urls: [path],
           current: path,
@@ -875,6 +1132,7 @@ Page({
     }
     this._stopSkinInteraction();
     this.setData({ tab: target, notice: "", expandedCardId: "" });
+    if (target === "settings") void this.probeAccountCapabilities();
     this._refresh();
   },
   closeSettings() {
@@ -886,6 +1144,7 @@ Page({
     this._refresh();
   },
   openAiSettings() {
+    void this.probeAccountCapabilities();
     if (this.data.tab !== "settings")
       this.setData({ settingsReturnTab: this.data.tab });
     this._stopSkinInteraction();
@@ -960,6 +1219,15 @@ Page({
       const result = await this._client.sync();
       this._epoch = result.epoch;
       this.setData({ capabilities: result.capabilities || {} });
+      if (this.data.passwordAccounts)
+        this.setData({
+          accountDevices: (
+            await this._transport("GET", "/api/v4/devices")
+          ).devices.map((device) => ({
+            ...device,
+            lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
+          })),
+        });
       await this._uploadFiles(result.epoch);
       await this._pollJobs();
       const pendingFiles = this._library()
@@ -1063,10 +1331,13 @@ Page({
       ...row,
       sourceText: p.text || "",
       sources: p.sources || [],
+      reading: readingView(p.readingCoverage),
+      processing: processingView(p.processingCoverage),
       attachments: (p.attachments || []).filter((file) => !file.deletedAt),
       evidence: (row.item.evidence || []).map((e) => ({
         ...e,
         name:
+          sourceLocation(p.readingCoverage, e.sourceId) ||
           ((p.sources || []).find((s) => s.id === e.sourceId) || {}).name ||
           e.sourceId,
       })),
@@ -1721,13 +1992,175 @@ Page({
     const row = this._record(event.currentTarget.dataset.id);
     if (row) wx.setClipboardData({ data: row.data.text || "" });
   },
+  async probeAccountCapabilities() {
+    if (typeof wx.request !== "function") return;
+    try {
+      const capability = await createTransport(
+        accountServiceOrigin(wx),
+        () => null,
+      )("GET", "/api/v4/capabilities");
+      this.setData({
+        passwordAccounts: capability.features?.registration === true,
+      });
+    } catch (_) {
+      /* Legacy/offline service keeps its existing activation UI. */
+    }
+  },
+  onAccountField(event) {
+    this.setData({ [event.currentTarget.dataset.field]: event.detail.value });
+  },
+  async credentialAction(event) {
+    if (this.data.connecting || this.data.syncing) return;
+    let operationState;
+    const { action, replace } = event.currentTarget.dataset;
+    if (replace) {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "替换设备",
+          content: "旧设备立即失去云端访问权限，本地副本保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ connecting: true, error: "" });
+    try {
+      if (this._connection && this._client.pendingCount())
+        throw Error("请先同步待传操作，再切换账号");
+      const operationKey = "shixu:mini:auth-operations:v1",
+        operations = wx.getStorageSync(operationKey) || {};
+      const key = `${action}:${this.data.accountUsername}:${replace || ""}`;
+      operationState = { operationKey, operations, key };
+      operations[key] ||= makeId();
+      wx.setStorageSync(operationKey, operations);
+      const connection = await accountCredentials(
+        action,
+        {
+          operationId: operations[key],
+          username: this.data.accountUsername,
+          password: this.data.accountPassword,
+          ...(action === "register" ? { invite: this.data.password } : {}),
+          ...(replace ? { replaceBindingId: replace } : {}),
+        },
+        wx,
+        this._connection,
+      );
+      if (action !== "claim") {
+        const previous = wx.getStorageSync(stateKey(spaceKey(connection)));
+        if (previous?.epoch && previous.epoch !== connection.epoch)
+          throw Error("账号资料版本变化，本机队列已保留");
+        wx.setStorageSync(this._draftKey(), {
+          id: this._draftId,
+          text: this.data.draft,
+        });
+        this._activate(connection);
+        wx.setStorageSync(CONNECTION, connection);
+        wx.setStorageSync(CONNECTION + ":active", true);
+      }
+      this.setData({
+        accountPassword: "",
+        password: "",
+        loginDevices: [],
+        notice: "账号已连接，本机原空间资料保留",
+      });
+      delete operations[key];
+      wx.setStorageSync(operationKey, operations);
+      await this.sync();
+    } catch (error) {
+      if (
+        operationState &&
+        [400, 401, 403, 404, 409, 422, 426, 429, 503].includes(error.status)
+      ) {
+        const { operations, key, operationKey } = operationState;
+        delete operations[key];
+        wx.setStorageSync(operationKey, operations);
+      }
+      if (error.code === "DEVICE_SLOTS_FULL")
+        this.setData({
+          loginDevices: (error.devices || []).map((device) => ({
+            ...device,
+            lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
+          })),
+        });
+      this._error(error);
+    } finally {
+      this.setData({ connecting: false });
+    }
+  },
+  async revokeAccountDevice(event) {
+    const id = event.currentTarget.dataset.id;
+    const answer = await new Promise((resolve) =>
+      wx.showModal({
+        title: "撤销设备",
+        content: "该设备立即失去云端访问权限，本地副本保留。",
+        success: resolve,
+        fail: () => resolve({ confirm: false }),
+      }),
+    );
+    if (!answer.confirm) return;
+    try {
+      await this._transport("POST", `/api/v4/devices/${id}/revoke`, {
+        contractVersion: 1,
+        operationId: makeId(),
+      });
+      await this.sync();
+    } catch (error) {
+      this._error(error);
+    }
+  },
+  async changeAccountPassword() {
+    try {
+      await this._transport("POST", "/api/v4/auth/password", {
+        contractVersion: 1,
+        operationId: makeId(),
+        oldPassword: this.data.accountPassword,
+        newPassword: this.data.accountNewPassword,
+        revokeAll: true,
+      });
+      this.setData({
+        accountPassword: "",
+        accountNewPassword: "",
+        activationState: "密码已修改，所有设备已撤销，请重新登录",
+      });
+    } catch (error) {
+      this._error(error);
+    }
+  },
   _jobViews(jobs) {
-    return jobs.map(({ id, state, error, output }) => ({
-      id,
-      state,
-      error,
-      hasOutput: !!output,
-    }));
+    return jobs.map(
+      ({
+        id,
+        state,
+        error,
+        output,
+        actions,
+        calls,
+        reusedBlocks,
+        phase,
+        completedMergeBatches,
+        completedVisualBatches,
+        readingSummary,
+        rootCalls,
+        rootActiveSeconds,
+      }) => ({
+        id,
+        state,
+        error,
+        hasOutput: !!output,
+        calls: calls || 0,
+        completedVisualBatches,
+        reuseLabel: reuseView(reusedBlocks),
+        mergeLabel: mergeProgressView(phase, completedMergeBatches, completedVisualBatches),
+        pdfProgressLabel: [pdfProgressView(readingSummary),imageProgressView(readingSummary)].filter(Boolean).join("；"),
+        rootCalls,
+        rootActiveSeconds,
+        canStop: actions?.includes("stop") || false,
+        canContinue: actions?.includes("continue") || false,
+        canPurge: actions?.includes("purge") || false,
+        canAcceptPartial: actions?.includes("accept-partial") || false,
+      }),
+    );
   },
   _saveJobs(jobs) {
     wx.setStorageSync(jobsKey(this._space()), jobs);
@@ -1739,7 +2172,52 @@ Page({
     this._pollingJobs = true;
     try {
       const records = this._client.records();
+      if (this._reading) {
+        const remote = await this._transport("GET", "/api/v4/tasks");
+        const jobs = this._jobs.slice();
+        for (const task of remote.tasks) {
+          const old = jobs.find((j) => j.id === task.id);
+          if (old) Object.assign(old, task);
+          else
+            jobs.push({
+              ...task,
+              request: { packetId: task.packetId, kind: task.kind || "organize", ...(task.itemId?{itemId:task.itemId}:{}) },
+            });
+        }
+        this._saveJobs(jobs);
+      }
       for (const saved of this._jobs.slice()) {
+        if (saved.pendingAction) {
+          const { action, ...request } = saved.pendingAction;
+          let task;
+          try {
+            if (["continue", "accept-partial"].includes(action))
+              await this._reuploadTemporary(
+                saved.packetId || saved.request.packetId,
+              );
+            task = await this._transport(
+              "POST",
+              `/api/v4/tasks/${saved.id}/${action}`,
+              request,
+            );
+          } catch (error) {
+            if ([401, 403, 404, 409, 422, 426, 429, 503].includes(error.status))
+              this._saveJobs(
+                this._jobs.map((j) =>
+                  j.id === saved.id
+                    ? { ...j, pendingAction: null, error: error.message }
+                    : j,
+                ),
+              );
+            throw error;
+          }
+          this._saveJobs(
+            this._jobs.map((j) =>
+              j.id === saved.id ? { ...j, ...task, pendingAction: null } : j,
+            ),
+          );
+          continue;
+        }
         const record = records.find((r) => r.id === saved.request.packetId);
         if (record && record.purged) {
           this._saveJobs(this._jobs.filter((j) => j.id !== saved.id));
@@ -1751,10 +2229,19 @@ Page({
           continue;
         let job;
         try {
+          if (saved.state === "submitting" && saved.protocol === 4)
+            await this._reuploadTemporary(saved.request.packetId);
           job =
             saved.state === "submitting"
-              ? await this._transport("POST", "/api/v2/jobs", saved.request)
-              : await this._transport("GET", `/api/v2/jobs/${saved.id}`);
+              ? await this._transport(
+                  "POST",
+                  saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs",
+                  saved.request,
+                )
+              : await this._transport(
+                  "GET",
+                  `${saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs"}/${saved.id}`,
+                );
         } catch (error) {
           if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error.status)) {
             this._saveJobs(
@@ -1807,15 +2294,27 @@ Page({
       if (!record || record.deletedAt || record.conflict)
         throw new Error("请先恢复投递并解决同步冲突");
       const status = await this._transport("GET", "/api/v2/status");
+      const costWallet = this._reading
+        ? await this._transport("GET", "/api/v4/wallet") : null;
       const request = {
         id: makeId(),
         kind,
         packetId,
         baseVersion: record.version,
         epoch: status.epoch,
+        ...(this._reading ? {
+          contractVersion: 1,
+          expectedCostOperation: costWallet?.costAuditOperation || null,
+        } : {}),
         ...(kind === "chat" ? { itemId, instruction } : {}),
       };
-      const entry = { id: request.id, request, state: "submitting", error: "" };
+      const entry = {
+        id: request.id,
+        request,
+        state: "submitting",
+        error: "",
+        ...(this._reading ? { protocol: 4 } : {}),
+      };
       // Do not evict active requests; they may already have incurred a model charge.
       const jobs = this._jobs || [],
         active = jobs.filter((j) =>
@@ -1844,6 +2343,43 @@ Page({
   },
   organizeRecord(event) {
     return this._startJob("organize", event.currentTarget.dataset.id);
+  },
+  async taskAction(event) {
+    const { id, action } = event.currentTarget.dataset;
+    const job = (this._jobs || []).find((j) => j.id === id);
+    if (!job || !job.actions?.includes(action) || this.data.jobBusy) return;
+    if (action === "purge") {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "清除任务",
+          content: "可复用块将清除，已发布事项和已消费额度保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+    }
+    this.setData({ jobBusy: true });
+    try {
+      if (["continue", "accept-partial"].includes(action))
+        await this._reuploadTemporary(job.packetId || job.request.packetId);
+      if (!job.pendingAction)
+        job.pendingAction = {
+          action,
+          contractVersion: 1,
+          operationId: makeId(),
+          expectedGeneration: job.generation,
+          expectedRevision: job.inputRevision,
+          expectedMaintenanceOperation: job.maintenanceOperation || null,
+        };
+      this._saveJobs(this._jobs.map((j) => (j.id === id ? job : j)));
+      await this._pollJobs();
+      await this.sync();
+    } catch (error) {
+      this._error(error);
+    } finally {
+      this.setData({ jobBusy: false });
+    }
   },
   chatWithItem() {
     const row = this.data.selected,

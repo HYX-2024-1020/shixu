@@ -50,6 +50,7 @@ export function createSyncService({
   ai = null,
   fileLimits = {},
   jobHooks = {},
+  originalsV4 = false,
 }) {
   if (typeof password !== "string" || password.length < 12)
     throw new Error("独立同步服务需要至少 12 位的 SYNC_PASSWORD");
@@ -60,11 +61,18 @@ export function createSyncService({
   )
     throw new Error("SYNC_ORIGIN 必须是无路径的 HTTP 或 HTTPS 来源");
   const store = new SyncStore(database);
+  if (
+    !originalsV4 &&
+    store.db.prepare("SELECT 1 FROM sync_meta WHERE key='originals_v4'").get()
+  ) {
+    store.close();
+    throw Error("ORIGINALS_V4_REQUIRED");
+  }
   const files = createAttachmentStore(store, fileLimits);
   const jobs = createJobQueue(store, ai, jobHooks);
   const failures = new Map();
   const passwordHash = digest(password);
-  const server = http.createServer(async (req, res) => {
+  const handleRequest = async (req, res) => {
     try {
       const url = new URL(req.url, origin);
       // Device tokens, rather than browser cookies, authorize this API. Requests
@@ -242,7 +250,8 @@ export function createSyncService({
           code: "INTERNAL_ERROR",
         });
     }
-  });
+  };
+  const server = http.createServer(handleRequest);
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   server.on("listening", () => jobs.start());
@@ -250,7 +259,7 @@ export function createSyncService({
     jobs.stop();
     store.close();
   });
-  return { server, store, jobs, files };
+  return { server, store, jobs, files, handleRequest };
 }
 
 if (

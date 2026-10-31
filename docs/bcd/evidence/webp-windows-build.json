@@ -1,0 +1,12 @@
+{
+  "version": "1.6.0",
+  "url": "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz",
+  "sha256": "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564",
+  "protocol": "shixu-webp/3",
+  "platform": "win32-x64",
+  "sourceSha256": "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564",
+  "builderSha256": "3b7091bbb03ed2b5eae1b6162ce503fa04690910249f3f935ebbfea8c2d028b1",
+  "adapterSha256": "7ee1845ddda9379572905677bfe522de532ba3dcd40655a128151228c22fea31",
+  "toolSha256": "6e1ee482c4a257f4e3a3a79ffa45d265824cf8f7f4b4317c14c36cfc4d28bdbd",
+  "compiler": "gcc (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r4) 16.1.0"
+}

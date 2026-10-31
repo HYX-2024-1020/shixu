@@ -12,6 +12,16 @@ import { DatabaseSync } from "node:sqlite";
 import { buildRelease } from "../../scripts/build-sync-release.mjs";
 import { backupDatabase } from "./backup.mjs";
 import { verifyService } from "./verify.mjs";
+import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";
+import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
+import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
+import { archiveSample, archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
+import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
+import {jpegSample} from '../../server/reading/jpeg-fixtures.mjs';
+import {officeImageBytes} from '../../server/reading/office-fixtures.mjs';
+import {apngBytes} from '../../server/reading/apng-fixtures.mjs';
+import {sevenZipBytes} from '../../server/reading/native-archive-fixtures.mjs';
+import {gifBytes} from '../../server/reading/gif-fixtures.mjs';
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
@@ -21,7 +31,136 @@ test("account service and protected CLI run from the self-contained release", as
     const current = join(directory, "current");
     await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
     const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
+    const {SyncStore}=await import(pathToFileURL(join(release,'server/sync-store.mjs')));
+    const {ReadingLedger}=await import(pathToFileURL(join(release,'server/reading/ledger.mjs')));
+    const {ReadingTasks}=await import(pathToFileURL(join(release,'server/reading/tasks.mjs')));
+    const chatStore=new SyncStore(':memory:'),chatLedger=new ReadingLedger(':memory:');
+    const {createAttachmentStore}=await import(pathToFileURL(join(release,'server/sync-files.mjs')));
+    createAttachmentStore(chatStore);
+    let chatTasks;
+    try {
+      chatLedger.freezePrice({id:'synthetic',model:'synthetic',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});
+      chatLedger.grantInitial('synthetic');
+      const device=chatStore.createDevice('synthetic').deviceId;
+      chatStore.apply(device,{id:'packet',opId:'seed',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],itemIds:['item1'],result:{summary:'',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],evidence:[],due:null}]}}},chatStore.epoch);
+      const provider=Object.assign(async()=>{throw Error('unexpected organize');},{chat:async()=>({usage:{prompt_tokens:1,completion_tokens:1},result:{reply:'合成回答',patch:{group:'独立包'}}})});
+      chatTasks=new ReadingTasks({store:chatStore,ledger:chatLedger,account:'synthetic',provider,reader:()=>{throw Error('unexpected parser');},priceId:'synthetic',modelVersion:'synthetic',authorize:id=>assert.equal(id,device)});
+      chatTasks.enqueue({id:'chat',packetId:'packet',deviceId:device,chat:{itemId:'item1',instruction:'放到独立包组',baseVersion:chatStore.record('packet').version,epoch:chatStore.epoch}});
+      for(let i=0;i<4&&chatTasks.get('chat').state==='queued';i++)await chatTasks.run('chat');
+      assert.equal(chatTasks.get('chat').state,'done');
+      assert.equal(chatStore.record('packet').data.itemState.item1.group,'独立包');
+      chatStore.apply(device,{id:'semantic',opId:'seed-semantic',type:'put',baseVersion:0,data:{text:'合成提交报告',captureDate:'2026-10-31',sources:[],attachments:[],result:null}},chatStore.epoch);
+      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:['提交报告','交报告'].map(title=>({kind:'task',title,summary:'合成',facts:[title],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text}]}))}}),
+        {merge:async sources=>{const items=JSON.parse(sources[0].text).items;return {usage:{prompt_tokens:1,completion_tokens:1},result:{same:[[items[0].id,items[1].id]],related:[]}};}});
+      const {readMaterial:readReleased}=await import(pathToFileURL(join(release,'server/reading/material.mjs')));
+      chatTasks.reader=readReleased;
+      chatTasks.enqueue({id:'semantic-task',packetId:'semantic',deviceId:device});
+      for(let i=0;i<8&&chatTasks.get('semantic-task').state==='queued';i++)await chatTasks.run('semantic-task');
+      assert.equal(chatTasks.get('semantic-task').state,'done');
+      const {encodePng:encodeReleased}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
+      chatStore.apply(device,{id:'visual',opId:'seed-visual',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],result:null}},chatStore.epoch);
+      const png=encodeReleased(1,1,Buffer.from([20,30,40,255]));
+      const file=chatStore.files.put('visual','image',{name:'synthetic.png',body:png,type:'image/png',epoch:chatStore.epoch});
+      chatStore.apply(device,{id:'visual',opId:'attach-visual',type:'put',baseVersion:chatStore.record('visual').version,data:{attachments:[file]}},chatStore.epoch);
+      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'task',title:'提交报告',summary:'',facts:['格式PDF','报告尾部写编号'],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:'格式PDF'}]}]}}),
+        {imageInput:true,reviewVisual:async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{claims:JSON.parse(sources[0].text).claims.map(c=>({id:c.id,status:c.text.includes('尾部')?'unsupported':'supported',reason:c.text.includes('尾部')?'仅为页尾标记':''}))}})});
+      chatTasks.reader=Object.assign((...args)=>readReleased(...args),{imageWindows:true,pdfWindows:true});
+      chatTasks.enqueue({id:'visual-task',packetId:'visual',deviceId:device});
+      for(let i=0;i<8&&chatTasks.get('visual-task').state==='queued';i++)await chatTasks.run('visual-task');
+      assert.equal(chatTasks.get('visual-task').state,'done');
+      assert.deepEqual(chatStore.record('visual').data.result.items[0].facts,['格式PDF']);
+      assert.ok(chatStore.record('visual').data.result.items[0].uncertainties[0].includes('报告尾部写编号'));
+      assert.equal(chatTasks.roots.stats('visual-task').calls,2);
+      const solid=await sevenZipBytes({'01.txt':Buffer.from('solid首件'),'02.txt':Buffer.from('solid尾部唯一标记')},['-mx=1','-ms=on']),solidMaterial=await readReleased({id:'solid',name:'release.7z',body:solid,size:solid.length,hash:createHash('sha256').update(solid).digest('hex')});
+      assert.equal(solidMaterial.state,'read');assert.equal(solidMaterial.segments.map(s=>s.text).join(''),'solid首件solid尾部唯一标记');assert.equal(solidMaterial.archiveCompression.blocks.length,1);assert.equal(solidMaterial.archiveCompression.blocks[0].members,2);
+      const animation=apngBytes({frames:[{delayNum:3,delayDen:0},{delayNum:7,delayDen:100}]}),apngMaterial=await readReleased({id:'apng',name:'release.apng',body:animation,size:animation.length,hash:createHash('sha256').update(animation).digest('hex')},{imageWindow:{tile:2}});
+      assert.equal(apngMaterial.covered[0].frame,2);assert.equal(apngMaterial.covered[0].frameStartMs,30);assert.equal(apngMaterial.covered[0].frameDurationMs,70);assert.equal(apngMaterial.imagePagination.nextTile,null);
+      const office=officeImageBytes('xlsx',{body:png}).body,descriptor={id:'office',name:'release.xlsx',body:office,size:office.length,hash:createHash('sha256').update(office).digest('hex')};
+      const firstOffice=await readReleased(descriptor,{officeWindow:{text:1,image:0,tile:1,offset:0}});
+      assert.ok(firstOffice.segments.some(s=>s.text.includes('Office尾部唯一标记')));
+      const imageOffice=await readReleased(descriptor,{officeWindow:firstOffice.officePagination.next});
+      assert.equal(imageOffice.officePagination.next,null);assert.equal(imageOffice.covered[0].cell,'B3');
+      assert.equal(imageOffice.covered[0].mediaPart,'xl/media/图像.png');
+      assert.equal(imageOffice.segments[0].image.hash,createHash('sha256').update(png).digest('hex'));
+
+      chatStore.apply(device,{id:'window',opId:'seed-window',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-11-01',attachments:[],sources:[],result:null}},chatStore.epoch);
+      const pdf=pdfBytes(Array.from({length:19},(_,n)=>({text:`独立发布包第${n+1}页尾部`}))), pdfFile=chatStore.files.put('window','pdf',{name:'window.pdf',body:pdf,type:'application/pdf',epoch:chatStore.epoch});
+      chatStore.apply(device,{id:'window',opId:'attach-window',type:'put',baseVersion:chatStore.record('window').version,data:{attachments:[pdfFile]}},chatStore.epoch);
+      chatTasks.provider=async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text.slice(0,8)}]}]}});
+      chatTasks.enqueue({id:'window-task',packetId:'window',deviceId:device});
+      for(let i=0;i<12&&chatTasks.get('window-task').state==='queued';i++)await chatTasks.run('window-task');
+      assert.equal(chatTasks.get('window-task').state,'done');
+      const trusted={...chatStore.db.prepare('SELECT * FROM reading_windows WHERE task=?').get('window-task')}, spent=chatLedger.wallet('synthetic').spent;
+      chatStore.db.prepare('UPDATE reading_windows SET next_page=9 WHERE task=?').run('window-task');
+      chatTasks.enqueue({id:'window-later',packetId:'window',deviceId:device});
+      await chatTasks.run('window-later');
+      assert.equal(chatTasks.get('window-later').reason,'WINDOW_STATE_RECONCILIATION');
+      assert.equal(chatLedger.wallet('synthetic').spent,spent);
+      const {ReadingWindowMaintenance}=await import(pathToFileURL(join(release,'server/reading/window-maintenance.mjs')));
+      const audit=new ReadingWindowMaintenance(chatTasks,({actor})=>actor==='synthetic-maintainer',({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reference:'synthetic-release-proof',final:true}));
+      audit.restoreRows('window-later',[trusted],'synthetic-maintainer');
+      const review=audit.preview('window-later','synthetic-maintainer');
+      audit.reconcile('window-later',{operationId:'release-window-audit',evidenceHash:'b'.repeat(64),expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence},'synthetic-maintainer');
+      assert.equal(chatTasks.get('window-later').state,'paused');
+      assert.equal(chatLedger.wallet('synthetic').spent,spent);
+      assert.equal(chatLedger.db.prepare("SELECT version FROM reading_schema_versions WHERE component='window-safety'").get().version,1);
+
+
+      assert.equal(chatStore.record('semantic').data.result.items.length,1);
+    }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
+    const {readMaterial,sha256} = await import(pathToFileURL(join(release,"server/reading/material.mjs")));
+    const {encodePng,decodePng}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
+    const webp=await readFile(new URL('../../server/reading/fixtures/webp-lossless.webp',import.meta.url));
+    const webpMaterial=await readMaterial({id:'webp',name:'synthetic.webp',body:webp,size:webp.length,hash:sha256(webp)},{imageWindow:{tile:1}});
+    assert.equal(webpMaterial.state,'read');assert.equal(webpMaterial.covered[0].frame,1);
+    const webpGoldens=JSON.parse(await readFile(new URL('../../server/reading/fixtures/webp-goldens.json',import.meta.url),'utf8'));
+    assert.equal(sha256(decodePng(Buffer.from(webpMaterial.segments[0].image.data,'base64')).pixels),webpGoldens.files['webp-lossless.webp'].frames[0].pixelsHash);
+    const {scannedPdfBytes,scanPattern}=await import('../../server/reading/pdf-visual-fixtures.mjs');
+    const scan=scanPattern(23,17),scanBody=scannedPdfBytes([scan]);
+    const expectedScan=Buffer.alloc(scan.width*scan.height*4,255);
+    for(let n=0;n<scan.width*scan.height;n++)scan.pixels.copy(expectedScan,n*4,n*3,n*3+3);
+    // A loaded .node DLL remains locked until process exit on Windows. Verify
+    // the released native reader in its own process before owned-tree cleanup.
+    const scanProbe=await promisify(execFile)(process.execPath,["--input-type=module","-e",`
+      import assert from 'node:assert/strict';
+      import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/material.mjs')).href)};
+      import {decodePng} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/image.mjs')).href)};
+      const body=Buffer.from(process.argv[1],'base64');
+      const scanned=await readMaterial({id:'scan',name:'synthetic.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
+      assert.equal(scanned.state,'read');assert.equal(scanned.covered[0].page,1);assert.equal(scanned.covered[0].dpi,108);
+      console.log(sha256(decodePng(Buffer.from(scanned.segments[0].image.data,'base64')).pixels));
+    `,scanBody.toString('base64')],{windowsHide:true});
+    assert.equal(scanProbe.stdout.trim(),sha256(expectedScan));
+    assert.ok((await readFile(join(release,'server/reading/generated-pdf-visual',process.platform+'-'+process.arch,'third-party.LICENSE'),'utf8')).includes('Mozilla Public License'));
+    const gif=gifBytes({width:2,height:1,frames:[{indices:Buffer.from([1,2])},{indices:Buffer.from([3,0])}]});
+    const gifTail=await readMaterial({id:'gif',name:'synthetic.gif',body:gif,size:gif.length,hash:sha256(gif)},{imageWindow:{tile:2}});
+    assert.equal(gifTail.covered[0].frame,2);assert.equal(gifTail.imagePagination.nextTile,null);
+    assert.deepEqual([...decodePng(Buffer.from(gifTail.segments[0].image.data,'base64')).pixels],[0,0,255,255,255,255,255,255]);
+    const png=encodePng(1,1,Buffer.from([10,20,30,255]));
+    const visual=await readMaterial({id:'image',name:'独立包.png',body:png,size:png.length,hash:sha256(png)},{imageWindow:{tile:1}});
+    assert.deepEqual([...decodePng(Buffer.from(visual.segments[0].image.data,'base64')).pixels],[10,20,30,255]);
+    const jpeg=jpegSample({width:2,height:3,orientation:6});
+    const photo=await readMaterial({id:'jpeg',name:'独立包.jpg',body:jpeg.body,size:jpeg.body.length,hash:sha256(jpeg.body)},{imageWindow:{tile:1}});
+    assert.deepEqual([photo.covered[0].width,photo.covered[0].height,photo.covered[0].orientation],[3,2,6]);
+    assert.equal(photo.segments[0].image.mime,'image/png');
+    const original = docxBytes(paragraph("独立包DOCX原文😀"));
+    assert.equal(readMaterial({id:"docx",name:"合成.docx",body:original,size:original.length,hash:sha256(original)}).segments.map(s=>s.text).join(""),"独立包DOCX原文😀\n");
     const accountDirectory = join(directory, "accounts");
+    const workbook=xlsxBytes();
+    assert.equal(readMaterial({id:"xlsx",name:"合成.xlsx",body:workbook,size:workbook.length,hash:sha256(workbook)}).segments.map(s=>s.text).join(""),"A1\t合成文字\n");
+    const pdf = pdfBytes();
+    const zip = archiveSample();
+    const rar=await nativeArchiveSample("rar");
+    assert.equal((await readMaterial({id:"rar",name:rar.name,body:rar.body,size:rar.body.length,hash:sha256(rar.body)})).segments.map(s=>s.text).join(""),rar.expectedText);
+    assert.equal((await readMaterial({id:"zip",name:zip.name,body:zip.body,size:zip.body.length,hash:sha256(zip.body)})).segments.map(s=>s.text).join(""),zip.expectedText);
+    assert.equal((await readMaterial({id:"pdf",name:"合成.pdf",body:pdf,size:pdf.length,hash:sha256(pdf)})).segments.map(s=>s.text).join(""),"中文😀PDF尾部\n");
+    const windowed=archiveWindowSample();
+    let cursor={entry:0,page:1,offset:0,base:0,expanded:0},text="";
+    do {
+      const m=await readMaterial({id:"paged",name:windowed.name,body:windowed.body,size:windowed.body.length,hash:sha256(windowed.body)},{archiveWindow:cursor});
+      text+=m.segments.map(s=>s.text).join("");cursor=m.archivePagination.next;
+    } while(cursor);
+    assert.equal(text,windowed.expectedText);
     const secret = "synthetic-release-secret-32-characters";
     const { stdout } = await promisify(execFile)(process.execPath, [join(current, "server/sync-admin.mjs"), "generate", "2"], {
       env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
@@ -60,7 +199,8 @@ test("release starts independently; two devices, restart, WAL backup and restore
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["generated", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

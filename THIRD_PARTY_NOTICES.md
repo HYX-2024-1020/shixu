@@ -1,5 +1,15 @@
 # 第三方代码、素材与样本
 
+JPEG 使用固定 [jpeg-js 0.4.4](https://github.com/jpeg-js/jpeg-js)：包许可 BSD-3-Clause，解码器沿用 notmasteryet 的 Apache-2.0；[解码器许可](server/reading/jpeg-reader.LICENSE)保留两者完整许可和原始声明。构建器明确记录本项目的扫描填充/EOB/终态及最后重启间隔修正，生成自包含 `jpeg-reader.cjs`，服务包不依赖任意系统解码器或宿主 node_modules。仅测试使用的 [JPEG 编码器](server/reading/fixtures/jpeg-encoder.LICENSE)保留 Adobe 2008 与上游 BSD 声明，排除于服务发布包。渐进/重启 JPEG 是项目自行构造像素并用已有 Pillow 12.3.0/libjpeg 生成的合成样本，无外部照片；生成脚本和逐像素 golden 同库保存。
+
+RAR4/RAR5/7z服务读取另用[官方7-Zip26.05完整源](https://github.com/ip7z/7zip/releases/tag/26.05)，源SHA-256 `0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e`。项目构建器修改原路径元数据查询/编码、RAR5 NUL拒绝，以及RAR4严格编码/不完整名称与隐式省略拒绝（原路径协议v2）；保留上游版权，修改同样适用上游许可。7-Zip包含LGPL-2.1-or-later、BSD及unRAR限制，不能将npm包装器MIT当作二进制许可。自包含服务包携带`generated-native/License.txt`、完整原始源码tar及精确补丁构建器，生成物不提交Git。已有桌面包装依赖固定为7zip-bin-full26.5.1，实际官方二进制26.05。
+
+独立压缩RAR5样本来自[libarchive v3.8.2](https://github.com/libarchive/libarchive/blob/v3.8.2/libarchive/test/test_read_format_rar5_compressed.rar.uu)，保留原uu编码于[fixtures](server/reading/fixtures/rar5-compressed.uu)，SHA-256 `7a87af5035430d2307f9a183b2da8a71c95b3c0a5b8e8d1f172ef3343d4b8620`；附[BSD两条款许可及版权](server/reading/fixtures/rar5-compressed.LICENSE)。预期1200字节按上游`verify_data`公式独立生成核对。其他RAR5/7z样本由项目生成，无真实个人资料。
+
+独立压缩RAR4样本来自[libarchive v3.8.1](https://github.com/libarchive/libarchive/blob/v3.8.1/libarchive/test/test_read_format_rar_compress_normal.rar.uu)，保留[原uu文件](server/reading/fixtures/rar4-compressed.uu)及[BSD两条款版权许可](server/reading/fixtures/rar4-compressed.LICENSE)。uu SHA-256为1c36a76e84bf08d1fdf7597b43737fa174a0813bf2715bf181fd3afb6f6f1f11；测试仅保留首件原头/压缩流并加项目生成结束块，派生包SHA为53e52fd5312e1da1194240bbfd15d6eab5493697ef1e03b50cfb218195487ee2。独立官方26.05工具核对其20111原字节全文SHA ee16390e87152d7dec632ae2b37566da6135966e46b5166e6f40a1c827fa61ad，不把上游其他链接/危险路径当作可支持材料；其他RAR4样本为项目合成，无RAR压缩实现。
+
+ZIP联合样本由项目在 `server/reading/archive-fixtures.mjs` 自行生成，沿用现有 fflate（MIT，lockfile固定）只作测试写入器，运行时解包仅用Node内置zlib和项目结构校验器，无新增第三方解压二进制。包内Office/PDF同样为项目合成材料，依赖许可沿下文既有记录。
+
 ## 绯樱狐素材（2026-10-27，Issue #65）
 
 `public/bunny.png`、`public/bunny-motion.webm`、`public/fox-atlas.webp` 和 `public/bunny-voice.mp3` 来自用户在本次对话提供的 `10月26日.mp4`。用户明确要求在 Windows 与小程序皮肤市场使用。原视频 SHA-256：`0625640e95b9f5773a8a2de5247d2ea2e62f8e1911185c3a17b858356e1748d3`，原视频本身不入库。原作者及开放许可未提供；这些角色和音频不按项目 MIT 重新授权，不授权其他用途再分发。
@@ -39,3 +49,41 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 ### 0.3.20 音频截取修正
 
 沿用上述两份用户录屏与截取区间。旧版处理在截取前按录屏时间执行淡出，导致生成片段完全静音；本次先重置时间戳、atrim 截取，再 asetpts 重置片段时间戳，最后执行 8ms 淡入与20ms淡出。保留原始声调与来源使用范围。修正版解码 RMS：声音一约0.05496、声音二约0.05221；长度仍为1.00/0.73秒。不再以文件存在、可解码或时长正确代替有声验证。
+
+## 服务端DOCX读取依赖（2026-10-28，Issue #73）
+
+`sax@1.6.1` 来自 https://github.com/isaacs/sax-js ，BlueOak-1.0.0，精确包和校验见lockfile。`server/reading/docx-reader.cjs`由本项目读取源码及sax打包，保留随附的 `server/reading/docx-reader.LICENSE`；不能将其依赖许可改称MIT。候选saxes上游已归档，未引入为新的读取依赖。包容器使用Node24内置zlib/CRC32；测试DOCX由项目自己的合成文字、XML与既有fflate生成，没有第三方文档样本或私人原件。
+
+## 服务端PDF文字层读取（2026-10-28，Issue #73）
+
+沿用lockfile已有Mozilla PDF.js `pdfjs-dist@6.2.108`，来源 https://github.com/mozilla/pdf.js ，Apache-2.0。`scripts/build-reading-pdf.mjs`生成`server/reading/pdf-api.mjs`和`pdf-core.mjs`，完整许可保存在`pdf-reader.LICENSE`，保留上游版权。生成时局部适配Node24缺少的toHex、文字提取不使用的render-only DOMMatrix初始化及启动警告；版本/精确匹配检查与字节校验用于强制升级复核。未包含canvas原生依赖、宿主字体或第三方PDF样本。合成PDF/ToUnicode由项目自己生成。能力、资源和未读视觉范围见docs/bcd/pdf-verification.md，不能将Apache依赖改称本项目MIT。
+
+## 服务端XLSX读取依赖（2026-10-28，Issue #73）
+
+沿用上述sax，以及仓库已有SheetJS CE `xlsx@0.20.3` 的SSF数值格式化（Apache-2.0，来源 https://sheetjs.com/ ，固定CDN包/完整性见lockfile）。`server/reading/xlsx-reader.cjs`按需加载自包含格式化与XML代码，保留SheetJS版权和随附 `xlsx-reader.LICENSE` 的两份完整许可；运行时不使用SheetJS完整工作簿/ZIP读取器，不引入宏/公式执行或网络访问。合成样本使用既有fflate及SheetJS写入器，无私人或第三方Office文档。详见docs/bcd/xlsx-verification.md的资源、维护和兼容边界。
+
+
+## GIF格式与合成样本（2026-10-31，Issue #73）
+
+`server/reading/gif.mjs`、最小fixture编码器由本项目按CompuServe GIF87a/89a规范自行实现，没有复制第三方解码源码。规范来源 https://www.w3.org/Graphics/GIF/spec-gif89a.txt 。Graphics Interchange Format 为CompuServe Incorporated的版权格式；GIF为CompuServe Incorporated的服务标记。
+
+`fixtures/gif-lzw.gif`、`gif-disposals.gif`、`gif-transparent-background.gif`及`gif-goldens.json`均为本项目固定算法生成的无私人内容图案；独立编码/合成oracle使用Pillow12.3.0（https://python-pillow.github.io/ ，HPND），生成入口`scripts/generate-gif-fixtures.py`。没有复制第三方图像或把Pillow代码打包到生产读取器；普通测试读取固定样本，不依赖Python或Pillow。真实模型通知由项目合成文字及已有开发用resvg生成，不使用第三方艺术素材。
+
+
+## 服务端WebP受控解码（2026-10-31，Issue #73）
+
+固定Google libwebp1.6.0，来源 https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz ，SHA-256 e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564，BSD三条款及附加专利授权。构建与发布完整保留上游COPYING、PATENTS、AUTHORS、精确原始源码包、项目源码补丁和stdin-only适配器，不改称本项目MIT。`scripts/patch-reading-webp.mjs`严格终态修正与原生适配器为项目自作，具体兼容子集见docs/bcd/webp-verification.md。工具只静态链接解码/解复用所需组件及规范终态校验用布尔写入器。
+
+WebP fixtures和goldens为项目自有合成图案，经Pillow12.3.0（HPND）独立编码/合成并固定全像素hash；生成脚本不进入生产依赖。9537通知是项目合成文字，经已有resvg/本机开发字体栅格化后Pillow编码，无字体文件或私人材料再分发。普通测试不依赖Python/Pillow。
+
+
+## 受控PDF页面渲染（2026-10-31，Issue #73）
+
+沿用锁定PDF.js6.2.108（Apache-2.0）与现有optional依赖@napi-rs/canvas1.0.13。专用渲染包局部修正Node Map/toHex兼容及RGB→RGBA末批来源偏移，不修改旧文字层bundle，不加载系统/用户字体或URL图像。来源 https://github.com/mozilla/pdf.js 与 https://github.com/Brooooooklyn/canvas/tree/00a115d9903647f116daf86eccd2c6ba36128371 。精确npm源包SRI、平台SBOM、运行文件hash与源材料随包保留。
+
+Canvas封装MIT及Chromium图标版权、Skia BSD和原生/Rust依赖各自许可见`server/reading/pdf-canvas-notices.LICENSE`、完整发布SBOM及`server/reading/pdf-canvas-sources/provenance.json`，不能全部改称MIT。127份registry源crate按SBOM SHA-256核验，12份原生组件按精确Git版本保留许可；Freetype采用FTL。四份MPL-2.0依赖cssparser/cssparser-macros/dtoa-short/selectors的完整未修改对应源码以.crate随发布提供，源地址/校验及补充版权见同目录说明。生成器`scripts/collect-pdf-canvas-notices.py`只读公开依赖材料。扫描PDF及像素图案均为项目合成；9537通知沿既有WebP合成文字栅格图，没有私人资料或字体文件再分发。
+
+
+## PNG动画固定样本（2026-11-01，Issue #73）
+
+APNG解析/合成代码及apng-animation.png、apng-poster.png图案为项目自作，MIT。结构依据W3C PNG Third Edition（https://www.w3.org/TR/png-3/）；未复制规范实现代码。可选开发生成器使用Pillow12.3.0（HPND）编码，独立动画像素oracle使用本机Edge156 ImageDecoder/Canvas，默认不含动画的静态图使用Pillow原图；普通测试仅读固定全像素hash，无浏览器/Python生产依赖。Pillow半透明OVER输出差异保留在apng-pillow-observed.json，不能将它与浏览器golden合并冒称两者全部一致。

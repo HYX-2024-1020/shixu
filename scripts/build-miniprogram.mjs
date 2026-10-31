@@ -154,7 +154,8 @@ const bundled = await build({
     export { compareItems, habitCheckin } from './src/bucket/management';
     export { cardCopy } from './src/bucket/card-copy';
     export { mergeCardOrder } from './src/bucket/card-order';
-    export { buildGroups, itemRef } from './shared/relations.mjs';`,
+    export { buildGroups, itemRef } from './shared/relations.mjs';
+    export { readingView, sourceLocation, processingView, walletView, reuseView, pdfProgressView, imageProgressView, mergeProgressView } from './shared/reading-view.mjs';`,
     resolveDir: root,
   },
   bundle: true,
@@ -175,7 +176,7 @@ outputs.set(
 );
 const ai = await build({
   stdin: {
-    contents: `export { organizePacket, DEFAULT_MODEL } from './shared/bucket-engine.mjs'; export { chatWithItem } from './src/bucket/item-chat';`,
+    contents: `export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs';`,
     resolveDir: root,
   },
   bundle: true,
@@ -196,6 +197,10 @@ outputs.set(
 outputs.set(
   "desktop/generated/sync-client.cjs",
   await readFile(path.join(root, "miniprogram/lib/sync-client.js")),
+);
+outputs.set(
+  "desktop/generated/reading-transport.cjs",
+  await readFile(path.join(root, "miniprogram/lib/reading-transport.js")),
 );
 // Artwork and single-utterance audio are copied byte-for-byte from desktop assets.
 for (const name of [

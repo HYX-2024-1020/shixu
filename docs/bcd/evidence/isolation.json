@@ -1,0 +1,104 @@
+{
+  "synthetic": true,
+  "providerCalls": 0,
+  "samples": [
+    {
+      "name": "合成.txt",
+      "bytes": 29,
+      "state": "read",
+      "segments": 1,
+      "exactMatch": true,
+      "parseMs": 1.8397960000000069,
+      "serializationAndTransferMs": 2.5064629999999966,
+      "maxRssKiB": 49096,
+      "waitingMs": 0.09067299999999534,
+      "prepareMs": 2.9452019999999948,
+      "isolatedMs": 179.015431
+    },
+    {
+      "name": "结构.csv",
+      "bytes": 64,
+      "state": "read",
+      "segments": 3,
+      "exactMatch": true,
+      "parseMs": 1.792773000000004,
+      "serializationAndTransferMs": 2.594999999999999,
+      "maxRssKiB": 49220,
+      "waitingMs": 0.00745000000000573,
+      "prepareMs": 2.775837999999993,
+      "isolatedMs": 120.86687299999997
+    },
+    {
+      "name": "合成.txt",
+      "bytes": 780018,
+      "state": "read",
+      "segments": 4,
+      "exactMatch": true,
+      "parseMs": 79.65856500000001,
+      "serializationAndTransferMs": 11.579654000000005,
+      "maxRssKiB": 65064,
+      "waitingMs": 0.01263499999998885,
+      "prepareMs": 6.669332999999995,
+      "isolatedMs": 233.53538000000003
+    },
+    {
+      "name": "部分.csv",
+      "bytes": 15,
+      "state": "partial",
+      "segments": 2,
+      "exactMatch": true,
+      "parseMs": 1.6013010000000065,
+      "serializationAndTransferMs": 2.901621999999996,
+      "maxRssKiB": 49280,
+      "waitingMs": 0.005464999999958309,
+      "prepareMs": 0.9265250000000833,
+      "isolatedMs": 140.8085329999999
+    }
+  ],
+  "probes": {
+    "boundary": {
+      "uid": 63350,
+      "inputUid": 63350,
+      "inputMode": 256,
+      "inputDirectoryMode": 448,
+      "envKeys": [
+        "LANG",
+        "PATH"
+      ],
+      "noNewPrivileges": true,
+      "noCapabilities": true,
+      "hostDenied": true,
+      "symlinkDenied": true,
+      "otherTaskDenied": true,
+      "inputReadOnly": true,
+      "runtimeReadOnly": true,
+      "networkDenied": true,
+      "diskDenied": true,
+      "scratchBytes": 268435456,
+      "timing": {
+        "waitingMs": 0.006081999999992149,
+        "prepareMs": 1.3333730000000514,
+        "isolatedMs": 520.103774
+      }
+    },
+    "memory": {
+      "terminated": true,
+      "elapsedMs": 997.2487699999999
+    },
+    "timeout": {
+      "terminated": true,
+      "elapsedMs": 2121.7456559999996
+    },
+    "process": {
+      "processLimitDenied": true,
+      "denied": 58,
+      "timing": {
+        "waitingMs": 0.0036239999999452266,
+        "prepareMs": 0.5831840000000739,
+        "isolatedMs": 1361.7807599999996
+      }
+    },
+    "brokerCrashCleanup": true
+  },
+  "stagingClean": true
+}

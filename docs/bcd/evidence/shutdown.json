@@ -1,0 +1,25 @@
+{
+  "dateBeijing": "2026-10-28",
+  "synthetic": true,
+  "platform": "independent Linux nobody, Node 24.20.0",
+  "root": "/opt/shixu-bcd-test-20261028-shutdown",
+  "graceMs": 25,
+  "observations": [
+    { "case": "v3-wechat-in-v4", "closeMs": 31.13709400000002 },
+    { "case": "v4-wechat", "closeMs": 29.174777000000006 },
+    { "case": "uncooperative-provider", "closeMs": 31.03606999999994 }
+  ],
+  "realProviderCalls": 0,
+  "serialTests": {
+    "passed": 25,
+    "failed": 0,
+    "wallSeconds": 8.82,
+    "processCumulativeMaxRssKiB": 205040
+  },
+  "limits": [
+    "One observation per case, not P95",
+    "Mock identity/provider exchange",
+    "Event-loop timer, not a hard process-kill deadline",
+    "Production and native client environments unchanged"
+  ]
+}

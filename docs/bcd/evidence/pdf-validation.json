@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-28",
+  "timezone": "Asia/Shanghai",
+  "baseline": "e6f65e1238fe822d63a22257ebb59848df3d5256",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "checks": [
+    {
+      "name": "reading",
+      "passed": 109,
+      "failed": 0,
+      "durationMs": 19012.585
+    },
+    {
+      "name": "sync-mini",
+      "passed": 125,
+      "failed": 0,
+      "durationMs": 4503.1147
+    },
+    {
+      "name": "desktop-data",
+      "passed": 18,
+      "failed": 0,
+      "durationMs": 1177.9107
+    },
+    {
+      "name": "release",
+      "passed": 4,
+      "failed": 0,
+      "durationMs": 1097.8001
+    },
+    {
+      "name": "personal-service",
+      "passed": 1,
+      "failed": 0,
+      "durationMs": 778.9122
+    },
+    {
+      "name": "gates",
+      "passed": 8,
+      "failed": 0,
+      "durationMs": 52.1081
+    },
+    {
+      "name": "linux-ordinary",
+      "passed": 65,
+      "failed": 0,
+      "durationMs": 33761.824776
+    }
+  ],
+  "coreTests": 93,
+  "browserTests": 92,
+  "generatedFiles": 15,
+  "documentationEntrypoints": 69,
+  "webBuild": true,
+  "desktopBuild": true,
+  "pdfBundleByteCheck": true,
+  "officialWxmlWxssCompileAndTemplateRendering": true,
+  "electronSource": [
+    "pdf page omissions and stop/continue/publication",
+    "retained original lifecycle and offline lock",
+    "temporary cleanup and reupload"
+  ],
+  "linuxResourceSample": {
+    "outcome": "outer isolation rejection; no trusted prefix",
+    "innerTextCeilingProven": false
+  },
+  "productionService": "read-only active; no deployment or migration",
+  "notVerified": [
+    "native WeChat / phone",
+    "installer",
+    "live provider semantic/vision/usage",
+    "real encrypted fixture",
+    "production migration",
+    "10-tenant capacity"
+  ],
+  "corrections": [
+    "synthetic long PDF fixture had text outside MediaBox; fixed geometry and reran full goldens",
+    "mini-origin fixture must preserve the PDF filename",
+    "Electron fixture must wait for first simulated provider before stop",
+    "official compiler path explicitly set",
+    "isolation probe required its own minimal runtime directory",
+    "Linux timer rounding could admit an extra read during bounded backoff; fixed and reran Windows/Linux",
+    "mini original transport dropped HTTP status; refused revalidation now clears pending action; actual Page polling regression passed for object/string/malformed error bodies"
+  ]
+}

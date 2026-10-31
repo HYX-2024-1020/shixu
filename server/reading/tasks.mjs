@@ -1,0 +1,1339 @@
+import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
+import { SyncError } from "../sync-store.mjs";
+import { validateResult } from "../generated/ai-core.mjs";
+import {
+  coverageOnly,
+  modelMaterial,
+  modelBatches,
+  sha256,
+  READER_VERSION,
+  NORMALIZATION_VERSION,
+} from "./material.mjs";
+import { validateUsage } from "./ledger.mjs";
+import { ReadingRoots } from "./roots.mjs";
+import { ReadingReuse } from "./reuse.mjs";
+import { ReadingWindows } from "./windows.mjs";
+import { ReadingChat } from './chat.mjs';
+import { ReadingVisualReview } from "./visual-review.mjs";
+import { ReadingMerge, MERGE_VERSION } from './merge.mjs';
+import { isImageName } from './image.mjs';
+
+const active = ["queued", "running", "applying"];
+const occupies = [...active, "paused", "interrupted", "error", "conflict"];
+const validId = (v) => typeof v === "string" && /^[\w-]{1,90}$/.test(v);
+const error = (code) =>
+  new SyncError(
+    409,
+    code,
+    code === "ACTIVE_TIME_RECONCILIATION"
+      ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
+      : code === "CHECKPOINT_NO_PROGRESS"
+        ? "累计24次调用未取得新增有效块，需核对后继续"
+      : code === "CHECKPOINT_RECONCILIATION"
+        ? "历史任务的累计调用检查点待核对，已完成进度保留"
+      : code === "STALE_TASK"
+        ? "任务状态已变化，请刷新后再操作"
+      : code === "EXECUTION_LIMIT"
+        ? "该投递累计活跃时间已用尽，请联系维护者核对"
+      : code === "WINDOW_STATE_RECONCILIATION"
+        ? "读取进度与独立记录不一致，已暂停；请联系维护者核对"
+      : code === "SAFETY_RECONCILIATION"
+        ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
+        : code === "SERVICE_CLOSING"
+          ? "服务正在关闭，请稍后重试"
+          : code,
+  );
+const versions = {
+  reader: READER_VERSION,
+  normalization: NORMALIZATION_VERSION,
+  prompt: "reading/3-visual-grounding",
+  schema: "bucket/1",
+};
+
+function validatePaidResult(raw, sources, date, {certifiedReuse=false}={}) {
+  if (
+    !raw ||
+    Buffer.byteLength(JSON.stringify(raw)) > 1024 * 1024 ||
+    !Array.isArray(raw.items) ||
+    raw.items.length > 40 ||
+    typeof raw.summary !== "string" ||
+    raw.summary.length > 1600 ||
+    !Array.isArray(raw.warnings) ||
+    raw.warnings.length > (sources.some(s=>s.image)?9:8)
+  )
+    throw Error("INVALID_MODEL_OUTPUT");
+  for (const item of raw.items) {
+    if (
+      !item ||
+      typeof item.title !== "string" ||
+      item.title.length > 150 ||
+      typeof item.summary !== "string" ||
+      item.summary.length > 2000
+    )
+      throw Error("INVALID_MODEL_OUTPUT");
+    for (const [field, cap] of Object.entries({
+      facts: 12,
+      nextSteps: 8,
+      uncertainties: 8,
+      evidence: 8,
+    }))
+      if (!Array.isArray(item[field]) || item[field].length > cap)
+        throw Error("INVALID_MODEL_OUTPUT");
+    for (const quote of item.evidence) {
+      const source = sources.find((s) => s.id === quote.sourceId);
+      if (
+        !source ||
+        typeof quote.quote !== "string" ||
+        quote.quote.length > 500 ||
+        (!source.image && !source.text.includes(quote.quote))
+      )
+        throw Error("INVALID_MODEL_SOURCE");
+    }
+    for (const field of ["facts", "nextSteps", "uncertainties"])
+      if (item[field].some((s) => typeof s !== "string" || s.length > 500))
+        throw Error("INVALID_MODEL_OUTPUT");
+  }
+  // Exact reuse has already verified the immutable paid-result hash, current
+  // image hashes, range IDs, capture date and model/prompt/schema context. Keep
+  // locator-only citations after the shared 2000-character privacy cap without
+  // inventing a transcription or paying again to reconstruct discarded quotes.
+  if(certifiedReuse && sources.every(s=>s.image))return structuredClone(raw);
+  const validatedSources=sources.map(source=>{
+    if(!source.image)return source;
+    const quotes=raw.items.flatMap(item=>item.evidence.filter(e=>e.sourceId===source.id).map(e=>e.quote));
+    if(quotes.reduce((n,q)=>n+q.length,0)>2000)throw Error('INVALID_MODEL_SOURCE');
+    return {...source,text:quotes.length ? quotes.join('\n') : source.text};
+  });
+  const validated=validateResult(raw, validatedSources, date);
+  const imageWarning='图像内容由模型识别，请对照原图核对文字、日期和关系';
+  if(sources.some(s=>s.image)&&!validated.warnings.includes(imageWarning))validated.warnings.push(imageWarning);
+  return validated;
+}
+
+export function inputRevision(store, packetId) {
+  const r = store.record(packetId);
+  if (!r || r.purged || r.deletedAt) throw error("INPUT_DELETED");
+  const files = (r.data.attachments || [])
+    .filter((f) => !f.deletedAt)
+    .map((f) => {
+      // Authoritative original bytes, including on continue; a descriptor is not
+      // proof that an original still exists or retains its hash.
+      let original;
+      try {
+        original = store.files.get(packetId, f.id, { forReading: true });
+      } catch (cause) {
+        if (cause.code === "NOT_FOUND") throw error("REUPLOAD_REQUIRED");
+        throw cause;
+      }
+      return {
+        id: original.id,
+        name: original.name,
+        hash: original.hash,
+        size: original.size,
+      };
+    });
+  return sha256(
+    JSON.stringify({
+      text: (r.data.text || "").replace(/\r\n?/g, "\n"),
+      captureDate: r.data.captureDate,
+      files,
+      versions,
+    }),
+  );
+}
+
+// Opt-in execution kernel. Existing v3 routes do NOT import or enable this
+// module. A production v4 router/migration must supply authoritative account,
+// device authorization and an independently reconciled ledger.
+export class ReadingTasks {
+  constructor({
+    store,
+    account,
+    ledger,
+    reader,
+    provider,
+    priceId,
+    modelVersion,
+    authorize,
+    maxPromptTokens = 120000,
+    maxOutputTokens = 4000,
+    activeLimitMs = 1800000,
+  }) {
+    if (
+      !account ||
+      !reader ||
+      !provider ||
+      !modelVersion ||
+      typeof authorize !== "function"
+    )
+      throw Error("READING_CONFIGURATION_REQUIRED");
+    Object.assign(this, {
+      store,
+      account,
+      ledger,
+      reader,
+      provider,
+      priceId,
+      modelVersion,
+      authorize,
+      maxPromptTokens,
+      maxOutputTokens,
+      activeLimitMs,
+    });
+    this.db = store.db;
+    this.controllers = new Map();
+    this.executions = new Map();
+    this.finalSnapshots = null;
+    this.materials = new Map();
+    this.cacheTimers = new Map();
+    this.db
+      .exec(`CREATE TABLE IF NOT EXISTS reading_tasks(id TEXT PRIMARY KEY,packet TEXT NOT NULL,device TEXT NOT NULL,
+      input_revision TEXT NOT NULL,base_version INTEGER NOT NULL,generation INTEGER NOT NULL DEFAULT 1,state TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',coverage TEXT NOT NULL DEFAULT '[]',calls INTEGER NOT NULL DEFAULT 0,active_ms INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS reading_blocks(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,
+        result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));
+      CREATE TABLE IF NOT EXISTS reading_block_ranges(task TEXT NOT NULL,fingerprint TEXT NOT NULL,ranges TEXT NOT NULL,PRIMARY KEY(task,fingerprint));
+      CREATE TABLE IF NOT EXISTS reading_checkpoints(task TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,PRIMARY KEY(task,calls));
+      CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_action_audits(operation TEXT PRIMARY KEY,maintenance_operation TEXT);`);
+    this.reuse = new ReadingReuse(this.db, ledger, account);
+    this.windows = new ReadingWindows(this.db,{engine:this});
+    this.chat = new ReadingChat(this);
+    this.visual = new ReadingVisualReview(this);
+    this.merge = new ReadingMerge(this);
+    this.roots = new ReadingRoots(store, ledger, account);
+    this.db
+      .prepare(
+        "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('running','applying')",
+      )
+      .run();
+    const previous = store.validateOperation;
+    store.validateOperation = (operation, internal) => {
+      previous?.(operation, internal);
+      const owner = this.db
+        .prepare(
+          "SELECT id,generation FROM reading_tasks WHERE packet=? AND state IN ('queued','running','applying')",
+        )
+        .get(operation.id);
+      if (
+        owner &&
+        (internal.taskId !== owner.id ||
+          internal.generation !== owner.generation)
+      )
+        throw error("INPUT_LOCKED");
+    };
+    const previousFileGuard = store.validateOriginalMutation;
+    store.validateOriginalMutation = (packetId) => {
+      previousFileGuard?.(packetId);
+      if (
+        this.db
+          .prepare(
+            "SELECT 1 FROM reading_tasks WHERE packet=? AND state IN ('queued','running','applying')",
+          )
+          .get(packetId)
+      )
+        throw error("INPUT_LOCKED");
+    };
+  }
+  get(id) {
+    if (this.finalSnapshots) return this.finalSnapshots.get(id);
+    return this.db.prepare("SELECT * FROM reading_tasks WHERE id=?").get(id);
+  }
+  executionLimit(id) {
+    const root = this.roots.forTask(id);
+    return Math.max(
+      this.activeLimitMs,
+      this.roots.safety.lastLimit(root.id)?.new_limit || 0,
+    );
+  }
+  auditedTimeAvailable(id) {
+    const root=this.roots.stats(id);
+    return !root.reason && !!this.roots.safety.lastLimit(root.id) && root.activeMs < this.executionLimit(id);
+  }
+  maintenanceOperation(id) {
+    const limit = this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
+    const cost = this.ledger.lastCostAudit(this.account)?.operation;
+    const time=this.roots.safety.lastTimeAudit(this.roots.forTask(id).id)?.operation;
+    const checkpoint=this.roots.safety.lastCheckpointAudit(this.roots.forTask(id).id)?.operation;
+    const window=this.windows.safety.lastAudit(this.roots.forTask(id).id)?.operation;
+    if(window)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint||null,window]));
+    if(checkpoint)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint]));
+    return time ? "audit:"+sha256(JSON.stringify([limit,cost || null,time])) : cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
+  }
+  auditedCostAvailable(id, root=this.roots.stats(id), wallet=this.ledger.wallet(this.account)) {
+    return !root.reason && !!this.ledger.lastCostAudit(this.account,root.id) && !wallet.pausedReason;
+  }
+  transaction(fn) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const r = fn();
+      this.db.exec("COMMIT");
+      return r;
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+  revision(task) {
+    return this.chat.revision(task.id,inputRevision(this.store,task.packet));
+  }
+  enqueue({ id, packetId, deviceId, expectedCostOperation = null, chat = null }) {
+    if (this.finalSnapshots) throw error("SERVICE_CLOSING");
+    this.authorize(deviceId);
+    if (![id, packetId, deviceId].every(validId)) throw error("INVALID_TASK");
+    return this.transaction(() => {
+      const prior = this.get(id);
+      if (prior && (chat || this.chat.isChat(id))) {
+        if(prior.packet!==packetId || prior.device!==deviceId || !this.chat.sameRequest(id,packetId,deviceId,chat,expectedCostOperation))
+          throw error('IDEMPOTENCY_CONFLICT');
+        return prior;
+      }
+      if(!chat && this.chat.isChat(id))throw error('IDEMPOTENCY_CONFLICT');
+      const base = inputRevision(this.store,packetId);
+      const prepared = chat ? this.chat.prepare(id,packetId,deviceId,chat,expectedCostOperation) : null;
+      const revision = this.chat.revision(id,base,prepared);
+      if (prior) {
+        if (
+          prior.packet !== packetId ||
+          prior.device !== deviceId ||
+          prior.input_revision !== revision
+        )
+          throw error("IDEMPOTENCY_CONFLICT");
+        return prior;
+      }
+      if (expectedCostOperation !== this.ledger.recoveryOperation(this.account))throw error("STALE_COST_REVIEW");
+      if (this.store.files.unlinked(packetId))
+        throw error("ATTACHMENT_UNLINKED");
+      if (
+        [...this.executions.keys()].some(
+          (runningId) => this.get(runningId)?.packet === packetId,
+        )
+      )
+        throw error("TASK_STILL_DRAINING");
+      if (
+        (this.store.record(packetId).data.attachments || [])
+          .filter((f) => !f.deletedAt)
+          .reduce((sum, f) => sum + f.size, 0) >
+        20 * 1024 * 1024
+      )
+        throw error("UPLOAD_LIMIT");
+      if (
+        this.db
+          .prepare(
+            `SELECT 1 FROM reading_tasks WHERE state IN (${occupies.map(() => "?").join(",")})`,
+          )
+          .get(...occupies)
+      )
+        throw error("TASK_SLOT_FULL");
+      this.db
+        .prepare(
+          "INSERT INTO reading_tasks(id,packet,device,input_revision,base_version,state) VALUES(?,?,?,?,?,'queued')",
+        )
+        .run(
+          id,
+          packetId,
+          deviceId,
+          revision,
+          this.store.record(packetId).version,
+        );
+      if(prepared)this.chat.register(this.get(id),prepared);
+      this.roots.attach(this.get(id));
+      return this.get(id);
+    });
+  }
+  action(
+    id,
+    { operationId, expectedGeneration, expectedRevision, expectedMaintenanceOperation = null },
+    action,
+    deviceId,
+  ) {
+    if (this.finalSnapshots) throw error("SERVICE_CLOSING");
+    const target = this.get(id);
+    if (!target) throw error("TASK_NOT_FOUND");
+    this.authorize(deviceId || target.device);
+    if (
+      !validId(operationId) ||
+      !["stop", "continue", "purge", "accept-partial"].includes(action) ||
+      (expectedMaintenanceOperation !== null && (typeof expectedMaintenanceOperation !== "string" || !/^[\w:-]{1,160}$/.test(expectedMaintenanceOperation)))
+    )
+      throw error("INVALID_ACTION");
+    const value = this.transaction(() => {
+      const previous = this.db
+        .prepare("SELECT * FROM reading_actions WHERE operation=?")
+        .get(operationId);
+      if (previous) {
+        if (
+          previous.task !== id ||
+          previous.action !== action ||
+          previous.generation !== expectedGeneration ||
+          JSON.parse(previous.response).input_revision !== expectedRevision ||
+          (this.db.prepare("SELECT maintenance_operation FROM reading_action_audits WHERE operation=?").get(operationId)?.maintenance_operation || null) !== expectedMaintenanceOperation
+        )
+          throw error("IDEMPOTENCY_CONFLICT");
+        return target.state === "purged"
+          ? target
+          : JSON.parse(previous.response);
+      }
+      const task = this.get(id);
+      if (!task) throw error("TASK_NOT_FOUND");
+      if (task.state === "purged") throw error("INVALID_TASK_TRANSITION");
+      if (
+        task.generation !== expectedGeneration ||
+        task.input_revision !== expectedRevision
+      )
+        throw error("STALE_TASK");
+      if (action === "continue" && expectedMaintenanceOperation !== this.maintenanceOperation(id))
+        throw error("STALE_TASK");
+      if (action === "accept-partial") {
+        this.windows.safety.assertRoot(id);
+        if(this.roots.stats(id).reason==="WINDOW_STATE_RECONCILIATION")throw error("WINDOW_STATE_RECONCILIATION");
+        if(this.chat.isChat(id))throw error("INVALID_TASK_TRANSITION");
+        if (
+          !["paused", "interrupted", "error", "conflict"].includes(task.state)
+        )
+          throw error("INVALID_TASK_TRANSITION");
+        if (this.controllers.has(id)) throw error("TASK_STILL_DRAINING");
+        if (this.revision(task) !== task.input_revision)
+          throw error("INPUT_CHANGED");
+        if (
+          !this.db.prepare("SELECT 1 FROM reading_blocks WHERE task=?").get(id)
+        )
+          throw error("NO_COMPLETED_BLOCKS");
+        // Publication must share the store transaction; defer it until below.
+        return {
+          ...task,
+          acceptPartial: true,
+          actingDevice: deviceId || task.device,
+        };
+      } else if (action === "purge") {
+        this.reuse.purge(id);
+        this.windows.purge(id);
+        this.chat.purge(id);
+        this.merge.purge(id);
+        this.visual.purge(id);
+        this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
+        this.db
+          .prepare("DELETE FROM reading_block_ranges WHERE task=?")
+          .run(id);
+        this.ledger.db
+          .prepare(
+            "DELETE FROM reading_envelopes WHERE call IN (SELECT id FROM reading_calls WHERE account=? AND task=?)",
+          )
+          .run(this.account, id);
+        this.db
+          .prepare(
+            "UPDATE reading_tasks SET generation=generation+1,state='purged',reason='',coverage='[]' WHERE id=?",
+          )
+          .run(id);
+      } else if (action === "stop") {
+        if (!["done", "partial", "cancelled"].includes(task.state))
+          this.db
+            .prepare(
+              "UPDATE reading_tasks SET generation=generation+1,state='cancelled',reason=CASE WHEN reason='SHUTDOWN_TIME_UNCERTAIN' THEN reason ELSE '' END WHERE id=?",
+            )
+            .run(id);
+      } else {
+        const root = this.roots.stats(id);
+        if (["CHECKPOINT_NO_PROGRESS","CHECKPOINT_RECONCILIATION"].includes(root.reason))throw error(root.reason);
+        if (root.reason === "ACTIVE_TIME_RECONCILIATION")
+          throw error("ACTIVE_TIME_RECONCILIATION");
+        if(root.reason==="WINDOW_STATE_RECONCILIATION")throw error(root.reason);
+        if (root.reason === "SAFETY_RECONCILIATION")
+          throw error("SAFETY_RECONCILIATION");
+        if (
+          root.activeMs >= this.executionLimit(id) ||
+          (task.reason === "EXECUTION_LIMIT" && !this.auditedTimeAvailable(id))
+        )
+          throw error("EXECUTION_LIMIT");
+        if (
+          !["cancelled", "paused", "interrupted", "error"].includes(task.state)
+        )
+          throw error("INVALID_TASK_TRANSITION");
+        if (
+          this.db
+            .prepare(
+              `SELECT 1 FROM reading_tasks WHERE id!=? AND state IN (${occupies.map(() => "?").join(",")})`,
+            )
+            .get(id, ...occupies)
+        )
+          throw error("TASK_SLOT_FULL");
+        if (this.revision(task) !== task.input_revision)
+          throw error("INPUT_CHANGED");
+        this.ledger.audit(this.account);
+        const wallet = this.ledger.wallet(this.account);
+        if(wallet.pausedReason) throw error(wallet.pausedReason);
+        if (
+          this.ledger.db
+            .prepare(
+              "SELECT 1 FROM reading_calls WHERE account=? AND state IN ('sent','unknown')",
+            )
+            .get(this.account)
+        )
+          throw error("UNKNOWN_COST");
+        this.db
+          .prepare(
+            "UPDATE reading_tasks SET generation=generation+1,state='queued',reason='',base_version=?,device=? WHERE id=?",
+          )
+          .run(
+            this.store.record(task.packet).version,
+            deviceId || task.device,
+            id,
+          );
+      }
+      const response = this.get(id);
+      this.db
+        .prepare("INSERT INTO reading_actions VALUES(?,?,?,?,?)")
+        .run(
+          operationId,
+          id,
+          action,
+          expectedGeneration,
+          JSON.stringify(response),
+        );
+      this.db.prepare("INSERT INTO reading_action_audits VALUES(?,?)").run(operationId,expectedMaintenanceOperation);
+      return response;
+    });
+    if (value.acceptPartial) {
+      const task = { ...value, device: value.actingDevice };
+      const response = this.publish(
+        task,
+        JSON.parse(task.coverage),
+        true,
+        () => {
+          const response = this.get(id);
+          this.db
+            .prepare("INSERT INTO reading_actions VALUES(?,?,?,?,?)")
+            .run(
+              operationId,
+              id,
+              action,
+              expectedGeneration,
+              JSON.stringify(response),
+            );
+          this.db.prepare("INSERT INTO reading_action_audits VALUES(?,?)").run(operationId,expectedMaintenanceOperation);
+        },
+      );
+      this.clearMaterial(id);
+      return response;
+    }
+    if (action === "stop" || action === "purge") {
+      this.controllers.get(id)?.abort();
+      this.clearMaterial(id);
+    }
+    return value;
+  }
+  current(task) {
+    const now = this.get(task.id);
+    return now && now.state === "running" && now.generation === task.generation;
+  }
+  clearMaterial(id) {
+    this.dropMaterial(id);
+    if (this.get(id)?.state !== "queued")
+      this.store.files.releaseWindow?.(this.get(id)?.packet);
+  }
+  dropMaterial(id) {
+    clearTimeout(this.cacheTimers.get(id));
+    this.cacheTimers.delete(id);
+    this.materials.delete(id);
+  }
+  close() {
+    if (this.finalSnapshots) return;
+    this.db
+      .prepare(
+        "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='SHUTDOWN' WHERE state='queued'",
+      )
+      .run();
+    for (const [id, c] of this.controllers) {
+      this.db
+        .prepare(
+          "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='SHUTDOWN' WHERE id=? AND state IN ('running','applying')",
+        )
+        .run(id);
+      c.abort();
+    }
+    for (const id of this.materials.keys()) this.clearMaterial(id);
+  }
+  finalizeShutdown() {
+    if (this.finalSnapshots) return;
+    this.close();
+    for (const [id, execution] of this.executions) {
+      const reason =
+        execution.phase === "provider"
+          ? "SHUTDOWN_TIMEOUT"
+          : "SHUTDOWN_TIME_UNCERTAIN";
+      if (reason === "SHUTDOWN_TIME_UNCERTAIN")
+        this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
+      this.db
+        .prepare(
+          "UPDATE reading_tasks SET reason=?,active_ms=active_ms+? WHERE id=?",
+        )
+        .run(
+          reason,
+          execution.phase === "provider"
+            ? Math.max(
+                0,
+                Math.ceil(
+                  performance.now() - execution.started - execution.excludedMs,
+                ),
+              )
+            : 0,
+          id,
+        );
+      this.roots.stats(id);
+    }
+    for (const call of this.ledger.db
+      .prepare(
+        "SELECT id,task,state FROM reading_calls WHERE account=? AND state IN ('sent','reserved')",
+      )
+      .all(this.account)) {
+      if (!this.executions.has(call.task)) continue;
+      if (call.state === "sent") this.ledger.unknown(call.id);
+      else this.ledger.releaseUnsent(call.id);
+    }
+    // Only in-flight promises need a terminal snapshot. Do not load historical
+    // tasks/coverage into memory just to close the service.
+    this.finalSnapshots = new Map(
+      [...this.executions.keys()].map((id) => [id, this.get(id)]),
+    );
+    this.controllers.clear();
+  }
+  async run(id) {
+    await this.step(id);
+    return this.get(id);
+  }
+  publish(task, coverage, partial = false, afterPublication) {
+    const id = task.id;
+    this.windows.safety.assertRoot(id);
+    this.windows.safety.guardCoverage(id,coverage);
+    const isChat = this.chat.isChat(id);
+    const rawBlocks=this.db.prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid").all(id);
+    let selected;
+    try{selected=rawBlocks.map(block=>({block,effective:isChat?{result:JSON.parse(block.result)}:this.visual.effective(task,block,partial)})).filter(row=>row.effective);}
+    catch(e){if(e.message==="SAFETY_RECONCILIATION")this.roots.block(id,e.message);throw e;}
+    if(partial&&!selected.length)throw error("VISUAL_REVIEW_REQUIRED");
+    const selectedKeys=new Set(selected.map(row=>row.block.fingerprint));
+    const blocks=selected.map(row=>row.effective.result);
+    const result = isChat ? null : {
+      summary: blocks.map((b) => b.summary).join("\n"),
+      warnings: blocks.flatMap((b) => b.warnings),
+      items: blocks.flatMap((b) => b.items),
+    };
+    if(!isChat&&selected.length<rawBlocks.length)result.warnings.push(`另有${rawBlocks.length-selected.length}个已识别图像块尚未完成依据核对，未收下`);
+    const semantic = !isChat ? this.merge.result(task, partial) : null;
+    if (semantic) result.items = semantic.items;
+    if (!isChat && result.items.length > 1 && (!semantic || partial))
+      result.warnings.push(partial ? "收下部分结果，跨块语义核对尚未全部完成" : "未启用跨块语义核对，可能存在重复或未关联事项");
+    const processed = this.db
+      .prepare(
+        "SELECT fingerprint,ranges FROM reading_block_ranges WHERE task=? ORDER BY rowid",
+      )
+      .all(id)
+      .filter(r=>selectedKeys.has(r.fingerprint))
+      .flatMap((r) => JSON.parse(r.ranges));
+    const processedKeys = new Set(processed.map((r) => JSON.stringify(r)));
+    const processingCoverage = {
+      partial,
+      processed,
+      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code))
+        .map(r => ({...r,name:c.name}))),
+      pending: coverage
+        .flatMap((c) => c.covered || [])
+        .filter((r) => !processedKeys.has(JSON.stringify(r))),
+    };
+    // The store's beforeCommit hook performs every task/publication mutation
+    // atomically, including an accept-partial operation receipt.
+    this.store.apply(
+      task.device,
+      {
+        opId: "reading_" + id,
+        id: task.packet,
+        type: "put",
+        baseVersion: task.base_version,
+        data: isChat ? this.chat.publication(task) : {
+          result,
+          status: "ready",
+          readingCoverage: coverage,
+          processingCoverage,
+          itemIds: result.items.map((_, i) => `${id}_item_${i}`),
+          ...(semantic ? {
+            association: { links: semantic.related.map(([from,target],i) => ({
+              id: `${id}_relation_${i}`, from: `${task.packet}#${id}_item_${from}`,
+              target: `${task.packet}#${id}_item_${target}`, relation: "related", reason: "本次投递已读取事项的模型语义关联",
+              title: result.items[from].group || result.items[from].title,
+            })) },
+            semanticMerge: { version: MERGE_VERSION, originalItems: semantic.originalItems,
+              mergedItems: semantic.mergedItems, complete: !partial },
+          } : {}),
+          sources: [],
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      this.store.epoch,
+      {
+        taskId: id,
+        generation: task.generation,
+        beforeValidate: () => {
+          // A chat changes its saved-item dependency; verify the old context
+          // inside this transaction before applying the patch itself.
+          if(isChat && this.revision(task)!==task.input_revision)throw error('INPUT_CHANGED');
+        },
+        beforeCommit: (response) => {
+          this.windows.safety.assertRoot(id);
+          this.windows.safety.guardCoverage(id,coverage);
+          const current = this.get(id);
+          if (
+            current.generation !== task.generation ||
+            !["running", "paused", "interrupted", "error", "conflict"].includes(
+              current.state,
+            )
+          )
+            throw error("STALE_TASK");
+          if (!isChat && this.revision(task) !== task.input_revision)
+            throw error("INPUT_CHANGED");
+          this.db
+            .prepare("INSERT INTO reading_publications VALUES(?,?)")
+            .run(id, response.acceptedVersion);
+          this.db
+            .prepare(
+              "UPDATE reading_tasks SET state=? WHERE id=? AND generation=?",
+            )
+            .run(partial ? "partial" : "done", id, task.generation);
+          afterPublication?.();
+        },
+      },
+    );
+    return this.get(id);
+  }
+  async step(id) {
+    const task = this.get(id);
+    if (!task || task.state !== "queued")
+      throw error("INVALID_TASK_TRANSITION");
+    if (this.controllers.has(id)) throw error("TASK_STILL_DRAINING");
+    this.authorize(task.device);
+    if (this.revision(task) !== task.input_revision)
+      throw error("INPUT_CHANGED");
+    const isChat = this.chat.isChat(id);
+    const callProvider = isChat ? this.provider.chat : this.provider;
+    const taskVersions = isChat ? {...versions,reader:"saved-item/1",normalization:"json/1",prompt:"item-chat/1",schema:"item-chat/1"} : versions;
+    const root = this.roots.checkpoint(id);
+    const activeLimitMs = this.executionLimit(id);
+    this.db
+      .prepare("UPDATE reading_tasks SET state='running' WHERE id=?")
+      .run(id);
+    task.state = "running";
+    const controller = new AbortController();
+    this.controllers.set(id, controller);
+    const started = performance.now();
+    const execution = { started, excludedMs: 0, phase: "reader" };
+    this.executions.set(id, execution);
+    let excludedMs = 0;
+    let safetyStep;
+    const read = async (file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow) => {
+      const readAt = performance.now(),
+        before = excludedMs;
+      const deadline = new AbortController();
+      const signal = AbortSignal.any([controller.signal, deadline.signal]);
+      let queuedAt,
+        timer,
+        drainTimer,
+        finished = false,
+        reportedWait = 0;
+      const waiting = (timing) => {
+        const ms = timing?.waitingMs;
+        if (
+          !Number.isFinite(ms) ||
+          ms < 0 ||
+          ms > performance.now() - readAt + 5
+        ) {
+          if (!this.finalSnapshots)
+            this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
+          throw Object.assign(Error("ACTIVE_TIME_RECONCILIATION"), {
+            timingUncertain: true,
+          });
+        }
+        reportedWait = ms;
+        excludedMs = before + ms;
+        execution.excludedMs = excludedMs;
+      };
+      const arm = () => {
+        clearTimeout(timer);
+        if (queuedAt !== undefined) return;
+        const remaining =
+          activeLimitMs -
+          root.activeMs -
+          (performance.now() - started - excludedMs);
+        const perRead =
+          (this.readerLimitMs || 30000) -
+          (performance.now() - readAt - reportedWait);
+        timer = setTimeout(
+          () =>
+            deadline.abort(
+              Error(
+                remaining <= perRead ? "EXECUTION_LIMIT" : "READING_TIMEOUT",
+              ),
+            ),
+          Math.max(1, Math.min(remaining, perRead)),
+        );
+      };
+      const activeBudgetMs = Math.max(
+        1,
+        Math.min(
+          1800000,
+          Math.floor(
+            activeLimitMs -
+              root.activeMs -
+              (performance.now() - started - excludedMs),
+          ),
+        ),
+      );
+      arm();
+      try {
+        const value = await new Promise((resolve, reject) => {
+          const aborted = () => {
+            drainTimer = setTimeout(
+              () =>
+                reject(
+                  Object.assign(signal.reason || Error("READING_ABORTED"), {
+                    timingUncertain: queuedAt !== undefined,
+                  }),
+                ),
+              this.readerDrainMs ?? 2100,
+            );
+          };
+          signal.addEventListener("abort", aborted, { once: true });
+          Promise.resolve()
+            .then(() =>
+              this.reader(file, {
+                signal,
+                pdfWindow,
+                archiveWindow,
+                imageWindow,
+                pdfVisualWindow,
+              officeWindow,
+                activeBudgetMs,
+                onPhase: (phase) => {
+                  if (signal.aborted || finished || this.finalSnapshots) return;
+                  if (phase.phase === "queued" && queuedAt === undefined) {
+                    queuedAt = performance.now();
+                    clearTimeout(timer);
+                  } else if (phase.phase === "active") {
+                    waiting(phase);
+                    queuedAt = undefined;
+                    arm();
+                  } else
+                    throw Object.assign(Error("ACTIVE_TIME_RECONCILIATION"), {
+                      timingUncertain: true,
+                    });
+                },
+              }),
+            )
+            .then(resolve, reject)
+            .finally(() => signal.removeEventListener("abort", aborted));
+        });
+        if (value.timing) waiting(value.timing);
+        if (signal.aborted) throw signal.reason || Error("READING_ABORTED");
+        const { timing, ...material } = value;
+        return material;
+      } catch (e) {
+        if (this.finalSnapshots) throw Error("READING_ABORTED");
+        if (e.timing) waiting(e.timing);
+        if (e.timingUncertain) {
+          this.roots.block(id, "ACTIVE_TIME_RECONCILIATION");
+          throw Error("ACTIVE_TIME_RECONCILIATION");
+        }
+        if (deadline.signal.aborted) throw deadline.signal.reason;
+        if (e.message === "READING_ACTIVE_LIMIT")
+          throw Error("EXECUTION_LIMIT");
+        throw e;
+      } finally {
+        finished = true;
+        clearTimeout(timer);
+        clearTimeout(drainTimer);
+      }
+    };
+    const readSafe = async (file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow) => {
+      for (let retries = 0; ; retries++) {
+        if (!this.current(task)) throw Error("READING_ABORTED");
+        if (
+          root.activeMs + performance.now() - started - excludedMs >=
+          activeLimitMs
+        )
+          throw Error("EXECUTION_LIMIT");
+        try {
+          return { ...(await read(file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow)), readRetries: retries };
+        } catch (e) {
+          e.readRetries = retries;
+          // Only a fixed broker admission rejection proves no worker started.
+          // Transport loss, unknown timing, parser errors and timeouts are not
+          // evidence of non-execution and never enter this retry path.
+          if (
+            retries >= 2 ||
+            e.message !== "READING_QUEUE_FULL" ||
+            e.notExecuted !== true ||
+            e.timing?.waitingMs !== 0 ||
+            e.timingUncertain ||
+            !this.current(task)
+          )
+            throw e;
+          const remaining =
+            activeLimitMs -
+            root.activeMs -
+            (performance.now() - started - excludedMs);
+          const backoff = retries ? 300 : 100;
+          await delay(Math.max(1, Math.min(backoff, remaining)), undefined, {
+            signal: controller.signal,
+          });
+          // Node rounds timer delays down. A sub-millisecond early wake must
+          // not admit another read when the budget cannot cover the backoff.
+          if (remaining <= backoff) throw Error("EXECUTION_LIMIT");
+        }
+      }
+    };
+    try {
+      if (root.reason) throw Error(root.reason);
+      this.windows.safety.assertRoot(id);
+      if (root.activeMs >= activeLimitMs) throw Error("EXECUTION_LIMIT");
+      const wallet = this.ledger.wallet(this.account);
+      if (wallet.pausedReason) throw Error(wallet.pausedReason);
+      safetyStep = this.roots.safety.begin(root.id,id,task.generation);
+      if (!isChat && this.merge.active(id)) return await this.merge.step(task, {
+        signal: controller.signal, execution,
+        remainingMs: () => activeLimitMs - root.activeMs - (performance.now() - started - excludedMs),
+      });
+      const paged = this.reader.pdfWindows === true;
+      if (!paged && this.windows.rows(id).length) throw Error("READER_WINDOW_REQUIRED");
+      const packet = this.store.record(task.packet).data,
+        cached = this.materials.get(id),
+        materials = cached || [];
+      const chatMaterial = isChat ? this.chat.material(task) : null;
+      const inputBytes = !isChat && packet.text?.trim() ? Buffer.from(packet.text) : null;
+      const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
+      const pendingInputs = isChat ? [{id:chatMaterial.attachmentId,name:chatMaterial.name,hash:chatMaterial.contentHash}] : [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
+      if(paged)this.windows.safety.registerInputs(id,pendingInputs);
+      if(isChat && typeof callProvider!=="function")throw Error("CHAT_NOT_READY");
+      if(isChat && !cached && (!paged || !this.windows.select(id,pendingInputs[0]).skip))materials.push(chatMaterial);
+      const readInput = async file => {
+        if(isImageName(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
+          materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
+            state:'unsupported',covered:[],uncovered:[{kind:'image',code:'IMAGE_PROVIDER_UNSUPPORTED'}],reasons:['IMAGE_PROVIDER_UNSUPPORTED'],segments:[]});return;
+        }
+        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true}) : {};
+        if (selection.skip) return;
+        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow,selection.imageWindow,selection.pdfVisualWindow,selection.officeWindow);
+        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow,selection.imageWindow,selection.pdfVisualWindow,selection.officeWindow);
+        // Archive members require the same image capability gate as top-level
+        // images. Never substitute their descriptive placeholder for pixels.
+        if (material.segments.some(s => s.image) &&
+            (this.reader.imageWindows !== true || this.provider.imageInput !== true)) {
+          for (const segment of material.segments.filter(s => s.image))
+            material.uncovered.push({ ...segment.range, code: "IMAGE_PROVIDER_UNSUPPORTED" });
+          material.segments = material.segments.filter(s => !s.image);
+          material.covered = material.covered.filter(r => r.kind !== "image");
+          material.state = material.segments.length ? "partial" : "unsupported";
+          material.reasons.push("IMAGE_PROVIDER_UNSUPPORTED");
+        }
+        materials.push(material);
+      };
+      // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
+      // per-step adaptation, never a total material cap.
+      if (!this.materials.has(id) && input) await readInput(input);
+      for (const f of (isChat || this.materials.has(id))
+        ? []
+        : (packet.attachments || []).filter((f) => !f.deletedAt)) {
+        if (!this.current(task)) return this.get(id);
+        if (paged && materials.length) break;
+        try {
+          await readInput(this.store.files.get(task.packet,f.id,{forReading:true}));
+        } catch (e) {
+          if (
+            [
+              "EXECUTION_LIMIT",
+              "ACTIVE_TIME_RECONCILIATION",
+              "SAFETY_RECONCILIATION",
+              "WINDOW_STATE_RECONCILIATION",
+              "REUPLOAD_REQUIRED",
+              "INVALID_READER_WINDOW",
+              "READER_WINDOW_REQUIRED",
+            ].includes(e.code || e.message) ||
+            !this.current(task)
+          )
+            throw e;
+          const code = ["READING_TIMEOUT", "READING_QUEUE_FULL"].includes(
+            e.message,
+          )
+            ? e.message
+            : "ISOLATED_READING_FAILED";
+          materials.push({
+            attachmentId: f.id,
+            name: f.name,
+            contentHash: f.hash,
+            state: "failed",
+            readRetries: e.readRetries || 0,
+            readerVersion: READER_VERSION,
+            covered: [],
+            uncovered: [{ kind: "file", code }],
+            reasons: [code],
+            segments: [],
+          });
+        }
+      }
+      if (!this.current(task)) return this.get(id);
+      const readable = cached || (isChat ? materials : materials.map(modelMaterial));
+      this.materials.set(id, readable);
+      const coverage = paged ? this.windows.coverage(id,readable) : readable.map(coverageOnly);
+      this.windows.safety.observeCoverage(id,coverage);
+      if (!readable.some((m) => m.segments.some((s) => s.text.trim())) &&
+          !this.db.prepare("SELECT 1 FROM reading_blocks WHERE task=?").get(id)) {
+        if (paged) {
+          this.transaction(() => this.windows.advance(id,readable));
+          this.windows.safety.confirm(id);
+          this.dropMaterial(id);
+          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true})) return this.get(id);
+        }
+        throw Error("NO_READABLE_MATERIAL");
+      }
+      const batches = [...modelBatches(readable)];
+      for (const batch of batches) {
+        if (!this.current(task)) return this.get(id);
+        if (
+          root.activeMs + performance.now() - started - excludedMs >=
+          activeLimitMs
+        )
+          throw Error("EXECUTION_LIMIT");
+        this.authorize(task.device);
+        const fingerprint = sha256(
+          JSON.stringify([
+            task.input_revision,
+            taskVersions,
+            this.modelVersion,
+            batch.map((s) => s.range),
+          ]),
+        );
+        if(!isChat)this.visual.bind(task,batch,fingerprint);
+        const existing = this.db
+          .prepare(
+            "SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?",
+          )
+          .get(id, fingerprint);
+        const reuseKey = this.reuse.key(batch, readable, {
+          versions:taskVersions, model: this.modelVersion,
+          captureDate: packet.captureDate, maxOutputTokens: this.maxOutputTokens,
+        });
+        if (
+          existing &&
+          this.ledger.call(existing.call_id)?.state === "settled"
+        ) {
+          if(isChat)this.chat.verifyBlock(task,existing);
+          if(!isChat && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
+            const envelope=this.ledger.completedEnvelope(this.account,id,fingerprint);
+            if(!envelope || envelope.call_id!==existing.call_id || envelope.result!==existing.result)throw Error("SAFETY_RECONCILIATION");
+            this.reuse.certify(id,fingerprint,reuseKey,JSON.parse(existing.result));
+            this.ledger.clearEnvelope(existing.call_id);
+          }
+          if(!isChat)this.visual.upstream(task,existing);
+          if (!this.reuse.copied(id, fingerprint))
+            this.roots.progress(id, fingerprint);
+          if(!isChat&&this.visual.input(id,fingerprint)){
+            const plan=this.visual.plan(task,batch,existing);
+            if(!this.visual.complete(task,plan))return await this.visual.step(task,batch,existing,plan,{
+              signal:controller.signal,execution,remainingMs:()=>activeLimitMs-root.activeMs-(performance.now()-started-excludedMs),
+            });
+            this.visual.effective(task,existing);
+          }
+          continue;
+        }
+        const sources = batch.map((s) => ({
+          id: s.sourceId,
+          name:
+            typeof s.range.archivePath === "string"
+              ? "包内 " +
+                [...s.range.archivePath].slice(0, 90).join("") +
+                ([...s.range.archivePath].length > 90 ? "…" : "")
+              : s.range.name,
+          text: s.text,
+          ...(s.image ? {image:s.image} : {}),
+        }));
+        const reused = !isChat && this.reuse.find(task, reuseKey, (raw) =>
+          validatePaidResult(raw, sources, packet.captureDate,{certifiedReuse:true}),
+        );
+        if (reused) {
+          const result = this.boundQuotes(
+            id,
+            reused.validated,
+            readable,
+            batch,
+          );
+          this.transaction(() => {
+            if (!this.current(task)) throw error("STALE_TASK");
+            this.db
+              .prepare("INSERT INTO reading_blocks VALUES(?,?,?,?)")
+              .run(id, fingerprint, reused.call_id, JSON.stringify(result));
+            this.db
+              .prepare("INSERT INTO reading_block_ranges VALUES(?,?,?)")
+              .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
+            this.db
+              .prepare("INSERT INTO reading_reused_blocks VALUES(?,?,?,?,?)")
+              .run(
+                id,
+                fingerprint,
+                reused.task,
+                reused.fingerprint,
+                reused.call_id,
+              );
+          });
+          // Yield fairly, without a new call, settlement or root progress.
+          return this.get(id);
+        }
+        const recovered = this.ledger.completedEnvelope(
+          this.account,
+          id,
+          fingerprint,
+        );
+        if (recovered) {
+          if(isChat)this.chat.certify(task,fingerprint,recovered.call_id,JSON.parse(recovered.result));
+          this.db
+            .prepare("INSERT OR REPLACE INTO reading_blocks VALUES(?,?,?,?)")
+            .run(id, fingerprint, recovered.call_id, recovered.result);
+          this.db
+            .prepare(
+              "INSERT OR REPLACE INTO reading_block_ranges VALUES(?,?,?)",
+            )
+            .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
+          this.ledger.clearEnvelope(recovered.call_id);
+          if(!isChat)this.reuse.certify(
+            id,
+            fingerprint,
+            reuseKey,
+            JSON.parse(recovered.result),
+          );
+          this.roots.progress(id, fingerprint);
+          if(!isChat && this.visual.input(id,fingerprint))return this.get(id);
+          continue;
+        }
+        if(isChat)this.chat.guardLostBlock(task,fingerprint);
+        else if(this.reuse.proof(id,fingerprint))throw Error("SAFETY_RECONCILIATION");
+        const prepared = callProvider.prepare?.(sources, {
+          captureDate: packet.captureDate,
+          maxOutputTokens: this.maxOutputTokens,
+        });
+        const callId = randomUUID();
+        this.ledger.reserve({
+          callId,
+          account: this.account,
+          task: id,
+          block: fingerprint,
+          generation: task.generation,
+          priceId: prepared?.priceId || this.priceId,
+          maxPromptTokens: prepared?.maxPromptTokens || this.maxPromptTokens,
+          maxOutputTokens: prepared?.maxOutputTokens || this.maxOutputTokens,
+        });
+        this.ledger.sent(callId);
+        this.db
+          .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
+          .run(id);
+        let response;
+        execution.phase = "provider";
+        try {
+          response = await callProvider(
+            sources,
+            AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(
+                Math.max(
+                  1,
+                  Math.min(
+                    240000,
+                    Math.floor(
+                      activeLimitMs -
+                        root.activeMs -
+                        (performance.now() - started - excludedMs),
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+            {
+              prepared,
+              captureDate: packet.captureDate,
+              maxOutputTokens: this.maxOutputTokens,
+            },
+          );
+        } catch {
+          if (this.finalSnapshots) return this.get(id);
+          this.ledger.unknown(callId);
+          throw Error("UNKNOWN_COST");
+        }
+        if (this.finalSnapshots) return this.get(id);
+        try {
+          validateUsage(response.usage);
+        } catch {
+          this.ledger.unknown(callId);
+          throw Error("UNKNOWN_COST");
+        }
+        // Billing remains valid for stale or invalid output. Persist only a
+        // validated, bounded result envelope before committing its settlement.
+        if (!this.current(task)) {
+          this.ledger.settle(callId, response.usage);
+          return this.get(id);
+        }
+        let result;
+        try {
+          result = isChat ? this.chat.validate(task,response.result) : validatePaidResult(
+            response.result,
+            sources,
+            packet.captureDate,
+          );
+        } catch (e) {
+          this.ledger.settle(callId, response.usage);
+          throw e;
+        }
+        try {if(!isChat)this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage);throw e;}
+        this.ledger.saveEnvelope(callId, fingerprint, result, response.usage);
+        this.ledger.settle(callId, response.usage);
+        if(isChat)this.chat.certify(task,fingerprint,callId,result);
+        this.db
+          .prepare("INSERT OR REPLACE INTO reading_blocks VALUES(?,?,?,?)")
+          .run(id, fingerprint, callId, JSON.stringify(result));
+        this.db
+          .prepare("INSERT OR REPLACE INTO reading_block_ranges VALUES(?,?,?)")
+          .run(id, fingerprint, JSON.stringify(batch.map((s) => s.range)));
+        if(!isChat)this.reuse.certify(id, fingerprint, reuseKey, result);
+        this.ledger.clearEnvelope(callId);
+        this.roots.progress(id, fingerprint);
+        return this.get(id);
+      }
+      if (!this.current(task)) return this.get(id);
+      if (paged) {
+        this.transaction(() => this.windows.advance(id,readable));
+          this.windows.safety.confirm(id);
+        this.dropMaterial(id);
+        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true})) return this.get(id);
+      }
+      if (!isChat && this.merge.begin(task)) return this.get(id);
+      return this.publish(task, coverage);
+    } catch (e) {
+      const reason = e.code || e.message;
+      if (["SAFETY_RECONCILIATION","WINDOW_STATE_RECONCILIATION"].includes(reason) && !this.finalSnapshots) this.roots.block(id,reason);
+      if (
+        this.current(task) ||
+        (this.get(id)?.state === "applying" &&
+          this.get(id)?.generation === task.generation)
+      )
+        this.db
+          .prepare(
+            "UPDATE reading_tasks SET state='paused',reason=? WHERE id=?",
+          )
+          .run(
+            [
+              "PERSONAL_BUDGET",
+              "SITE_BUDGET",
+              "UNKNOWN_COST",
+              "EXECUTION_LIMIT",
+              "NO_READABLE_MATERIAL",
+              "VISUAL_REVIEW_REQUIRED",
+              "VISUAL_REVIEW_NOT_READY",
+              "VISUAL_REVIEW_CONTEXT_LIMIT",
+              "TASK_INFLIGHT_BUDGET",
+              "CHECKPOINT_NO_PROGRESS",
+              "CHECKPOINT_RECONCILIATION",
+              "ACTIVE_TIME_RECONCILIATION",
+              "REUPLOAD_REQUIRED",
+              "READING_TIMEOUT",
+              "LEDGER_PAUSED",
+              "SAFETY_RECONCILIATION",
+              "WINDOW_STATE_RECONCILIATION",
+            ].includes(reason)
+              ? reason
+              : "READING_TASK_FAILED",
+            id,
+          );
+      return this.get(id);
+    } finally {
+      this.executions.delete(id);
+      try {
+        if (this.finalSnapshots) {
+          this.controllers.delete(id);
+          this.clearMaterial(id);
+        } else {
+          this.db
+            .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
+            .run(
+              Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
+              id,
+            );
+          // Return queued only after the previous invocation fully drains. Stop and
+          // resume generations never share one in-flight controller.
+          // Check failed/invalid paid calls too, at call 24 itself.
+          const checkpoint = this.roots.checkpoint(id);
+          if (safetyStep) this.roots.safety.finish(safetyStep);
+          if (checkpoint.reason && this.current(task))
+            this.db
+              .prepare(
+                "UPDATE reading_tasks SET state='paused',reason=? WHERE id=?",
+              )
+              .run(checkpoint.reason, id);
+          if (this.current(task))
+            this.db
+              .prepare("UPDATE reading_tasks SET state='queued' WHERE id=?")
+              .run(id);
+          this.controllers.delete(id);
+          if (this.get(id)?.state !== "queued") this.clearMaterial(id);
+          else {
+            clearTimeout(this.cacheTimers.get(id));
+            const timer = setTimeout(() => this.clearMaterial(id), 30000);
+            timer.unref();
+            this.cacheTimers.set(id, timer);
+          }
+        }
+      } finally {
+        if (safetyStep) this.roots.safety.abandon(safetyStep);
+      }
+    }
+  }
+  boundQuotes(id, result, readable, batch) {
+    const quoteTotals = new Map();
+    const attachments = new Map(JSON.parse(this.get(id).coverage).flatMap(m =>
+      (m.covered || []).map(r => [r.sourceId,m.attachmentId])));
+    for (const row of this.db
+      .prepare("SELECT result FROM reading_blocks WHERE task=?")
+      .all(id))
+      for (const item of JSON.parse(row.result).items)
+        for (const evidence of item.evidence) {
+          const attachment = attachments.get(evidence.sourceId);
+          if (attachment)
+            quoteTotals.set(
+              attachment,
+              (quoteTotals.get(attachment) || 0) + evidence.quote.length,
+            );
+        }
+    for (const item of result.items)
+      for (const evidence of item.evidence) {
+        const segment = batch.find((s) => s.sourceId === evidence.sourceId);
+        if (
+          !segment ||
+          evidence.quote.length > 500 ||
+          (!segment.image && !segment.text.includes(evidence.quote))
+        )
+          throw Error("INVALID_MODEL_SOURCE");
+        const attachment = readable.find((m) =>
+          m.segments.some((s) => s.sourceId === evidence.sourceId),
+        ).attachmentId;
+        const available = Math.max(
+          0,
+          2000 - (quoteTotals.get(attachment) || 0),
+        );
+        if (evidence.quote.length > available) {
+          evidence.quote = evidence.quote.slice(0, available);
+          if (/[\ud800-\udbff]$/.test(evidence.quote))
+            evidence.quote = evidence.quote.slice(0, -1);
+        }
+        quoteTotals.set(
+          attachment,
+          (quoteTotals.get(attachment) || 0) + evidence.quote.length,
+        );
+      }
+    return result;
+  }
+}

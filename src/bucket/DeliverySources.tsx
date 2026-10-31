@@ -11,6 +11,7 @@ import type { Attachment, Packet } from "./types";
 import { apiUrl } from "./service";
 import AttachmentPreview from "./AttachmentPreview";
 import LinkText from "./LinkText";
+import { readingView, processingView } from "../../shared/reading-view.mjs";
 
 function Original({
   attachment: a,
@@ -166,6 +167,19 @@ export default function DeliverySources({
   return (
     <section className="delivery-sources" aria-label="这次投递的原文与附件">
       <h3>一起放进来的</h3>
+      {packet.processingCoverage?.partial && (
+        <p role="status">{processingView(packet.processingCoverage)}</p>
+      )}
+      {readingView(packet.readingCoverage).map((row) => (
+        <details key={row.id} open={row.state !== "read"}>
+          <summary>
+            {row.name} · {row.label}
+          </summary>
+          <p>{row.covered}</p>
+          {row.missing && <p>{row.missing}</p>}
+          {row.reason && <p>{row.reason}</p>}
+        </details>
+      ))}
       <div className="source-files">
         {packet.attachments.map((a) => (
           <Original

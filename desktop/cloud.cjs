@@ -65,7 +65,7 @@ class CloudWorkspace {
     if (!base) return null;
     if (!this.spaces.has(base)) {
       const root = path.join(this.root, hash(base));
-      const cache = new DesktopStore(root);
+      const cache = new DesktopStore(root, { allowVolatileOriginals: true });
       fs.mkdirSync(cache.file("files"), { recursive: true });
       const file = cache.file("queue.json");
       const client = createSyncClient({
@@ -83,6 +83,15 @@ class CloudWorkspace {
             data.operation.type === "put"
           ) {
             const op = data.operation;
+            if (op.data.attachments?.length && this.submitOriginals) {
+              const result = await this.submitOriginals(
+                base,
+                cache,
+                op,
+                data.epoch,
+              );
+              if (result) return result;
+            }
             if (op.baseVersion === 0 && op.data.attachments?.length) {
               // A stable scaffold operation makes original upload replayable even when copying a conflict.
               const scaffold = await this.request(base, method, api, {
@@ -249,6 +258,13 @@ class CloudWorkspace {
             p.attachments.map(async (a) => {
               if (!/^[a-f0-9]{64}$/.test(a.hash)) return a;
               const file = cache.file("files/" + a.hash);
+              const volatile = cache.volatileOriginals.get(a.hash);
+              if (volatile)
+                return {
+                  ...a,
+                  bytes: Uint8Array.from(volatile).buffer,
+                  localSaved: false,
+                };
               if (!fs.existsSync(file)) return a;
               const bytes = fs.readFileSync(file);
               if (hash(bytes) !== a.hash || bytes.length !== a.size)
@@ -272,19 +288,34 @@ class CloudWorkspace {
           if (
             a.deletedAt ||
             !/^[a-f0-9]{64}$/.test(a.hash) ||
+            cache.volatileOriginals.has(a.hash) ||
             fs.existsSync(cache.file("files/" + a.hash))
           )
             continue;
-          const bytes = await this.request(
-            this.config.active,
-            "GET",
-            `/api/v2/attachments/${r.id}/${a.id}?epoch=${encodeURIComponent(result.epoch)}`,
-            null,
-            { binary: true },
-          );
+          let bytes;
+          try {
+            bytes = await this.request(
+              this.config.active,
+              "GET",
+              `/api/v2/attachments/${r.id}/${a.id}?epoch=${encodeURIComponent(result.epoch)}`,
+              null,
+              { binary: true },
+            );
+          } catch (e) {
+            if ([404, 409].includes(e.status)) {
+              cache.localSaveError ||=
+                "部分云端原件已清理；已有本机副本保留，继续可能需要重传";
+              continue;
+            }
+            throw e;
+          }
           if (hash(bytes) !== a.hash || bytes.length !== a.size)
             throw Error("下载原件校验失败：" + a.name);
-          atomic(cache.file("files/" + a.hash), bytes);
+          try {
+            atomic(cache.file("files/" + a.hash), bytes);
+          } catch {
+            cache.keepVolatile(a.hash, bytes);
+          }
         }
       }
       // Keep every pending/conflicting original and the independent draft; remove only unreferenced cache bytes.
@@ -354,7 +385,12 @@ class CloudWorkspace {
               size: bytes.length,
               hash: hash(bytes),
             };
-            atomic(cache.file("files/" + descriptor.hash), bytes);
+            try {
+              atomic(cache.file("files/" + descriptor.hash), bytes);
+            } catch {
+              cache.keepVolatile(descriptor.hash, bytes);
+              descriptor.localSaved = false;
+            }
           } else {
             if (!/^[a-f0-9]{64}$/.test(a.hash))
               throw Error("原件缺失：" + a.name);

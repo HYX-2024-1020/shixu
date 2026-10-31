@@ -1,0 +1,38 @@
+{
+  "protocol": "shixu-pdf-visual/1",
+  "platform": "win32-x64",
+  "pdfjs": "6.2.108",
+  "canvas": "1.0.13",
+  "builderSha256": "d859e6a8fc29d418879ccba2f12524c88a5728c12c688afc14e534707a91112c",
+  "licenseSources": {
+    "cssparser-0.38.0.crate": "11119743ad110e8c1bdccd930d7f5c30c99e5fc76a7b63ec9807e84eef0c5f59",
+    "cssparser-macros-0.7.0.crate": "10a2a99df6e410a8ff4245aa2006499ea662245f967cc7c0a38c83ef8eb44dbf",
+    "dtoa-short-0.3.5.crate": "cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87",
+    "selectors-0.41.0.crate": "8322aebea94a6cc288ff884e8a49bdbceef60206c400c6c46d22e62fc4fd91a6",
+    "provenance.json": "4f255f19512680d787eacac8fa3c8b647a5a23ee307d3d195423e8a41379c79a",
+    "upstream-notices.json": "15ba5c1771f63f8bb7734da8a9d72de98f6e0f08ddbc9e3f95c74d68b6834c78"
+  },
+  "archives": [
+    {
+      "filename": "canvas-1.0.13.tgz",
+      "integrity": "b87ugZpQ5ViwqVBkjervxpwa0GmJPsKHLBNoZN6GpjWeHzTbDUGryriq+2DYW2XbB+xCqSIINQysC0/I87nPbw==",
+      "sha256": "71f2d5e247e3b634ca29a985b9a64517cbbb20aecd24e3b0f15e31325f59f6bf"
+    },
+    {
+      "filename": "canvas-win32-x64-msvc-1.0.13.tgz",
+      "integrity": "DUlW3lZPz63kYsf8mxgyyZuevhlH0T3/BGP9l+NazhB0F1+gL6D4hqZdnhZpw24DlWmTpATDcyYSZlJOi+DdfQ==",
+      "sha256": "915f25adcc432cea7806704c2df81b36c90fa2bc5dc4682572ada7f027de643b"
+    }
+  ],
+  "files": {
+    "canvas.cjs": "143889b97405e929c4e002b75d9204b9e0bec40a92fdc6eff81873e1f4b78535",
+    "skia.node": "5d00cf716176a32c2a289f48cad19637131fe7de394c4fed58ae48043325943a",
+    "icudtl.dat": "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
+    "sbom.cdx.json": "61c3c58b03c786877a4a493c48151b2dcadb1f3043b8f8be1d350b045207f501",
+    "canvas.LICENSE": "0b8e3b4f0042f33677406344854c1dcce3a2878eb3a3f6baee58c6f5752655ce",
+    "pdf.LICENSE": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "third-party.LICENSE": "633dc21dd9f90b79fbc1d606c483e767b03212df68e0748e05d686b7b1e76b64",
+    "api.mjs": "f1b69094fa9c2e1e29fb4aace30c44eceae084ee05df7d0ec101565de6a84357",
+    "core.mjs": "6c255a9f2b7e98fbb743944f0f54fd96740c2282cbd880a721437e7c2878f0b6"
+  }
+}

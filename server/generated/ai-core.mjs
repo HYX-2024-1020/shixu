@@ -968,17 +968,15 @@ async function chatWithItem(item, meta, instruction, sources, options) {
     ],
     options
   );
-  const validated = validateChat(
-    response,
-    instruction,
-    options.captureDate,
-    item.due
-  );
+  return validateChatUpdate(response, item, instruction, options.captureDate);
+}
+function validateChatUpdate(value, item, instruction, today) {
+  const validated = validateChat(value, instruction, today, item.due);
   if ("due" in validated.patch) {
     const next = setDeadline(
       { ...item, ...validated.patch, due: item.due },
       validated.patch.due ?? null,
-      options.captureDate
+      today
     );
     validated.patch.dueCleared = next.dueCleared;
     for (const key of ["title", "summary", "facts"]) {
@@ -990,6 +988,9 @@ async function chatWithItem(item, meta, instruction, sources, options) {
 }
 export {
   DEFAULT_MODEL,
+  absoluteItem,
   chatWithItem,
-  organizePacket
+  organizePacket,
+  validateChatUpdate,
+  validateResult
 };

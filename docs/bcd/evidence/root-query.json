@@ -1,0 +1,40 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "node": "v24.20.0",
+  "platform": "linux",
+  "database": "in-memory, warm same-process queries, not production disk latency",
+  "p95Method": "nearest rank, 5 samples => maximum",
+  "observations": [
+    {
+      "historicalTasks": 1,
+      "repeats": 5,
+      "p50Ms": 0.1480099999999993,
+      "p95Ms": 0.4234219999999951,
+      "allCountersVerified": true
+    },
+    {
+      "historicalTasks": 100,
+      "repeats": 5,
+      "p50Ms": 0.47807800000001066,
+      "p95Ms": 0.5756849999999929,
+      "allCountersVerified": true
+    },
+    {
+      "historicalTasks": 1000,
+      "repeats": 5,
+      "p50Ms": 3.255244000000175,
+      "p95Ms": 8.816074000000071,
+      "allCountersVerified": true
+    }
+  ],
+  "taskList": {
+    "returned": 100,
+    "historical": 1000,
+    "repeats": 5,
+    "p50Ms": 45.35773500000005,
+    "p95Ms": 59.70324100000016,
+    "allCountersVerified": true
+  },
+  "maxRssKiB": 91272
+}

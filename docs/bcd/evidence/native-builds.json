@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-29",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "windows": {
+    "version": "26.05",
+    "protocol": "shixu-raw-path/1",
+    "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-src.tar.xz",
+    "sha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "sourceSha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "platform": "win32-x64",
+    "compiler": "g++ (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r4) 16.1.0",
+    "builderSha256": "df5f1af7a724723dd0b21df14cc533bc081d2b163e0847aed6a5f6fa107f069a",
+    "toolSha256": "0448ca582d3aa53e698e9de06bb2cc1e94cc231390aafce96c77593935a41c54",
+    "patchSha256": "68c7544277f1c4aec2ed9ad723417d0ab6d511f87e3a5ed856eef2f50e417e4a"
+  },
+  "linux": {
+    "version": "26.05",
+    "protocol": "shixu-raw-path/1",
+    "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-src.tar.xz",
+    "sha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "sourceSha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "platform": "linux-x64",
+    "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "builderSha256": "df5f1af7a724723dd0b21df14cc533bc081d2b163e0847aed6a5f6fa107f069a",
+    "toolSha256": "49ea82a527698b7c37de76d1064d5b983b7ae52ee24b4102a58bd811da7cdf2f",
+    "patchSha256": "68c7544277f1c4aec2ed9ad723417d0ab6d511f87e3a5ed856eef2f50e417e4a"
+  },
+  "baselineLinuxToolSha256": "97d59cb595d4422d748a23664b7db4ed2b721f484928de9fbcfd7e8896af2fb8",
+  "compilerNotes": "Windows GCC16 upstream array-bounds diagnostic remains visible but is not fatal; other warnings stay fatal. Linux static NSS linker warnings retained; sandbox executions verified."
+}

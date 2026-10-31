@@ -1,0 +1,82 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxIsolatedLoop": {
+    "synthetic": true,
+    "realProviderCalls": 0,
+    "simulatedProviderCalls": 4,
+    "bytes": 700018,
+    "parserRuns": 2,
+    "tailSeen": true,
+    "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+    "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+    "stopFromOtherDevice": true,
+    "continueFromOtherDevice": true,
+    "lateResponseDiscarded": true,
+    "resultsEqual": true,
+    "v3AIBlocked": true,
+    "spentMicros": 80,
+    "originalMode": "temporary",
+    "sourceByMini": true,
+    "lifecycleVerified": true,
+    "linuxBrokerUnprivilegedClient": true,
+    "unauthorizedUidDenied": true,
+    "clientProbeInjectionDenied": true,
+    "elapsedMs": 2541.290962
+  },
+  "windowsSourceElectron": {
+    "retained": {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "electronSourceUI": true,
+      "sshTunnelToIsolatedLinux": false,
+      "originalUpload": true,
+      "originalLifecycle": true,
+      "originalOfflineLock": true,
+      "temporaryCleanupAndReupload": false,
+      "stopContinueButtons": true,
+      "cumulativeWallet": true,
+      "published": true,
+      "format": "txt",
+      "simulatedCalls": 3
+    },
+    "temporary": {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "electronSourceUI": true,
+      "sshTunnelToIsolatedLinux": false,
+      "originalUpload": true,
+      "originalLifecycle": true,
+      "originalOfflineLock": true,
+      "temporaryCleanupAndReupload": true,
+      "stopContinueButtons": true,
+      "cumulativeWallet": true,
+      "published": true,
+      "format": "txt",
+      "simulatedCalls": 3
+    }
+  },
+  "localChecks": {
+    "reading": 88,
+    "originalsSubset": 11,
+    "syncAndMini": 124,
+    "core": 93,
+    "personalServer": 1,
+    "desktopData": 18,
+    "browser": 92,
+    "desktopUiSuites": 17,
+    "newOriginalUiSuites": 2,
+    "release": 4,
+    "policy": 8,
+    "docs": 67,
+    "miniGeneratedFiles": 15,
+    "officialWxmlWxssCompiler": true,
+    "webAndDesktopBuild": true
+  },
+  "limits": [
+    "Node Page adapter is not native WeChat",
+    "Source Electron is not installed client",
+    "Synthetic provider is not semantic acceptance",
+    "Production migration and historical media deletion not delivered"
+  ]
+}

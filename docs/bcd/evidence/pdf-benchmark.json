@@ -1,0 +1,272 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "node": "v24.20.0",
+  "repetitions": 5,
+  "samples": [
+    {
+      "name": "unicode.pdf",
+      "originalBytes": 1961,
+      "originalHash": "e713632756ab31b5984a2889d60ffe2645e08c558f361a0c617323054032a4ba",
+      "textHash": "6e93b10226548097c12ebb812aeb88a58e156f526ff0593d43444342ca6d2e6e",
+      "state": "partial",
+      "pages": 3,
+      "covered": 2,
+      "uncovered": 3,
+      "p50Ms": 447.535625,
+      "p95Ms": 487.8579599999998,
+      "runs": [
+        {
+          "elapsedMs": 460.547165,
+          "parseMs": 289.066535,
+          "serializationAndTransferMs": 2.8858830000000353,
+          "maxRssKiB": 72776
+        },
+        {
+          "elapsedMs": 416.405038,
+          "parseMs": 290.968929,
+          "serializationAndTransferMs": 2.6398379999999975,
+          "maxRssKiB": 70892
+        },
+        {
+          "elapsedMs": 400.742982,
+          "parseMs": 290.758171,
+          "serializationAndTransferMs": 2.281129999999962,
+          "maxRssKiB": 71072
+        },
+        {
+          "elapsedMs": 447.535625,
+          "parseMs": 305.827359,
+          "serializationAndTransferMs": 2.6050839999999766,
+          "maxRssKiB": 71312
+        },
+        {
+          "elapsedMs": 487.8579599999998,
+          "parseMs": 299.85602100000006,
+          "serializationAndTransferMs": 2.61809199999999,
+          "maxRssKiB": 73720
+        }
+      ]
+    },
+    {
+      "name": "long.pdf",
+      "originalBytes": 108650,
+      "originalHash": "b8e2be96eeeb0d4dfceb482d609fe811740ad692b99620c5fac63350fe4fd7a4",
+      "textHash": "c06729bec6394135b72cffe863da951d2bd00753c83361a1ba32838c38ed81f1",
+      "state": "partial",
+      "pages": 182,
+      "covered": 181,
+      "uncovered": 182,
+      "p50Ms": 2203.8605860000002,
+      "p95Ms": 2235.644918,
+      "runs": [
+        {
+          "elapsedMs": 2203.8605860000002,
+          "parseMs": 2011.564061,
+          "serializationAndTransferMs": 10.580058000000008,
+          "maxRssKiB": 86128
+        },
+        {
+          "elapsedMs": 2059.6301410000005,
+          "parseMs": 1910.712383,
+          "serializationAndTransferMs": 5.725854000000027,
+          "maxRssKiB": 87488
+        },
+        {
+          "elapsedMs": 2178.769226999999,
+          "parseMs": 1991.6181860000002,
+          "serializationAndTransferMs": 6.684769999999844,
+          "maxRssKiB": 89832
+        },
+        {
+          "elapsedMs": 2235.644918,
+          "parseMs": 2094.192592,
+          "serializationAndTransferMs": 9.877667000000201,
+          "maxRssKiB": 87728
+        },
+        {
+          "elapsedMs": 2227.9326170000004,
+          "parseMs": 2015.04728,
+          "serializationAndTransferMs": 59.68861599999991,
+          "maxRssKiB": 88352
+        }
+      ]
+    },
+    {
+      "name": "blank.pdf",
+      "originalBytes": 1166,
+      "originalHash": "b03186719dbdbfea7904afcd26b04ae3a094ada54bf417f325cee4b0daa9bd67",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed",
+      "pages": 1,
+      "covered": 0,
+      "uncovered": 1,
+      "p50Ms": 434.76212099999975,
+      "p95Ms": 477.0732619999999,
+      "runs": [
+        {
+          "elapsedMs": 441.10489100000086,
+          "parseMs": 306.758179,
+          "serializationAndTransferMs": 2.6645990000000097,
+          "maxRssKiB": 71840
+        },
+        {
+          "elapsedMs": 477.0732619999999,
+          "parseMs": 288.740176,
+          "serializationAndTransferMs": 3.1319520000000125,
+          "maxRssKiB": 73740
+        },
+        {
+          "elapsedMs": 434.76212099999975,
+          "parseMs": 304.035839,
+          "serializationAndTransferMs": 3.4496599999999944,
+          "maxRssKiB": 73348
+        },
+        {
+          "elapsedMs": 426.1561810000003,
+          "parseMs": 218.22767,
+          "serializationAndTransferMs": 2.990283999999974,
+          "maxRssKiB": 73540
+        },
+        {
+          "elapsedMs": 426.81498100000135,
+          "parseMs": 292.42248,
+          "serializationAndTransferMs": 3.1913840000000278,
+          "maxRssKiB": 72416
+        }
+      ]
+    },
+    {
+      "name": "damaged-page.pdf",
+      "originalBytes": 1869,
+      "originalHash": "98f1a18190be061442b9bf91c9425980b6d0805d26fa380cba3637ffb63e7ec4",
+      "textHash": "a45e808283c5ca2df1fb959034095d43eb870b7ae8ef2b98f04ba2e32885c21f",
+      "state": "partial",
+      "pages": 3,
+      "covered": 2,
+      "uncovered": 3,
+      "p50Ms": 461.2829720000009,
+      "p95Ms": 492.1041919999989,
+      "runs": [
+        {
+          "elapsedMs": 458.29075499999817,
+          "parseMs": 293.11814000000004,
+          "serializationAndTransferMs": 2.5413149999999973,
+          "maxRssKiB": 71496
+        },
+        {
+          "elapsedMs": 461.2829720000009,
+          "parseMs": 315.280042,
+          "serializationAndTransferMs": 2.6547120000000177,
+          "maxRssKiB": 71040
+        },
+        {
+          "elapsedMs": 492.1041919999989,
+          "parseMs": 301.02961600000003,
+          "serializationAndTransferMs": 3.1915489999999522,
+          "maxRssKiB": 73580
+        },
+        {
+          "elapsedMs": 414.90663399999903,
+          "parseMs": 299.10542399999997,
+          "serializationAndTransferMs": 2.5922879999999964,
+          "maxRssKiB": 71032
+        },
+        {
+          "elapsedMs": 479.9584820000018,
+          "parseMs": 295.95979900000003,
+          "serializationAndTransferMs": 57.158829999999966,
+          "maxRssKiB": 74084
+        }
+      ]
+    },
+    {
+      "name": "invalid.pdf",
+      "originalBytes": 12,
+      "originalHash": "77836906fb222c4fda3abf6ce76815c7afc2c946f118a5d73a3009c57e97cabf",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed",
+      "covered": 0,
+      "uncovered": 1,
+      "p50Ms": 363.58370899999863,
+      "p95Ms": 429.4330310000005,
+      "runs": [
+        {
+          "elapsedMs": 363.58370899999863,
+          "parseMs": 196.373472,
+          "serializationAndTransferMs": 3.015316999999982,
+          "maxRssKiB": 67852
+        },
+        {
+          "elapsedMs": 429.4330310000005,
+          "parseMs": 287.364649,
+          "serializationAndTransferMs": 3.122937000000036,
+          "maxRssKiB": 66840
+        },
+        {
+          "elapsedMs": 351.0804859999989,
+          "parseMs": 192.51142899999996,
+          "serializationAndTransferMs": 2.4176290000000336,
+          "maxRssKiB": 70552
+        },
+        {
+          "elapsedMs": 386.25830700000006,
+          "parseMs": 202.58559999999997,
+          "serializationAndTransferMs": 3.0985070000000405,
+          "maxRssKiB": 71060
+        },
+        {
+          "elapsedMs": 326.31681899999967,
+          "parseMs": 193.251341,
+          "serializationAndTransferMs": 2.693743999999981,
+          "maxRssKiB": 67676
+        }
+      ]
+    },
+    {
+      "name": "actions.pdf",
+      "originalBytes": 1452,
+      "originalHash": "39358378347f45ca5b6e1b581dcf275a8eeb833b8839c6dcb7a698857cd548bd",
+      "textHash": "2799b8f9c708af39d5e67f16c3cb00937583982f06dda9ca7f90a1f903280d99",
+      "state": "partial",
+      "pages": 1,
+      "covered": 1,
+      "uncovered": 1,
+      "p50Ms": 431.0051969999986,
+      "p95Ms": 491.80483500000264,
+      "runs": [
+        {
+          "elapsedMs": 431.0051969999986,
+          "parseMs": 287.458239,
+          "serializationAndTransferMs": 2.3459250000000225,
+          "maxRssKiB": 70468
+        },
+        {
+          "elapsedMs": 421.6979820000015,
+          "parseMs": 292.12318899999997,
+          "serializationAndTransferMs": 2.9513450000000034,
+          "maxRssKiB": 72840
+        },
+        {
+          "elapsedMs": 466.61103899999944,
+          "parseMs": 296.783293,
+          "serializationAndTransferMs": 2.4335909999999785,
+          "maxRssKiB": 70432
+        },
+        {
+          "elapsedMs": 491.80483500000264,
+          "parseMs": 367.61485799999997,
+          "serializationAndTransferMs": 2.499982999999986,
+          "maxRssKiB": 70552
+        },
+        {
+          "elapsedMs": 426.1441510000004,
+          "parseMs": 293.66415,
+          "serializationAndTransferMs": 3.540659000000005,
+          "maxRssKiB": 73192
+        }
+      ]
+    }
+  ],
+  "hostMaxRssKiB": 122772
+}
