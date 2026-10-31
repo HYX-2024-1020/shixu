@@ -9,6 +9,9 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  VISUAL_REVIEW_REQUIRED: "图像事项尚待依据核对，已识别进度保留",
+  VISUAL_REVIEW_NOT_READY: "图像核对服务尚未就绪，不能直接收下未经核对的结果",
+  VISUAL_REVIEW_CONTEXT_LIMIT: "图像依据核对内容超过本窗安全范围，进度保留待处理",
   SHUTDOWN: "服务关闭，进度已保留；重新连接后可继续",
   SHUTDOWN_TIMEOUT: "关闭等待已结束，有调用费用待核对；已完成进度保留",
   SHUTDOWN_TIME_UNCERTAIN:
@@ -133,7 +136,8 @@ export function createReadingRoutes({
       id: t.id,
       packetId: t.packet,
       state: t.state,
-      phase: info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
+      phase: info.kind!=="chat" && e.visual.active(t.id) ? "verifying" : info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
+      completedVisualBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_visual_results WHERE task=?").get(t.id).n,
       completedMergeBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_merge_results WHERE task=?").get(t.id).n,
       generation: t.generation,
       maintenanceOperation: e.maintenanceOperation(t.id),
@@ -170,7 +174,7 @@ export function createReadingRoutes({
               ].includes(root.reason)
                 ? ["continue"]
                 : []),
-              ...(info.kind!=="chat" && ["paused", "interrupted", "error", "conflict"].includes(
+              ...(info.kind!=="chat" && e.visual.publishable(t) && ["paused", "interrupted", "error", "conflict"].includes(
                 t.state,
               )
                 ? ["accept-partial"]
@@ -251,6 +255,7 @@ export function createReadingRoutes({
           readingEnabled: enabled(),
           formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg","gif","webp"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
+          visualFactReview:typeof provider.reviewVisual==='function',
           itemChat:typeof provider.chat==='function',
           pdfPageVisual:reader.pdfVisualWindows===true && provider.imageInput===true,
           pdfTextOnly: !(reader.pdfVisualWindows===true && provider.imageInput===true),

@@ -22,6 +22,7 @@ export async function runImageClients({
   jpeg = false,
   gif = false,
   webp = false,
+  visualReview,
 }) {
   const width = 2051,
     height = 4;
@@ -72,6 +73,7 @@ export async function runImageClients({
   const result = await runClientLoop({
     directory,
     reader,
+    visualReview,
     sourceByMini: true,
     startByMini: true,
     reviseAfterPublication: true,

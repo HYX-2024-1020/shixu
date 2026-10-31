@@ -8,7 +8,7 @@ import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { readMaterial } from "./material.mjs";
 
-export function mergeFixture(t, { merge, price, provider: realProvider, sourceText } = {}) {
+export function mergeFixture(t, { merge, price, provider: realProvider, sourceText, sourceBytes, sourceName, reader = readMaterial } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "shixu-merge-"));
   const store = new SyncStore(join(directory, "tenant.sqlite"));
   createAttachmentStore(store);
@@ -50,8 +50,8 @@ export function mergeFixture(t, { merge, price, provider: realProvider, sourceTe
     status: "pending",
   });
   const file = store.files.put("packet", "synthetic-text", {
-    name: "合成报告.txt",
-    body: Buffer.from(text),
+    name: sourceName || "合成报告.txt",
+    body: sourceBytes || Buffer.from(text),
     type: "text/plain",
     epoch: store.epoch,
   });
@@ -99,7 +99,7 @@ export function mergeFixture(t, { merge, price, provider: realProvider, sourceTe
     store,
     ledger,
     account: "synthetic",
-    reader: readMaterial,
+    reader,
     provider,
     priceId: price?.id || "synthetic",
     modelVersion: price?.model || "synthetic/1",

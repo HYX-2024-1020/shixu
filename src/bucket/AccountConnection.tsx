@@ -474,7 +474,7 @@ export default function AccountConnection({
                 )[task.state] || "需核对"}{" "}
                 · 本任务已调用 {task.calls || 0} 次
                 {reuseView(task.reusedBlocks) && ` · ${reuseView(task.reusedBlocks)}`}
-                {mergeProgressView(task.phase, task.completedMergeBatches) && ` · ${mergeProgressView(task.phase, task.completedMergeBatches)}`}
+                {mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches) && ` · ${mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches)}`}
                 {pdfProgressView(task.readingSummary) && ` · ${pdfProgressView(task.readingSummary)}`}
                 {imageProgressView(task.readingSummary) && ` · ${imageProgressView(task.readingSummary)}`}
                 {typeof task.rootCalls === "number" && (

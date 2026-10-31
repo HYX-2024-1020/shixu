@@ -10,6 +10,7 @@ const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
 const gifMode = process.argv.includes("--gif");
 const webpMode = process.argv.includes("--webp");
+const reviewFixture=process.argv.includes("--review-fixture");
 const pdfMode=process.argv.includes("--pdf-visual"),notice9537=webpMode||pdfMode;
 if (
   !probe ||
@@ -201,7 +202,17 @@ app
           return fetch(...args);
         },
       });
-      const provider=Object.assign(async (...args)=>{const response=await actualProvider(...args);modelResponses.push(response.result);return response;},actualProvider);
+      let simulatedUpstreamCalls=0;
+      const provider=Object.assign(async (...args)=>{
+        if(reviewFixture){
+          if(!pdfMode)throw Error("PDF_REVIEW_FIXTURE_REQUIRED");
+          simulatedUpstreamCalls++;
+          const raw=JSON.parse(readFileSync(path.join(__dirname,"../docs/bcd/evidence/pdf-visual-real-published.json"),"utf8")).modelResponses[0];
+          modelResponses.push(raw);return {usage:{prompt_tokens:10,completion_tokens:10},result:raw};
+        }
+        const response=await actualProvider(...args);modelResponses.push(response.result);return response;
+      },actualProvider);
+      if(reviewFixture)provider.prepare=()=>({priceId:price.id,maxPromptTokens:10,maxOutputTokens:10});
       store = new SyncStore(path.join(probe, "tenant.sqlite"));
       createAttachmentStore(store);
       const device = store.createDevice("synthetic-image-development").deviceId;
@@ -280,24 +291,36 @@ app
       };
       const calls = ledger.db
         .prepare(
-          "SELECT id,state,price,reserved,actual,usage FROM reading_calls",
+          "SELECT id,block,state,price,reserved,actual,usage FROM reading_calls",
         )
         .all();
+      const simulatedFingerprints=new Set(reviewFixture?ledger.db.prepare("SELECT upstream FROM reading_visual_inputs").all().map(r=>r.upstream):[]);
+      const simulatedIds=new Set(calls.filter(c=>simulatedFingerprints.has(c.block)).map(c=>c.id));
+      const realSpent=calls.filter(c=>!simulatedIds.has(c.id)).reduce((n,c)=>n+(c.actual||0),0);
+      if(reviewFixture){
+        const item=packet.result?.items?.[0];
+        checks.falseFooterRequirementRemoved=!!item && ![item.summary,...item.facts,...item.nextSteps].some(s=>s.includes("报告尾部"));
+        checks.falseClaimPreservedAsUncertain=!!item?.uncertainties.some(s=>s.includes("需写在报告尾部"));
+      }
       const report = {
         kind: pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),
         realProviderCalls: providerCalls,
+        simulatedUpstreamCalls,
         price,
         inputHash: sha256(body),
         checks,
         state: task.state,
         reason: task.reason,
         elapsedMs: performance.now() - started,
-        spentMicros: ledger.wallet("synthetic-image-development").spent,
-        calls,
+        spentMicros: realSpent,
+        ledgerSpentIncludingSimulatedMicros: ledger.wallet("synthetic-image-development").spent,
+        calls:calls.map(c=>({...c,simulated:simulatedIds.has(c.id)})),
+        realUnknownCalls:calls.filter(c=>!simulatedIds.has(c.id)&&c.state==="unknown").length,
         modelResponses,
+        visualReviews:store.db.prepare("SELECT fingerprint,upstream,call_id,result FROM reading_visual_results").all().map(r=>({...r,result:JSON.parse(r.result)})),
         result: packet.result,
         coverage: packet.readingCoverage,
         boundaries: [
@@ -328,7 +351,7 @@ app
           state: task.state,
         }),
       );
-      assert.ok(providerCalls>=1 && providerCalls<=(gifMode?4:2));
+      assert.ok(providerCalls>=1 && providerCalls<=(gifMode?8:4));
       assert.equal(task.state, "done");
       assert.ok(Object.values(checks).every(Boolean));
     } finally {

@@ -54,6 +54,21 @@ test("account service and protected CLI run from the self-contained release", as
       chatTasks.enqueue({id:'semantic-task',packetId:'semantic',deviceId:device});
       for(let i=0;i<8&&chatTasks.get('semantic-task').state==='queued';i++)await chatTasks.run('semantic-task');
       assert.equal(chatTasks.get('semantic-task').state,'done');
+      const {encodePng:encodeReleased}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
+      chatStore.apply(device,{id:'visual',opId:'seed-visual',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],result:null}},chatStore.epoch);
+      const png=encodeReleased(1,1,Buffer.from([20,30,40,255]));
+      const file=chatStore.files.put('visual','image',{name:'synthetic.png',body:png,type:'image/png',epoch:chatStore.epoch});
+      chatStore.apply(device,{id:'visual',opId:'attach-visual',type:'put',baseVersion:chatStore.record('visual').version,data:{attachments:[file]}},chatStore.epoch);
+      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'task',title:'提交报告',summary:'',facts:['格式PDF','报告尾部写编号'],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:'格式PDF'}]}]}}),
+        {imageInput:true,reviewVisual:async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{claims:JSON.parse(sources[0].text).claims.map(c=>({id:c.id,status:c.text.includes('尾部')?'unsupported':'supported',reason:c.text.includes('尾部')?'仅为页尾标记':''}))}})});
+      chatTasks.reader=Object.assign((...args)=>readReleased(...args),{imageWindows:true,pdfWindows:true});
+      chatTasks.enqueue({id:'visual-task',packetId:'visual',deviceId:device});
+      for(let i=0;i<8&&chatTasks.get('visual-task').state==='queued';i++)await chatTasks.run('visual-task');
+      assert.equal(chatTasks.get('visual-task').state,'done');
+      assert.deepEqual(chatStore.record('visual').data.result.items[0].facts,['格式PDF']);
+      assert.ok(chatStore.record('visual').data.result.items[0].uncertainties[0].includes('报告尾部写编号'));
+      assert.equal(chatTasks.roots.stats('visual-task').calls,2);
+
       assert.equal(chatStore.record('semantic').data.result.items.length,1);
     }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
     const {readMaterial,sha256} = await import(pathToFileURL(join(release,"server/reading/material.mjs")));
@@ -148,7 +163,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "webp.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

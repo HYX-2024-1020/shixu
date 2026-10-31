@@ -4,7 +4,8 @@ const labels = {
   unsupported: "暂不支持",
   failed: "读取失败",
 };
-export function mergeProgressView(phase, completed) {
+export function mergeProgressView(phase, completed, visualCompleted) {
+  if(phase === "verifying")return `图像依据核对 · 已完成 ${Number.isSafeInteger(visualCompleted) && visualCompleted >= 0 ? visualCompleted : 0} 批（共用累计费用）`;
   return phase === "merging" ? `语义核对 · 已完成 ${Number.isSafeInteger(completed) && completed >= 0 ? completed : 0} 批（共用累计费用）` : "";
 }
 const reasons = {

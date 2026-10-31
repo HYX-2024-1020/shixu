@@ -15,6 +15,7 @@ import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { ReadingChat } from './chat.mjs';
+import { ReadingVisualReview } from "./visual-review.mjs";
 import { ReadingMerge, MERGE_VERSION } from './merge.mjs';
 import { isImageName } from './image.mjs';
 
@@ -198,6 +199,7 @@ export class ReadingTasks {
     this.reuse = new ReadingReuse(this.db, ledger, account);
     this.windows = new ReadingWindows(this.db);
     this.chat = new ReadingChat(this);
+    this.visual = new ReadingVisualReview(this);
     this.merge = new ReadingMerge(this);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
@@ -404,6 +406,7 @@ export class ReadingTasks {
         this.windows.purge(id);
         this.chat.purge(id);
         this.merge.purge(id);
+        this.visual.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
           .prepare("DELETE FROM reading_block_ranges WHERE task=?")
@@ -596,26 +599,27 @@ export class ReadingTasks {
   publish(task, coverage, partial = false, afterPublication) {
     const id = task.id;
     const isChat = this.chat.isChat(id);
-    const blocks = this.db
-      .prepare(
-        "SELECT b.result FROM reading_blocks b WHERE task=? ORDER BY rowid",
-      )
-      .all(id)
-      .map((b) => JSON.parse(b.result));
+    const rawBlocks=this.db.prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid").all(id);
+    const selected=rawBlocks.map(block=>({block,effective:isChat?{result:JSON.parse(block.result)}:this.visual.effective(task,block,partial)})).filter(row=>row.effective);
+    if(partial&&!selected.length)throw error("VISUAL_REVIEW_REQUIRED");
+    const selectedKeys=new Set(selected.map(row=>row.block.fingerprint));
+    const blocks=selected.map(row=>row.effective.result);
     const result = isChat ? null : {
       summary: blocks.map((b) => b.summary).join("\n"),
       warnings: blocks.flatMap((b) => b.warnings),
       items: blocks.flatMap((b) => b.items),
     };
+    if(!isChat&&selected.length<rawBlocks.length)result.warnings.push(`另有${rawBlocks.length-selected.length}个已识别图像块尚未完成依据核对，未收下`);
     const semantic = !isChat ? this.merge.result(task, partial) : null;
     if (semantic) result.items = semantic.items;
     if (!isChat && result.items.length > 1 && (!semantic || partial))
       result.warnings.push(partial ? "收下部分结果，跨块语义核对尚未全部完成" : "未启用跨块语义核对，可能存在重复或未关联事项");
     const processed = this.db
       .prepare(
-        "SELECT ranges FROM reading_block_ranges WHERE task=? ORDER BY rowid",
+        "SELECT fingerprint,ranges FROM reading_block_ranges WHERE task=? ORDER BY rowid",
       )
       .all(id)
+      .filter(r=>selectedKeys.has(r.fingerprint))
       .flatMap((r) => JSON.parse(r.ranges));
     const processedKeys = new Set(processed.map((r) => JSON.stringify(r)));
     const processingCoverage = {
@@ -991,6 +995,7 @@ export class ReadingTasks {
             batch.map((s) => s.range),
           ]),
         );
+        if(!isChat)this.visual.bind(task,batch,fingerprint);
         const existing = this.db
           .prepare(
             "SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?",
@@ -1005,7 +1010,7 @@ export class ReadingTasks {
           this.ledger.call(existing.call_id)?.state === "settled"
         ) {
           if(isChat)this.chat.verifyBlock(task,existing);
-          if(!isChat && typeof this.provider.merge==="function" && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
+          if(!isChat && (typeof this.provider.merge==="function" || this.visual.input(id,fingerprint)) && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
             const envelope=this.ledger.completedEnvelope(this.account,id,fingerprint);
             if(!envelope || envelope.call_id!==existing.call_id || envelope.result!==existing.result)throw Error("SAFETY_RECONCILIATION");
             this.reuse.certify(id,fingerprint,reuseKey,JSON.parse(existing.result));
@@ -1013,6 +1018,13 @@ export class ReadingTasks {
           }
           if (!this.reuse.copied(id, fingerprint))
             this.roots.progress(id, fingerprint);
+          if(!isChat&&this.visual.input(id,fingerprint)){
+            const plan=this.visual.plan(task,batch,existing);
+            if(!this.visual.complete(task,plan))return await this.visual.step(task,batch,existing,plan,{
+              signal:controller.signal,execution,remainingMs:()=>activeLimitMs-root.activeMs-(performance.now()-started-excludedMs),
+            });
+            this.visual.effective(task,existing);
+          }
           continue;
         }
         const sources = batch.map((s) => ({
@@ -1080,6 +1092,7 @@ export class ReadingTasks {
             JSON.parse(recovered.result),
           );
           this.roots.progress(id, fingerprint);
+          if(!isChat && this.visual.input(id,fingerprint))return this.get(id);
           continue;
         }
         if(isChat)this.chat.guardLostBlock(task,fingerprint);
@@ -1200,6 +1213,9 @@ export class ReadingTasks {
               "UNKNOWN_COST",
               "EXECUTION_LIMIT",
               "NO_READABLE_MATERIAL",
+              "VISUAL_REVIEW_REQUIRED",
+              "VISUAL_REVIEW_NOT_READY",
+              "VISUAL_REVIEW_CONTEXT_LIMIT",
               "TASK_INFLIGHT_BUDGET",
               "CHECKPOINT_NO_PROGRESS",
               "CHECKPOINT_RECONCILIATION",

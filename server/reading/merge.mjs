@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
 
-export const MERGE_VERSION = "paid-semantic-pairs/2";
+export const MERGE_VERSION = "paid-semantic-pairs/3";
 const hash = (value) => sha256(JSON.stringify(value));
 const fail = () => {
   throw Error("SAFETY_RECONCILIATION");
@@ -144,6 +144,7 @@ export class ReadingMerge {
     const blocks = this.db
       .prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid")
       .all(task.id);
+    const projected=[];
     const dependencies = blocks.map((b) => {
       const copied = this.db
         .prepare(
@@ -166,7 +167,8 @@ export class ReadingMerge {
         original.result_hash !== sha256(b.result)
       )
         fail();
-      return [original.reuse_key, sha256(b.result)];
+      const effective=this.e.visual.effective(task,b);projected.push(effective.result);
+      return [original.reuse_key, sha256(b.result),effective.dependency];
     });
     const dependencyHash = hash([
       MERGE_VERSION,
@@ -180,7 +182,7 @@ export class ReadingMerge {
     )
       fail();
     const items = blocks.flatMap((b, block) =>
-      JSON.parse(b.result).items.map((item, index) => ({
+      projected[block].items.map((item, index) => ({
         id: `b${block}i${index}`,
         item,
       })),

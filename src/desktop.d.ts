@@ -57,6 +57,7 @@ interface Window {
         calls?: number;
         phase?: string;
         completedMergeBatches?: number;
+        completedVisualBatches?: number;
         reusedBlocks?: number;
         readingSummary?: {name?:string;pdfPages?:{checked:number;total:number}}[];
         rootTaskId?: string;

@@ -14,7 +14,7 @@ test("semantic provider uses bounded paid-item context, reference-only edges and
     assert.equal(b.tools,undefined);assert.equal(b.stream,false);
     return Response.json({usage:{prompt_tokens:20,completion_tokens:10},choices:[{finish_reason:"stop",message:{content:'{"same":[],"related":[]}'}}]});
   }});
-  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/2",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
+  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/3",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
   const prepared=provider.merge.prepare(sources);assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));
   assert.deepEqual((await provider.merge(sources,undefined,{prepared})).result,{same:[],related:[]});assert.equal(calls,1);
   assert.throws(()=>provider.merge.prepare([{...sources[0],image:{}}]),/INVALID_PROVIDER_INPUT/);
@@ -127,4 +127,16 @@ test('chat provider prepares only saved context and uses the common no-retry usa
   const result=await provider.chat(sources,undefined,{prepared});
   assert.deepEqual(result.result,{reply:'回答',patch:{}});assert.equal(result.usage.prompt_tokens,30);assert.equal(calls,1);
   assert.throws(()=>provider.chat.prepare([...sources,...sources]),/INVALID_PROVIDER_INPUT/);
+});
+test('visual reviewer sends exact claims and normalized pixels through the common no-retry adapter',async()=>{
+ const {encodePng}=await import('./image.mjs');const {readMaterial,sha256}=await import('./material.mjs');
+ const body=encodePng(2,1,Buffer.from([1,2,3,255,4,5,6,255]));const m=await readMaterial({id:'image',name:'合成.png',body,size:body.length,hash:sha256(body)});
+ const claim={id:'i0_facts_0',item:0,field:'facts',index:0,text:'需写在报告尾部'};
+ const sources=[{id:'review',name:'claims.json',text:JSON.stringify({schema:'visual-grounding/1',claims:[claim]})},{id:m.segments[0].sourceId,name:'tile.png',text:m.segments[0].text,image:m.segments[0].image}];
+ let calls=0;const provider=createDeepSeekReadingProvider({apiKey:'synthetic',priceAt:()=>deepseekPriceSnapshots(1)[1].id,fetcher:async(url,init)=>{
+  calls++;const request=JSON.parse(init.body);assert.equal(request.tools,undefined);assert.equal(request.tool_choice,'none');assert.equal(request.messages[1].content.filter(c=>c.type==='image_url').length,1);assert.match(request.messages[0].content,/页尾核对编号/);assert.equal(JSON.parse(request.messages[1].content[0].text).claims[0].text,claim.text);
+  return Response.json({usage:{prompt_tokens:10,completion_tokens:10},choices:[{finish_reason:'stop',message:{content:JSON.stringify({claims:[{id:claim.id,status:'unsupported',reason:'原文只有标记'}]})}}]});
+ }});const prepared=provider.reviewVisual.prepare(sources,{captureDate:'2026-10-31'});assert.ok(prepared.maxPromptTokens>1000);assert.equal(calls,0);
+ const r=await provider.reviewVisual(sources,undefined,{prepared});assert.equal(r.result.claims[0].status,'unsupported');assert.equal(calls,1);
+ assert.throws(()=>provider.reviewVisual.prepare(sources.slice(0,1),{captureDate:'2026-10-31'}),/INVALID_PROVIDER_INPUT/);
 });
