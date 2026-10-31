@@ -3,9 +3,10 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 import { validateArchiveWindow } from "./archive-window.mjs";
 import { isImageName, validateImageWindow } from "./image.mjs";
+import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;archive/9";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;pdf-visual/1;archive/10";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -93,7 +94,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow, imageWindow } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -135,6 +136,9 @@ export function readMaterial(
   };
   archiveWindow = validateArchiveWindow(archiveWindow);
   if (archiveWindow && !/\.(zip|rar|7z)$/i.test(name)) throw Error("INVALID_ARCHIVE_WINDOW");
+  pdfVisualWindow=validatePdfVisualWindow(pdfVisualWindow);
+  if(pdfVisualWindow && (!/\.pdf$/i.test(name)||pdfWindow||imageWindow||archiveWindow))throw Error("INVALID_PDF_VISUAL_WINDOW");
+  if(pdfVisualWindow)return import("./pdf-visual.mjs").then(({readPdfVisual})=>readPdfVisual(bytes,result,pdfVisualWindow));
   pdfWindow = validatePdfWindow(pdfWindow);
   if (pdfWindow && !/\.pdf$/i.test(name)) throw Error("INVALID_PDF_WINDOW");
   imageWindow=validateImageWindow(imageWindow);

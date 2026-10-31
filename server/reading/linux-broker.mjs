@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { MAX_FILE_BYTES, sha256 } from "./material.mjs";
 import { validateArchiveWindow } from "./archive-window.mjs";
 import { isImageName, validateImageWindow } from "./image.mjs";
+import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
 const moduleDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -165,7 +166,7 @@ function run(args, unit, { signal } = {}) {
 // One broker per server, not per tenant: the heavy parser queue is global.
 // Waiting entries hold only caller promises; callers retain their input until
 // acquired. Abort removes a waiting entry without starting another worker.
-export function createLinuxReader({ runtime, staging }) {
+export function createLinuxReader({ runtime, staging, pdfVisualWindows=false }) {
   if (process.platform !== "linux") throw Error("LINUX_ISOLATION_REQUIRED");
   if (!staging.startsWith("/run/shixu-"))
     throw Error("EPHEMERAL_STAGING_REQUIRED");
@@ -199,8 +200,11 @@ export function createLinuxReader({ runtime, staging }) {
   };
   const reader = async (
     file,
-    { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow } = {},
+    { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow } = {},
   ) => {
+    if((pdfVisualWindow || archiveWindow?.visual) && !pdfVisualWindows)throw Error("PDF_VISUAL_UNSUPPORTED");
+    pdfVisualWindow=validatePdfVisualWindow(pdfVisualWindow);
+    if(pdfVisualWindow && (!/\.pdf$/i.test(file.name)||pdfWindow||imageWindow||archiveWindow))throw Error("INVALID_PDF_VISUAL_WINDOW");
     imageWindow=validateImageWindow(imageWindow);
     if(imageWindow&&!isImageName(file.name))throw Error("INVALID_IMAGE_WINDOW");
     archiveWindow = validateArchiveWindow(archiveWindow);
@@ -266,7 +270,7 @@ export function createLinuxReader({ runtime, staging }) {
           name: file.name,
           size: file.size,
           hash: file.hash,
-          ...(pdfWindow ? { pdfWindow } : {}), ...(imageWindow ? {imageWindow} : {}),
+          ...(pdfVisualWindow ? {pdfVisualWindow} : {}), ...(pdfWindow ? { pdfWindow } : {}), ...(imageWindow ? {imageWindow} : {}),
           ...(archiveWindow ? { archiveWindow } : {}),
           ...(probe ? { probe } : {}),
         }),
@@ -316,5 +320,5 @@ export function createLinuxReader({ runtime, staging }) {
       }
     }
   };
-  return Object.assign(reader, { pdfWindows:true, archiveWindows:true, imageWindows:true });
+  return Object.assign(reader, { pdfWindows:true, archiveWindows:true, imageWindows:true, pdfVisualWindows });
 }

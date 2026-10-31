@@ -1,5 +1,6 @@
 import { isImageName, validateModelImage } from "./image.mjs";
 import { coverageOnly } from "./material.mjs";
+import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { PDF_WINDOW_PAGES } from "./pdf-window.mjs";
 import {
   FIRST_ARCHIVE_WINDOW,
@@ -20,7 +21,7 @@ export class ReadingWindows {
       .prepare("SELECT * FROM reading_windows WHERE task=? ORDER BY rowid")
       .all(task);
   }
-  select(task, file, { archiveWindows = false, imageWindows = false } = {}) {
+  select(task, file, { archiveWindows = false, imageWindows = false, pdfVisualWindows = false } = {}) {
     const row = this.db
       .prepare("SELECT * FROM reading_windows WHERE task=? AND attachment=?")
       .get(task, file.id);
@@ -30,14 +31,17 @@ export class ReadingWindows {
       if(!imageWindows)throw Error('READER_WINDOW_REQUIRED');
       return {skip:false,imageWindow:{tile:row?.next_page||1}};
     }
-    const saved = row && JSON.parse(row.coverage).archivePagination;
-    if (saved && !archiveWindows) throw Error("READER_WINDOW_REQUIRED");
+    const prior = row && JSON.parse(row.coverage);
+    if(prior?.pdfVisualPagination && !pdfVisualWindows)throw Error("READER_WINDOW_REQUIRED");
+    if(pdfVisualWindows && /\.pdf$/i.test(file.name))return {skip:false,pdfVisualWindow:validatePdfVisualWindow(prior?.pdfVisualPagination?.next || {page:1,tile:1,offset:0})};
+    const saved = prior?.archivePagination;
+    if (saved && (!archiveWindows || (saved.start?.visual && !pdfVisualWindows))) throw Error("READER_WINDOW_REQUIRED");
     return {
       skip: false,
       ...(archiveWindows && /\.(zip|rar|7z)$/i.test(file.name)
         ? {
             archiveWindow: validateArchiveWindow(
-              saved?.next || FIRST_ARCHIVE_WINDOW,
+              saved?.next || (pdfVisualWindows ? {...FIRST_ARCHIVE_WINDOW,visual:1,tile:1} : FIRST_ARCHIVE_WINDOW),
             ),
           }
         : {}),
@@ -51,7 +55,8 @@ export class ReadingWindows {
         : {}),
     };
   }
-  verify(material, requested, archiveWindow, imageWindow) {
+  verify(material, requested, archiveWindow, imageWindow, pdfVisualWindow) {
+    if(pdfVisualWindow)return this.verifyPdfVisual(material,pdfVisualWindow);
     if(imageWindow){
       const p=material.imagePagination;
       if(!p){if(material.segments?.length)throw Error('INVALID_READER_WINDOW');return;}
@@ -164,7 +169,7 @@ export class ReadingWindows {
           next.expanded < start.expanded ||
           !(
             (next.entry === start.entry &&
-              next.page > start.page &&
+              (next.page > start.page || (start.visual && next.page===start.page && next.tile===start.tile+1)) &&
               next.base === start.base &&
               next.expanded === start.expanded) ||
             (next.entry === start.entry + 1 &&
@@ -177,7 +182,12 @@ export class ReadingWindows {
       )
     )
       invalid();
-    if (p.image) {
+    if(p.pdfVisual){
+      if(!start.visual || p.pdf || p.image)invalid();
+      this.verifyPdfVisual(material,{page:start.page,tile:start.tile,offset:start.offset-start.base},{base:start.base,pagination:p.pdfVisual});
+      const following=p.pdfVisual.next;
+      if(!!following !== (next?.entry===start.entry) || (following && (next.page!==following.page || next.tile!==following.tile || next.offset!==start.base+following.offset)))invalid();
+    } else if (p.image) {
       // page is the server-owned intra-member cursor: PDF page or PNG tile.
       // Image logical offsets count tiles, never characters or pixel bytes.
       if (p.pdf || start.page > 64 || start.offset !== start.base + start.page - 1)
@@ -231,6 +241,43 @@ export class ReadingWindows {
     );
     if (next && next.offset !== end) invalid();
   }
+  verifyPdfVisual(material, requested, {base=0,pagination=material.pdfVisualPagination}={}) {
+    const invalid=()=>{throw Error("INVALID_READER_WINDOW");};
+    const p=pagination;
+    if(!p){if(material.segments?.length)invalid();return;}
+    if(p.failedPage!==undefined && p.failedPage!==true)invalid();
+    if(p.page!==requested.page || p.startTile!==requested.tile || p.startOffset!==requested.offset ||
+      !Number.isSafeInteger(p.totalPages)||p.totalPages<p.page || p.totalPages>2147483647 ||
+      !Number.isSafeInteger(p.nextOffset)||p.nextOffset<p.startOffset)invalid();
+    let offset=requested.offset+base;
+    if(material.segments.length!==material.covered.length)invalid();
+    for(let n=0;n<material.segments.length;n++){
+      const segment=material.segments[n],r=segment.range;
+      if(JSON.stringify(r)!==JSON.stringify(material.covered[n]) || segment.sourceId!==r.sourceId ||
+        r.page!==requested.page || r.start!==offset || ![0,90,180,270].includes(r.rotation))invalid();
+      if(segment.image){
+        validateModelImage(segment.image);
+        if(p.failedPage || r.kind!=="image" || r.end!==r.start+1 || r.tile!==requested.tile || r.dpi!==108 ||
+          r.totalTiles!==p.totalTiles || r.imageWidth!==p.width || r.imageHeight!==p.height ||
+          r.width!==segment.image.width || r.height!==segment.image.height || r.imageHash!==segment.image.hash)invalid();
+      }else if(requested.tile!==1 || r.kind!=="pdf" || r.end!==r.start+[...segment.text].length)invalid();
+      offset=r.end;
+    }
+    if(offset!==p.nextOffset+base)invalid();
+    let expected;
+    if(p.failedPage){
+      if(p.totalTiles!==requested.tile || material.segments.some(s=>s.image) || !material.uncovered.some(r=>r.code!=="PDF_VISUAL_WINDOW_PENDING"))invalid();
+      expected=p.page<p.totalPages?{page:p.page+1,tile:1,offset:p.nextOffset}:null;
+    }else{
+      const columns=Math.ceil(p.width/1024),rows=Math.ceil(p.height/1024),image=material.segments.filter(s=>s.image);
+      if(!Number.isSafeInteger(p.width)||!Number.isSafeInteger(p.height)||p.width<1||p.height<1||p.width>16384||p.height>16384||p.width*p.height>32_000_000||
+        p.totalTiles!==columns*rows || p.totalTiles>64 || requested.tile>p.totalTiles || image.length!==1)invalid();
+      const r=image[0].range,x=((p.startTile-1)%columns)*1024,y=Math.floor((p.startTile-1)/columns)*1024;
+      if(r.x!==x||r.y!==y||r.width!==Math.min(1024,p.width-x)||r.height!==Math.min(1024,p.height-y))invalid();
+      expected=p.startTile<p.totalTiles?{page:p.page,tile:p.startTile+1,offset:p.nextOffset}:p.page<p.totalPages?{page:p.page+1,tile:1,offset:p.nextOffset}:null;
+    }
+    if(JSON.stringify(p.next)!==JSON.stringify(expected))invalid();
+  }
   merge(previous, material) {
     const next = coverageOnly(material);
     if (!previous) return next;
@@ -238,7 +285,7 @@ export class ReadingWindows {
     const uncovered = [
       ...previous.uncovered.filter(
         (r) =>
-          !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code),
+          !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code),
       ),
       ...next.uncovered,
     ];
@@ -261,13 +308,14 @@ export class ReadingWindows {
             ],
           }
         : {}),
+      ...((previous.archivePdfVisualPages||next.archivePdfVisualPages) ? {archivePdfVisualPages:[...new Map([...(previous.archivePdfVisualPages||[]),...(next.archivePdfVisualPages||[])].map(p=>[p.archivePath,p])).values()]} : {}),
       covered,
       uncovered,
       reasons: [
         ...new Set([
           ...previous.reasons.filter(
             (c) =>
-              !["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(c),
+              !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(c),
           ),
           ...next.reasons,
         ]),
@@ -303,7 +351,7 @@ export class ReadingWindows {
     );
     for (const material of materials) {
       const p = material.pagination;
-      const next = material.imagePagination ? material.imagePagination.nextTile || 0 : material.archivePagination
+      const next = material.pdfVisualPagination ? material.pdfVisualPagination.next?.page || 0 : material.imagePagination ? material.imagePagination.nextTile || 0 : material.archivePagination
         ? material.archivePagination.next
           ? 1
           : 0

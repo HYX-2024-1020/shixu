@@ -50,12 +50,12 @@ export async function readArchive(
   }
   const outerExpanded = budget.expanded - (archiveWindow?.expanded || 0);
   let offset = archiveWindow?.offset || 0;
-  let childPagination, childImagePagination;
+  let childPagination, childImagePagination, childVisualPagination;
   let index = archiveWindow?.entry || 0;
   if (
     archiveWindow &&
     (index >= pkg.names.length ||
-      (archiveWindow.page > 1 && !/\.(pdf|png|jpe?g|gif|webp)$/i.test(pkg.names[index])))
+      ((archiveWindow.page > 1 || (archiveWindow.tile||1)>1) && !/\.(pdf|png|jpe?g|gif|webp)$/i.test(pkg.names[index])))
   ) {
     await pkg.close?.();
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -113,7 +113,7 @@ export async function readArchive(
               ? { imageWindow: { tile: archiveWindow?.page || 1 } }
               : {}),
             ...(archiveWindow && extension === "pdf"
-              ? {
+              ? archiveWindow.visual ? {pdfVisualWindow:{page:archiveWindow.page,tile:archiveWindow.tile,offset:archiveWindow.offset-archiveWindow.base}} : {
                   pdfWindow: {
                     page: archiveWindow.page,
                     offset: archiveWindow.offset - archiveWindow.base,
@@ -127,6 +127,7 @@ export async function readArchive(
         continue;
       }
       childPagination = child.pagination;
+      childVisualPagination=child.pdfVisualPagination;
       if(child.decoderMetrics)result.decoderMetrics=child.decoderMetrics;
       childImagePagination = child.imagePagination;
       const base = archiveWindow?.base ?? offset;
@@ -170,7 +171,7 @@ export async function readArchive(
     const path = pkg.names[archiveWindow.entry];
     const nextPage = childPagination?.nextPage ?? childImagePagination?.nextTile;
     const morePages = nextPage > archiveWindow.page;
-    const next = morePages
+    const next = childVisualPagination?.next ? {...archiveWindow,page:childVisualPagination.next.page,tile:childVisualPagination.next.tile,offset} : morePages
       ? { ...archiveWindow, page: nextPage, offset }
       : index < pkg.names.length
         ? {
@@ -179,6 +180,7 @@ export async function readArchive(
             offset,
             base: offset,
             expanded: budget.expanded - outerExpanded,
+            ...(archiveWindow.visual ? {tile:1,visual:1} : {}),
           }
         : null;
     result.archivePagination = {
@@ -187,6 +189,7 @@ export async function readArchive(
       entries: pkg.names.length,
       archivePath: path,
       ...(childPagination ? { pdf: childPagination } : {}),
+      ...(childVisualPagination ? {pdfVisual:childVisualPagination} : {}),
       ...(childImagePagination ? { image: childImagePagination } : {}),
     };
     // Future members are metadata only. They have not been read or modeled.
@@ -198,6 +201,9 @@ export async function readArchive(
         checked: childImagePagination.startTile,
         total: childImagePagination.totalTiles,
       }];
+    if(childVisualPagination)result.archivePdfVisualPages=[{archivePath:path,page:childVisualPagination.page,
+      checked:childVisualPagination.startTile,total:childVisualPagination.totalTiles,totalPages:childVisualPagination.totalPages,
+      failedPage:!!childVisualPagination.failedPage}];
     if (childPagination)
       result.archivePdfPages = [
         {

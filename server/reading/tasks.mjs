@@ -621,7 +621,7 @@ export class ReadingTasks {
     const processingCoverage = {
       partial,
       processed,
-      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code))
+      unread: coverage.flatMap(c => (c.uncovered || []).filter(r => ["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code))
         .map(r => ({...r,name:c.name}))),
       pending: coverage
         .flatMap((c) => c.covered || [])
@@ -713,7 +713,7 @@ export class ReadingTasks {
     this.executions.set(id, execution);
     let excludedMs = 0;
     let safetyStep;
-    const read = async (file, pdfWindow, archiveWindow, imageWindow) => {
+    const read = async (file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow) => {
       const readAt = performance.now(),
         before = excludedMs;
       const deadline = new AbortController();
@@ -793,6 +793,7 @@ export class ReadingTasks {
                 pdfWindow,
                 archiveWindow,
                 imageWindow,
+                pdfVisualWindow,
                 activeBudgetMs,
                 onPhase: (phase) => {
                   if (signal.aborted || finished || this.finalSnapshots) return;
@@ -834,7 +835,7 @@ export class ReadingTasks {
         clearTimeout(drainTimer);
       }
     };
-    const readSafe = async (file, pdfWindow, archiveWindow, imageWindow) => {
+    const readSafe = async (file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow) => {
       for (let retries = 0; ; retries++) {
         if (!this.current(task)) throw Error("READING_ABORTED");
         if (
@@ -843,7 +844,7 @@ export class ReadingTasks {
         )
           throw Error("EXECUTION_LIMIT");
         try {
-          return { ...(await read(file, pdfWindow, archiveWindow, imageWindow)), readRetries: retries };
+          return { ...(await read(file, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow)), readRetries: retries };
         } catch (e) {
           e.readRetries = retries;
           // Only a fixed broker admission rejection proves no worker started.
@@ -898,10 +899,10 @@ export class ReadingTasks {
           materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
             state:'unsupported',covered:[],uncovered:[{kind:'image',code:'IMAGE_PROVIDER_UNSUPPORTED'}],reasons:['IMAGE_PROVIDER_UNSUPPORTED'],segments:[]});return;
         }
-        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true}) : {};
+        const selection = paged ? this.windows.select(id,file,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true}) : {};
         if (selection.skip) return;
-        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
-        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow,selection.imageWindow);
+        const material = await readSafe(file,selection.pdfWindow,selection.archiveWindow,selection.imageWindow,selection.pdfVisualWindow);
+        if (paged) this.windows.verify(material,selection.pdfWindow,selection.archiveWindow,selection.imageWindow,selection.pdfVisualWindow);
         // Archive members require the same image capability gate as top-level
         // images. Never substitute their descriptive placeholder for pixels.
         if (material.segments.some(s => s.image) &&
@@ -969,7 +970,7 @@ export class ReadingTasks {
         if (paged) {
           this.transaction(() => this.windows.advance(id,readable));
           this.dropMaterial(id);
-          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true})) return this.get(id);
+          if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true})) return this.get(id);
         }
         throw Error("NO_READABLE_MATERIAL");
       }
@@ -1176,7 +1177,7 @@ export class ReadingTasks {
       if (paged) {
         this.transaction(() => this.windows.advance(id,readable));
         this.dropMaterial(id);
-        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true})) return this.get(id);
+        if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true})) return this.get(id);
       }
       if (!isChat && this.merge.begin(task)) return this.get(id);
       return this.publish(task, coverage);

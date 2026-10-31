@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D PDF页面视觉与扫描页（#73，整体未完成）
+
+Windows与微信共同显示页面视觉页数/区域进度、108dpi页码像素来源和未处理原因；文字层及页面像素覆盖分开。顶层/ZIP/RAR4/RAR5/7z同任务/费用/停止/原件重新核验/修订复用及双端发布；能力需服务端受控显式启用，旧路径仍标文字层。实际AccountWorkspace/Page Node wx五条签名HTTP链、普通UID及受保护Linux broker temporary/deleted两链、独立完整像素/尾部/发布包通过。官方编译/构建通过，无新本机窗口，原生微信/手机/安装版未验。真实2次，一次校验拒绝、另一次保留关键字段但仍产生页尾硬要求推断，质量缺陷保留；不把字符串检查当作完整准确性。见[页面视觉证据](bcd/pdf-visual-verification.md)。
+
 ## 2026-10-31 B/C/D 根检查点受信审计恢复（#73，整体未完成）
 
 Windows/微信共用已核对提示、累计调用/消费/时间及下一检查点，审核不排队；刷新后须主动继续。旧继续intent及旧创建请求绑定的维护/账号恢复nonce失效，不能借审计自动消费。实际AccountWorkspace和Page/Node wx签名HTTP、普通UID Linux的19页PDF temporary/deleted链通过，原件墓碑不复活、结果/来源/尾部一致。证据中23条seeded合成账本与实际provider模拟数分列，零真实API；未知费用/时间/安全回退仍门禁。无新窗口，官方编译复用未变界面上一批结果；原生微信/手机/安装版未验。见[检查点证据](bcd/checkpoint-audit-verification.md)。

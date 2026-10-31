@@ -10,6 +10,7 @@ const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
 const gifMode = process.argv.includes("--gif");
 const webpMode = process.argv.includes("--webp");
+const pdfMode=process.argv.includes("--pdf-visual"),notice9537=webpMode||pdfMode;
 if (
   !probe ||
   path.dirname(probe) !== path.resolve(tmpdir()) ||
@@ -87,6 +88,7 @@ app
       const rendered = new Resvg(sourceSvg).render();
       phase = "fixture";
       let body = rendered.asPng();
+      if(pdfMode)body=readFileSync(path.join(__dirname,"../server/reading/fixtures/pdf-scan-notice.pdf"));
       if(webpMode)body=readFileSync(path.join(__dirname,"../server/reading/fixtures/webp-notice.webp"));
       if(gifMode){
         const {gifBytes}=await load("server/reading/gif-fixtures.mjs");
@@ -119,20 +121,21 @@ app
           plain.subarray(2),
         ]);
       }
-      const normalized = jpegMode || webpMode
+      const normalized = jpegMode || webpMode || pdfMode
         ? await readMaterial(
             {
               id: "image",
-              name: webpMode ? "合成通知.webp" : "合成旋转照片.jpg",
+              name: pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : "合成旋转照片.jpg",
               body,
               size: body.length,
               hash: sha256(body),
             },
-            { imageWindow: { tile: 1 } },
+            pdfMode ? {pdfVisualWindow:{page:1,tile:1,offset:0}} : { imageWindow: { tile: 1 } },
           )
         : null;
-      if ((jpegMode || webpMode) && normalized.segments.length !== 1)
+      if ((jpegMode || webpMode || pdfMode) && normalized.segments.length !== 1)
         throw Error("JPEG_FIXTURE_NORMALIZATION_FAILED");
+      if(pdfMode){const {decodePng}=await load("server/reading/image.mjs");assert.equal(sha256(decodePng(Buffer.from(normalized.segments[0].image.data,"base64")).pixels),"f5912a611eac1e2563bcf085c199202a82a87d90066f86f56b74e92ad25dc946");}
       ledger = new ReadingLedger(
         process.env.SHIXU_IMAGE_LEDGER_PATH ||
           path.join(probe, "ledger.sqlite"),
@@ -145,7 +148,7 @@ app
       // Only run this small probe in an unambiguous offpeak hour. No inferred
       // holiday calendar and no automatic retries or changes to provider credit.
       let price = prices[1];
-      if (jpegMode || gifMode || webpMode) {
+      if (jpegMode || gifMode || webpMode || pdfMode) {
         const day = new Date(Date.now() + 8 * 3600000)
           .toISOString()
           .slice(0, 10);
@@ -189,7 +192,8 @@ app
       ).result;
       phase = "provider";
       let providerCalls = 0;
-      const provider = createDeepSeekReadingProvider({
+      const modelResponses=[];
+      const actualProvider = createDeepSeekReadingProvider({
         apiKey: key,
         priceAt: () => price.id,
         fetcher: async (...args) => {
@@ -197,6 +201,7 @@ app
           return fetch(...args);
         },
       });
+      const provider=Object.assign(async (...args)=>{const response=await actualProvider(...args);modelResponses.push(response.result);return response;},actualProvider);
       store = new SyncStore(path.join(probe, "tenant.sqlite"));
       createAttachmentStore(store);
       const device = store.createDevice("synthetic-image-development").deviceId;
@@ -221,9 +226,9 @@ app
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
+        name: pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
-        type: webpMode ? "image/webp" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
+        type: pdfMode ? "application/pdf" : webpMode ? "image/webp" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
       });
       put({ attachments: [f] });
@@ -233,6 +238,7 @@ app
         account: "synthetic-image-development",
         reader: Object.assign((file, options) => readMaterial(file, options), {
           pdfWindows: true,
+          pdfVisualWindows:pdfMode,
           imageWindows: true,
         }),
         provider,
@@ -255,17 +261,18 @@ app
                 packet.readingCoverage?.[0]?.covered?.[0]?.orientation === 6,
             }
           : {}),
-        taskNumber: serialized.includes(webpMode ? "9537" : jpegMode ? "8642" : "7319"),
+        taskNumber: serialized.includes(notice9537 ? "9537" : jpegMode ? "8642" : "7319"),
         format: serialized.includes("PDF"),
         filename: serialized.includes("学号_姓名"),
         deadline:
-          serialized.includes(webpMode ? "2026-11-03" : jpegMode ? "2026-11-02" : "2026-10-30") &&
-          serialized.includes(webpMode ? "16:45" : jpegMode ? "17:30" : "18:00"),
+          serialized.includes(notice9537 ? "2026-11-03" : jpegMode ? "2026-11-02" : "2026-10-30") &&
+          serialized.includes(notice9537 ? "16:45" : jpegMode ? "17:30" : "18:00"),
         algorithm: serialized.includes("算法"),
         complexity: serialized.includes("复杂度"),
         ...(gifMode ? {allFrames:packet.readingCoverage?.[0]?.covered?.length===2,
           secondFrameFact:serialized.includes("UTF-8") && serialized.includes("源代码"),
           combined:packet.result?.items?.some(item=>JSON.stringify(item).includes("PDF")&&JSON.stringify(item).includes("UTF-8"))} : {}),
+        ...(pdfMode ? {pageAndPixelSource:packet.readingCoverage?.[0]?.covered?.some(r=>r.page===1&&r.dpi===108&&r.kind==="image"),allPages:packet.readingCoverage?.[0]?.pdfVisualPagination?.next===null} : {}),
         imageWarning:
           packet.result?.warnings?.some((w) =>
             w.includes("图像内容由模型识别"),
@@ -277,7 +284,7 @@ app
         )
         .all();
       const report = {
-        kind: webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
+        kind: pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),
@@ -290,6 +297,7 @@ app
         elapsedMs: performance.now() - started,
         spentMicros: ledger.wallet("synthetic-image-development").spent,
         calls,
+        modelResponses,
         result: packet.result,
         coverage: packet.readingCoverage,
         boundaries: [

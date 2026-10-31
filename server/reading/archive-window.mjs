@@ -13,17 +13,18 @@ export function validateArchiveWindow(value) {
     !value ||
     Array.isArray(value) ||
     typeof value !== "object" ||
-    Object.keys(value).sort().join(",") !== "base,entry,expanded,offset,page" ||
+    !["base,entry,expanded,offset,page","base,entry,expanded,offset,page,tile,visual"].includes(Object.keys(value).sort().join(",")) ||
     Object.values(value).some((n) => !Number.isSafeInteger(n) || n < 0) ||
+    (value.visual !== undefined && (value.visual!==1 || value.tile<1 || value.tile>64)) ||
     value.entry >= 1000 ||
     value.page < 1 ||
     value.page > 2147483647 ||
     value.base > value.offset ||
     value.offset > Number.MAX_SAFE_INTEGER - 8 * 1024 * 1024 ||
     value.expanded > 64 * 1024 * 1024 ||
-    (value.page === 1 && value.base !== value.offset) ||
+    (value.page === 1 && (value.tile||1) === 1 && value.base !== value.offset) ||
     (value.entry === 0 &&
-      value.page === 1 &&
+      value.page === 1 && (value.tile||1) === 1 &&
       (value.offset !== 0 || value.expanded !== 0))
   )
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -33,5 +34,6 @@ export function validateArchiveWindow(value) {
     offset: value.offset,
     base: value.base,
     expanded: value.expanded,
+    ...(value.visual ? {tile:value.tile,visual:1} : {}),
   };
 }

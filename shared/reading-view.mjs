@@ -8,6 +8,17 @@ export function mergeProgressView(phase, completed) {
   return phase === "merging" ? `语义核对 · 已完成 ${Number.isSafeInteger(completed) && completed >= 0 ? completed : 0} 批（共用累计费用）` : "";
 }
 const reasons = {
+  PDF_VISUAL_UNSUPPORTED:"服务端页面视觉读取尚未启用，不能把文字层当作扫描页已读",
+  PDF_VISUAL_TOOL_UNSUPPORTED:"服务端固定页面渲染工具未就绪",
+  PDF_VISUAL_PIXEL_LIMIT:"PDF页面或中间画布超过隔离像素范围，本页视觉未完成",
+  PDF_VISUAL_FONT_UNSUPPORTED:"页面缺少必要字体轮廓，本页视觉未完整读取",
+  PDF_VISUAL_RENDER_WARNING:"页面渲染存在缺失或不支持内容，本页视觉未完整读取",
+  PDF_VISUAL_RGB_BOUNDS:"页面图像样本长度与声明不符，本页视觉未完成",
+  PDF_VISUAL_RENDER_FAILED:"PDF页面渲染失败，本页视觉未完成",
+  PDF_EXTERNAL_RESOURCE_UNSUPPORTED:"页面所需外部字体或资源未加载",
+  PDF_ANNOTATION_UNREAD:"页面批注或表单外观尚未读取",
+  PDF_VISUAL_WINDOW_PENDING:"后续PDF页面或区域尚未读取",
+
   IMAGE_PROVIDER_UNSUPPORTED:'服务端安全图像读取或模型图像输入尚未就绪',
   IMAGE_WINDOW_PENDING:'后续图像区域等待读取，尚未进入整理结果',
   PNG_ENCODING_UNSUPPORTED:'此PNG位深或编码方式暂不支持',
@@ -109,7 +120,7 @@ function location(range) {
   }
   if(range.kind==='image'){
     const n=v=>Number.isSafeInteger(v)&&v>=0;
-    if([range.x,range.y,range.width,range.height].every(n))return `图像模型识别 · ${range.frame?`第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · `:''}第 ${range.tile} 块 · ${range.orientation>1?'按原图方向校正 · ':''}像素(${range.x},${range.y},${range.width},${range.height})`;
+    if([range.x,range.y,range.width,range.height].every(n))return `${Number.isSafeInteger(range.page)&&range.page>0?`PDF 第 ${range.page} 页（${range.dpi||108}dpi） · `:""}图像模型识别 · ${range.frame?`第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · `:''}第 ${range.tile} 块 · ${range.orientation>1?'按原图方向校正 · ':''}像素(${range.x},${range.y},${range.width},${range.height})`;
     return Number.isSafeInteger(range.tile)?`图像第 ${range.tile}${range.tileEnd?'–'+range.tileEnd:''} 块`:'整份图像';
   }
   if (range.kind === "pdf") {
@@ -242,10 +253,16 @@ export function pdfProgressView(summary) {
       pdfPages: p,
     }))];
   });
-  return rows.filter(c => c.pdfPages && Number.isSafeInteger(c.pdfPages.checked) &&
+  const visual=summary.flatMap(c=>{
+    if(!c||typeof c!=="object")return [];
+    return [...(c.pdfVisual?[{name:c.name,...c.pdfVisual}]:[]),...(c.archivePdfVisualPages||[]).map(p=>({...p,name:`${c.name} · 包内 “${p.archivePath}”`}))];
+  }).filter(p=>Number.isSafeInteger(p.page)&&p.page>0&&Number.isSafeInteger(p.totalPages)&&p.totalPages>=p.page).map(p=>
+    `${String(p.name||"PDF").slice(0,740)}：页面视觉 · 第 ${p.page} / ${p.totalPages} 页 · ${p.failedPage?"本页视觉未完成":`已检查 ${p.startTile||p.checked} / ${p.totalTiles||p.total} 个区域（108dpi）`}`);
+  const text=rows.filter(c => c.pdfPages && Number.isSafeInteger(c.pdfPages.checked) &&
     Number.isSafeInteger(c.pdfPages.total) && c.pdfPages.total > 0 && c.pdfPages.checked >= 0 &&
     c.pdfPages.checked <= c.pdfPages.total).map(c =>
-      `${typeof c.name === "string" ? c.name.slice(0, 740) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`).join("；");
+      `${typeof c.name === "string" ? c.name.slice(0, 740) : "PDF"}：已检查 ${c.pdfPages.checked} / ${c.pdfPages.total} 页`);
+  return [...text,...visual].join("；");
 }
 
 export function imageProgressView(summary){

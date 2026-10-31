@@ -75,3 +75,10 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 固定Google libwebp1.6.0，来源 https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz ，SHA-256 e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564，BSD三条款及附加专利授权。构建与发布完整保留上游COPYING、PATENTS、AUTHORS、精确原始源码包、项目源码补丁和stdin-only适配器，不改称本项目MIT。`scripts/patch-reading-webp.mjs`严格终态修正与原生适配器为项目自作，具体兼容子集见docs/bcd/webp-verification.md。工具只静态链接解码/解复用所需组件及规范终态校验用布尔写入器。
 
 WebP fixtures和goldens为项目自有合成图案，经Pillow12.3.0（HPND）独立编码/合成并固定全像素hash；生成脚本不进入生产依赖。9537通知是项目合成文字，经已有resvg/本机开发字体栅格化后Pillow编码，无字体文件或私人材料再分发。普通测试不依赖Python/Pillow。
+
+
+## 受控PDF页面渲染（2026-10-31，Issue #73）
+
+沿用锁定PDF.js6.2.108（Apache-2.0）与现有optional依赖@napi-rs/canvas1.0.13。专用渲染包局部修正Node Map/toHex兼容及RGB→RGBA末批来源偏移，不修改旧文字层bundle，不加载系统/用户字体或URL图像。来源 https://github.com/mozilla/pdf.js 与 https://github.com/Brooooooklyn/canvas/tree/00a115d9903647f116daf86eccd2c6ba36128371 。精确npm源包SRI、平台SBOM、运行文件hash与源材料随包保留。
+
+Canvas封装MIT及Chromium图标版权、Skia BSD和原生/Rust依赖各自许可见`server/reading/pdf-canvas-notices.LICENSE`、完整发布SBOM及`server/reading/pdf-canvas-sources/provenance.json`，不能全部改称MIT。127份registry源crate按SBOM SHA-256核验，12份原生组件按精确Git版本保留许可；Freetype采用FTL。四份MPL-2.0依赖cssparser/cssparser-macros/dtoa-short/selectors的完整未修改对应源码以.crate随发布提供，源地址/校验及补充版权见同目录说明。生成器`scripts/collect-pdf-canvas-notices.py`只读公开依赖材料。扫描PDF及像素图案均为项目合成；9537通知沿既有WebP合成文字栅格图，没有私人资料或字体文件再分发。

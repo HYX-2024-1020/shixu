@@ -112,7 +112,7 @@ export async function runClientLoop({
     reader: Object.assign(async (...args) => {
       parserRuns++;
       return reader(...args);
-    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true,imageWindows:reader.imageWindows===true}),
+    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true,imageWindows:reader.imageWindows===true,pdfVisualWindows:reader.pdfVisualWindows===true}),
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {
@@ -123,7 +123,7 @@ export async function runClientLoop({
         enter();
         if (!auditAfterReadLimit && !auditUnknownTime && !costAudit) await held;
       }
-      tailSeen ||= sources.some((s) => s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
+      tailSeen ||= sources.some((s) => (original?.tailSourceSuffix && s.id.endsWith(original.tailSourceSuffix)) || s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
       return {
         usage: { prompt_tokens: 10, completion_tokens: 10 },
         result: {
@@ -647,7 +647,7 @@ export async function runClientLoop({
       JSON.parse(JSON.stringify(win.result)),
       JSON.parse(JSON.stringify(mini.result)),
     );
-    assert.equal(cloud.readJobs().find((j) => j.id === task.id).state, "done");
+    assert.equal(cloud.readJobs().find((j) => j.id === task.id).state, "done",JSON.stringify(cloud.readJobs().find(j=>j.id===task.id)));
     if (failLocalWrite)
       assert.match(cloud.status().localSaveNotice, /保存失败/);
     const winTask = cloud.readJobs().find((j) => j.id === task.id);

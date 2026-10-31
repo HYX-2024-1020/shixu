@@ -39,6 +39,7 @@
     "mini:compile": "node scripts/check-miniprogram-compiler.mjs",
     "reading:archive:build": "node scripts/build-reading-archive.mjs",
     "reading:webp:build": "node scripts/build-reading-webp.mjs",
+    "reading:pdf:visual:build": "node scripts/build-reading-pdf-visual.mjs",
     "test:mini": "node --test miniprogram/tests/*.test.cjs",
     "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs"
   },

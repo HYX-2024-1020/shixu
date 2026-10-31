@@ -18,7 +18,7 @@ const files = [
   "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",
   "server/reading/xlsx.mjs", "server/reading/ooxml-xml.mjs",
   "server/reading/xlsx-reader.cjs", "server/reading/xlsx-reader.LICENSE",
-  "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
+  "server/reading/pdf-visual.mjs", "server/reading/pdf-canvas.mjs", "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
   "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/webp.mjs",
@@ -36,7 +36,8 @@ const hash = (data) => createHash("sha256").update(data).digest("hex");
 // independently evolving desktop/miniprogram builds out of the server release.
 export async function buildRelease(output) {
   const native="server/reading/generated-native/";
-  const releaseFiles=[...files,...["manifest.json","License.txt","source/7z2605-src.tar.xz","source/build-reading-archive.mjs",
+  const visual="server/reading/generated-pdf-visual/"+process.platform+"-"+process.arch+"/";
+  const releaseFiles=[...files,...["manifest.json","canvas.cjs","skia.node",...(process.platform==="win32"?["icudtl.dat"]:[]),"sbom.cdx.json","canvas.LICENSE","pdf.LICENSE","third-party.LICENSE","api.mjs","core.mjs","source/build-reading-pdf-visual.mjs","source/cssparser-0.38.0.crate","source/cssparser-macros-0.7.0.crate","source/dtoa-short-0.3.5.crate","source/selectors-0.41.0.crate","source/provenance.json","source/upstream-notices.json","source/canvas-1.0.13.tgz","source/canvas-"+(process.platform==="win32"?"win32-x64-msvc":"linux-x64-gnu")+"-1.0.13.tgz"].map(f=>visual+f),...["manifest.json","License.txt","source/7z2605-src.tar.xz","source/build-reading-archive.mjs",
     "reading-7zz"+(process.platform === "win32"?".exe":"")].map(f=>native+f),
     ...["manifest.json","COPYING","PATENTS","AUTHORS","source/libwebp-1.6.0.tar.gz","source/build-reading-webp.mjs","source/patch-reading-webp.mjs","source/webp-reader.c",
       "reading-webp"+(process.platform==="win32"?".exe":"")].map(f=>"server/reading/generated-webp/"+f)];

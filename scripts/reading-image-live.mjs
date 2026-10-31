@@ -30,6 +30,7 @@ try {
         ...(process.argv.includes("--jpeg") ? ["--jpeg"] : []),
         ...(process.argv.includes("--gif") ? ["--gif"] : []),
         ...(process.argv.includes("--webp") ? ["--webp"] : []),
+        ...(process.argv.includes("--pdf-visual") ? ["--pdf-visual"] : []),
         ...(process.argv.includes("--chat") ? ["--chat"] : []),
         ...(process.argv.includes("--merge") ? ["--merge"] : []),
         ...(process.argv.includes("--prepare-only") ? ["--prepare-only"] : []),
