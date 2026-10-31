@@ -1,3 +1,6 @@
 # Historical synthetic UI-fixture signing secret, never a provider credential.
 # Current source uses an obviously non-secret repeated fixture word instead.
 0d4d6a3466f4ba1970d6984266cb94e3f266c552:scripts/account-ui-fixture.mjs:generic-api-key:23
+
+# Public generated PDF.js api.mjs SHA256, verified in the build manifest; no credential.
+30b82e54b6b273b09d99b73dfb29dc3537d7eeea:docs/bcd/evidence/pdf-visual-windows-build.json:generic-api-key:35

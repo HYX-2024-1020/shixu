@@ -40,3 +40,5 @@ Windows实际AccountWorkspace与实际Page/Node wx签名HTTP，顶层/ZIP/RAR4/R
 [Windows构建清单](evidence/pdf-visual-windows-build.json)记录固定npm包SRI、运行文件和source哈希。构建只使用既有锁定版本，不引入宿主字体或网络数据进PDF。`pdf-canvas-notices.LICENSE`保留发布SBOM中127份registry Rust组件及12份原生依赖的对应许可/版权；缺包级文件的组件补 exact Git notice，Skia源子模块版本固定，Freetype使用FTL选项。四份MPL源crate完整未修改随发布保留，详见[源材料说明](../../server/reading/pdf-canvas-sources/README.md)。第三方许可证不改称仓库MIT。
 
 Office必要图像/对象、未支持PDF资源/字体/批注/高级编码、solid及真正大材料流式、图像事实依据质量、历史投递关联AI、安全回放/正式迁移与真实外部证据源仍有实施工作。继续#73/#69，不据本批宣布B/C/D全部完成，整体验收另行执行。
+
+CI 后续修正：30b82e5 的 Windows/Browser/PR policy 通过；Core 的 WebP 无工具隔离测试遗漏新增 PDF 依赖（非产品解码失败），已补齐复制清单并本机通过。Secret scan 唯一命中为公开构建证据 `api.mjs` 的 SHA256，按历史提交/路径/规则/行号精确记录误报，不排除目录或规则；全历史扫描须在修正头重新通过。
