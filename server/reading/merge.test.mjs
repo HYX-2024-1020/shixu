@@ -4,6 +4,16 @@ import { mergeFixture, finishMerge } from "./merge-fixtures.mjs";
 import { validateMerge, assembleMerge } from "./merge.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 
+test("a notice that restates the same action can merge while retaining the action kind and every fact/source",()=>{
+  const items=[{id:"notice",item:{kind:"notice",title:"报告通知",summary:"通知背景",facts:["PDF"],evidence:[{sourceId:"a",quote:"合成报告"}],due:null}},
+    {id:"action",item:{kind:"task",title:"提交报告",summary:"提交实验报告",facts:["UTF-8源代码"],evidence:[{sourceId:"b",quote:"另附源代码"}],due:null}}];
+  const decision=validateMerge({same:[["notice","action"]],related:[]},items);
+  const merged=assembleMerge(items,[decision]);assert.equal(merged.items.length,1);assert.equal(merged.items[0].kind,"task");
+  assert.equal(merged.items[0].title,"提交报告");assert.equal(merged.items[0].evidence.length,2);
+  assert.ok(merged.items[0].facts.includes("PDF"));assert.ok(merged.items[0].facts.includes("UTF-8源代码"));
+  assert.throws(()=>validateMerge({same:[["notice","action"]],related:[]},[{...items[0],item:{...items[0].item,kind:"idea"}},items[1]]),/INVALID_MERGE_CONFLICT/);
+});
+
 test("bounded semantic pairs visit distant chunk members without truncating any item",async t=>{
   let mergeCalls=0;
   const provider=Object.assign(async sources=>({usage:{prompt_tokens:10,completion_tokens:10},result:{summary:"合成40项",warnings:[],items:Array.from({length:40},(_,i)=>({kind:"task",title:"独立合成事项"+i,summary:"保留"+i,facts:["尾部要求"+i],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text.slice(0,8)}]}))}}),{merge:async sources=>{
@@ -36,7 +46,7 @@ test("semantic grouping crosses paid blocks, keeps all facts, evidence, order an
   assert.equal(f.ledger.wallet("synthetic").spent, 60);
   assert.equal(f.tasks.roots.stats("task").calls, 3);
   assert.deepEqual(p.semanticMerge, {
-    version: "paid-semantic-pairs/1",
+    version: "paid-semantic-pairs/2",
     originalItems: 2,
     mergedItems: 1,
     complete: true,

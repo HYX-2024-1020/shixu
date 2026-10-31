@@ -70,7 +70,7 @@ export class ReadingWindows {
         JSON.stringify(material.segments[0].range)!==JSON.stringify(r))
         throw Error('INVALID_READER_WINDOW');
       validateModelImage(image);
-      if (/\.gif$/i.test(r.archivePath || material.name) && p.totalFrames === undefined)throw Error('INVALID_READER_WINDOW');
+      if (/\.(gif|webp)$/i.test(r.archivePath || material.name) && p.totalFrames === undefined)throw Error('INVALID_READER_WINDOW');
       if(p.totalFrames!==undefined || r.frame!==undefined){
         if(r.totalFrames!==frames || p.frame!==r.frame || r.frame!==Math.floor((p.startTile-1)/(columns*rows))+1 ||
           !Number.isSafeInteger(r.frameStartMs)||r.frameStartMs<0||r.frameStartMs!==p.frameStartMs||

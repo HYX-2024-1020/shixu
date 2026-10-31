@@ -36,13 +36,17 @@ export function inspectGif(bytes) {
     return b;
   };
   const blocks = () => {
-    const chunks = [];
+    const start = offset;
+    let size = 0;
     for (;;) {
       const n = take(1)[0];
       if (!n) break;
-      chunks.push(take(n));
+      take(n); size += n;
     }
-    return Buffer.concat(chunks);
+    // Two passes avoid millions of Buffer views for legal tiny sub-blocks.
+    const data=Buffer.alloc(size);
+    for(let p=start,out=0;bytes[p];){const n=bytes[p++];bytes.copy(data,out,p,p+n);p+=n;out+=n;}
+    return data;
   };
   if (packed & 128) {
     globalPalette = take(3 * (1 << ((packed & 7) + 1)));

@@ -9,6 +9,7 @@ const { pathToFileURL } = require("node:url");
 const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
 const gifMode = process.argv.includes("--gif");
+const webpMode = process.argv.includes("--webp");
 if (
   !probe ||
   path.dirname(probe) !== path.resolve(tmpdir()) ||
@@ -86,6 +87,7 @@ app
       const rendered = new Resvg(sourceSvg).render();
       phase = "fixture";
       let body = rendered.asPng();
+      if(webpMode)body=readFileSync(path.join(__dirname,"../server/reading/fixtures/webp-notice.webp"));
       if(gifMode){
         const {gifBytes}=await load("server/reading/gif-fixtures.mjs");
         const second=new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="white"/><g fill="black" font-family="Microsoft YaHei" font-size="32"><text x="40" y="150">提交报告编号7319时，另附源代码。</text><text x="40" y="230">源代码须为UTF-8编码。</text><text x="40" y="500">尾部补充核对：7319。</text></g></svg>`).render();
@@ -117,11 +119,11 @@ app
           plain.subarray(2),
         ]);
       }
-      const normalized = jpegMode
+      const normalized = jpegMode || webpMode
         ? await readMaterial(
             {
               id: "image",
-              name: "合成旋转照片.jpg",
+              name: webpMode ? "合成通知.webp" : "合成旋转照片.jpg",
               body,
               size: body.length,
               hash: sha256(body),
@@ -129,7 +131,7 @@ app
             { imageWindow: { tile: 1 } },
           )
         : null;
-      if (jpegMode && normalized.segments.length !== 1)
+      if ((jpegMode || webpMode) && normalized.segments.length !== 1)
         throw Error("JPEG_FIXTURE_NORMALIZATION_FAILED");
       ledger = new ReadingLedger(
         process.env.SHIXU_IMAGE_LEDGER_PATH ||
@@ -143,7 +145,7 @@ app
       // Only run this small probe in an unambiguous offpeak hour. No inferred
       // holiday calendar and no automatic retries or changes to provider credit.
       let price = prices[1];
-      if (jpegMode || gifMode) {
+      if (jpegMode || gifMode || webpMode) {
         const day = new Date(Date.now() + 8 * 3600000)
           .toISOString()
           .slice(0, 10);
@@ -219,9 +221,9 @@ app
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
+        name: webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
-        type: gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
+        type: webpMode ? "image/webp" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
       });
       put({ attachments: [f] });
@@ -253,12 +255,12 @@ app
                 packet.readingCoverage?.[0]?.covered?.[0]?.orientation === 6,
             }
           : {}),
-        taskNumber: serialized.includes(jpegMode ? "8642" : "7319"),
+        taskNumber: serialized.includes(webpMode ? "9537" : jpegMode ? "8642" : "7319"),
         format: serialized.includes("PDF"),
         filename: serialized.includes("学号_姓名"),
         deadline:
-          serialized.includes(jpegMode ? "2026-11-02" : "2026-10-30") &&
-          serialized.includes(jpegMode ? "17:30" : "18:00"),
+          serialized.includes(webpMode ? "2026-11-03" : jpegMode ? "2026-11-02" : "2026-10-30") &&
+          serialized.includes(webpMode ? "16:45" : jpegMode ? "17:30" : "18:00"),
         algorithm: serialized.includes("算法"),
         complexity: serialized.includes("复杂度"),
         ...(gifMode ? {allFrames:packet.readingCoverage?.[0]?.covered?.length===2,
@@ -275,7 +277,7 @@ app
         )
         .all();
       const report = {
-        kind: gifMode ? "synthetic-real-animated-gif-development" : jpegMode
+        kind: webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),

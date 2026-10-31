@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { encodingPng } from "../server/reading/png-encoding-fixtures.mjs";
 import { encodePng } from "../server/reading/image.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
@@ -20,6 +21,7 @@ export async function runImageClients({
   sixteen = false,
   jpeg = false,
   gif = false,
+  webp = false,
 }) {
   const width = 2051,
     height = 4;
@@ -40,14 +42,22 @@ export async function runImageClients({
     ? await import("../server/reading/jpeg-fixtures.mjs")
     : null;
   const gifFixture = gif ? await import("../server/reading/gif-fixtures.mjs") : null;
-  const imageBody = gif ? gifFixture.gifBytes({width,height}) : jpeg
+  const imageBody = webp ? await readFile(new URL("../server/reading/fixtures/webp-wide.webp",import.meta.url)) : gif ? gifFixture.gifBytes({width,height}) : jpeg
     ? jpegFixture.jpegSample({ width: height, height: width, orientation: 6 })
         .body
     : encoded?.body || encodePng(width, height, pixels);
   if(gif) pixels=(await import("../server/reading/gif.mjs")).decodeGif(imageBody).pixels;
+  if(webp){
+    const {decodeWebp}=await import("../server/reading/webp.mjs");
+    for(let tile=1;tile<=3;tile++){const image=await decodeWebp(imageBody,tile);
+      for(let y=0;y<height;y++)image.pixels.copy(pixels,(y*width+image.x)*4,y*image.tileWidth*4,(y+1)*image.tileWidth*4);}
+    const golden=JSON.parse(await readFile(new URL("../server/reading/fixtures/webp-goldens.json",import.meta.url),"utf8")).files["webp-wide.webp"];
+    assert.equal(sha256(pixels),golden.frames[0].pixelsHash);
+  }
+  const imagePath=webp ? "02.webp" : gif ? "02.gif" : jpeg ? "02.jpg" : "02.png";
   const entries = {
     "01.txt": Buffer.from("包内前言"),
-    [gif ? "02.gif" : jpeg ? "02.jpg" : "02.png"]: imageBody,
+    [imagePath]: imageBody,
     "03.txt": Buffer.from("尾部唯一标记"),
   };
   const body = !archiveFormat
@@ -71,12 +81,12 @@ export async function runImageClients({
     original: {
       name: archiveFormat
         ? "包内图像." + (archiveFormat === "rar4" ? "rar" : archiveFormat)
-        : gif ? "合成图像.gif" : jpeg
+        : webp ? "合成图像.webp" : gif ? "合成图像.gif" : jpeg
           ? "合成图像.jpg"
           : "合成图像.png",
       type: archiveFormat
         ? "application/octet-stream"
-        : gif ? "image/gif" : jpeg
+        : webp ? "image/webp" : gif ? "image/gif" : jpeg
           ? "image/jpeg"
           : "image/png",
       body,
@@ -87,7 +97,7 @@ export async function runImageClients({
         if (archiveFormat) {
           assert.equal(c.archivePagination.next, null);
           assert.deepEqual(c.archiveImageTiles, [
-            { archivePath: gif ? "02.gif" : jpeg ? "02.jpg" : "02.png", checked: 3, total: 3 },
+            { archivePath: imagePath, checked: 3, total: 3 },
           ]);
         } else {
           assert.equal(c.imagePagination.nextTile, null);
@@ -96,7 +106,7 @@ export async function runImageClients({
         const images = c.covered.filter((r) => r.kind === "image");
         if (archiveFormat)
           assert.ok(
-            images.every((r) => r.archivePath === (gif ? "02.gif" : jpeg ? "02.jpg" : "02.png")),
+            images.every((r) => r.archivePath === imagePath),
           );
         assert.deepEqual(
           images.map((r) => [r.tile, r.x, r.y, r.width, r.height]),

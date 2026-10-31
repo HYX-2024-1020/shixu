@@ -22,3 +22,4 @@ Thumbs.db
 !.env.sync.example
 project.private.config.json
 server/reading/generated-native/
+server/reading/generated-webp/

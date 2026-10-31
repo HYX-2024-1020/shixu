@@ -1,3 +1,5 @@
+2026-10-31：WebP静态/动画严格解码、原生RSS测量与notice→行动语义去重已补；见[WebP开发证据](webp-verification.md)。接续真实13次、usage估算¥0.024188；建议推断限制保留。B/C/D继续实施，未最终验收。
+
 2026-10-31 GIF逐帧合成与双端/真实闭环已补，边界见[GIF证据](gif-verification.md)。WebP及其余缺口继续。
 
 2026-10-31本接续：静态16位PNG、跨块/区域语义合并及全部上游依赖hash、事项对话真实质量已新增。见[16位证据](png-sixteen-verification.md)与[语义/真实质量证据](semantic-verification.md)。历史付费块缺独立凭据时不得自动补签，正式迁移/核对仍待实现。
@@ -9,7 +11,7 @@
 | 范围 | 已有实施 | 仍未完成/证据门禁 |
 | --- | --- | --- |
 | B文字/Office/PDF | TXT/CSV/DOCX/XLSX原字节、来源/Unicode窗口；顶层和包内PDF最多8页及仅元数据游标，固定241页全文/尾部 | 扫描及必要视觉内容；Office图像/对象/视觉布局；更大成员/材料真正流式及稳定内存边界 |
-| B图像 | JPEG/JPG（含8种EXIF方向、顺序/渐进与严格终态）、GIF逐帧/处置/时间合成及静态PNG（8/16位、1/2/4位灰度/调色板及Adam7）隔离解码/1024瓦片/像素坐标/模型输入，顶层与ZIP/RAR4/RAR5/7z包内同任务费用/恢复；[归档图像证据](archive-images-verification.md)；[PNG证据](image-verification.md)与[JPEG证据](jpeg-verification.md)合计真实API2次 | WebP、ICC/CMYK/多图等JPEG未支持特性、高级色彩/动画；跨区域边缘文字识别质量；PDF扫描渲染；Office内图像 |
+| B图像 | JPEG/JPG（含8种EXIF方向、顺序/渐进与严格终态）、WebP严格规范子集静态/动画、GIF逐帧/处置/时间合成及静态PNG（8/16位、1/2/4位灰度/调色板及Adam7）隔离解码/1024瓦片/像素坐标/模型输入，顶层与ZIP/RAR4/RAR5/7z包内同任务费用/恢复；[归档图像证据](archive-images-verification.md)；[PNG证据](image-verification.md)与[JPEG证据](jpeg-verification.md)合计真实API2次 | ICC/CMYK/多图等JPEG未支持特性、高级色彩/动画；跨区域边缘文字识别质量；PDF扫描渲染；Office内图像 |
 | B归档 | ZIP及非solid RAR4明确编码/RAR5/7z，固定源自建工具协议2、完整预检和共享64MiB预算；[RAR4证据](rar4-verification.md) | solid逐成员压缩比/共享块预算，未知旧代码页/未实现RAR4特性；更大压缩成员真正流式；不得放宽安全限制假装支持 |
 | C任务/费用 | 独立账本/原子预留、usage/unknown、全站公平/每账号槽、停止generation、付费块/信封复用、分页/原子发布、根1800秒/24调用和独立水位；同投递跨修订精确复用；[语义合并及完整上游hash依赖](semantic-verification.md)；[事项对话共账](chat-verification.md)、独立意图/付费凭据、双端发布与恢复 | 跨历史投递关联AI共账；极大事项集合的语义核对性能；供应商可证明安全的重试（当前只对broker明确未执行的读取429有限退避） |
 | C维护恢复 | 已知时限扩展、未知费用最终证据结算/未计费、未知时间保守补计的受信宿主原语；旧动作/旧新建收据门禁；[时间证据](time-audit-verification.md) | 真实供应商账单源/调用关联、真实宿主终止/活跃时间证据接线；历史检查点/无进度、资料回退审计；完整独立安全事件及重放保护，正式迁移底层和合成演练 |

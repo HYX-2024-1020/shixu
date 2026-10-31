@@ -73,6 +73,7 @@ jobs:
       - run: node --test scripts/stage-a/*.test.mjs
       - run: node scripts/stage-a/rehearse.mjs
       - run: npm run reading:archive:build
+      - run: npm run reading:webp:build
       - run: node --test server/reading/*.test.mjs
       - run: npm run build
       - run: npm run test:server
@@ -123,6 +124,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run reading:archive:build
+      - run: npm run reading:webp:build
       - run: npm run test:desktop
       - run: npm run desktop:build
       - run: npm run test:desktop:ui

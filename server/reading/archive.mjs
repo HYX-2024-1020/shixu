@@ -55,7 +55,7 @@ export async function readArchive(
   if (
     archiveWindow &&
     (index >= pkg.names.length ||
-      (archiveWindow.page > 1 && !/\.(pdf|png|jpe?g|gif)$/i.test(pkg.names[index])))
+      (archiveWindow.page > 1 && !/\.(pdf|png|jpe?g|gif|webp)$/i.test(pkg.names[index])))
   ) {
     await pkg.close?.();
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -70,7 +70,7 @@ export async function readArchive(
         continue;
       }
       const extension = /\.([^.\/]+)$/.exec(path)?.[1].toLowerCase();
-      if (!["txt", "csv", "docx", "xlsx", "pdf", "png", "jpg", "jpeg", "gif"].includes(extension)) {
+      if (!["txt", "csv", "docx", "xlsx", "pdf", "png", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
         missing("FORMAT_UNSUPPORTED", path);
         continue;
       }
@@ -109,7 +109,7 @@ export async function readArchive(
           {
             windowCodepoints,
             expansionBudget: budget,
-            ...(["png", "jpg", "jpeg", "gif"].includes(extension)
+            ...(["png", "jpg", "jpeg", "gif", "webp"].includes(extension)
               ? { imageWindow: { tile: archiveWindow?.page || 1 } }
               : {}),
             ...(archiveWindow && extension === "pdf"
@@ -127,6 +127,7 @@ export async function readArchive(
         continue;
       }
       childPagination = child.pagination;
+      if(child.decoderMetrics)result.decoderMetrics=child.decoderMetrics;
       childImagePagination = child.imagePagination;
       const base = archiveWindow?.base ?? offset;
       for (const segment of child.segments) {

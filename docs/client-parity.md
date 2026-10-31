@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D WebP和通知语义去重（#73，整体未完成）
+
+Windows与微信共同接收静态/动画WebP的安全PNG区域，沿相同帧序/时间/像素/包内路径及停止补传/修订复用；不支持编码和工具缺失明确未读。同一行动的notice可并入task/event，保留类型、事实与来源，独立通知/日期冲突不混合。实际AccountWorkspace和Page/Node wx签名HTTP动画、受保护Linux broker temporary/deleted双端链、官方编译通过；真实小样本保留关键字段，但建议推断仍有质量限制。无新增本机UI窗口，原生微信/手机/安装版未验。见[WebP证据](bcd/webp-verification.md)。
+
 ## 2026-10-31 B/C/D GIF帧序与时间（#73，整体未完成）
 
 Windows/微信共同接收GIF逐帧合成后的安全PNG区域，来源显示第几帧、起始/持续毫秒和像素坐标，包内路径/区域总进度沿用；循环只展开一遍，不只读取首帧。双端说明同步；未支持扩展和累计像素超限明确未读。AccountWorkspace与实际Page/Node wx签名HTTP动画停止/补传/语义合并、普通UID受保护Linux broker temporary/deleted两链通过；真实两帧通知模型2次＋合并1次保留第二帧要求。官方编译/构建通过，无本机窗口，原生微信/手机/安装版未验。见[GIF证据](bcd/gif-verification.md)，其余B/C/D仍继续。

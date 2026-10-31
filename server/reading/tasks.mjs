@@ -15,7 +15,7 @@ import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { ReadingChat } from './chat.mjs';
-import { ReadingMerge } from './merge.mjs';
+import { ReadingMerge, MERGE_VERSION } from './merge.mjs';
 import { isImageName } from './image.mjs';
 
 const active = ["queued", "running", "applying"];
@@ -40,7 +40,7 @@ const error = (code) =>
 const versions = {
   reader: READER_VERSION,
   normalization: NORMALIZATION_VERSION,
-  prompt: "reading/2-original-windows",
+  prompt: "reading/3-visual-grounding",
   schema: "bucket/1",
 };
 
@@ -641,7 +641,7 @@ export class ReadingTasks {
               target: `${task.packet}#${id}_item_${target}`, relation: "related", reason: "本次投递已读取事项的模型语义关联",
               title: result.items[from].group || result.items[from].title,
             })) },
-            semanticMerge: { version: "paid-semantic-pairs/1", originalItems: semantic.originalItems,
+            semanticMerge: { version: MERGE_VERSION, originalItems: semantic.originalItems,
               mergedItems: semantic.mergedItems, complete: !partial },
           } : {}),
           sources: [],

@@ -19,6 +19,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
 
+test("GIF tiny comment sub-blocks remain bounded and cannot enter model input",async()=>{
+  const original=gifBytes({width:2,height:1});
+  const data=Buffer.alloc(2*1024*1024);for(let i=0;i<data.length;i+=2){data[i]=1;data[i+1]=65;}
+  const body=Buffer.concat([original.subarray(0,25),Buffer.from([0x21,0xfe]),data,Buffer.from([0]),original.subarray(25)]);
+  const material=await readMaterial({id:"gif",name:"tiny.gif",body,size:body.length,hash:sha256(body)},{imageWindow:{tile:1}});
+  assert.equal(material.state,"read");assert.equal(material.segments.length,1);assert.ok(!material.segments[0].text.includes("AAAA"));
+  assert.deepEqual(decodePng(Buffer.from(material.segments[0].image.data,"base64")).pixels,decodeGif(original).pixels);
+});
+
 test("GIF dictionary widths, interlace, local palettes, animation disposal and all pixels match independent Pillow goldens", () => {
   const golden = JSON.parse(
     readFileSync(new URL("./fixtures/gif-goldens.json", import.meta.url)),

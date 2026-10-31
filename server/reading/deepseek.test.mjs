@@ -14,7 +14,7 @@ test("semantic provider uses bounded paid-item context, reference-only edges and
     assert.equal(b.tools,undefined);assert.equal(b.stream,false);
     return Response.json({usage:{prompt_tokens:20,completion_tokens:10},choices:[{finish_reason:"stop",message:{content:'{"same":[],"related":[]}'}}]});
   }});
-  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/1",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
+  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/2",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
   const prepared=provider.merge.prepare(sources);assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));
   assert.deepEqual((await provider.merge(sources,undefined,{prepared})).result,{same:[],related:[]});assert.equal(calls,1);
   assert.throws(()=>provider.merge.prepare([{...sources[0],image:{}}]),/INVALID_PROVIDER_INPUT/);

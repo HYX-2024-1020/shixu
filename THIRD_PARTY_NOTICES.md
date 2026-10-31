@@ -68,3 +68,10 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 `server/reading/gif.mjs`、最小fixture编码器由本项目按CompuServe GIF87a/89a规范自行实现，没有复制第三方解码源码。规范来源 https://www.w3.org/Graphics/GIF/spec-gif89a.txt 。Graphics Interchange Format 为CompuServe Incorporated的版权格式；GIF为CompuServe Incorporated的服务标记。
 
 `fixtures/gif-lzw.gif`、`gif-disposals.gif`、`gif-transparent-background.gif`及`gif-goldens.json`均为本项目固定算法生成的无私人内容图案；独立编码/合成oracle使用Pillow12.3.0（https://python-pillow.github.io/ ，HPND），生成入口`scripts/generate-gif-fixtures.py`。没有复制第三方图像或把Pillow代码打包到生产读取器；普通测试读取固定样本，不依赖Python或Pillow。真实模型通知由项目合成文字及已有开发用resvg生成，不使用第三方艺术素材。
+
+
+## 服务端WebP受控解码（2026-10-31，Issue #73）
+
+固定Google libwebp1.6.0，来源 https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz ，SHA-256 e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564，BSD三条款及附加专利授权。构建与发布完整保留上游COPYING、PATENTS、AUTHORS、精确原始源码包、项目源码补丁和stdin-only适配器，不改称本项目MIT。`scripts/patch-reading-webp.mjs`严格终态修正与原生适配器为项目自作，具体兼容子集见docs/bcd/webp-verification.md。工具只静态链接解码/解复用所需组件及规范终态校验用布尔写入器。
+
+WebP fixtures和goldens为项目自有合成图案，经Pillow12.3.0（HPND）独立编码/合成并固定全像素hash；生成脚本不进入生产依赖。9537通知是项目合成文字，经已有resvg/本机开发字体栅格化后Pillow编码，无字体文件或私人材料再分发。普通测试不依赖Python/Pillow。

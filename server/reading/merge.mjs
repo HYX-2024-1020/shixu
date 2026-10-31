@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
 
-export const MERGE_VERSION = "paid-semantic-pairs/1";
+export const MERGE_VERSION = "paid-semantic-pairs/2";
 const hash = (value) => sha256(JSON.stringify(value));
 const fail = () => {
   throw Error("SAFETY_RECONCILIATION");
@@ -12,6 +12,10 @@ const unique = (values) => [
 ];
 const dueKey = (due) =>
   due ? JSON.stringify([due.date, due.time, due.endDate, due.endTime]) : null;
+const compatibleKinds = items => {
+  const kinds=new Set(items.map(item=>item.kind));
+  return kinds.size===1 || (kinds.size===2 && kinds.has("notice") && (kinds.has("task") || kinds.has("event")));
+};
 
 // Models propose only equivalence/related edges. All actual content and evidence
 // is assembled from certified paid items; no rewritten facts or citations enter.
@@ -37,7 +41,7 @@ export function validateMerge(value, items) {
       const [a, b] = edge.map((id) => ids.get(id));
       if (
         kind === "same" &&
-        (a.kind !== b.kind ||
+        (!compatibleKinds([a,b]) ||
           (a.due && b.due && dueKey(a.due) !== dueKey(b.due)))
       )
         throw Error("INVALID_MERGE_CONFLICT");
@@ -69,9 +73,9 @@ export function assembleMerge(items, decisions) {
   const index = new Map();
   const merged = [...groups.values()].map((rows, i) => {
     const originals = rows.map((row) => row.item),
-      item = structuredClone(originals[0]);
+      item = structuredClone(originals.find(item=>["task","event"].includes(item.kind)) || originals[0]);
     if (
-      new Set(originals.map((i) => i.kind)).size > 1 ||
+      !compatibleKinds(originals) ||
       new Set(originals.map((i) => dueKey(i.due)).filter(Boolean)).size > 1
     )
       throw Error("INVALID_MERGE_CONFLICT");
@@ -94,6 +98,7 @@ export function assembleMerge(items, decisions) {
     ]);
     item.due = originals.find((i) => i.due)?.due || null;
     item.importance = Math.max(...originals.map((i) => i.importance ?? 1));
+    item.importanceReason=originals.find(i=>i.importance===item.importance)?.importanceReason || item.importanceReason;
     return item;
   });
   const related = unique(

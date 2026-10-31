@@ -1,3 +1,5 @@
+2026-10-31：WebP静态/动画严格解码、原生RSS测量与notice→行动语义去重已补；见[WebP开发证据](webp-verification.md)。接续真实13次、usage估算¥0.024188；建议推断限制保留。B/C/D继续实施，未最终验收。
+
 2026-10-31：新增[GIF逐帧合成](gif-verification.md)，顶层及归档按帧/区域接续，帧序/时间/处置、账本和双端保留；两帧真实模型＋语义合并3次4898微元，累计9次¥0.016572。B/C/D仍未全部实施。
 
 2026-10-31：新增[静态16位PNG](png-sixteen-verification.md)、[跨块语义合并与真实对话质量](semantic-verification.md)，保留独立付费依赖凭据、双端适配与安全恢复；B/C/D仍有实施缺口，保持Draft。

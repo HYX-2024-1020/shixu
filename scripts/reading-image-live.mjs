@@ -29,6 +29,7 @@ try {
         ...(dry ? ["--dry-run"] : []),
         ...(process.argv.includes("--jpeg") ? ["--jpeg"] : []),
         ...(process.argv.includes("--gif") ? ["--gif"] : []),
+        ...(process.argv.includes("--webp") ? ["--webp"] : []),
         ...(process.argv.includes("--chat") ? ["--chat"] : []),
         ...(process.argv.includes("--merge") ? ["--merge"] : []),
         ...(process.argv.includes("--prepare-only") ? ["--prepare-only"] : []),

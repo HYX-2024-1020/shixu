@@ -5,10 +5,11 @@ import { readMaterial } from "./material.mjs";
 const descriptor = JSON.parse(readFileSync("/input/descriptor.json", "utf8"));
 const started = performance.now();
 try {
-  const material = await readMaterial({
+  const decoded = await readMaterial({
     ...descriptor,
     body: readFileSync("/input/original"),
   }, { pdfWindow: descriptor.pdfWindow, archiveWindow: descriptor.archiveWindow, imageWindow:descriptor.imageWindow });
+  const {decoderMetrics,...material}=decoded;
   const parsedAt = performance.now();
   const serialized = JSON.stringify(material);
   process.stdout.write('{"material":');
@@ -21,6 +22,7 @@ try {
           parseMs: parsedAt - started,
           serializationAndTransferMs: performance.now() - parsedAt,
           maxRssKiB: process.resourceUsage().maxRSS,
+          ...decoderMetrics,
         }) +
         "}",
     );

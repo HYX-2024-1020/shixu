@@ -74,11 +74,11 @@ export async function runMergeLive({ getKey, prepareOnly }) {
                 ]),
               ]
             : [
-                item("递交实验报告A7319", [
+          {...item("递交实验报告A7319", [
                   "任务编号A7319",
                   "文件名学号_姓名",
                   "要求说明时间复杂度",
-                ]),
+          ]),kind:"notice"},
                 item("完成算法课习题C7321", [
                   "任务编号C7321",
                   "独立习题，不能与实验报告合并",
@@ -120,6 +120,7 @@ export async function runMergeLive({ getKey, prepareOnly }) {
         "same course distinct tasks should retain a related link",
       );
       assert.equal(a.evidence.length, 2);
+      assert.equal(a.kind,"task");
     } catch (error) {
       qualityError = error.message;
     }
@@ -131,6 +132,7 @@ export async function runMergeLive({ getKey, prepareOnly }) {
       .all();
     const report = {
       kind: "synthetic-real-semantic-quality",
+      variant: "notice-to-action/v2",
       testedAt: new Date().toISOString(),
       realProviderCalls,
       simulatedUpstreamCalls,

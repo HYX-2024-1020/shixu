@@ -21,7 +21,7 @@ const files = [
   "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
-  "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs",
+  "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/webp.mjs",
   "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
   "server/reading/root-safety.mjs",
   "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs", "server/reading/time-maintenance.mjs",
@@ -37,7 +37,9 @@ const hash = (data) => createHash("sha256").update(data).digest("hex");
 export async function buildRelease(output) {
   const native="server/reading/generated-native/";
   const releaseFiles=[...files,...["manifest.json","License.txt","source/7z2605-src.tar.xz","source/build-reading-archive.mjs",
-    "reading-7zz"+(process.platform === "win32"?".exe":"")].map(f=>native+f)];
+    "reading-7zz"+(process.platform === "win32"?".exe":"")].map(f=>native+f),
+    ...["manifest.json","COPYING","PATENTS","AUTHORS","source/libwebp-1.6.0.tar.gz","source/build-reading-webp.mjs","source/patch-reading-webp.mjs","source/webp-reader.c",
+      "reading-webp"+(process.platform==="win32"?".exe":"")].map(f=>"server/reading/generated-webp/"+f)];
   const content = await Promise.all(releaseFiles.map(async (file) => [file, await readFile(join(root, file))]));
   const checksums = content.map(([file, data]) => `${hash(data)}  ${file}`).join("\n") + "\n";
   const fingerprint = hash(checksums);
@@ -51,7 +53,7 @@ export async function buildRelease(output) {
   for (const [file, data] of content) {
     await mkdir(dirname(join(destination, file)), { recursive: true });
     await writeFile(join(destination, file), data, { flag: "wx" });
-    if (file === native+"reading-7zz") await chmod(join(destination,file),0o755);
+    if (file === native+"reading-7zz" || file === "server/reading/generated-webp/reading-webp") await chmod(join(destination,file),0o755);
   }
   const manifest = JSON.stringify({
     releaseId, createdAt: new Date().toISOString(), sourceRevision: revision,
