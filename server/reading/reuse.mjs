@@ -5,6 +5,9 @@ import { sha256 } from "./material.mjs";
 export class ReadingReuse {
   constructor(db, ledger, account) {
     Object.assign(this, { db, ledger, account });
+    ledger.db.exec(`CREATE TABLE IF NOT EXISTS reading_paid_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
+      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_update BEFORE UPDATE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_delete BEFORE DELETE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;`);
     db.exec(`CREATE TABLE IF NOT EXISTS reading_reuse_keys(
       task TEXT NOT NULL,fingerprint TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,
       PRIMARY KEY(task,fingerprint));
@@ -39,9 +42,18 @@ export class ReadingReuse {
     );
   }
   certify(task, fingerprint, key, result) {
+    const row = this.db.prepare("SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?").get(task,fingerprint);
+    const call = row && this.ledger.call(row.call_id), value = sha256(JSON.stringify(result));
+    if(!call || call.state!=="settled" || call.account!==this.account || call.task!==task || call.block!==fingerprint || row.result!==JSON.stringify(result))throw Error("SAFETY_RECONCILIATION");
+    const prior=this.proof(task,fingerprint);
+    if(prior && (prior.call_id!==call.id || prior.reuse_key!==key || prior.result_hash!==value))throw Error("SAFETY_RECONCILIATION");
+    this.ledger.db.prepare("INSERT OR IGNORE INTO reading_paid_proofs VALUES(?,?,?,?,?,?)").run(this.account,task,fingerprint,call.id,key,value);
     this.db
       .prepare("INSERT OR REPLACE INTO reading_reuse_keys VALUES(?,?,?,?)")
       .run(task, fingerprint, key, sha256(JSON.stringify(result)));
+  }
+  proof(task, fingerprint) {
+    return this.ledger.db.prepare("SELECT * FROM reading_paid_proofs WHERE account=? AND task=? AND fingerprint=?").get(this.account,task,fingerprint);
   }
   find(task, key, validate) {
     const candidates = this.db

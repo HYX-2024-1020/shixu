@@ -46,6 +46,16 @@ export function encodingPng({
   );
   const alpha = Buffer.from([255, 0, 255, 255]);
   const sample = (x, y) => {
+    if (depth === 16) {
+      // Exact 8->16 replication makes native 8-bit decoders an independent
+      // oracle; arbitrary low-bit precision/rounding has separate goldens.
+      const gray = ((x * 37 + y * 23) % 256) * 257;
+      const a = transparency ? ((x + y) % 2) * 65535 : 65535;
+      if (color === 0) return [gray];
+      if (color === 4) return [gray, a];
+      return [(x * 37 % 256) * 257, (y * 41 % 256) * 257,
+        ((x * 13 + y * 7) % 256) * 257, ...(color === 6 ? [a] : [])];
+    }
     if (color === 0 || color === 3)
       return [(x + 3 * y) % (color === 3 ? palette.length / 3 : mask + 1)];
     if (color === 4)
@@ -64,12 +74,13 @@ export function encodingPng({
   for (let y = 0; y < height; y++)
     for (let x = 0; x < width; x++) {
       const values = sample(x, y);
+      if (depth === 16) for (let i = 0; i < values.length; i++) values[i] /= 257;
       let r,
         g,
         b,
         a = 255;
       if (color === 0) {
-        r = g = b = (values[0] * 255) / mask;
+        r = g = b = (values[0] * 255) / (depth === 16 ? 255 : mask);
         if (transparency && values[0] === 1) a = 0;
       } else if (color === 3) {
         [r, g, b] = palette.subarray(values[0] * 3, values[0] * 3 + 3);
@@ -99,6 +110,7 @@ export function encodingPng({
       const row = Buffer.alloc(Math.ceil((values.length * depth) / 8));
       values.forEach((v, i) => {
         if (depth === 8) row[i] = v;
+        else if (depth === 16) row.writeUInt16BE(v, i * 2);
         else
           row[Math.floor((i * depth) / 8)] |=
             v << (8 - depth - ((i * depth) % 8));
@@ -135,7 +147,7 @@ export function encodingPng({
   if (transparency && color === 3)
     extras.push(chunk("tRNS", alpha.subarray(0, palette.length / 3)));
   if (transparency && color === 0)
-    extras.push(chunk("tRNS", Buffer.from([0, 1])));
+    extras.push(chunk("tRNS", Buffer.from([depth === 16 ? 1 : 0, 1])));
   const body = Buffer.concat([
     Buffer.from("89504e470d0a1a0a", "hex"),
     chunk("IHDR", header),

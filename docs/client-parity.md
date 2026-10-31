@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D 语义核对与16位PNG（#73，整体未完成）
+
+Windows与小程序共同显示语义核对阶段、已完成批数及共用累计费用；接收确定性合并后的完整事实/来源与本投递相关关系。实际AccountWorkspace和Page/Node wx签名HTTP验证双端一致与停止恢复；Linux普通UID同链通过。静态16位PNG沿既有图像坐标、包内路径/区域进度与temporary/deleted核验，双端说明同步；普通UID受保护broker有独立证据。事项对话3次、语义合并1次真实小样本通过，新增实际usage估算¥0.002880。官方编译/构建通过，没有本机UI窗口；原生微信/手机/安装版未验。详见[语义验证](bcd/semantic-verification.md)和[16位PNG验证](bcd/png-sixteen-verification.md)，其余B/C/D、安全迁移及历史投递关联仍保留。
+
 ## 2026-10-31 B/C/D 事项对话共账（#73，整体未完成）
 
 Windows 与微信共同使用 v4 chat，沿同一任务内核、账号钱包/槽位、根累计、停止/关闭、unknown 和原子发布；双端显示已保存事项与本轮指令的范围及费用提示，统一 4000 字。远端发现保留 chat/itemId，补传核验不代表重新向模型提供原件。两端签名 HTTP 各发起一次对话，结果/历史/覆盖一致，解析器不重复执行；Windows 与普通 UID Linux 的 AccountWorkspace/Page Node 链通过，官方编译通过，无本机窗口。自包含包实际对话、付费恢复与回退拒绝有内核证据；未验真实聊天模型质量、原生微信/手机/安装版。详见[事项对话验证](bcd/chat-verification.md)，关联及整体安全恢复仍待实施，保持 Draft。

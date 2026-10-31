@@ -1,7 +1,7 @@
 import { inflateSync, deflateSync } from "node:zlib";
 import { sha256 } from "./material.mjs";
 
-export const IMAGE_READER_VERSION = "png-tiles/2;zlib-node/24";
+export const IMAGE_READER_VERSION = "png-tiles/3;zlib-node/24";
 export const IMAGE_TILE_EDGE = 1024;
 export const isImageName = (name) => /\.(png|jpe?g)$/i.test(name);
 export function validateModelImage(image) {
@@ -158,7 +158,7 @@ export function decodePng(bytes) {
         body[10] ||
         body[11] ||
         header.interlace > 1 ||
-        !([0, 3].includes(header.color) ? [1, 2, 4, 8] : [8]).includes(
+        !(header.color === 0 ? [1, 2, 4, 8, 16] : header.color === 3 ? [1, 2, 4, 8] : [8, 16]).includes(
           header.depth,
         ) ||
         ![0, 2, 3, 4, 6].includes(header.color)
@@ -285,19 +285,19 @@ export function decodePng(bytes) {
         const p =
             ((pass.y + y * pass.dy) * header.width + pass.x + x * pass.dx) * 4,
           i = x * channels;
-        const sample =
-          header.depth === 8
-            ? row[i]
-            : (row[Math.floor((x * header.depth) / 8)] >>>
-                (8 - header.depth - ((x * header.depth) % 8))) &
-              sampleMask;
+        const at = (channel) => header.depth === 16
+          ? row.readUInt16BE((i + channel) * 2)
+          : header.depth === 8 ? row[i + channel]
+          : (row[Math.floor((x * header.depth) / 8)] >>>
+              (8 - header.depth - ((x * header.depth) % 8))) & sampleMask;
+        const sample = at(0);
         let r,
           g,
           b,
           a = 255;
         if (header.color === 0 || header.color === 4) {
-          r = g = b = Math.round((sample * 255) / sampleMask);
-          if (header.color === 4) a = row[i + 1];
+          r = g = b = sample;
+          if (header.color === 4) a = at(1);
           else if (alpha && sample === (alpha.readUInt16BE(0) & sampleMask))
             a = 0;
         } else if (header.color === 3) {
@@ -308,17 +308,25 @@ export function decodePng(bytes) {
           b = palette[index * 3 + 2];
           a = alpha?.[index] ?? 255;
         } else {
-          r = row[i];
-          g = row[i + 1];
-          b = row[i + 2];
-          if (header.color === 6) a = row[i + 3];
+          r = at(0);
+          g = at(1);
+          b = at(2);
+          if (header.color === 6) a = at(3);
           else if (
             alpha &&
-            r === (alpha.readUInt16BE(0) & 255) &&
-            g === (alpha.readUInt16BE(2) & 255) &&
-            b === (alpha.readUInt16BE(4) & 255)
+            r === (alpha.readUInt16BE(0) & sampleMask) &&
+            g === (alpha.readUInt16BE(2) & sampleMask) &&
+            b === (alpha.readUInt16BE(4) & sampleMask)
           )
             a = 0;
+        }
+        // Compare tRNS at the original precision (PNG 13.12), then linearly
+        // rescale to the existing 8-bit model channel; never match on high byte.
+        if (header.color !== 3) {
+          r = Math.round(r * 255 / sampleMask);
+          g = Math.round(g * 255 / sampleMask);
+          b = Math.round(b * 255 / sampleMask);
+          if ([4, 6].includes(header.color)) a = Math.round(a * 255 / sampleMask);
         }
         // Flatten transparency onto white explicitly; hidden RGB is never sent.
         pixels[p] = Math.round((r * a + 255 * (255 - a)) / 255);

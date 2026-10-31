@@ -43,6 +43,7 @@ export async function runClientLoop({
   auditUnknownTime = false,
   costAudit,
   itemChat,
+  semanticMerge,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -144,6 +145,7 @@ export async function runClientLoop({
   };
   if(reader.imageWindows===true)reading.provider.imageInput=true;
   if(itemChat)reading.provider.chat=itemChat.provider;
+  if(semanticMerge)reading.provider.merge=async (...args)=>{calls++;return semanticMerge.provider(...args);};
   const service = createMultiUserService({
     directory: join(directory, "server"),
     secret: "synthetic-v4-client-secret-with-32-characters",
@@ -619,6 +621,7 @@ export async function runClientLoop({
     if (original?.verify)
       await original.verify({ win, mini, page, cloud, service });
     if(itemChat)await itemChat.verify({win,mini,page,cloud,service,ledger,account,parserRuns:()=>parserRuns});
+    if(semanticMerge)await semanticMerge.verify({win,mini,page,cloud,service,ledger,account});
     if (original?.expectedPdfPages) {
       const c=win.readingCoverage[0];
       assert.equal(c.pagination.nextPage,null);

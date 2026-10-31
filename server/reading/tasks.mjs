@@ -15,6 +15,7 @@ import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { ReadingChat } from './chat.mjs';
+import { ReadingMerge } from './merge.mjs';
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -192,6 +193,7 @@ export class ReadingTasks {
     this.reuse = new ReadingReuse(this.db, ledger, account);
     this.windows = new ReadingWindows(this.db);
     this.chat = new ReadingChat(this);
+    this.merge = new ReadingMerge(this);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
@@ -394,6 +396,7 @@ export class ReadingTasks {
         this.reuse.purge(id);
         this.windows.purge(id);
         this.chat.purge(id);
+        this.merge.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
           .prepare("DELETE FROM reading_block_ranges WHERE task=?")
@@ -596,6 +599,10 @@ export class ReadingTasks {
       warnings: blocks.flatMap((b) => b.warnings),
       items: blocks.flatMap((b) => b.items),
     };
+    const semantic = !isChat ? this.merge.result(task, partial) : null;
+    if (semantic) result.items = semantic.items;
+    if (!isChat && result.items.length > 1 && (!semantic || partial))
+      result.warnings.push(partial ? "收下部分结果，跨块语义核对尚未全部完成" : "未启用跨块语义核对，可能存在重复或未关联事项");
     const processed = this.db
       .prepare(
         "SELECT ranges FROM reading_block_ranges WHERE task=? ORDER BY rowid",
@@ -627,6 +634,15 @@ export class ReadingTasks {
           readingCoverage: coverage,
           processingCoverage,
           itemIds: result.items.map((_, i) => `${id}_item_${i}`),
+          ...(semantic ? {
+            association: { links: semantic.related.map(([from,target],i) => ({
+              id: `${id}_relation_${i}`, from: `${task.packet}#${id}_item_${from}`,
+              target: `${task.packet}#${id}_item_${target}`, relation: "related", reason: "本次投递已读取事项的模型语义关联",
+              title: result.items[from].group || result.items[from].title,
+            })) },
+            semanticMerge: { version: "paid-semantic-pairs/1", originalItems: semantic.originalItems,
+              mergedItems: semantic.mergedItems, complete: !partial },
+          } : {}),
           sources: [],
           updatedAt: new Date().toISOString(),
         },
@@ -854,6 +870,10 @@ export class ReadingTasks {
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
       safetyStep = this.roots.safety.begin(root.id,id,task.generation);
+      if (!isChat && this.merge.active(id)) return await this.merge.step(task, {
+        signal: controller.signal, execution,
+        remainingMs: () => activeLimitMs - root.activeMs - (performance.now() - started - excludedMs),
+      });
       const paged = this.reader.pdfWindows === true;
       if (!paged && this.windows.rows(id).length) throw Error("READER_WINDOW_REQUIRED");
       const packet = this.store.record(task.packet).data,
@@ -967,11 +987,21 @@ export class ReadingTasks {
             "SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?",
           )
           .get(id, fingerprint);
+        const reuseKey = this.reuse.key(batch, readable, {
+          versions:taskVersions, model: this.modelVersion,
+          captureDate: packet.captureDate, maxOutputTokens: this.maxOutputTokens,
+        });
         if (
           existing &&
           this.ledger.call(existing.call_id)?.state === "settled"
         ) {
           if(isChat)this.chat.verifyBlock(task,existing);
+          if(!isChat && typeof this.provider.merge==="function" && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
+            const envelope=this.ledger.completedEnvelope(this.account,id,fingerprint);
+            if(!envelope || envelope.call_id!==existing.call_id || envelope.result!==existing.result)throw Error("SAFETY_RECONCILIATION");
+            this.reuse.certify(id,fingerprint,reuseKey,JSON.parse(existing.result));
+            this.ledger.clearEnvelope(existing.call_id);
+          }
           if (!this.reuse.copied(id, fingerprint))
             this.roots.progress(id, fingerprint);
           continue;
@@ -987,12 +1017,6 @@ export class ReadingTasks {
           text: s.text,
           ...(s.image ? {image:s.image} : {}),
         }));
-        const reuseKey = this.reuse.key(batch, readable, {
-          versions:taskVersions,
-          model: this.modelVersion,
-          captureDate: packet.captureDate,
-          maxOutputTokens: this.maxOutputTokens,
-        });
         const reused = !isChat && this.reuse.find(task, reuseKey, (raw) =>
           validatePaidResult(raw, sources, packet.captureDate,{certifiedReuse:true}),
         );
@@ -1146,9 +1170,11 @@ export class ReadingTasks {
         this.dropMaterial(id);
         if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true})) return this.get(id);
       }
+      if (!isChat && this.merge.begin(task)) return this.get(id);
       return this.publish(task, coverage);
     } catch (e) {
       const reason = e.code || e.message;
+      if (reason === "SAFETY_RECONCILIATION" && !this.finalSnapshots) this.roots.block(id,reason);
       if (
         this.current(task) ||
         (this.get(id)?.state === "applying" &&

@@ -129,6 +129,8 @@ export function createReadingRoutes({
       id: t.id,
       packetId: t.packet,
       state: t.state,
+      phase: info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
+      completedMergeBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_merge_results WHERE task=?").get(t.id).n,
       generation: t.generation,
       maintenanceOperation: e.maintenanceOperation(t.id),
       inputRevision: t.input_revision,

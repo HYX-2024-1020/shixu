@@ -7,6 +7,7 @@ export interface ReadingRange {
   rowEnd?: number;
   code?: string;
 }
+export function mergeProgressView(phase?: string, completed?: number): string;
 export interface ReadingCoverage {
   attachmentId: string;
   name: string;

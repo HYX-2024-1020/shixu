@@ -4,6 +4,9 @@ const labels = {
   unsupported: "暂不支持",
   failed: "读取失败",
 };
+export function mergeProgressView(phase, completed) {
+  return phase === "merging" ? `语义核对 · 已完成 ${Number.isSafeInteger(completed) && completed >= 0 ? completed : 0} 批（共用累计费用）` : "";
+}
 const reasons = {
   IMAGE_PROVIDER_UNSUPPORTED:'服务端安全图像读取或模型图像输入尚未就绪',
   IMAGE_WINDOW_PENDING:'后续图像区域等待读取，尚未进入整理结果',

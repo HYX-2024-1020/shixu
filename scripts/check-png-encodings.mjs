@@ -18,6 +18,10 @@ for (const interlace of [0, 1])
     [3, 8],
     [4, 8],
     [6, 8],
+    [0, 16],
+    [2, 16],
+    [4, 16],
+    [6, 16],
   ])
     for (const [width, height] of [
       [1, 1],

@@ -28,6 +28,8 @@ try {
         join(root, "scripts/reading-image-live.cjs"),
         ...(dry ? ["--dry-run"] : []),
         ...(process.argv.includes("--jpeg") ? ["--jpeg"] : []),
+        ...(process.argv.includes("--chat") ? ["--chat"] : []),
+        ...(process.argv.includes("--merge") ? ["--merge"] : []),
         ...(process.argv.includes("--prepare-only") ? ["--prepare-only"] : []),
       ],
       { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true },

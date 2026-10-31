@@ -25,6 +25,10 @@ for (const interlace of [0, 1])
     [3, 8],
     [4, 8],
     [6, 8],
+    [0, 16],
+    [2, 16],
+    [4, 16],
+    [6, 16],
   ]) {
     test(`PNG ${color}/${depth} interlace ${interlace} matches independent native decoder and every pixel`, () => {
       for (const [width, height] of [
@@ -177,5 +181,17 @@ test("packed Adam7 top-level input survives dual-client stop and revised-input p
     });
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("16-bit Adam7 top-level and archived images retain both client adapters, paid reuse and original tombstones", async () => {
+  for (const archiveFormat of [undefined, "rar4"]) {
+    const directory = await mkdtemp(join(tmpdir(), "shixu-sixteen-clients-"));
+    try {
+      await runImageClients({ directory, sixteen: true, archiveFormat, deleted: !!archiveFormat,
+        reader: Object.assign((f, o) => readMaterial(f, o), {
+          pdfWindows: true, imageWindows: true, archiveWindows: true,
+        }) });
+    } finally { await rm(directory, { recursive: true, force: true }); }
   }
 });

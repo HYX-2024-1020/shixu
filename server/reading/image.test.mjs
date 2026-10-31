@@ -53,6 +53,21 @@ const file = (body) => ({
   hash: sha256(body),
 });
 
+test("16-bit PNG compares full transparency keys before linear rescaling, including low bits and partial alpha", () => {
+  const gray = fixture({ width: 6, height: 1, depth: 16, color: 0,
+    rows: Buffer.from([0, 0x12,0x34, 0x12,0x35, 0x12,0x80, 0,0x80, 0,0x81, 0xff,0xfe]),
+    extras: [chunk("tRNS", Buffer.from([0x12,0x34]))] });
+  assert.deepEqual([...decodePng(gray).pixels], [255,255,255,255, 18,18,18,255, 18,18,18,255,
+    0,0,0,255, 1,1,1,255, 255,255,255,255]);
+  const rgba = fixture({ width: 1, height: 1, depth: 16, color: 6,
+    rows: Buffer.from([0, 0,0, 0x80,0, 0xff,0xff, 0x80,0]) });
+  assert.deepEqual([...decodePng(rgba).pixels], [127,191,255,255]);
+  const rgb = fixture({ width: 2, height: 1, depth: 16, color: 2,
+    rows: Buffer.from([0, 0x12,0x34, 0x56,0x78, 0x9a,0xbc, 0x12,0x35, 0x56,0x78, 0x9a,0xbc]),
+    extras: [chunk("tRNS", Buffer.from([0x12,0x34,0x56,0x78,0x9a,0xbc]))] });
+  assert.deepEqual([...decodePng(rgb).pixels], [255,255,255,255, 18,86,154,255]);
+});
+
 test("PNG tiles preserve all pixels, row-major order, original coordinates and tail without durable image bytes", async () => {
   const width = 2071,
     height = 1031,

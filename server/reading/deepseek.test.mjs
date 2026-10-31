@@ -6,6 +6,19 @@ import {
 } from "./deepseek.mjs";
 import { ReadingLedger, validateUsage } from "./ledger.mjs";
 const sources = [{ id: "input", name: "合成.txt", text: "明天提交报告😀" }];
+test("semantic provider uses bounded paid-item context, reference-only edges and the same no-retry usage adapter",async()=>{
+  let calls=0;
+  const provider=createDeepSeekReadingProvider({apiKey:"synthetic",priceAt:()=>deepseekPriceSnapshots(1)[0].id,fetcher:async(url,init)=>{
+    calls++;const b=JSON.parse(init.body);
+    assert.match(b.messages[0].content,/不得创建新id/);assert.equal(b.tool_choice,"none");
+    assert.equal(b.tools,undefined);assert.equal(b.stream,false);
+    return Response.json({usage:{prompt_tokens:20,completion_tokens:10},choices:[{finish_reason:"stop",message:{content:'{"same":[],"related":[]}'}}]});
+  }});
+  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/1",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
+  const prepared=provider.merge.prepare(sources);assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));
+  assert.deepEqual((await provider.merge(sources,undefined,{prepared})).result,{same:[],related:[]});assert.equal(calls,1);
+  assert.throws(()=>provider.merge.prepare([{...sources[0],image:{}}]),/INVALID_PROVIDER_INPUT/);
+});
 test("DeepSeek adapter preflights actual UTF-8 payload, preserves valid usage on invalid/length output and never retries", async () => {
   const prices = deepseekPriceSnapshots(1);
   let calls = 0;

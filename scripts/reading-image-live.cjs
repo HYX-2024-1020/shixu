@@ -46,6 +46,19 @@ app
         return;
       }
       phase = "imports";
+      if (process.argv.includes("--chat") || process.argv.includes("--merge")) {
+        const merge=process.argv.includes("--merge");
+        phase = merge ? "merge" : "chat";
+        const runner = await load(merge ? "scripts/reading-merge-live.mjs" : "scripts/reading-chat-live.mjs");
+        await (merge ? runner.runMergeLive : runner.runChatLive)({
+          probe,
+          getKey: async () => (await safeStorage.decryptStringAsync(
+            readFileSync(path.join(existing, "api-key.enc")),
+          )).result,
+          prepareOnly: process.argv.includes("--prepare-only"),
+        });
+        return;
+      }
       const { Resvg } = require("@resvg/resvg-js");
       const { ReadingLedger } = await load("server/reading/ledger.mjs");
       const { ReadingTasks } = await load("server/reading/tasks.mjs");

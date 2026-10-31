@@ -17,18 +17,19 @@ export async function runImageClients({
   deleted = false,
   archiveFormat,
   packed = false,
+  sixteen = false,
   jpeg = false,
 }) {
   const width = 2051,
     height = 4;
   let pixels = Buffer.alloc(width * height * 4, 255);
   for (let x = 0; x < width; x++) pixels[x * 4] = x % 256;
-  const encoded = packed
+  const encoded = packed || sixteen
     ? encodingPng({
         width,
         height,
-        depth: 2,
-        color: 3,
+        depth: sixteen ? 16 : 2,
+        color: sixteen ? 6 : 3,
         interlace: 1,
         transparency: true,
       })

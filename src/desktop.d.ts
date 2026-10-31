@@ -55,6 +55,8 @@ interface Window {
         output?: unknown;
         protocol?: number;
         calls?: number;
+        phase?: string;
+        completedMergeBatches?: number;
         reusedBlocks?: number;
         readingSummary?: {name?:string;pdfPages?:{checked:number;total:number}}[];
         rootTaskId?: string;
