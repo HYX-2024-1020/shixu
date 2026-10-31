@@ -264,6 +264,7 @@ export function createReadingRoutes({
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
           officeImageAssets:reader.officeWindows===true&&provider.imageInput===true,
           windowProgressProofs:true,
+          solid7z:reader.archiveWindows===true,
           animatedPng:reader.imageWindows===true&&provider.imageInput===true,
           visualFactReview:typeof provider.reviewVisual==='function',
           itemChat:typeof provider.chat==='function',

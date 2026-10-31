@@ -170,7 +170,7 @@ test("literal member selection preserves directories, emoji, wildcard and @ name
   assert.deepEqual(many.segments, []);
   assert.equal(many.reasons[0], "PACKAGE_LIMIT");
 });
-test("encrypted/solid/expansion-ratio 7z are rejected before reading", async () => {
+test("encrypted and expansion-ratio 7z are rejected; bounded solid members are read", async () => {
   const encrypted = await sevenZipBytes({ "a.txt": Buffer.from("never") }, [
     "-pSyntheticOnly",
     "-mhe=on",
@@ -180,7 +180,7 @@ test("encrypted/solid/expansion-ratio 7z are rejected before reading", async () 
     { "a.txt": Buffer.from("never"), "b.txt": Buffer.from("never") },
     ["-ms=on", "-mx=1"],
   );
-  assert.equal((await read(solid, "a.7z")).state, "unsupported");
+  const shared=await read(solid, "a.7z");assert.equal(shared.state,"read");assert.equal(shared.segments.map(s=>s.text).join(""),"nevernever");assert.equal(shared.archiveCompression.blocks.length,1);
   const bomb = await sevenZipBytes(
     { "a.txt": Buffer.from("x".repeat(200000)) },
     ["-mx=9"],

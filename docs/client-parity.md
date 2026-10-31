@@ -428,3 +428,8 @@ Windows AccountWorkspace与微信Page共同显示WINDOW_STATE_RECONCILIATION，�
 ## B/C/D PNG动画（#73/#69，2026-11-01）
 
 Windows与微信共同显示PNG动画各帧时长/区域、独立静态默认图角色，使用同一任务/钱包/依据核对/语义版本4；小程序.apng扩展名识别同步。实际双端签名HTTP top temporary、ZIP deleted，Linux受保护broker、发布包与官方编译分别记证。真实首轮第二帧补充要求未合并，已保留失败并修正同编号补充语义提示，固定上游仅真实语义回放通过；不能冒称完整真实链第二次通过。[证据与边界](bcd/apng-verification.md)。无原生微信/手机/安装/最终整体验收结论。
+
+
+## B/C/D 7z solid（#73/#69，2026-11-01）
+
+Windows与微信均沿现有逐成员/逐页任务读取7z共享压缩块，来源/未读/停止/核验补传/费用/修订复用保持同一行为；共同接收archiveCompression摘要，capabilities.solid7z由读取服务声明。实际签名HTTP19页PDF temporary/deleted双端链、普通UID与受保护broker、发布包见[solid证据](bcd/solid-7z-verification.md)。每块/全包100:1及共享64MiB不放宽；RAR solid与真正流式未支持。没有原生微信/手机/安装及全BCD最终验收结论。

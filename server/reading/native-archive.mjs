@@ -20,34 +20,59 @@ const fail = (code) => {
 // headers first so a skipped record cannot make a package look fully read.
 // Names and compressed data are still handled by the verified native tool.
 function preflightRar4(bytes) {
-  if (bytes.length < 27 || bytes[9] !== 0x73 ||
-    bytes.readUInt16LE(12) !== 13 || (bytes.readUInt16LE(10) & ~0x104))
+  if (
+    bytes.length < 27 ||
+    bytes[9] !== 0x73 ||
+    bytes.readUInt16LE(12) !== 13 ||
+    bytes.readUInt16LE(10) & ~0x104
+  )
     fail("PACKAGE_UNSUPPORTED");
-  if ((crc32(bytes.subarray(9,20)) & 65535) !== bytes.readUInt16LE(7))
+  if ((crc32(bytes.subarray(9, 20)) & 65535) !== bytes.readUInt16LE(7))
     fail("PACKAGE_INVALID");
-  let position=20,entries=0;
-  while(position<bytes.length){
-    if(position+7>bytes.length)fail("PACKAGE_INVALID");
-    const type=bytes[position+2],flags=bytes.readUInt16LE(position+3),size=bytes.readUInt16LE(position+5);
-    const end=position+size;
-    if(size<7||end>bytes.length||(crc32(bytes.subarray(position+2,end))&65535)!==bytes.readUInt16LE(position))
+  let position = 20,
+    entries = 0;
+  while (position < bytes.length) {
+    if (position + 7 > bytes.length) fail("PACKAGE_INVALID");
+    const type = bytes[position + 2],
+      flags = bytes.readUInt16LE(position + 3),
+      size = bytes.readUInt16LE(position + 5);
+    const end = position + size;
+    if (
+      size < 7 ||
+      end > bytes.length ||
+      (crc32(bytes.subarray(position + 2, end)) & 65535) !==
+        bytes.readUInt16LE(position)
+    )
       fail("PACKAGE_INVALID");
-    if(type===0x7b){
-      if(flags||size!==7||end!==bytes.length)fail("PACKAGE_UNSUPPORTED");
+    if (type === 0x7b) {
+      if (flags || size !== 7 || end !== bytes.length)
+        fail("PACKAGE_UNSUPPORTED");
       return;
     }
-    if(type!==0x74||(flags&~0x93e0))fail("PACKAGE_UNSUPPORTED");
-    if(size<32)fail("PACKAGE_INVALID");
-    if(++entries>PACKAGE_LIMITS.entries)fail("PACKAGE_LIMIT");
-    const packed=bytes.readUInt32LE(position+7),host=bytes[position+15],attr=bytes.readUInt32LE(position+28);
-    if(host>3||(host<3&&(attr&8)))fail("PACKAGE_UNSUPPORTED");
-    if(host===3 && ![0o100000,0o040000].includes(attr&0o170000))fail("PACKAGE_PATH");
-    const extra=(flags&0x100)?8:0;
-    if(size<32+extra)fail("PACKAGE_INVALID");
-    if(extra && (bytes.readUInt32LE(position+32)||bytes.readUInt32LE(position+36)))fail("PACKAGE_LIMIT");
-    const nameSize=bytes.readUInt16LE(position+26);
-    if(!nameSize||32+extra+nameSize>size||end+packed>bytes.length)fail("PACKAGE_INVALID");
-    position=end+packed;
+    if (type !== 0x74 || flags & ~0x93e0) fail("PACKAGE_UNSUPPORTED");
+    if (size < 32) fail("PACKAGE_INVALID");
+    if (++entries > PACKAGE_LIMITS.entries) fail("PACKAGE_LIMIT");
+    const packed = bytes.readUInt32LE(position + 7),
+      host = bytes[position + 15],
+      attr = bytes.readUInt32LE(position + 28);
+    if (host > 3 || (host < 3 && attr & 8)) fail("PACKAGE_UNSUPPORTED");
+    if (host === 3 && ![0o100000, 0o040000].includes(attr & 0o170000))
+      fail("PACKAGE_PATH");
+    const extra = flags & 0x100 ? 8 : 0;
+    if (size < 32 + extra) fail("PACKAGE_INVALID");
+    if (
+      extra &&
+      (bytes.readUInt32LE(position + 32) || bytes.readUInt32LE(position + 36))
+    )
+      fail("PACKAGE_LIMIT");
+    const nameSize = bytes.readUInt16LE(position + 26);
+    if (
+      !nameSize ||
+      32 + extra + nameSize > size ||
+      end + packed > bytes.length
+    )
+      fail("PACKAGE_INVALID");
+    position = end + packed;
   }
   fail("PACKAGE_INVALID"); // An explicit validated end record is required.
 }
@@ -120,8 +145,57 @@ const integer = (value) => {
   return n;
 };
 
-// Full preflight before any member extraction. Solid/unknown per-member packed
-// sizes cannot prove the mandatory individual expansion ratio, so fail closed.
+export function validateSolidCompression(value) {
+  const uint = (n) => Number.isSafeInteger(n) && n >= 0;
+  const exact = (v, keys) =>
+    v &&
+    typeof v === "object" &&
+    !Array.isArray(v) &&
+    Object.keys(v).sort().join() === keys;
+  if (
+    !exact(value, "blocks,expandedBytes,packedBytes,ratioLimit,solid") ||
+    value.solid !== true ||
+    value.ratioLimit !== PACKAGE_LIMITS.ratio ||
+    !uint(value.expandedBytes) ||
+    value.expandedBytes > PACKAGE_LIMITS.expanded ||
+    !uint(value.packedBytes) ||
+    value.packedBytes > MAX_FILE_BYTES ||
+    !Array.isArray(value.blocks) ||
+    !value.blocks.length ||
+    value.blocks.length > PACKAGE_LIMITS.entries
+  )
+    throw Error("INVALID_READER_WINDOW");
+  let expanded = 0,
+    packed = 0,
+    members = 0;
+  for (const [index, b] of value.blocks.entries()) {
+    if (
+      !exact(b, "block,expandedBytes,members,packedBytes") ||
+      b.block !== index ||
+      !uint(b.expandedBytes) ||
+      !uint(b.packedBytes) ||
+      !b.packedBytes ||
+      !uint(b.members) ||
+      !b.members ||
+      b.expandedBytes > b.packedBytes * PACKAGE_LIMITS.ratio
+    )
+      throw Error("INVALID_READER_WINDOW");
+    expanded += b.expandedBytes;
+    packed += b.packedBytes;
+    members += b.members;
+  }
+  if (
+    expanded !== value.expandedBytes ||
+    packed !== value.packedBytes ||
+    members > PACKAGE_LIMITS.entries
+  )
+    throw Error("INVALID_READER_WINDOW");
+  return value;
+}
+
+// Full preflight before extraction. For 7z solid streams, count the complete
+// compressed block once and require every block (not just the archive) <=100:1.
+// Per-member compressed sizes stay unknown; never fabricate or repeat them.
 export function parseNativeListing(text, format, inputBytes, budget) {
   text = text.replace(/\r\n/g, "\n");
   if (/[\x00-\x08\x0b-\x1f\x7f]/.test(text)) fail("PACKAGE_INVALID");
@@ -130,18 +204,27 @@ export function parseNativeListing(text, format, inputBytes, budget) {
   const start = halves[0].lastIndexOf("\n--\n");
   if (start < 0) fail("PACKAGE_INVALID");
   const archive = properties(halves[0].slice(start + 4));
+  const solid = format === "7z" && archive.Solid === "+",
+    blocks = new Map(),
+    blockCount = solid ? integer(archive.Blocks) : 0;
+  if (solid && (!blockCount || blockCount > PACKAGE_LIMITS.entries))
+    fail("PACKAGE_LIMIT");
   if (
     archive.Type !== format ||
     archive.Encrypted === "+" ||
-    archive.Solid !== "-" ||
+    (archive.Solid !== "-" && !solid) ||
     (format === "Rar5" &&
       (archive.Encrypted !== "-" || archive.Multivolume !== "-")) ||
-    (format === "Rar" && (archive.Multivolume !== "-" || archive.Volumes !== "1")) ||
+    (format === "Rar" &&
+      (archive.Multivolume !== "-" || archive.Volumes !== "1")) ||
     archive.Multivolume === "+" ||
     (archive.Volumes && archive.Volumes !== "1") ||
     archive["Offset"] ||
     archive["Tail Size"] ||
     archive["Errors"] ||
+    archive["Warnings"] ||
+    archive["Warning Flags"] ||
+    archive["Error Flags"] ||
     integer(archive["Physical Size"]) !== inputBytes
   )
     fail("PACKAGE_UNSUPPORTED");
@@ -169,13 +252,16 @@ export function parseNativeListing(text, format, inputBytes, budget) {
     if (
       !["+", "-"].includes(p.Folder) ||
       p.Encrypted !== "-" ||
-      (format === "Rar" && !["15","20","26","29","36"].includes(p.Version)) ||
+      (format === "Rar" &&
+        !["15", "20", "26", "29", "36"].includes(p.Version)) ||
       [
         "Encrypted",
         "Solid",
         "Split Before",
         "Split After",
         "Alternate Stream",
+        "Anti",
+        "Is Anti",
       ].some((k) => p[k] && p[k] !== "-") ||
       [
         "Symbolic Link",
@@ -183,7 +269,15 @@ export function parseNativeListing(text, format, inputBytes, budget) {
         "Copy Link",
         "NT Security",
         "Version",
-      ].some((k) => p[k] && !(format === "Rar" && k === "Version" && ["15","20","26","29","36"].includes(p[k])))
+      ].some(
+        (k) =>
+          p[k] &&
+          !(
+            format === "Rar" &&
+            k === "Version" &&
+            ["15", "20", "26", "29", "36"].includes(p[k])
+          ),
+      )
     )
       fail("PACKAGE_UNSUPPORTED");
     // Unix special files and Windows reparse attributes must never be treated
@@ -201,25 +295,75 @@ export function parseNativeListing(text, format, inputBytes, budget) {
     }
     const size = integer(p.Size),
       compressed =
-        p["Packed Size"] === "" && !size ? 0 : integer(p["Packed Size"]);
+        solid && p["Packed Size"] === ""
+          ? null
+          : p["Packed Size"] === "" && !size
+            ? 0
+            : integer(p["Packed Size"]);
+    let shared;
+    if (solid) {
+      if (p.Block === "") {
+        if (size || compressed !== 0) fail("PACKAGE_UNSUPPORTED");
+      } else {
+        const block = integer(p.Block);
+        if (block >= blockCount || p.Folder === "+")
+          fail("PACKAGE_UNSUPPORTED");
+        shared = blocks.get(block);
+        if (shared) {
+          if (compressed !== null) fail("PACKAGE_UNSUPPORTED");
+        } else {
+          if (!compressed) fail("PACKAGE_UNSUPPORTED");
+          shared = {
+            block,
+            packedBytes: compressed,
+            expandedBytes: 0,
+            members: 0,
+          };
+          blocks.set(block, shared);
+        }
+        shared.expandedBytes += size;
+        shared.members++;
+      }
+    }
     if ((p.Folder === "+" && size) || (p.Folder === "-" && name.endsWith("/")))
       fail("PACKAGE_INVALID");
     if (
       size > PACKAGE_LIMITS.expanded ||
-      size > Math.max(compressed, 1) * PACKAGE_LIMITS.ratio
+      (!shared && size > Math.max(compressed, 1) * PACKAGE_LIMITS.ratio)
     )
       fail("PACKAGE_LIMIT");
     total += size;
-    packed += compressed;
+    packed += compressed || 0;
     if (total > PACKAGE_LIMITS.expanded || packed > inputBytes)
       fail("PACKAGE_LIMIT");
     if (size && !/^[A-F0-9]{8}$/.test(p.CRC || "")) fail("PACKAGE_UNSUPPORTED");
     entries.set(name, {
       size,
-      compressed,
+      compressed: shared ? null : compressed,
+      ...(shared ? { block: shared.block } : {}),
       crc: p.CRC,
       folder: p.Folder === "+",
     });
+  }
+  if (solid) {
+    if (
+      blocks.size !== blockCount ||
+      integer(archive["Headers Size"]) < 32 ||
+      integer(archive["Headers Size"]) + packed !== inputBytes
+    )
+      fail("PACKAGE_UNSUPPORTED");
+    for (const b of blocks.values())
+      if (b.expandedBytes > Math.max(b.packedBytes, 1) * PACKAGE_LIMITS.ratio)
+        fail("PACKAGE_LIMIT");
+    // Each member is a subset of this already bounded block. The shared bound
+    // is stronger than testing members alone against the same input stream.
+    entries.compression = {
+      solid: true,
+      ratioLimit: PACKAGE_LIMITS.ratio,
+      expandedBytes: total,
+      packedBytes: packed,
+      blocks: [...blocks.values()].sort((a, b) => a.block - b.block),
+    };
   }
   if (
     total > Math.max(packed, 1) * PACKAGE_LIMITS.ratio ||
@@ -238,9 +382,12 @@ export async function openNativeArchive(bytes, { budget, extension }) {
       : extension === "rar" &&
           bytes.subarray(0, 8).toString("hex") === "526172211a070100"
         ? "Rar5"
-        : extension === "rar" && bytes.subarray(0,7).toString("hex") === "526172211a0700" ? "Rar" : null;
+        : extension === "rar" &&
+            bytes.subarray(0, 7).toString("hex") === "526172211a0700"
+          ? "Rar"
+          : null;
   if (!format) fail("FORMAT_MISMATCH");
-  if(format === 'Rar')preflightRar4(bytes);
+  if (format === "Rar") preflightRar4(bytes);
   const binary = await verifiedTool();
   // The Linux broker offers only /scratch as writable tmpfs. A directory is
   // owned by this invocation and contains only the original opaque archive.
@@ -260,7 +407,16 @@ export async function openNativeArchive(bytes, { budget, extension }) {
       if (remaining <= 0) return reject(Error("ARCHIVE_ENTRY_FAILED"));
       const child = spawn(
         binary,
-        [...args, "-mmt=1", "-bd", "-ssc", "-sccUTF-8", "-t" + format, "--", input],
+        [
+          ...args,
+          "-mmt=1",
+          "-bd",
+          "-ssc",
+          "-sccUTF-8",
+          "-t" + format,
+          "--",
+          input,
+        ],
         {
           cwd: directory,
           windowsHide: true,
@@ -313,6 +469,7 @@ export async function openNativeArchive(bytes, { budget, extension }) {
         e.folder && !name.endsWith("/") ? name + "/" : name,
       ),
       size: (name) => entries.get(name)?.size,
+      compression: entries.compression,
       async read(name) {
         const e = entries.get(name);
         if (!e || e.folder || e.size > MAX_FILE_BYTES)

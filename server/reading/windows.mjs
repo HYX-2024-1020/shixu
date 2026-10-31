@@ -1,4 +1,5 @@
 import {ReadingWindowSafety} from "./window-safety.mjs";
+import {validateSolidCompression} from './native-archive.mjs';
 import { isImageName, validateModelImage } from "./image.mjs";
 import { FIRST_OFFICE_WINDOW,validateOfficeWindow } from "./office-window.mjs";
 import { coverageOnly } from "./material.mjs";
@@ -148,6 +149,7 @@ export class ReadingWindows {
     if (p.nextOffset !== offset) throw Error("INVALID_READER_WINDOW");
   }
   verifyArchive(material, requested) {
+    if(material.archiveCompression!==undefined)validateSolidCompression(material.archiveCompression);
     const p = material.archivePagination;
     if (!p) {
       if (material.segments?.length) throw Error("INVALID_READER_WINDOW");

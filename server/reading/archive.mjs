@@ -43,6 +43,7 @@ export async function readArchive(
     result.state = /UNSUPPORTED/.test(code) ? "unsupported" : "failed";
     return result;
   }
+  if(pkg.compression)result.archiveCompression=pkg.compression;
   if (!pkg.names.length) {
     await pkg.close?.();
     result.reasons.push("EMPTY_TEXT");
