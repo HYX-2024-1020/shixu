@@ -61,3 +61,10 @@ DDL 界面依据项目发起者于 2026-10-24 提供的 `ddl.html` 适配为 Rea
 ## 服务端XLSX读取依赖（2026-10-28，Issue #73）
 
 沿用上述sax，以及仓库已有SheetJS CE `xlsx@0.20.3` 的SSF数值格式化（Apache-2.0，来源 https://sheetjs.com/ ，固定CDN包/完整性见lockfile）。`server/reading/xlsx-reader.cjs`按需加载自包含格式化与XML代码，保留SheetJS版权和随附 `xlsx-reader.LICENSE` 的两份完整许可；运行时不使用SheetJS完整工作簿/ZIP读取器，不引入宏/公式执行或网络访问。合成样本使用既有fflate及SheetJS写入器，无私人或第三方Office文档。详见docs/bcd/xlsx-verification.md的资源、维护和兼容边界。
+
+
+## GIF格式与合成样本（2026-10-31，Issue #73）
+
+`server/reading/gif.mjs`、最小fixture编码器由本项目按CompuServe GIF87a/89a规范自行实现，没有复制第三方解码源码。规范来源 https://www.w3.org/Graphics/GIF/spec-gif89a.txt 。Graphics Interchange Format 为CompuServe Incorporated的版权格式；GIF为CompuServe Incorporated的服务标记。
+
+`fixtures/gif-lzw.gif`、`gif-disposals.gif`、`gif-transparent-background.gif`及`gif-goldens.json`均为本项目固定算法生成的无私人内容图案；独立编码/合成oracle使用Pillow12.3.0（https://python-pillow.github.io/ ，HPND），生成入口`scripts/generate-gif-fixtures.py`。没有复制第三方图像或把Pillow代码打包到生产读取器；普通测试读取固定样本，不依赖Python或Pillow。真实模型通知由项目合成文字及已有开发用resvg生成，不使用第三方艺术素材。

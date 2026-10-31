@@ -3,7 +3,7 @@ import { sha256 } from "./material.mjs";
 
 export const IMAGE_READER_VERSION = "png-tiles/3;zlib-node/24";
 export const IMAGE_TILE_EDGE = 1024;
-export const isImageName = (name) => /\.(png|jpe?g)$/i.test(name);
+export const isImageName = (name) => /\.(png|jpe?g|gif)$/i.test(name);
 export function validateModelImage(image) {
   if (
     !image ||
@@ -352,15 +352,22 @@ export async function readImage(bytes, result, window) {
       result.readerVersion = jpeg.JPEG_READER_VERSION;
       result.normalizationVersion = "jpeg-oriented-png-rgba-tiles/1";
     }
-    const image = jpeg ? jpeg.decodeJpeg(bytes) : decodePng(bytes),
+    const gif = /\.gif$/i.test(result.name) ? await import("./gif.mjs") : null;
+    let gifImage;
+    if(gif){
+      result.readerVersion=gif.GIF_READER_VERSION;result.normalizationVersion="gif-composited-white-png-tiles/1";
+      const parsed=gif.inspectGif(bytes), perFrame=Math.ceil(parsed.width/IMAGE_TILE_EDGE)*Math.ceil(parsed.height/IMAGE_TILE_EDGE);
+      gifImage=gif.decodeGif(bytes,Math.floor((window.tile-1)/perFrame)+1,parsed);
+    }
+    const image = gifImage || (jpeg ? jpeg.decodeJpeg(bytes) : decodePng(bytes)),
       columns = Math.ceil(image.width / IMAGE_TILE_EDGE),
       rows = Math.ceil(image.height / IMAGE_TILE_EDGE);
-    const total = columns * rows;
+    const perFrame = columns * rows, total = perFrame * (image.totalFrames || 1);
     if (total > 64) throw Error("IMAGE_TILE_LIMIT");
     if (window.tile > total) throw Error("IMAGE_CURSOR_OUT_OF_RANGE");
-    const index = window.tile - 1,
-      x = (index % columns) * IMAGE_TILE_EDGE,
-      y = Math.floor(index / columns) * IMAGE_TILE_EDGE;
+    const index = window.tile - 1, frameIndex=index%perFrame,
+      x = (frameIndex % columns) * IMAGE_TILE_EDGE,
+      y = Math.floor(frameIndex / columns) * IMAGE_TILE_EDGE;
     const width = Math.min(IMAGE_TILE_EDGE, image.width - x),
       height = Math.min(IMAGE_TILE_EDGE, image.height - y),
       tile = Buffer.alloc(width * height * 4);
@@ -390,7 +397,7 @@ export async function readImage(bytes, result, window) {
           encodedWidth: image.encodedWidth,
           encodedHeight: image.encodedHeight,
         }
-      : {};
+      : gif ? {frame:image.frame,totalFrames:image.totalFrames,frameStartMs:image.frameStartMs,frameDurationMs:image.frameDurationMs} : {};
     const png = encodePng(width, height, tile),
       sourceId = `${result.attachmentId.slice(0, 64)}_${sha256(result.attachmentId).slice(0, 12)}_i${window.tile}`;
     const range = {
@@ -414,7 +421,7 @@ export async function readImage(bytes, result, window) {
       {
         sourceId,
         range,
-        text: `图像模型识别，第${window.tile}块，像素范围(${x},${y},${width},${height})`,
+        text: `图像模型识别，${gif?`第${image.frame}/${image.totalFrames}帧（${image.frameStartMs}ms起，持续${image.frameDurationMs}ms，循环不重复展开），`:""}第${window.tile}块，像素范围(${x},${y},${width},${height})`,
         image: {
           mime: "image/png",
           data: png.toString("base64"),
@@ -446,7 +453,7 @@ export async function readImage(bytes, result, window) {
     }
   } catch (e) {
     if (e.message === "IMAGE_CURSOR_OUT_OF_RANGE") throw e;
-    const code = /^(FORMAT_MISMATCH|PNG_|JPEG_|IMAGE_)/.test(e.message)
+    const code = /^(FORMAT_MISMATCH|PNG_|JPEG_|GIF_|IMAGE_)/.test(e.message)
       ? e.message
       : "IMAGE_DECODE_FAILED";
     result.state = /UNSUPPORTED/.test(code) ? "unsupported" : "failed";

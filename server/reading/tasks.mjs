@@ -16,6 +16,7 @@ import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { ReadingChat } from './chat.mjs';
 import { ReadingMerge } from './merge.mjs';
+import { isImageName } from './image.mjs';
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -886,7 +887,7 @@ export class ReadingTasks {
       if(isChat && typeof callProvider!=="function")throw Error("CHAT_NOT_READY");
       if(isChat && !cached && (!paged || !this.windows.select(id,pendingInputs[0]).skip))materials.push(chatMaterial);
       const readInput = async file => {
-        if(/\.(png|jpe?g)$/i.test(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
+        if(isImageName(file.name) && (this.reader.imageWindows!==true || this.provider.imageInput!==true)){
           materials.push({attachmentId:file.id,name:file.name,contentHash:file.hash,readerVersion:READER_VERSION,
             state:'unsupported',covered:[],uncovered:[{kind:'image',code:'IMAGE_PROVIDER_UNSUPPORTED'}],reasons:['IMAGE_PROVIDER_UNSUPPORTED'],segments:[]});return;
         }

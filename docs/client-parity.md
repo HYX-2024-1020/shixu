@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D GIF帧序与时间（#73，整体未完成）
+
+Windows/微信共同接收GIF逐帧合成后的安全PNG区域，来源显示第几帧、起始/持续毫秒和像素坐标，包内路径/区域总进度沿用；循环只展开一遍，不只读取首帧。双端说明同步；未支持扩展和累计像素超限明确未读。AccountWorkspace与实际Page/Node wx签名HTTP动画停止/补传/语义合并、普通UID受保护Linux broker temporary/deleted两链通过；真实两帧通知模型2次＋合并1次保留第二帧要求。官方编译/构建通过，无本机窗口，原生微信/手机/安装版未验。见[GIF证据](bcd/gif-verification.md)，其余B/C/D仍继续。
+
 ## 2026-10-31 B/C/D 语义核对与16位PNG（#73，整体未完成）
 
 Windows与小程序共同显示语义核对阶段、已完成批数及共用累计费用；接收确定性合并后的完整事实/来源与本投递相关关系。实际AccountWorkspace和Page/Node wx签名HTTP验证双端一致与停止恢复；Linux普通UID同链通过。静态16位PNG沿既有图像坐标、包内路径/区域进度与temporary/deleted核验，双端说明同步；普通UID受保护broker有独立证据。事项对话3次、语义合并1次真实小样本通过，新增实际usage估算¥0.002880。官方编译/构建通过，没有本机UI窗口；原生微信/手机/安装版未验。详见[语义验证](bcd/semantic-verification.md)和[16位PNG验证](bcd/png-sixteen-verification.md)，其余B/C/D、安全迁移及历史投递关联仍保留。

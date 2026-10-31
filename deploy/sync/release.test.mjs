@@ -18,6 +18,7 @@ import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
 import { archiveSample, archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
 import {jpegSample} from '../../server/reading/jpeg-fixtures.mjs';
+import {gifBytes} from '../../server/reading/gif-fixtures.mjs';
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
@@ -57,6 +58,10 @@ test("account service and protected CLI run from the self-contained release", as
     }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
     const {readMaterial,sha256} = await import(pathToFileURL(join(release,"server/reading/material.mjs")));
     const {encodePng,decodePng}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
+    const gif=gifBytes({width:2,height:1,frames:[{indices:Buffer.from([1,2])},{indices:Buffer.from([3,0])}]});
+    const gifTail=await readMaterial({id:'gif',name:'synthetic.gif',body:gif,size:gif.length,hash:sha256(gif)},{imageWindow:{tile:2}});
+    assert.equal(gifTail.covered[0].frame,2);assert.equal(gifTail.imagePagination.nextTile,null);
+    assert.deepEqual([...decodePng(Buffer.from(gifTail.segments[0].image.data,'base64')).pixels],[0,0,255,255,255,255,255,255]);
     const png=encodePng(1,1,Buffer.from([10,20,30,255]));
     const visual=await readMaterial({id:'image',name:'独立包.png',body:png,size:png.length,hash:sha256(png)},{imageWindow:{tile:1}});
     assert.deepEqual([...decodePng(Buffer.from(visual.segments[0].image.data,'base64')).pixels],[10,20,30,255]);
@@ -121,7 +126,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

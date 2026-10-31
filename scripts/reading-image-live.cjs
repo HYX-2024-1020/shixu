@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const { pathToFileURL } = require("node:url");
 const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
+const gifMode = process.argv.includes("--gif");
 if (
   !probe ||
   path.dirname(probe) !== path.resolve(tmpdir()) ||
@@ -85,6 +86,12 @@ app
       const rendered = new Resvg(sourceSvg).render();
       phase = "fixture";
       let body = rendered.asPng();
+      if(gifMode){
+        const {gifBytes}=await load("server/reading/gif-fixtures.mjs");
+        const second=new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="white"/><g fill="black" font-family="Microsoft YaHei" font-size="32"><text x="40" y="150">提交报告编号7319时，另附源代码。</text><text x="40" y="230">源代码须为UTF-8编码。</text><text x="40" y="500">尾部补充核对：7319。</text></g></svg>`).render();
+        const indices=pixels=>Buffer.from(Array.from({length:900*600},(_,i)=>pixels[i*4]<128?1:0));
+        body=gifBytes({width:900,height:600,frames:[{indices:indices(rendered.pixels),delay:100,disposal:2},{indices:indices(second.pixels),delay:100,disposal:2}]});
+      }
       if (jpegMode) {
         const encode = require("../server/reading/fixtures/jpeg-encoder.cjs");
         const { jpegExif, jpegApp } = await load(
@@ -136,7 +143,7 @@ app
       // Only run this small probe in an unambiguous offpeak hour. No inferred
       // holiday calendar and no automatic retries or changes to provider credit.
       let price = prices[1];
-      if (jpegMode) {
+      if (jpegMode || gifMode) {
         const day = new Date(Date.now() + 8 * 3600000)
           .toISOString()
           .slice(0, 10);
@@ -212,9 +219,9 @@ app
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
+        name: gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
-        type: jpegMode ? "image/jpeg" : "image/png",
+        type: gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
       });
       put({ attachments: [f] });
@@ -233,7 +240,7 @@ app
       });
       tasks.enqueue({ id: "image-task", packetId: "packet", deviceId: device });
       const started = performance.now();
-      for (let i = 0; i < 5 && tasks.get("image-task").state === "queued"; i++)
+      for (let i = 0; i < 12 && tasks.get("image-task").state === "queued"; i++)
         await tasks.run("image-task");
       const task = tasks.get("image-task"),
         packet = store.record("packet").data;
@@ -254,6 +261,9 @@ app
           serialized.includes(jpegMode ? "17:30" : "18:00"),
         algorithm: serialized.includes("算法"),
         complexity: serialized.includes("复杂度"),
+        ...(gifMode ? {allFrames:packet.readingCoverage?.[0]?.covered?.length===2,
+          secondFrameFact:serialized.includes("UTF-8") && serialized.includes("源代码"),
+          combined:packet.result?.items?.some(item=>JSON.stringify(item).includes("PDF")&&JSON.stringify(item).includes("UTF-8"))} : {}),
         imageWarning:
           packet.result?.warnings?.some((w) =>
             w.includes("图像内容由模型识别"),
@@ -265,7 +275,7 @@ app
         )
         .all();
       const report = {
-        kind: jpegMode
+        kind: gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),
@@ -308,7 +318,7 @@ app
           state: task.state,
         }),
       );
-      assert.equal(providerCalls, 1);
+      assert.ok(providerCalls>=1 && providerCalls<=(gifMode?4:2));
       assert.equal(task.state, "done");
       assert.ok(Object.values(checks).every(Boolean));
     } finally {

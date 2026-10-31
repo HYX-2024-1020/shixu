@@ -3,10 +3,12 @@ import { mkdir, mkdtemp, chown, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
+const gifInput=process.argv.includes("--gif");
 const jpegInput=process.argv.includes("--jpeg");
 const sixteen=process.argv.includes("--sixteen-png");
 const packed=process.argv.includes("--packed-png") || sixteen;
 const archiveImages=process.argv.includes("--archive-images");
+const imageInput=archiveImages || packed || jpegInput || gifInput;
 const rar4=process.argv.includes("--rar4");
 const costAudit=process.argv.includes("--cost-audit");
 const base = resolve(process.argv[2] || "");
@@ -16,7 +18,7 @@ if (
   !/^\/opt\/shixu-bcd-test-[\w-]+$/.test(base)
 )
   throw Error("SYNTHETIC_ROOT_REQUIRED");
-const prefix=sixteen ? "/run/shixu-sixteen-png" : jpegInput ? "/run/shixu-jpeg" : packed ? "/run/shixu-packed-png" : archiveImages ? "/run/shixu-archive-images" : rar4 ? "/run/shixu-rar4-windows" : costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
+const prefix=gifInput ? "/run/shixu-gif" : sixteen ? "/run/shixu-sixteen-png" : jpegInput ? "/run/shixu-jpeg" : packed ? "/run/shixu-packed-png" : archiveImages ? "/run/shixu-archive-images" : rar4 ? "/run/shixu-rar4-windows" : costAudit ? "/run/shixu-cost-audit" : "/run/shixu-archive-windows";
 const socketDir = prefix+"-socket", staging=prefix+"-input";
 await mkdir(socketDir, { mode: 0o750 });
 await chown(socketDir, 0, 65534);
@@ -49,7 +51,7 @@ try {
     staging,
   });
   const cases = [];
-  for (const format of (jpegInput ? ["jpeg","rar4"] : packed ? ["png","rar4"] : archiveImages ? ["zip","rar4"] : costAudit ? ["usage","not-billed"] : rar4 ? ["rar4","rar4-deleted"] : ["zip", "rar", "7z"])) {
+  for (const format of (gifInput ? ["gif","rar4"] : jpegInput ? ["jpeg","rar4"] : packed ? ["png","rar4"] : archiveImages ? ["zip","rar4"] : costAudit ? ["usage","not-billed"] : rar4 ? ["rar4","rar4-deleted"] : ["zip", "rar", "7z"])) {
     const directory = await mkdtemp(join(base, "clients-"));
     directories.push(directory);
     await chown(directory, 65534, 65534);
@@ -57,9 +59,9 @@ try {
     const result = await run(
       "nobody",
       `
-      ${archiveImages || packed || jpegInput ? "import { runImageClients } from './scripts/reading-image-clients.mjs';" : costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
+      ${imageInput ? "import { runImageClients } from './scripts/reading-image-clients.mjs';" : costAudit ? "import { runCostAuditClients } from './scripts/reading-cost-audit-clients.mjs';" : "import { runArchiveWindowsClients } from './scripts/reading-archive-windows-clients.mjs';"}
       import { createBrokerClient } from './server/reading/broker-service.mjs';
-      const result=await ${archiveImages || packed || jpegInput ? "runImageClients" : costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${archiveImages || packed || jpegInput ? "archiveFormat" : costAudit ? "disposition" : "format"}:${(packed && format==='png') || (jpegInput && format==='jpeg')?'undefined':JSON.stringify(format==="rar4-deleted"?"rar4":format)},packed:${packed},sixteen:${sixteen},jpeg:${jpegInput},deleted:${archiveImages || packed || jpegInput ? format === "rar4" : costAudit ? format === "not-billed" : format === "7z" || format === "rar4-deleted"},reader:createBrokerClient('${socketPath}')});
+      const result=await ${imageInput ? "runImageClients" : costAudit ? "runCostAuditClients" : "runArchiveWindowsClients"}({directory:${JSON.stringify(directory)},${imageInput ? "archiveFormat" : costAudit ? "disposition" : "format"}:${(packed && format==='png') || (jpegInput && format==='jpeg') || (gifInput && format==='gif')?'undefined':JSON.stringify(format==="rar4-deleted"?"rar4":format)},packed:${packed},sixteen:${sixteen},jpeg:${jpegInput},gif:${gifInput},deleted:${imageInput ? format === "rar4" : costAudit ? format === "not-billed" : format === "7z" || format === "rar4-deleted"},reader:createBrokerClient('${socketPath}')});
       console.log(JSON.stringify(result));`,
     );
     assert.equal(result.exit, 0, result.errors);
@@ -85,6 +87,24 @@ try {
   );
   assert.equal(injection.exit, 0, injection.errors);
   let resource;
+  if(gifInput){
+    const {gifBytes}=await import('../server/reading/gif-fixtures.mjs');
+    const {decodeGif}=await import('../server/reading/gif.mjs');
+    const {decodePng}=await import('../server/reading/image.mjs');
+    const {sha256}=await import('../server/reading/material.mjs');
+    const {createLinuxReader}=await import('../server/reading/linux-broker.mjs');
+    const body=gifBytes({width:2048,height:1024,frames:[{},{disposal:3}]});
+    const started=performance.now();
+    const read=await createLinuxReader({runtime:'/opt/shixu-bcd-test-20261028/runtime',staging})(
+      {id:'gif',name:'animated.gif',body,size:body.length,hash:sha256(body)},{imageWindow:{tile:4}});
+    const source=read.material.segments[0],range=source.range;
+    assert.deepEqual([range.x,range.y,range.width,range.height,range.frame,range.totalFrames],[1024,0,1024,1024,2,2]);
+    const pixels=decodePng(Buffer.from(source.image.data,'base64')).pixels,expected=Buffer.alloc(pixels.length),frame=decodeGif(body,2).pixels;
+    for(let y=0;y<1024;y++)frame.copy(expected,y*4096,(y*2048+1024)*4,(y+1)*2048*4);
+    assert.deepEqual(pixels,expected);
+    resource={width:2048,height:1024,totalFrames:2,tile:4,inputBytes:body.length,inputHash:sha256(body),
+      expectedPixelsHash:sha256(expected),actualPixelsHash:sha256(pixels),elapsedMs:performance.now()-started,...read.metrics};
+  }
   if (packed) {
     const {encodingPng}=await import('../server/reading/png-encoding-fixtures.mjs');
     const {decodePng}=await import('../server/reading/image.mjs');
@@ -136,7 +156,7 @@ try {
     cases,
   };
   await writeFile(
-    join(base, sixteen ? "png-sixteen-linux.json" : jpegInput ? "jpeg-linux.json" : packed ? "png-encoding-linux.json" : archiveImages ? "archive-images-linux.json" : rar4 ? "rar4-clients-linux.json" : costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
+    join(base, gifInput ? "gif-linux.json" : sixteen ? "png-sixteen-linux.json" : jpegInput ? "jpeg-linux.json" : packed ? "png-encoding-linux.json" : archiveImages ? "archive-images-linux.json" : rar4 ? "rar4-clients-linux.json" : costAudit ? "cost-audit-clients-linux.json" : "archive-windows-clients-linux.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report));

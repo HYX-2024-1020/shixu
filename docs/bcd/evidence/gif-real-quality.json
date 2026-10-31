@@ -1,0 +1,212 @@
+{
+  "kind": "synthetic-real-animated-gif-development",
+  "testedAt": "2026-10-31T06:41:33.619Z",
+  "realProviderCalls": 3,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793428887892,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "a46aa032ed55281cb01b7ed41f21d3aa31d749c5a1ed2d202f0d41e9a3b600fc",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "allFrames": true,
+    "secondFrameFact": true,
+    "combined": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 5661.5533,
+  "spentMicros": 4898,
+  "calls": [
+    {
+      "id": "9463bad2-f228-4935-91cd-0dc6adc97cb1",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26089,
+      "actual": 2159,
+      "usage": "{\"prompt_tokens\":1513,\"completion_tokens\":381,\"prompt_cache_hit_tokens\":896}"
+    },
+    {
+      "id": "9b4f5be9-e700-4ad6-bc87-297d78157437",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26092,
+      "actual": 1864,
+      "usage": "{\"prompt_tokens\":1514,\"completion_tokens\":307,\"prompt_cache_hit_tokens\":896}"
+    },
+    {
+      "id": "0c77fb43-e1c3-4faf-b78d-3981890cf413",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 21864,
+      "actual": 875,
+      "usage": "{\"prompt_tokens\":924,\"completion_tokens\":19,\"prompt_cache_hit_tokens\":128}"
+    }
+  ],
+  "result": {
+    "summary": "收下一份图像开发通知截图，核心是提交图像实验报告（任务编号7319）的截止与格式要求。\n收下一张动画通知截图，内容是提交报告7319时需另附UTF-8编码的源代码，并做尾部核对。",
+    "warnings": [
+      "图像内容由模型识别，请对照原图核对文字、日期和关系",
+      "图片仅来自动画第2帧的局部区域，未包含提交时间与提交方式等信息。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告",
+        "summary": "按通知要求完成图像实验报告并以PDF提交，文件名用学号_姓名，内容需说明算法思路与时间复杂度。",
+        "facts": [
+          "提交图像实验报告，任务编号 7319",
+          "截止：2026年10月30日18:00",
+          "格式：PDF，命名：学号_姓名",
+          "要求：说明算法思路与时间复杂度",
+          "尾部核对：7319，禁止遗漏此编号",
+          "提交报告编号7319时，另附源代码。",
+          "源代码须为UTF-8编码。",
+          "尾部补充核对：7319。",
+          "补充摘要：提交报告编号7319时需另附源代码，源码须为UTF-8编码，并在尾部补充核对7319。"
+        ],
+        "nextSteps": [
+          "先按“算法思路与时间复杂度”搭报告提纲，再补实验细节",
+          "导出PDF前检查文件名为学号_姓名，并确认报告尾部含任务编号7319",
+          "按上述要求准备报告7319与UTF-8编码源代码，提交前确认尾部已补充核对7319。"
+        ],
+        "uncertainties": [
+          "未说明提交截止时间与提交渠道",
+          "未说明报告7319的具体内容或所属课程"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号 7319。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年10月30日18:00。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：7319，禁止遗漏此编号。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "提交报告编号7319时，另附源代码。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "源代码须为UTF-8编码。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "尾部补充核对：7319。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1",
+          "image_6105d6cc76af_i2"
+        ],
+        "due": {
+          "date": "2026-10-30",
+          "time": "18:00",
+          "anchor": "2026年10月30日18:00",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成动画通知.gif",
+      "contentHash": "a46aa032ed55281cb01b7ed41f21d3aa31d749c5a1ed2d202f0d41e9a3b600fc",
+      "readerVersion": "gif-composited-tiles/1",
+      "normalizationVersion": "gif-composited-white-png-tiles/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成动画通知.gif",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frame": 1,
+          "totalFrames": 2,
+          "frameStartMs": 0,
+          "frameDurationMs": 1000,
+          "start": 0,
+          "end": 1,
+          "imageHash": "557b3bc7e3aa5931b4d70468ea597617d12ed386fe0763da69973da4d8c3e5d7"
+        },
+        {
+          "sourceId": "image_6105d6cc76af_i2",
+          "name": "合成动画通知.gif",
+          "kind": "image",
+          "tile": 2,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frame": 2,
+          "totalFrames": 2,
+          "frameStartMs": 1000,
+          "frameDurationMs": 1000,
+          "start": 1,
+          "end": 2,
+          "imageHash": "77baa548fe72895322f9dd3c87b7e8cdf165dbae2623bfd62dae6be6615570fb"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "imagePagination": {
+        "startTile": 2,
+        "nextTile": null,
+        "totalTiles": 2,
+        "width": 900,
+        "height": 600,
+        "frame": 2,
+        "totalFrames": 2,
+        "frameStartMs": 1000,
+        "frameDurationMs": 1000
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

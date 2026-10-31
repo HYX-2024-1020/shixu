@@ -56,18 +56,26 @@ export class ReadingWindows {
       const p=material.imagePagination;
       if(!p){if(material.segments?.length)throw Error('INVALID_READER_WINDOW');return;}
       const r=material.covered?.[0];
-      const columns=Math.ceil(p.width/1024),rows=Math.ceil(p.height/1024),x=((p.startTile-1)%columns)*1024,y=Math.floor((p.startTile-1)/columns)*1024;
+      const columns=Math.ceil(p.width/1024),rows=Math.ceil(p.height/1024),frames=p.totalFrames??1,
+        frameIndex=(p.startTile-1)%(columns*rows),x=(frameIndex%columns)*1024,y=Math.floor(frameIndex/columns)*1024;
       const image=material.segments?.[0]?.image;
       if(p.startTile!==imageWindow.tile||!Number.isSafeInteger(p.totalTiles)||p.totalTiles<1||p.totalTiles>64||
         p.startTile>p.totalTiles||p.nextTile!==(p.startTile<p.totalTiles?p.startTile+1:null)||
         material.covered?.length!==1||material.segments?.length!==1||r?.kind!=='image'||r.tile!==p.startTile||
         r.start!==p.startTile-1||r.end!==p.startTile||!image||
         !Number.isSafeInteger(p.width)||!Number.isSafeInteger(p.height)||p.width<1||p.height<1||p.width>16384||p.height>16384||p.width*p.height>32_000_000||
-        p.totalTiles!==columns*rows||r.x!==x||r.y!==y||r.width!==Math.min(1024,p.width-x)||r.height!==Math.min(1024,p.height-y)||
+        !Number.isSafeInteger(frames)||frames<1||frames>64||p.width*p.height*frames>32_000_000||
+        p.totalTiles!==columns*rows*frames||r.x!==x||r.y!==y||r.width!==Math.min(1024,p.width-x)||r.height!==Math.min(1024,p.height-y)||
         image.width!==r.width||image.height!==r.height||r.imageWidth!==p.width||r.imageHeight!==p.height||image.hash!==r.imageHash||r.sourceId!==material.segments[0].sourceId||
         JSON.stringify(material.segments[0].range)!==JSON.stringify(r))
         throw Error('INVALID_READER_WINDOW');
       validateModelImage(image);
+      if (/\.gif$/i.test(r.archivePath || material.name) && p.totalFrames === undefined)throw Error('INVALID_READER_WINDOW');
+      if(p.totalFrames!==undefined || r.frame!==undefined){
+        if(r.totalFrames!==frames || p.frame!==r.frame || r.frame!==Math.floor((p.startTile-1)/(columns*rows))+1 ||
+          !Number.isSafeInteger(r.frameStartMs)||r.frameStartMs<0||r.frameStartMs!==p.frameStartMs||
+          !Number.isSafeInteger(r.frameDurationMs)||r.frameDurationMs<0||r.frameDurationMs!==p.frameDurationMs)throw Error('INVALID_READER_WINDOW');
+      }
       if (/\.jpe?g$/i.test(r.archivePath || material.name) && p.orientation === undefined)
         throw Error('INVALID_READER_WINDOW');
       if (p.orientation !== undefined || r.orientation !== undefined) {

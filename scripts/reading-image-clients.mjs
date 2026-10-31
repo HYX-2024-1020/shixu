@@ -19,6 +19,7 @@ export async function runImageClients({
   packed = false,
   sixteen = false,
   jpeg = false,
+  gif = false,
 }) {
   const width = 2051,
     height = 4;
@@ -38,13 +39,15 @@ export async function runImageClients({
   const jpegFixture = jpeg
     ? await import("../server/reading/jpeg-fixtures.mjs")
     : null;
-  const imageBody = jpeg
+  const gifFixture = gif ? await import("../server/reading/gif-fixtures.mjs") : null;
+  const imageBody = gif ? gifFixture.gifBytes({width,height}) : jpeg
     ? jpegFixture.jpegSample({ width: height, height: width, orientation: 6 })
         .body
     : encoded?.body || encodePng(width, height, pixels);
+  if(gif) pixels=(await import("../server/reading/gif.mjs")).decodeGif(imageBody).pixels;
   const entries = {
     "01.txt": Buffer.from("包内前言"),
-    [jpeg ? "02.jpg" : "02.png"]: imageBody,
+    [gif ? "02.gif" : jpeg ? "02.jpg" : "02.png"]: imageBody,
     "03.txt": Buffer.from("尾部唯一标记"),
   };
   const body = !archiveFormat
@@ -68,12 +71,12 @@ export async function runImageClients({
     original: {
       name: archiveFormat
         ? "包内图像." + (archiveFormat === "rar4" ? "rar" : archiveFormat)
-        : jpeg
+        : gif ? "合成图像.gif" : jpeg
           ? "合成图像.jpg"
           : "合成图像.png",
       type: archiveFormat
         ? "application/octet-stream"
-        : jpeg
+        : gif ? "image/gif" : jpeg
           ? "image/jpeg"
           : "image/png",
       body,
@@ -84,7 +87,7 @@ export async function runImageClients({
         if (archiveFormat) {
           assert.equal(c.archivePagination.next, null);
           assert.deepEqual(c.archiveImageTiles, [
-            { archivePath: jpeg ? "02.jpg" : "02.png", checked: 3, total: 3 },
+            { archivePath: gif ? "02.gif" : jpeg ? "02.jpg" : "02.png", checked: 3, total: 3 },
           ]);
         } else {
           assert.equal(c.imagePagination.nextTile, null);
@@ -93,7 +96,7 @@ export async function runImageClients({
         const images = c.covered.filter((r) => r.kind === "image");
         if (archiveFormat)
           assert.ok(
-            images.every((r) => r.archivePath === (jpeg ? "02.jpg" : "02.png")),
+            images.every((r) => r.archivePath === (gif ? "02.gif" : jpeg ? "02.jpg" : "02.png")),
           );
         assert.deepEqual(
           images.map((r) => [r.tile, r.x, r.y, r.width, r.height]),

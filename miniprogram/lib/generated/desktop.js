@@ -952,6 +952,13 @@ var reasons = {
   IMAGE_DECODE_FAILED: "图像解码失败",
   PNG_CRC: "PNG完整性校验失败",
   PNG_MALFORMED: "PNG结构损坏",
+  GIF_MALFORMED: "GIF结构、像素或压缩终态校验失败",
+  GIF_RESOURCE_LIMIT: "GIF全部帧累计像素超过隔离资源范围",
+  GIF_ASPECT_UNSUPPORTED: "非方形像素GIF尚未支持",
+  GIF_DISPOSAL_UNSUPPORTED: "此GIF帧处置方式尚未支持",
+  GIF_INTERACTIVE_UNSUPPORTED: "需用户输入的GIF尚未支持",
+  GIF_TEXT_UNSUPPORTED: "GIF纯文本扩展尚未支持",
+  GIF_EXTENSION_UNSUPPORTED: "此GIF应用或扩展内容尚未安全支持",
   JPEG_MALFORMED: "JPEG结构或完整性校验失败",
   JPEG_METADATA_UNSUPPORTED: "JPEG色彩、方向或多图元数据尚未安全支持",
   JPEG_ENCODING_UNSUPPORTED: "此JPEG编码暂不支持",
@@ -1029,7 +1036,7 @@ function location(range) {
   }
   if (range.kind === "image") {
     const n = (v) => Number.isSafeInteger(v) && v >= 0;
-    if ([range.x, range.y, range.width, range.height].every(n)) return `图像模型识别 · 第 ${range.tile} 块 · ${range.orientation > 1 ? "按原图方向校正 · " : ""}像素(${range.x},${range.y},${range.width},${range.height})`;
+    if ([range.x, range.y, range.width, range.height].every(n)) return `图像模型识别 · ${range.frame ? `第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · ` : ""}第 ${range.tile} 块 · ${range.orientation > 1 ? "按原图方向校正 · " : ""}像素(${range.x},${range.y},${range.width},${range.height})`;
     return Number.isSafeInteger(range.tile) ? `图像第 ${range.tile}${range.tileEnd ? "–" + range.tileEnd : ""} 块` : "整份图像";
   }
   if (range.kind === "pdf") {
