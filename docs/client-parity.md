@@ -418,3 +418,8 @@ Windows 0.3.20 已覆盖安装且资料摘要保持；实际活动微信 shixu-b
 管理员手机滚动修复（#78）：仅 data-edition=admin-test 的世界 result-card 正文使用 pan-y pinch-zoom，触摸正文不启动长按计时；长按独立 44px 排序按钮保留跟手/顺序保存。按用户补充，DDL 源码/CSS/触摸行为保持原样，Windows 与微信既有排序行为也不变，共享排序算法不变。新增 Chromium 原生触摸输入检查真实容器滚动（包括停留后滑动）与排序，WebKit 检查相同 CSS/正文不启动拖动/按钮行为；两者不冒充 iPhone 真机。
 
 同次更新移除页面上方常驻“管理员测试版”大块说明，原说明移入连接与设置；浏览器/PWA 名称和数据库保持不变。无需通过清理网站数据更新。
+
+
+## B/C/D窗口回退核对（#73/#69，2026-11-01）
+
+Windows AccountWorkspace与微信Page共同显示WINDOW_STATE_RECONCILIATION，禁止继续/部分收下；宿主精确恢复并最终审计后显示WINDOW_STATE_AUDITED，保留根调用/费用/时间，旧继续收据失效，刷新后主动继续。两端共享服务器动作及文案，未新增本地绕过接口。实际签名HTTP temporary/deleted两链、Linux普通UID/受保护broker与独立发布包见[窗口证据](bcd/window-safety-verification.md)。Page/Node不等同原生微信；本批无本机UI/手机/安装，完整必需CI远端执行，BCD仍有剩余项。

@@ -42,6 +42,7 @@ export async function runClientLoop({
   auditAfterReadLimit = false,
   auditUnknownTime = false,
   auditCheckpoint = false,
+  windowAudit = false,
   costAudit,
   itemChat,
   semanticMerge,
@@ -78,6 +79,10 @@ export async function runClientLoop({
         generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reason:review.reason,
         reference:"synthetic-final-checkpoint-review",final:true,disposition:"resume-next-checkpoint"}),
     } : {}),
+    ...(windowAudit?{
+      maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer"&&operation==="reconcile-window-state",
+      maintenanceVerifyWindow:({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reference:"synthetic-final-window-review",final:true}),
+    }:{}),
     ...(costAudit ? {
       maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-call-cost",
       maintenanceVerifyCost:({call,evidenceHash})=>{
@@ -666,7 +671,7 @@ export async function runClientLoop({
       JSON.parse(JSON.stringify(mini.readingCoverage)),
     );
     if (original?.verify)
-      await original.verify({ win, mini, page, cloud, service });
+      await original.verify({ win, mini, page, cloud, service, ledger, account });
     if(itemChat)await itemChat.verify({win,mini,page,cloud,service,ledger,account,parserRuns:()=>parserRuns});
     if(visualReview)await visualReview.verify({win,mini,page,cloud,service,ledger,account});
     if(semanticMerge)await semanticMerge.verify({win,mini,page,cloud,service,ledger,account});

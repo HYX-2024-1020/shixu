@@ -90,7 +90,7 @@ export class ReadingTimeMaintenance {
         .prepare(
           "SELECT 1 FROM reading_calls WHERE account=? AND state IN ('sent','unknown') LIMIT 1",
         )
-        .get()
+        .get(this.engine.account)
     )
       throw Error("UNKNOWN_COST");
   }

@@ -1,3 +1,4 @@
+import {ReadingWindowSafety} from "./window-safety.mjs";
 import { isImageName, validateModelImage } from "./image.mjs";
 import { FIRST_OFFICE_WINDOW,validateOfficeWindow } from "./office-window.mjs";
 import { coverageOnly } from "./material.mjs";
@@ -11,11 +12,12 @@ import {
 // Only trusted cursor/coverage metadata is durable. Text stays in the current
 // execution window until its paid blocks are confirmed, then is discarded.
 export class ReadingWindows {
-  constructor(db) {
+  constructor(db,{engine}={}) {
     this.db = db;
     db.exec(`CREATE TABLE IF NOT EXISTS reading_windows(task TEXT NOT NULL,attachment TEXT NOT NULL,
       content_hash TEXT NOT NULL,next_page INTEGER NOT NULL,next_offset INTEGER NOT NULL,coverage TEXT NOT NULL,
       PRIMARY KEY(task,attachment));`);
+    if(engine)this.safety=new ReadingWindowSafety(engine);
   }
   rows(task) {
     return this.db
@@ -26,6 +28,7 @@ export class ReadingWindows {
     const row = this.db
       .prepare("SELECT * FROM reading_windows WHERE task=? AND attachment=?")
       .get(task, file.id);
+    this.safety?.select(task,file,row);
     if (row && row.content_hash !== file.hash) throw Error("INPUT_CHANGED");
     if (row?.next_page === 0) return { skip: true };
     if(isImageName(file.name)){
@@ -399,6 +402,7 @@ export class ReadingWindows {
         previous.get(material.attachmentId),
         material,
       );
+      this.safety?.stage(task,{task,attachment:material.attachmentId,content_hash:material.contentHash,next_page:next,next_offset:p?.nextOffset||0,coverage:JSON.stringify(coverage)});
       save.run(
         task,
         material.attachmentId,
@@ -411,6 +415,7 @@ export class ReadingWindows {
     return this.rows(task).some((r) => r.next_page > 0);
   }
   purge(task) {
+    this.safety?.purge(task);
     this.db.prepare("DELETE FROM reading_windows WHERE task=?").run(task);
   }
   pending(task, files, options) {

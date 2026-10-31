@@ -23,6 +23,7 @@ const files = [
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
   "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/webp.mjs",
+  "server/reading/schema.mjs", "server/reading/window-safety.mjs", "server/reading/window-maintenance.mjs",
   "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
   "server/reading/root-safety.mjs",
   "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs", "server/reading/time-maintenance.mjs", "server/reading/checkpoint-maintenance.mjs",

@@ -68,8 +68,9 @@ export class ReadingReuse {
     if (!candidates.length) return null;
     this.ledger.audit(this.account);
     for (const candidate of candidates) {
-      const call = this.ledger.call(candidate.call_id);
+      const call = this.ledger.call(candidate.call_id),proof=this.proof(candidate.task,candidate.fingerprint);
       if (
+        !proof || proof.call_id!==candidate.call_id || proof.reuse_key!==key || proof.result_hash!==sha256(candidate.result) ||
         !call ||
         call.state !== "settled" ||
         call.account !== this.account ||

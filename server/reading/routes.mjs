@@ -1,3 +1,4 @@
+import {ReadingWindowMaintenance} from "./window-maintenance.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { createReadingScheduler } from "./scheduler.mjs";
 import { SyncError } from "../sync-store.mjs";
@@ -9,6 +10,8 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  WINDOW_STATE_RECONCILIATION:"读取进度与独立记录不一致，已暂停；请联系维护者核对",
+  WINDOW_STATE_AUDITED:"读取进度已核对，累计调用、费用和时间保留；请主动继续",
   VISUAL_REVIEW_REQUIRED: "图像事项尚待依据核对，已识别进度保留",
   VISUAL_REVIEW_NOT_READY: "图像核对服务尚未就绪，不能直接收下未经核对的结果",
   VISUAL_REVIEW_CONTEXT_LIMIT: "图像依据核对内容超过本窗安全范围，进度保留待处理",
@@ -44,6 +47,7 @@ export function createReadingRoutes({
   maintenanceVerifyCost,
   maintenanceVerifyTime,
   maintenanceVerifyCheckpoint,
+  maintenanceVerifyWindow,
   ledger,
   reader,
   provider,
@@ -129,7 +133,8 @@ export function createReadingRoutes({
     const auditedCostAvailable=recoverable.includes(t.state) && ["UNKNOWN_COST","SHUTDOWN_TIMEOUT",""].includes(t.reason) && e.auditedCostAvailable(t.id,root,wallet);
     const auditedTimeAvailable=t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
     const checkpointAudited=e.roots.safety.lastCheckpointAudit(root.id) && !t.reason && recoverable.includes(t.state);
-    const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : checkpointAudited ? "CHECKPOINT_AUDITED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
+    const windowAudited=e.windows.safety.lastAudit(root.id)&&!t.reason&&recoverable.includes(t.state);
+    const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : windowAudited ? "WINDOW_STATE_AUDITED" : checkpointAudited ? "CHECKPOINT_AUDITED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
     return {
       contractVersion: 1,
       ...info,
@@ -171,10 +176,11 @@ export function createReadingRoutes({
                 "CHECKPOINT_RECONCILIATION",
                 "CHECKPOINT_NO_PROGRESS",
                 "SAFETY_RECONCILIATION",
+                "WINDOW_STATE_RECONCILIATION",
               ].includes(root.reason)
                 ? ["continue"]
                 : []),
-              ...(info.kind!=="chat" && e.visual.publishable(t) && ["paused", "interrupted", "error", "conflict"].includes(
+              ...(root.reason!=="WINDOW_STATE_RECONCILIATION" && info.kind!=="chat" && e.visual.publishable(t) && ["paused", "interrupted", "error", "conflict"].includes(
                 t.state,
               )
                 ? ["accept-partial"]
@@ -257,6 +263,7 @@ export function createReadingRoutes({
           formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg","gif","webp"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
           officeImageAssets:reader.officeWindows===true&&provider.imageInput===true,
+          windowProgressProofs:true,
           visualFactReview:typeof provider.reviewVisual==='function',
           itemChat:typeof provider.chat==='function',
           pdfPageVisual:reader.pdfVisualWindows===true && provider.imageInput===true,
@@ -286,6 +293,26 @@ export function createReadingRoutes({
       const e=engines.get(account);
       if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
       return new ReadingMaintenance(e,maintenanceAuthorize).extend(id,request,actor);
+    },
+    windowMaintenanceReview(account,id,actor) {
+      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).preview(id,actor);
+    },
+    windowMaintenanceRestore(account,id,rows,actor) {
+      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).restoreRows(id,rows,actor);
+    },
+    windowMaintenanceRestoreCoverage(account,id,coverage,actor) {
+      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).restoreCoverage(id,coverage,actor);
+    },
+    windowMaintenanceResetInitial(account,id,attachment,actor) {
+      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).resetInitial(id,attachment,actor);
+    },
+    reconcileWindowState(account,id,request,actor) {
+      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).reconcile(id,request,actor);
     },
     checkpointMaintenanceReview(account,id,actor) {
       const e=engines.get(account);

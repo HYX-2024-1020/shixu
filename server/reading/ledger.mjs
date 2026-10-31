@@ -228,6 +228,8 @@ export class ReadingLedger {
       )
       .get(account)?.operation;
     const checkpoint=this.db.prepare("SELECT operation FROM reading_checkpoint_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation;
+    const window=this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_window_audits'").get()?this.db.prepare("SELECT operation FROM reading_window_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation:null;
+    if(window)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint||null,window]));
     if(checkpoint)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint]));
     return time ? "recovery:" + sha256(JSON.stringify([cost, time])) : cost;
   }

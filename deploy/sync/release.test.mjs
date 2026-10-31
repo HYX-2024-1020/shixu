@@ -77,6 +77,28 @@ test("account service and protected CLI run from the self-contained release", as
       assert.equal(imageOffice.covered[0].mediaPart,'xl/media/图像.png');
       assert.equal(imageOffice.segments[0].image.hash,createHash('sha256').update(png).digest('hex'));
 
+      chatStore.apply(device,{id:'window',opId:'seed-window',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-11-01',attachments:[],sources:[],result:null}},chatStore.epoch);
+      const pdf=pdfBytes(Array.from({length:19},(_,n)=>({text:`独立发布包第${n+1}页尾部`}))), pdfFile=chatStore.files.put('window','pdf',{name:'window.pdf',body:pdf,type:'application/pdf',epoch:chatStore.epoch});
+      chatStore.apply(device,{id:'window',opId:'attach-window',type:'put',baseVersion:chatStore.record('window').version,data:{attachments:[pdfFile]}},chatStore.epoch);
+      chatTasks.provider=async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text.slice(0,8)}]}]}});
+      chatTasks.enqueue({id:'window-task',packetId:'window',deviceId:device});
+      for(let i=0;i<12&&chatTasks.get('window-task').state==='queued';i++)await chatTasks.run('window-task');
+      assert.equal(chatTasks.get('window-task').state,'done');
+      const trusted={...chatStore.db.prepare('SELECT * FROM reading_windows WHERE task=?').get('window-task')}, spent=chatLedger.wallet('synthetic').spent;
+      chatStore.db.prepare('UPDATE reading_windows SET next_page=9 WHERE task=?').run('window-task');
+      chatTasks.enqueue({id:'window-later',packetId:'window',deviceId:device});
+      await chatTasks.run('window-later');
+      assert.equal(chatTasks.get('window-later').reason,'WINDOW_STATE_RECONCILIATION');
+      assert.equal(chatLedger.wallet('synthetic').spent,spent);
+      const {ReadingWindowMaintenance}=await import(pathToFileURL(join(release,'server/reading/window-maintenance.mjs')));
+      const audit=new ReadingWindowMaintenance(chatTasks,({actor})=>actor==='synthetic-maintainer',({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reference:'synthetic-release-proof',final:true}));
+      audit.restoreRows('window-later',[trusted],'synthetic-maintainer');
+      const review=audit.preview('window-later','synthetic-maintainer');
+      audit.reconcile('window-later',{operationId:'release-window-audit',evidenceHash:'b'.repeat(64),expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence},'synthetic-maintainer');
+      assert.equal(chatTasks.get('window-later').state,'paused');
+      assert.equal(chatLedger.wallet('synthetic').spent,spent);
+      assert.equal(chatLedger.db.prepare("SELECT version FROM reading_schema_versions WHERE component='window-safety'").get().version,1);
+
 
       assert.equal(chatStore.record('semantic').data.result.items.length,1);
     }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
@@ -172,7 +194,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["archive-window.mjs", "archive.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

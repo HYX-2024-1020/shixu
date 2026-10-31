@@ -36,6 +36,8 @@ const error = (code) =>
         ? "任务状态已变化，请刷新后再操作"
       : code === "EXECUTION_LIMIT"
         ? "该投递累计活跃时间已用尽，请联系维护者核对"
+      : code === "WINDOW_STATE_RECONCILIATION"
+        ? "读取进度与独立记录不一致，已暂停；请联系维护者核对"
       : code === "SAFETY_RECONCILIATION"
         ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
         : code === "SERVICE_CLOSING"
@@ -197,7 +199,7 @@ export class ReadingTasks {
       CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS reading_action_audits(operation TEXT PRIMARY KEY,maintenance_operation TEXT);`);
     this.reuse = new ReadingReuse(this.db, ledger, account);
-    this.windows = new ReadingWindows(this.db);
+    this.windows = new ReadingWindows(this.db,{engine:this});
     this.chat = new ReadingChat(this);
     this.visual = new ReadingVisualReview(this);
     this.merge = new ReadingMerge(this);
@@ -255,6 +257,8 @@ export class ReadingTasks {
     const cost = this.ledger.lastCostAudit(this.account)?.operation;
     const time=this.roots.safety.lastTimeAudit(this.roots.forTask(id).id)?.operation;
     const checkpoint=this.roots.safety.lastCheckpointAudit(this.roots.forTask(id).id)?.operation;
+    const window=this.windows.safety.lastAudit(this.roots.forTask(id).id)?.operation;
+    if(window)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint||null,window]));
     if(checkpoint)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint]));
     return time ? "audit:"+sha256(JSON.stringify([limit,cost || null,time])) : cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
   }
@@ -383,6 +387,8 @@ export class ReadingTasks {
       if (action === "continue" && expectedMaintenanceOperation !== this.maintenanceOperation(id))
         throw error("STALE_TASK");
       if (action === "accept-partial") {
+        this.windows.safety.assertRoot(id);
+        if(this.roots.stats(id).reason==="WINDOW_STATE_RECONCILIATION")throw error("WINDOW_STATE_RECONCILIATION");
         if(this.chat.isChat(id))throw error("INVALID_TASK_TRANSITION");
         if (
           !["paused", "interrupted", "error", "conflict"].includes(task.state)
@@ -433,6 +439,7 @@ export class ReadingTasks {
         if (["CHECKPOINT_NO_PROGRESS","CHECKPOINT_RECONCILIATION"].includes(root.reason))throw error(root.reason);
         if (root.reason === "ACTIVE_TIME_RECONCILIATION")
           throw error("ACTIVE_TIME_RECONCILIATION");
+        if(root.reason==="WINDOW_STATE_RECONCILIATION")throw error(root.reason);
         if (root.reason === "SAFETY_RECONCILIATION")
           throw error("SAFETY_RECONCILIATION");
         if (
@@ -598,9 +605,13 @@ export class ReadingTasks {
   }
   publish(task, coverage, partial = false, afterPublication) {
     const id = task.id;
+    this.windows.safety.assertRoot(id);
+    this.windows.safety.guardCoverage(id,coverage);
     const isChat = this.chat.isChat(id);
     const rawBlocks=this.db.prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid").all(id);
-    const selected=rawBlocks.map(block=>({block,effective:isChat?{result:JSON.parse(block.result)}:this.visual.effective(task,block,partial)})).filter(row=>row.effective);
+    let selected;
+    try{selected=rawBlocks.map(block=>({block,effective:isChat?{result:JSON.parse(block.result)}:this.visual.effective(task,block,partial)})).filter(row=>row.effective);}
+    catch(e){if(e.message==="SAFETY_RECONCILIATION")this.roots.block(id,e.message);throw e;}
     if(partial&&!selected.length)throw error("VISUAL_REVIEW_REQUIRED");
     const selectedKeys=new Set(selected.map(row=>row.block.fingerprint));
     const blocks=selected.map(row=>row.effective.result);
@@ -669,6 +680,8 @@ export class ReadingTasks {
           if(isChat && this.revision(task)!==task.input_revision)throw error('INPUT_CHANGED');
         },
         beforeCommit: (response) => {
+          this.windows.safety.assertRoot(id);
+          this.windows.safety.guardCoverage(id,coverage);
           const current = this.get(id);
           if (
             current.generation !== task.generation ||
@@ -880,6 +893,7 @@ export class ReadingTasks {
     };
     try {
       if (root.reason) throw Error(root.reason);
+      this.windows.safety.assertRoot(id);
       if (root.activeMs >= activeLimitMs) throw Error("EXECUTION_LIMIT");
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
@@ -897,6 +911,7 @@ export class ReadingTasks {
       const inputBytes = !isChat && packet.text?.trim() ? Buffer.from(packet.text) : null;
       const input = inputBytes ? {id:"input",name:"输入.txt",body:inputBytes,size:inputBytes.length,hash:sha256(inputBytes)} : null;
       const pendingInputs = isChat ? [{id:chatMaterial.attachmentId,name:chatMaterial.name,hash:chatMaterial.contentHash}] : [...(input ? [input] : []), ...(packet.attachments || []).filter(f => !f.deletedAt)];
+      if(paged)this.windows.safety.registerInputs(id,pendingInputs);
       if(isChat && typeof callProvider!=="function")throw Error("CHAT_NOT_READY");
       if(isChat && !cached && (!paged || !this.windows.select(id,pendingInputs[0]).skip))materials.push(chatMaterial);
       const readInput = async file => {
@@ -937,6 +952,7 @@ export class ReadingTasks {
               "EXECUTION_LIMIT",
               "ACTIVE_TIME_RECONCILIATION",
               "SAFETY_RECONCILIATION",
+              "WINDOW_STATE_RECONCILIATION",
               "REUPLOAD_REQUIRED",
               "INVALID_READER_WINDOW",
               "READER_WINDOW_REQUIRED",
@@ -967,13 +983,12 @@ export class ReadingTasks {
       const readable = cached || (isChat ? materials : materials.map(modelMaterial));
       this.materials.set(id, readable);
       const coverage = paged ? this.windows.coverage(id,readable) : readable.map(coverageOnly);
-      this.db
-        .prepare("UPDATE reading_tasks SET coverage=? WHERE id=?")
-        .run(JSON.stringify(coverage), id);
+      this.windows.safety.observeCoverage(id,coverage);
       if (!readable.some((m) => m.segments.some((s) => s.text.trim())) &&
           !this.db.prepare("SELECT 1 FROM reading_blocks WHERE task=?").get(id)) {
         if (paged) {
           this.transaction(() => this.windows.advance(id,readable));
+          this.windows.safety.confirm(id);
           this.dropMaterial(id);
           if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true})) return this.get(id);
         }
@@ -1011,12 +1026,13 @@ export class ReadingTasks {
           this.ledger.call(existing.call_id)?.state === "settled"
         ) {
           if(isChat)this.chat.verifyBlock(task,existing);
-          if(!isChat && (typeof this.provider.merge==="function" || this.visual.input(id,fingerprint)) && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
+          if(!isChat && !this.reuse.proof(id,fingerprint) && !this.reuse.copied(id,fingerprint)) {
             const envelope=this.ledger.completedEnvelope(this.account,id,fingerprint);
             if(!envelope || envelope.call_id!==existing.call_id || envelope.result!==existing.result)throw Error("SAFETY_RECONCILIATION");
             this.reuse.certify(id,fingerprint,reuseKey,JSON.parse(existing.result));
             this.ledger.clearEnvelope(existing.call_id);
           }
+          if(!isChat)this.visual.upstream(task,existing);
           if (!this.reuse.copied(id, fingerprint))
             this.roots.progress(id, fingerprint);
           if(!isChat&&this.visual.input(id,fingerprint)){
@@ -1097,6 +1113,7 @@ export class ReadingTasks {
           continue;
         }
         if(isChat)this.chat.guardLostBlock(task,fingerprint);
+        else if(this.reuse.proof(id,fingerprint))throw Error("SAFETY_RECONCILIATION");
         const prepared = callProvider.prepare?.(sources, {
           captureDate: packet.captureDate,
           maxOutputTokens: this.maxOutputTokens,
@@ -1190,6 +1207,7 @@ export class ReadingTasks {
       if (!this.current(task)) return this.get(id);
       if (paged) {
         this.transaction(() => this.windows.advance(id,readable));
+          this.windows.safety.confirm(id);
         this.dropMaterial(id);
         if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true})) return this.get(id);
       }
@@ -1197,7 +1215,7 @@ export class ReadingTasks {
       return this.publish(task, coverage);
     } catch (e) {
       const reason = e.code || e.message;
-      if (reason === "SAFETY_RECONCILIATION" && !this.finalSnapshots) this.roots.block(id,reason);
+      if (["SAFETY_RECONCILIATION","WINDOW_STATE_RECONCILIATION"].includes(reason) && !this.finalSnapshots) this.roots.block(id,reason);
       if (
         this.current(task) ||
         (this.get(id)?.state === "applying" &&
@@ -1225,6 +1243,7 @@ export class ReadingTasks {
               "READING_TIMEOUT",
               "LEDGER_PAUSED",
               "SAFETY_RECONCILIATION",
+              "WINDOW_STATE_RECONCILIATION",
             ].includes(reason)
               ? reason
               : "READING_TASK_FAILED",

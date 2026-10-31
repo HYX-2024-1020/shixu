@@ -384,6 +384,7 @@ export class ReadingVisualReview {
     });
   }
   effective(task, block, partial = false) {
+    this.upstream(task,block);
     const ranges = JSON.parse(
       this.db
         .prepare(
