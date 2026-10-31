@@ -41,10 +41,10 @@
     "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs"
   },
   "dependencies": {
-    "7zip-bin-full": "^26.4.1",
+    "7zip-bin-full": "^26.5.1",
     "fflate": "^0.8.3",
     "lucide-react": "^0.468.0",
-    "pdfjs-dist": "^6.2.108",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "word-extractor": "^1.0.4",
@@ -56,10 +56,10 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.4.0",
-    "electron": "^45.0.0",
-    "electron-builder": "^26.15.3",
-    "esbuild": "0.25.12",
-    "prettier": "^3.6.2",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "0.28.2",
+    "prettier": "^3.9.10",
     "typescript": "~5.8.3",
     "vite": "^6.3.0",
     "vitest": "^5.0.5"
