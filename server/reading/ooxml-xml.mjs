@@ -1,4 +1,5 @@
-import { parser } from "sax";
+import sax from "sax";
+const { parser } = sax;
 const fail = (code) => {
   throw Error(code);
 };

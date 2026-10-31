@@ -1,3 +1,4 @@
+export { scanOfficeImages } from "./office-images.mjs";
 import { posix } from "node:path";
 import { SSF } from "xlsx/xlsx.mjs";
 import { openPackage } from "./ooxml-zip.mjs";
@@ -80,7 +81,7 @@ function target(base, raw) {
 // Only cell values/structure are read. Formula evaluation, links, rendering,
 // VBA and filesystem extraction never enter this layer. SSF formats a number;
 // the complete SheetJS workbook/ZIP parsers are deliberately not invoked.
-export function readXlsx(bytes, { add, missing, budget }) {
+export function readXlsx(bytes, { add, missing, budget, packageReady }) {
   const omitted = new Set();
   const note = (code, range = { kind: "xlsx" }) => {
     const key = JSON.stringify([code, range]);
@@ -393,6 +394,7 @@ export function readXlsx(bytes, { add, missing, budget }) {
   let outputBytes = 0,
     totalCells = 0;
   const knownParts = new Set(sheets.map((s) => s.part));
+  packageReady?.(pkg, sheets);
   for (const sheet of sheets) {
     const locator = {
       kind: "xlsx",

@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D Office引用图片（#73，整体未完成）
+
+Windows/微信共同显示DOCX段落、XLSX工作表/单元格锚点、隐藏工作表状态、内嵌原图文件名/像素/动画帧与区域进度；顶层及包内文档共用停止补传、核对共账和修订复用。说明明确原图资源不代表裁剪/变换/页面布局，VML、图表与其他嵌入对象仍未读。实际AccountWorkspace与Page/Node wx签名HTTP顶层DOCX/XLSX、ZIP内DOCX/RAR4内XLSX四链通过，普通UID Linux与受保护broker temporary/deleted两链通过；小程序官方无窗口编译通过，没有新增本机窗口。真实DOCX图像通知关键要求/时刻/来源保留，小样本不代表任意Office或模型准确率。见[Office证据](bcd/office-verification.md)；原生微信/手机/安装版未验，B/C/D其余实施继续。
+
 ## 2026-10-31 B/C/D 图像事实依据核对（#73，整体未完成）
 
 Windows/微信共用新增核对阶段、批数和累计费用提示；每个核对请求独立预留/结算、24调用与根时间累计。图像识别尚未核对时不能收下为结果；部分收下仅包含已核对块，保留来源与未处理范围。核对器只判定现有主张，不改写或添加事实；无依据内容转入待确认，付费原始结果及独立凭据保留。实际AccountWorkspace、Page/Node wx签名HTTP的temporary/deleted恢复及Linux普通UID通过，未启动本机UI。真实完整PDF链与固定缺陷输出核对分列；官方编译见本批证据。原生微信/手机/安装版未验。见[图像核对证据](bcd/visual-review-verification.md)。

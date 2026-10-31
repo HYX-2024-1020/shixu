@@ -113,7 +113,7 @@ export async function runClientLoop({
     reader: Object.assign(async (...args) => {
       parserRuns++;
       return reader(...args);
-    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true,imageWindows:reader.imageWindows===true,pdfVisualWindows:reader.pdfVisualWindows===true}),
+    }, {pdfWindows:reader.pdfWindows === true,archiveWindows:reader.archiveWindows === true,imageWindows:reader.imageWindows===true,pdfVisualWindows:reader.pdfVisualWindows===true,officeWindows:reader.officeWindows===true}),
     priceId: "synthetic",
     modelVersion: "synthetic/1",
     provider: async (sources) => {

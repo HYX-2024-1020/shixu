@@ -10,8 +10,9 @@ const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
 const gifMode = process.argv.includes("--gif");
 const webpMode = process.argv.includes("--webp");
+const officeMode=process.argv.includes("--office-docx")?"docx":process.argv.includes("--office-xlsx")?"xlsx":null;
 const reviewFixture=process.argv.includes("--review-fixture");
-const pdfMode=process.argv.includes("--pdf-visual"),notice9537=webpMode||pdfMode;
+const pdfMode=process.argv.includes("--pdf-visual"),notice9537=webpMode||pdfMode||!!officeMode;
 if (
   !probe ||
   path.dirname(probe) !== path.resolve(tmpdir()) ||
@@ -122,11 +123,18 @@ app
           plain.subarray(2),
         ]);
       }
-      const normalized = jpegMode || webpMode || pdfMode
+      if(officeMode){
+        const {decodeWebp}=await load("server/reading/webp.mjs"),{encodePng}=await load("server/reading/image.mjs");
+        const image=await decodeWebp(readFileSync(path.join(__dirname,"../server/reading/fixtures/webp-notice.webp")),1);
+        assert.equal(image.tileWidth,image.width);assert.equal(image.tileHeight,image.height);
+        const {officeImageBytes}=await load("server/reading/office-fixtures.mjs");
+        body=officeImageBytes(officeMode,{body:encodePng(image.width,image.height,image.pixels)}).body;
+      }
+      let normalized = jpegMode || webpMode || pdfMode
         ? await readMaterial(
             {
               id: "image",
-              name: pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : "合成旋转照片.jpg",
+              name: officeMode?"合成Office通知."+officeMode:pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : "合成旋转照片.jpg",
               body,
               size: body.length,
               hash: sha256(body),
@@ -137,6 +145,12 @@ app
       if ((jpegMode || webpMode || pdfMode) && normalized.segments.length !== 1)
         throw Error("JPEG_FIXTURE_NORMALIZATION_FAILED");
       if(pdfMode){const {decodePng}=await load("server/reading/image.mjs");assert.equal(sha256(decodePng(Buffer.from(normalized.segments[0].image.data,"base64")).pixels),"f5912a611eac1e2563bcf085c199202a82a87d90066f86f56b74e92ad25dc946");}
+      if(officeMode){
+        const file={id:"image",name:"合成Office通知."+officeMode,body,size:body.length,hash:sha256(body)};
+        const text=await readMaterial(file,{officeWindow:{text:1,image:0,tile:1,offset:0}});
+        normalized=await readMaterial(file,{officeWindow:text.officePagination.next});
+        assert.equal(normalized.segments.length,1);assert.ok(normalized.segments[0].image);
+      }
       ledger = new ReadingLedger(
         process.env.SHIXU_IMAGE_LEDGER_PATH ||
           path.join(probe, "ledger.sqlite"),
@@ -237,7 +251,7 @@ app
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
+        name: officeMode?"合成Office通知."+officeMode:pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
         type: pdfMode ? "application/pdf" : webpMode ? "image/webp" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
@@ -249,6 +263,7 @@ app
         account: "synthetic-image-development",
         reader: Object.assign((file, options) => readMaterial(file, options), {
           pdfWindows: true,
+          officeWindows:!!officeMode,
           pdfVisualWindows:pdfMode,
           imageWindows: true,
         }),
@@ -284,6 +299,8 @@ app
           secondFrameFact:serialized.includes("UTF-8") && serialized.includes("源代码"),
           combined:packet.result?.items?.some(item=>JSON.stringify(item).includes("PDF")&&JSON.stringify(item).includes("UTF-8"))} : {}),
         ...(pdfMode ? {pageAndPixelSource:packet.readingCoverage?.[0]?.covered?.some(r=>r.page===1&&r.dpi===108&&r.kind==="image"),allPages:packet.readingCoverage?.[0]?.pdfVisualPagination?.next===null} : {}),
+        ...(officeMode?{officeAnchor:packet.readingCoverage?.[0]?.covered?.some(r=>r.officeKind===officeMode&&r.mediaPart.endsWith("图像.png")&&(officeMode==="docx"?r.paragraph===2:r.cell==="B3")),allOfficeImages:packet.readingCoverage?.[0]?.officePagination?.next===null,
+          noInventedFooterRequirement:!packet.result?.items?.some(i=>[i.summary,...i.facts,...i.nextSteps].some(s=>s.includes("报告尾部")))}:{}),
         imageWarning:
           packet.result?.warnings?.some((w) =>
             w.includes("图像内容由模型识别"),
@@ -303,7 +320,7 @@ app
         checks.falseClaimPreservedAsUncertain=!!item?.uncertainties.some(s=>s.includes("需写在报告尾部"));
       }
       const report = {
-        kind: pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
+        kind: officeMode?"synthetic-real-office-"+officeMode+"-development":pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),
@@ -351,7 +368,7 @@ app
           state: task.state,
         }),
       );
-      assert.ok(providerCalls>=1 && providerCalls<=(gifMode?8:4));
+      assert.ok(providerCalls>=1 && providerCalls<=(officeMode?6:gifMode?8:4));
       assert.equal(task.state, "done");
       assert.ok(Object.values(checks).every(Boolean));
     } finally {

@@ -1,3 +1,4 @@
+import {validateOfficeWindow} from "./office-window.mjs";
 import { spawn } from "node:child_process";
 import {
   mkdtemp,
@@ -200,9 +201,11 @@ export function createLinuxReader({ runtime, staging, pdfVisualWindows=false }) 
   };
   const reader = async (
     file,
-    { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow } = {},
+    { signal, probe, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow } = {},
   ) => {
     if((pdfVisualWindow || archiveWindow?.visual) && !pdfVisualWindows)throw Error("PDF_VISUAL_UNSUPPORTED");
+    officeWindow=validateOfficeWindow(officeWindow);
+    if(officeWindow&&(!/\.(docx|xlsx)$/i.test(file.name)||pdfWindow||archiveWindow||imageWindow||pdfVisualWindow))throw Error("INVALID_OFFICE_WINDOW");
     pdfVisualWindow=validatePdfVisualWindow(pdfVisualWindow);
     if(pdfVisualWindow && (!/\.pdf$/i.test(file.name)||pdfWindow||imageWindow||archiveWindow))throw Error("INVALID_PDF_VISUAL_WINDOW");
     imageWindow=validateImageWindow(imageWindow);
@@ -270,6 +273,7 @@ export function createLinuxReader({ runtime, staging, pdfVisualWindows=false }) 
           name: file.name,
           size: file.size,
           hash: file.hash,
+          ...(officeWindow?{officeWindow}:{}),
           ...(pdfVisualWindow ? {pdfVisualWindow} : {}), ...(pdfWindow ? { pdfWindow } : {}), ...(imageWindow ? {imageWindow} : {}),
           ...(archiveWindow ? { archiveWindow } : {}),
           ...(probe ? { probe } : {}),
@@ -320,5 +324,5 @@ export function createLinuxReader({ runtime, staging, pdfVisualWindows=false }) 
       }
     }
   };
-  return Object.assign(reader, { pdfWindows:true, archiveWindows:true, imageWindows:true, pdfVisualWindows });
+  return Object.assign(reader, { pdfWindows:true, archiveWindows:true, imageWindows:true, pdfVisualWindows, officeWindows:true });
 }

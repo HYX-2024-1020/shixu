@@ -1,0 +1,510 @@
+{
+  "kind": "synthetic-real-office-docx-development",
+  "testedAt": "2026-10-31T13:42:06.406Z",
+  "realProviderCalls": 5,
+  "simulatedUpstreamCalls": 0,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793454117019,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "8c00c8d4ed5758054767d73ad4fea25ec58d8ea0adae6de773f90204dccf9435",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "officeAnchor": true,
+    "allOfficeImages": true,
+    "noInventedFooterRequirement": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 9311.600900000001,
+  "spentMicros": 9297,
+  "ledgerSpentIncludingSimulatedMicros": 9297,
+  "calls": [
+    {
+      "id": "79ca05e4-bb83-4c0e-ab4b-8167430b102a",
+      "block": "4e263d9094e3779533e6d63490179f546cc902479e486615208b69dbc3cac2a6",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 23267,
+      "actual": 1542,
+      "usage": "{\"prompt_tokens\":1122,\"completion_tokens\":293,\"prompt_cache_hit_tokens\":768}",
+      "simulated": false
+    },
+    {
+      "id": "4fe36356-f35f-47a7-9a5a-672763bec77f",
+      "block": "c0f2fd1b1c9135ea88490bd2be54ea9bfd29494871af4e94d597c8017c08a154",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26206,
+      "actual": 3106,
+      "usage": "{\"prompt_tokens\":1632,\"completion_tokens\":588,\"prompt_cache_hit_tokens\":896}",
+      "simulated": false
+    },
+    {
+      "id": "775c6c26-9f4f-47f1-aa60-0112770b79c1",
+      "block": "a30f3871da3685d3770ba8531f50ea44f0c24c186731039ed2d61acf97beb446",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 25099,
+      "actual": 2647,
+      "usage": "{\"prompt_tokens\":1412,\"completion_tokens\":340,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    },
+    {
+      "id": "2317c33a-ff40-4c8b-a000-c84b28e62a2d",
+      "block": "70c6c6193bb25baa0059c79997e523219b1d9a5438bda06963a633864e7a2eec",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22852,
+      "actual": 774,
+      "usage": "{\"prompt_tokens\":787,\"completion_tokens\":28,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    },
+    {
+      "id": "2cddf252-8c02-43b7-b1af-37c58c4bfa12",
+      "block": "0758c8c79f9076459736ebd43e5e890efe06d4b92c9e52a8a1219e77377e6b27",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 23071,
+      "actual": 1228,
+      "usage": "{\"prompt_tokens\":1317,\"completion_tokens\":9,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    }
+  ],
+  "realUnknownCalls": 0,
+  "modelResponses": [
+    {
+      "summary": "这次收下了两份疑似同一文档的通知片段，内容零散，没有可执行事项，仅作备注保留。",
+      "items": [
+        {
+          "kind": "note",
+          "title": "存疑的Office通知片段",
+          "summary": "两份文本都来自名为“合成Office通知”的文档，只有开头和结尾的零星文字，看不出具体通知内容或提交要求。",
+          "facts": [
+            "第一段文本只有“Office图像之前😀”。",
+            "第二段文本只有“Office尾部唯一标记”。",
+            "两个来源文件名相同，均为“合成Office通知.docx”。"
+          ],
+          "nextSteps": [
+            "如果确实存在这份通知，建议回到原始文档核对完整内容后再判断是否有任务。"
+          ],
+          "uncertainties": [
+            "两段文本是否为同一份通知的开头和结尾，无法确认。",
+            "通知的完整内容、发布者与是否需要行动均不明。"
+          ],
+          "due": null,
+          "evidence": [
+            {
+              "sourceId": "ot_11ed84454a306a17099ac4c836911d7d8ad085e137b17cdc_m0",
+              "quote": "Office图像之前😀"
+            },
+            {
+              "sourceId": "ot_e2ae62a795e52034dde9bea5a6981cea63cc5cec62418348_m0",
+              "quote": "Office尾部唯一标记"
+            }
+          ]
+        }
+      ],
+      "warnings": [
+        "附件文本过短且不连贯，无法据此判断任务或日期，未生成待办。"
+      ]
+    },
+    {
+      "summary": "收下1份课程通知，整理为提交图像实验报告的任务，截止2026年11月3日16:45。",
+      "items": [
+        {
+          "kind": "task",
+          "title": "提交图像实验报告并核对9537编号",
+          "summary": "按PDF格式、学号_姓名命名提交图像实验报告，正文说明算法思路与时间复杂度，报告尾部须包含任务编号9537。",
+          "facts": [
+            "提交图像实验报告，任务编号9537",
+            "截止：2026年11月3日16:45",
+            "格式：PDF，命名：学号_姓名",
+            "要求：说明算法思路与时间复杂度",
+            "尾部核对：9537，禁止遗漏此编号"
+          ],
+          "nextSteps": [
+            "先搭建报告框架，再补充算法思路与时间复杂度分析",
+            "导出为PDF，按“学号_姓名”命名",
+            "提交前检查报告尾部是否包含9537"
+          ],
+          "uncertainties": [
+            "图像中未说明具体提交平台或提交入口"
+          ],
+          "due": {
+            "date": "2026-11-03",
+            "time": "16:45",
+            "anchor": "2026年11月3日16:45",
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1"
+          },
+          "evidence": [
+            {
+              "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+              "quote": "请提交图像实验报告，任务编号9537。"
+            },
+            {
+              "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+              "quote": "截止：2026年11月3日16:45。"
+            },
+            {
+              "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+              "quote": "格式：PDF，命名：学号_姓名。"
+            },
+            {
+              "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+              "quote": "要求：说明算法思路与时间复杂度。"
+            },
+            {
+              "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+              "quote": "尾部核对：9537，禁止遗漏此编号。"
+            }
+          ]
+        }
+      ],
+      "warnings": [
+        "图像内容来自Office内嵌原图资源，仅整理图像中可见文字，未读取Word文档其他页面或链接内容。"
+      ]
+    }
+  ],
+  "visualReviews": [
+    {
+      "fingerprint": "a30f3871da3685d3770ba8531f50ea44f0c24c186731039ed2d61acf97beb446",
+      "upstream": "c0f2fd1b1c9135ea88490bd2be54ea9bfd29494871af4e94d597c8017c08a154",
+      "call_id": "775c6c26-9f4f-47f1-aa60-0112770b79c1",
+      "result": {
+        "claims": [
+          {
+            "id": "summary",
+            "status": "supported",
+            "reason": "通知含报告任务、编号与截止时间"
+          },
+          {
+            "id": "i0_title",
+            "status": "unsupported",
+            "reason": "页尾核对编号不能推为标题要求"
+          },
+          {
+            "id": "i0_summary",
+            "status": "unsupported",
+            "reason": "“报告尾部须包含任务编号”系对页尾标记的曲解"
+          },
+          {
+            "id": "i0_facts_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_2",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_3",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_4",
+            "status": "unsupported",
+            "reason": "原文仅列页尾核对，未要求报告尾部含编号"
+          },
+          {
+            "id": "i0_nextSteps_0",
+            "status": "suggestion",
+            "reason": "可选建议，非通知原文要求"
+          },
+          {
+            "id": "i0_nextSteps_1",
+            "status": "suggestion",
+            "reason": "依据格式要求的可选执行建议"
+          },
+          {
+            "id": "i0_nextSteps_2",
+            "status": "unsupported",
+            "reason": "未要求提交前另查报告尾部编号"
+          },
+          {
+            "id": "i0_due",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_2",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_3",
+            "status": "supported",
+            "reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "fingerprint": "70c6c6193bb25baa0059c79997e523219b1d9a5438bda06963a633864e7a2eec",
+      "upstream": "c0f2fd1b1c9135ea88490bd2be54ea9bfd29494871af4e94d597c8017c08a154",
+      "call_id": "2317c33a-ff40-4c8b-a000-c84b28e62a2d",
+      "result": {
+        "claims": [
+          {
+            "id": "i0_quote_4",
+            "status": "supported",
+            "reason": "图末原文逐字一致"
+          }
+        ]
+      }
+    }
+  ],
+  "result": {
+    "summary": "这次收下了两份疑似同一文档的通知片段，内容零散，没有可执行事项，仅作备注保留。\n收下1份课程通知，整理为提交图像实验报告的任务，截止2026年11月3日16:45。",
+    "warnings": [
+      "附件文本过短且不连贯，无法据此判断任务或日期，未生成待办。",
+      "图像内容来自Office内嵌原图资源，仅整理图像中可见文字，未读取Word文档其他页面或链接内容。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系",
+      "图像依据核对：4处内容缺少明确依据，已转为待确认"
+    ],
+    "items": [
+      {
+        "kind": "note",
+        "title": "存疑的Office通知片段",
+        "summary": "两份文本都来自名为“合成Office通知”的文档，只有开头和结尾的零星文字，看不出具体通知内容或提交要求。",
+        "facts": [
+          "第一段文本只有“Office图像之前😀”。",
+          "第二段文本只有“Office尾部唯一标记”。",
+          "两个来源文件名相同，均为“合成Office通知.docx”。"
+        ],
+        "nextSteps": [
+          "如果确实存在这份通知，建议回到原始文档核对完整内容后再判断是否有任务。"
+        ],
+        "uncertainties": [
+          "两段文本是否为同一份通知的开头和结尾，无法确认。",
+          "通知的完整内容、发布者与是否需要行动均不明。"
+        ],
+        "evidence": [
+          {
+            "sourceId": "ot_11ed84454a306a17099ac4c836911d7d8ad085e137b17cdc_m0",
+            "quote": "Office图像之前😀"
+          },
+          {
+            "sourceId": "ot_e2ae62a795e52034dde9bea5a6981cea63cc5cec62418348_m0",
+            "quote": "Office尾部唯一标记"
+          }
+        ],
+        "sourceIds": [
+          "ot_11ed84454a306a17099ac4c836911d7d8ad085e137b17cdc_m0",
+          "ot_e2ae62a795e52034dde9bea5a6981cea63cc5cec62418348_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "task",
+        "title": "待核对的图像事项",
+        "summary": "",
+        "facts": [
+          "提交图像实验报告，任务编号9537",
+          "截止：2026年11月3日16:45",
+          "格式：PDF，命名：学号_姓名",
+          "要求：说明算法思路与时间复杂度"
+        ],
+        "nextSteps": [
+          "先搭建报告框架，再补充算法思路与时间复杂度分析",
+          "导出为PDF，按“学号_姓名”命名"
+        ],
+        "uncertainties": [
+          "图像中未说明具体提交平台或提交入口",
+          "图像依据待核对（不作为原文要求）：提交图像实验报告并核对9537编号（页尾核对编号不能推为标题要求）",
+          "图像依据待核对（不作为原文要求）：按PDF格式、学号_姓名命名提交图像实验报告，正文说明算法思路与时间复杂度，报告尾部须包含任务编号9537。（“报告尾部须包含任务编号”系对页尾标记的曲解）",
+          "图像依据待核对（不作为原文要求）：尾部核对：9537，禁止遗漏此编号（原文仅列页尾核对，未要求报告尾部含编号）",
+          "图像依据待核对（不作为原文要求）：提交前检查报告尾部是否包含9537（未要求提交前另查报告尾部编号）"
+        ],
+        "evidence": [
+          {
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+            "quote": "尾部核对：9537，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成Office通知.docx",
+      "contentHash": "8c00c8d4ed5758054767d73ad4fea25ec58d8ea0adae6de773f90204dccf9435",
+      "readerVersion": "office-assets/1;docx/1",
+      "normalizationVersion": "office-structure-original-image/1",
+      "state": "partial",
+      "covered": [
+        {
+          "sourceId": "ot_11ed84454a306a17099ac4c836911d7d8ad085e137b17cdc_m0",
+          "name": "合成Office通知.docx",
+          "start": 0,
+          "end": 12,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 1,
+          "fragment": 0
+        },
+        {
+          "sourceId": "ot_ea0edd2777f57cb4a1fe38fb9763bcee0d17c95e2eeb2363_m0",
+          "name": "合成Office通知.docx",
+          "start": 12,
+          "end": 13,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "fragment": 0
+        },
+        {
+          "sourceId": "ot_e2ae62a795e52034dde9bea5a6981cea63cc5cec62418348_m0",
+          "name": "合成Office通知.docx",
+          "start": 13,
+          "end": 26,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 3,
+          "fragment": 0
+        },
+        {
+          "sourceId": "oi_b68ba87955e499a555c252670e7a2b2a258f7276ef368c03_72f7e7809536_i1",
+          "name": "合成Office通知.docx",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "start": 26,
+          "end": 27,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "mediaPart": "word/media/图像.png",
+          "relationship": "image1",
+          "extension": "png",
+          "officeKind": "docx"
+        }
+      ],
+      "uncovered": [
+        {
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "code": "DOCX_OBJECT_UNREAD"
+        },
+        {
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "mediaPart": "word/media/图像.png",
+          "relationship": "image1",
+          "extension": "png",
+          "code": "OFFICE_DRAWING_LAYOUT_UNREAD"
+        }
+      ],
+      "reasons": [
+        "DOCX_OBJECT_UNREAD",
+        "OFFICE_DRAWING_LAYOUT_UNREAD"
+      ],
+      "officeImageParts": [
+        {
+          "image": 1,
+          "totalImages": 1,
+          "mediaPart": "word/media/图像.png",
+          "part": "word/document.xml",
+          "checked": 1,
+          "total": 1
+        }
+      ],
+      "officePagination": {
+        "start": {
+          "text": 0,
+          "image": 0,
+          "tile": 1,
+          "offset": 26
+        },
+        "next": null,
+        "totalText": 26,
+        "nextOffset": 27,
+        "totalImages": 1,
+        "image": {
+          "startTile": 1,
+          "nextTile": null,
+          "totalTiles": 1,
+          "width": 900,
+          "height": 600
+        }
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

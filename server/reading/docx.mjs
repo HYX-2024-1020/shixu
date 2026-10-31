@@ -1,3 +1,4 @@
+export { scanOfficeImages } from "./office-images.mjs";
 import { parseXml } from "./ooxml-xml.mjs";
 import { openPackage } from "./ooxml-zip.mjs";
 import { posix } from "node:path";
@@ -23,7 +24,7 @@ const isWord = (node, name) => wordUris.has(node.uri) && node.local === name;
 // This is structural text reading, never Word automation or rendering. Exact
 // part/paragraph/table coordinates survive model windows; omitted objects are
 // explicitly uncovered instead of being counted as fully read.
-export function readDocx(bytes, { add, missing, budget }) {
+export function readDocx(bytes, { add, missing, budget, packageReady }) {
   if (
     bytes
       .subarray(0, 8)
@@ -145,6 +146,7 @@ export function readDocx(bytes, { add, missing, budget }) {
       .filter((n) => n !== "word/document.xml")
       .sort((a, b) => a.localeCompare(b, "en", { numeric: true })),
   ];
+  packageReady?.(pkg, parts);
   for (const part of parts) {
     const stack = [],
       tables = [];

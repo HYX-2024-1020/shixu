@@ -1,4 +1,5 @@
 import { isImageName, validateModelImage } from "./image.mjs";
+import { FIRST_OFFICE_WINDOW,validateOfficeWindow } from "./office-window.mjs";
 import { coverageOnly } from "./material.mjs";
 import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { PDF_WINDOW_PAGES } from "./pdf-window.mjs";
@@ -21,7 +22,7 @@ export class ReadingWindows {
       .prepare("SELECT * FROM reading_windows WHERE task=? ORDER BY rowid")
       .all(task);
   }
-  select(task, file, { archiveWindows = false, imageWindows = false, pdfVisualWindows = false } = {}) {
+  select(task, file, { archiveWindows = false, imageWindows = false, pdfVisualWindows = false, officeWindows = false } = {}) {
     const row = this.db
       .prepare("SELECT * FROM reading_windows WHERE task=? AND attachment=?")
       .get(task, file.id);
@@ -32,16 +33,18 @@ export class ReadingWindows {
       return {skip:false,imageWindow:{tile:row?.next_page||1}};
     }
     const prior = row && JSON.parse(row.coverage);
+    if(prior?.officePagination&&!officeWindows)throw Error("READER_WINDOW_REQUIRED");
+    if(officeWindows&&/\.(docx|xlsx)$/i.test(file.name))return {skip:false,officeWindow:validateOfficeWindow(prior?.officePagination?.next||FIRST_OFFICE_WINDOW)};
     if(prior?.pdfVisualPagination && !pdfVisualWindows)throw Error("READER_WINDOW_REQUIRED");
     if(pdfVisualWindows && /\.pdf$/i.test(file.name))return {skip:false,pdfVisualWindow:validatePdfVisualWindow(prior?.pdfVisualPagination?.next || {page:1,tile:1,offset:0})};
     const saved = prior?.archivePagination;
-    if (saved && (!archiveWindows || (saved.start?.visual && !pdfVisualWindows))) throw Error("READER_WINDOW_REQUIRED");
+    if (saved && (!archiveWindows || (saved.start?.visual && !pdfVisualWindows) || (saved.start?.office && !officeWindows))) throw Error("READER_WINDOW_REQUIRED");
     return {
       skip: false,
       ...(archiveWindows && /\.(zip|rar|7z)$/i.test(file.name)
         ? {
             archiveWindow: validateArchiveWindow(
-              saved?.next || (pdfVisualWindows ? {...FIRST_ARCHIVE_WINDOW,visual:1,tile:1} : FIRST_ARCHIVE_WINDOW),
+              saved?.next || {...FIRST_ARCHIVE_WINDOW,...(pdfVisualWindows?{visual:1,tile:1}:{}),...(officeWindows?{office:1,image:0,text:1,tile:1}:{})},
             ),
           }
         : {}),
@@ -55,7 +58,8 @@ export class ReadingWindows {
         : {}),
     };
   }
-  verify(material, requested, archiveWindow, imageWindow, pdfVisualWindow) {
+  verify(material, requested, archiveWindow, imageWindow, pdfVisualWindow, officeWindow) {
+    if(officeWindow)return this.verifyOffice(material,officeWindow);
     if(pdfVisualWindow)return this.verifyPdfVisual(material,pdfVisualWindow);
     if(imageWindow){
       const p=material.imagePagination;
@@ -169,7 +173,7 @@ export class ReadingWindows {
           next.expanded < start.expanded ||
           !(
             (next.entry === start.entry &&
-              (next.page > start.page || (start.visual && next.page===start.page && next.tile===start.tile+1)) &&
+              (next.page > start.page || (start.visual && next.page===start.page && next.tile===start.tile+1) || (start.office && (next.offset>start.offset || next.image>start.image || next.tile>start.tile || next.text<start.text))) &&
               next.base === start.base &&
               next.expanded === start.expanded) ||
             (next.entry === start.entry + 1 &&
@@ -207,6 +211,9 @@ export class ReadingWindows {
           (more && next.page !== p.image.nextTile) ||
           (next && next.offset !== start.base + p.image.startTile))
         invalid();
+    } else if(p.office){
+      this.verifyOffice(material,{text:start.text,image:start.image,tile:start.tile,offset:start.offset-start.base},{base:start.base,pagination:p.office});
+      if(!!p.office.next!==(next?.entry===start.entry))invalid();
     } else if (p.pdf) {
       const relative = start.offset - start.base;
       this.verify(
@@ -240,6 +247,35 @@ export class ReadingWindows {
       ...ranges.map((r) => (Number.isSafeInteger(r.end) ? r.end : 0)),
     );
     if (next && next.offset !== end) invalid();
+  }
+  verifyOffice(material,requested,{base=0,pagination=material.officePagination}={}) {
+    const invalid=()=>{throw Error("INVALID_READER_WINDOW");};
+    const p=pagination;
+    if(!p){if(material.segments?.length)invalid();return;}
+    if(JSON.stringify(validateOfficeWindow(p.start))!==JSON.stringify(validateOfficeWindow(requested)) ||
+      !Number.isSafeInteger(p.totalText)||p.totalText<0||p.totalText>64*1024*1024||
+      !Number.isSafeInteger(p.totalImages)||p.totalImages<0||p.totalImages>1000||material.segments.length!==material.covered.length)invalid();
+    let offset=requested.offset,expected;
+    for(let n=0;n<material.segments.length;n++){
+      const segment=material.segments[n],r=segment.range;
+      if(JSON.stringify(r)!==JSON.stringify(material.covered[n])||segment.sourceId!==r.sourceId||r.start!==offset+base)invalid();
+      if(requested.text){
+        if(segment.image||!["docx","xlsx"].includes(r.kind)||r.end!==r.start+[...segment.text].length||r.end>base+Math.min(p.totalText,requested.offset+120000))invalid();
+      }else if(!segment.image||r.kind!=="image"||r.end!==r.start+1||typeof r.mediaPart!=="string"||typeof r.officeKind!=="string")invalid();
+      offset=r.end-base;
+    }
+    if(requested.text){
+      if(offset!==Math.min(p.totalText,requested.offset+120000))invalid();
+      expected=offset<p.totalText?{...requested,offset}:p.totalImages?{text:0,image:0,tile:1,offset}:null;
+    }else{
+      if(requested.image>=p.totalImages)invalid();
+      if(p.image){
+        const covered=material.covered.map(r=>({...r,start:requested.tile-1,end:requested.tile}));
+        this.verify({...material,name:material.covered[0]?.mediaPart,imagePagination:p.image,covered,segments:material.segments.map((s,n)=>({...s,range:covered[n]}))},undefined,undefined,{tile:requested.tile});
+      }else if(!p.failedImage||material.segments.length)invalid();
+      expected=p.image?.nextTile?{...requested,tile:p.image.nextTile,offset}:requested.image+1<p.totalImages?{text:0,image:requested.image+1,tile:1,offset}:null;
+    }
+    if(p.nextOffset!==offset || JSON.stringify(p.next)!==JSON.stringify(expected))invalid();
   }
   verifyPdfVisual(material, requested, {base=0,pagination=material.pdfVisualPagination}={}) {
     const invalid=()=>{throw Error("INVALID_READER_WINDOW");};
@@ -282,19 +318,20 @@ export class ReadingWindows {
     const next = coverageOnly(material);
     if (!previous) return next;
     if (previous.contentHash !== next.contentHash) throw Error("INPUT_CHANGED");
-    const uncovered = [
+    const uncovered = [...new Map([
       ...previous.uncovered.filter(
         (r) =>
-          !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(r.code),
+          !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING", "OFFICE_WINDOW_PENDING"].includes(r.code),
       ),
       ...next.uncovered,
-    ];
+    ].map(r=>[JSON.stringify(r),r])).values()];
     const covered = [...previous.covered, ...next.covered];
     const archiveImageTiles = [...new Map([
       ...(previous.archiveImageTiles || []), ...(next.archiveImageTiles || []),
     ].map(p => [p.archivePath, p])).values()];
     return {
       ...next,
+      ...((previous.officeImageParts||next.officeImageParts)?{officeImageParts:[...new Map([...(previous.officeImageParts||[]),...(next.officeImageParts||[])].map(r=>[(r.archivePath||"")+":"+r.image,r])).values()]}:{}),
       ...(archiveImageTiles.length ? { archiveImageTiles } : {}),
       ...(previous.archivePdfPages || next.archivePdfPages
         ? {
@@ -315,7 +352,7 @@ export class ReadingWindows {
         ...new Set([
           ...previous.reasons.filter(
             (c) =>
-              !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING"].includes(c),
+              !["PDF_WINDOW_PENDING", "PDF_VISUAL_WINDOW_PENDING", "ARCHIVE_WINDOW_PENDING", "IMAGE_WINDOW_PENDING", "OFFICE_WINDOW_PENDING"].includes(c),
           ),
           ...next.reasons,
         ]),
@@ -351,7 +388,7 @@ export class ReadingWindows {
     );
     for (const material of materials) {
       const p = material.pagination;
-      const next = material.pdfVisualPagination ? material.pdfVisualPagination.next?.page || 0 : material.imagePagination ? material.imagePagination.nextTile || 0 : material.archivePagination
+      const next = material.officePagination ? material.officePagination.next?1:0 : material.pdfVisualPagination ? material.pdfVisualPagination.next?.page || 0 : material.imagePagination ? material.imagePagination.nextTile || 0 : material.archivePagination
         ? material.archivePagination.next
           ? 1
           : 0

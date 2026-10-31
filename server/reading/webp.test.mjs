@@ -231,6 +231,7 @@ test("WebP tool missing or protocol/hash mismatch fails closed in an isolated mo
       "pdf-window.mjs",
       "pdf-visual.mjs",
       "pdf-canvas.mjs",
+      "office-window.mjs",
     ])
       await copyFile(
         new URL("./" + name, import.meta.url),

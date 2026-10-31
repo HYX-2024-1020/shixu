@@ -9,6 +9,13 @@ export function mergeProgressView(phase, completed, visualCompleted) {
   return phase === "merging" ? `语义核对 · 已完成 ${Number.isSafeInteger(completed) && completed >= 0 ? completed : 0} 批（共用累计费用）` : "";
 }
 const reasons = {
+  OFFICE_WINDOW_PENDING:"后续Office文字或内嵌图片区域尚未读取",
+  OFFICE_DRAWING_LAYOUT_UNREAD:"仅检查内嵌原图，文档裁剪、变换、形状与页面布局未渲染",
+  OFFICE_EXTERNAL_IMAGE_UNREAD:"外部图片链接未获取",
+  OFFICE_IMAGE_REFERENCE_INVALID:"Office图片关系或锚点校验失败，未猜测图片位置",
+  OFFICE_IMAGE_REFERENCE_LIMIT:"Office图片引用超过安全范围",
+  OFFICE_IMAGE_ENCODING_UNSUPPORTED:"此内嵌图片格式或声明暂不支持",
+  OFFICE_IMAGE_SIZE_LIMIT:"此内嵌图片超过单件安全范围",
   PDF_VISUAL_UNSUPPORTED:"服务端页面视觉读取尚未启用，不能把文字层当作扫描页已读",
   PDF_VISUAL_TOOL_UNSUPPORTED:"服务端固定页面渲染工具未就绪",
   PDF_VISUAL_PIXEL_LIMIT:"PDF页面或中间画布超过隔离像素范围，本页视觉未完成",
@@ -120,8 +127,9 @@ function location(range) {
     return `包内 “${archivePath.slice(0, 512)}” · ${location(inner)}`;
   }
   if(range.kind==='image'){
+    const office=['docx','xlsx'].includes(range.officeKind)&&typeof range.mediaPart==='string'?`${location({...range,kind:range.officeKind})} · 内嵌原图 “${range.mediaPart.slice(0,512)}” · `:'';
     const n=v=>Number.isSafeInteger(v)&&v>=0;
-    if([range.x,range.y,range.width,range.height].every(n))return `${Number.isSafeInteger(range.page)&&range.page>0?`PDF 第 ${range.page} 页（${range.dpi||108}dpi） · `:""}图像模型识别 · ${range.frame?`第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · `:''}第 ${range.tile} 块 · ${range.orientation>1?'按原图方向校正 · ':''}像素(${range.x},${range.y},${range.width},${range.height})`;
+    if([range.x,range.y,range.width,range.height].every(n))return `${range.hiddenSheet?"隐藏工作表 · ":""}${office}${Number.isSafeInteger(range.page)&&range.page>0?`PDF 第 ${range.page} 页（${range.dpi||108}dpi） · `:""}图像模型识别 · ${range.frame?`第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · `:''}第 ${range.tile} 块 · ${range.orientation>1?'按原图方向校正 · ':''}像素(${range.x},${range.y},${range.width},${range.height})`;
     return Number.isSafeInteger(range.tile)?`图像第 ${range.tile}${range.tileEnd?'–'+range.tileEnd:''} 块`:'整份图像';
   }
   if (range.kind === "pdf") {
@@ -249,7 +257,8 @@ export function pdfProgressView(summary) {
   const rows = summary.flatMap(c => {
     if (!c || typeof c !== "object") return [];
     const members = Array.isArray(c.archivePdfPages) ? c.archivePdfPages : [];
-    return [c, ...members.filter(p => p && typeof p.archivePath === "string").map(p => ({
+    const office=Array.isArray(c.officeImageParts)?c.officeImageParts.filter(p=>p&&typeof p.mediaPart==="string").map(p=>({name:`${typeof c.name==="string"?c.name.slice(0,200):"Office"}${typeof p.archivePath==="string"?` · 包内 “${p.archivePath.slice(0,512)}”`:""} · 内嵌原图 “${p.mediaPart.slice(0,512)}”`,imageTiles:p})):[];
+    return [c, ...office, ...members.filter(p => p && typeof p.archivePath === "string").map(p => ({
       name: `${typeof c.name === "string" ? c.name.slice(0, 200) : "归档"} · 包内 “${p.archivePath.slice(0, 512)}”`,
       pdfPages: p,
     }))];
@@ -271,7 +280,8 @@ export function imageProgressView(summary){
   const rows = summary.flatMap(c => {
     if (!c || typeof c !== 'object') return [];
     const members = Array.isArray(c.archiveImageTiles) ? c.archiveImageTiles : [];
-    return [c, ...members.filter(p => p && typeof p.archivePath === 'string').map(p => ({
+    const office=Array.isArray(c.officeImageParts)?c.officeImageParts.filter(p=>p&&typeof p.mediaPart==="string").map(p=>({name:`${typeof c.name==="string"?c.name.slice(0,200):"Office"}${typeof p.archivePath==="string"?` · 包内 “${p.archivePath.slice(0,512)}”`:""} · 内嵌原图 “${p.mediaPart.slice(0,512)}”`,imageTiles:p})):[];
+    return [c, ...office, ...members.filter(p => p && typeof p.archivePath === 'string').map(p => ({
       name: `${typeof c.name === 'string' ? c.name.slice(0, 200) : '归档'} · 包内 “${p.archivePath.slice(0, 512)}”`,
       imageTiles: p,
     }))];

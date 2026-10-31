@@ -4,9 +4,10 @@ const require = createRequire(import.meta.url);
 import { validateArchiveWindow } from "./archive-window.mjs";
 import { isImageName, validateImageWindow } from "./image.mjs";
 import { validatePdfVisualWindow } from "./pdf-visual.mjs";
+import { validateOfficeWindow } from "./office-window.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;pdf-visual/1;archive/10;visual-review/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;pdf-visual/1;archive/11;visual-review/1;office-assets/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -94,7 +95,7 @@ function* csvRecords(text) {
 
 export function readMaterial(
   { id, name, body, hash, size },
-  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow } = {},
+  { windowCodepoints = WINDOW_CODEPOINTS, expansionBudget, pdfTextUnits, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow } = {},
 ) {
   if (
     typeof id !== "string" ||
@@ -134,6 +135,8 @@ export function readMaterial(
     result.reasons.push(code);
     return result;
   };
+  officeWindow=validateOfficeWindow(officeWindow);
+  if(officeWindow&&(!/\.(docx|xlsx)$/i.test(name)||pdfWindow||archiveWindow||imageWindow||pdfVisualWindow))throw Error("INVALID_OFFICE_WINDOW");
   archiveWindow = validateArchiveWindow(archiveWindow);
   if (archiveWindow && !/\.(zip|rar|7z)$/i.test(name)) throw Error("INVALID_ARCHIVE_WINDOW");
   pdfVisualWindow=validatePdfVisualWindow(pdfVisualWindow);
@@ -160,6 +163,7 @@ export function readMaterial(
           ? { fragment: part++ }
           : { part: part++ }),
       };
+      if(officeWindow&&!officeWindow.text){offset+=chunk.size;continue;}
       result.covered.push(range);
       result.segments.push({
         sourceId,
@@ -204,7 +208,9 @@ export function readMaterial(
     result.readerVersion = isXlsx
       ? reader.XLSX_READER_VERSION
       : reader.DOCX_READER_VERSION;
+    let officePkg,officePlan;
     (isXlsx ? reader.readXlsx : reader.readDocx)(bytes, {
+      ...(officeWindow?{packageReady:(pkg,parts)=>{officePkg=pkg;officePlan=reader.scanOfficeImages(pkg,isXlsx?"xlsx":"docx",parts);}}:{}),
       add,
       budget: expansionBudget,
       missing: (code, range = { kind: "file" }) => {
@@ -212,6 +218,7 @@ export function readMaterial(
         if (!result.reasons.includes(code)) result.reasons.push(code);
       },
     });
+    if(officeWindow)return import("./office.mjs").then(({officeWindowResult})=>officeWindowResult(result,{pkg:officePkg,plan:officePlan,format:isXlsx?"xlsx":"docx",window:officeWindow,totalText:offset,windowCodepoints}));
     const readable = result.segments.some((s) => s.text.trim());
     result.state = result.uncovered.length
       ? readable

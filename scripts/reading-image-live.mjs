@@ -31,6 +31,8 @@ try {
         ...(process.argv.includes("--gif") ? ["--gif"] : []),
         ...(process.argv.includes("--webp") ? ["--webp"] : []),
         ...(process.argv.includes("--pdf-visual") ? ["--pdf-visual"] : []),
+        ...(process.argv.includes("--office-docx") ? ["--office-docx"] : []),
+        ...(process.argv.includes("--office-xlsx") ? ["--office-xlsx"] : []),
         ...(process.argv.includes("--review-fixture") ? ["--review-fixture"] : []),
         ...(process.argv.includes("--chat") ? ["--chat"] : []),
         ...(process.argv.includes("--merge") ? ["--merge"] : []),

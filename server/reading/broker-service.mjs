@@ -1,3 +1,4 @@
+import {validateOfficeWindow} from "./office-window.mjs";
 import http from "node:http";
 import { chmod, chown, lstat, realpath, readdir } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
@@ -71,7 +72,7 @@ export async function createBrokerService({ socketPath, runtime, staging, pdfVis
     let accepted = false,
       readId,
       cancellationOwned = false;
-    const streamed = ["2","3","4","5","6"].includes(req.headers["x-shixu-reader-protocol"]);
+    const streamed = ["2","3","4","5","6","7"].includes(req.headers["x-shixu-reader-protocol"]);
     const frame = (value) => {
       if (res.destroyed) return;
       if (!res.headersSent)
@@ -129,8 +130,10 @@ export async function createBrokerService({ socketPath, runtime, staging, pdfVis
           !(req.headers["x-shixu-reader-protocol"] === "3" && fields === "hash,id,name,pdfWindow,size") &&
           !(req.headers["x-shixu-reader-protocol"] === "4" && fields === "archiveWindow,hash,id,name,size") &&
           !(req.headers["x-shixu-reader-protocol"] === "5" && fields === "hash,id,imageWindow,name,size") &&
-          !(req.headers["x-shixu-reader-protocol"] === "6" && fields === "hash,id,name,pdfVisualWindow,size"))
+          !(req.headers["x-shixu-reader-protocol"] === "6" && fields === "hash,id,name,pdfVisualWindow,size") &&
+          !(req.headers["x-shixu-reader-protocol"] === "7" && fields === "hash,id,name,officeWindow,size"))
         throw Error();
+      const officeWindow=validateOfficeWindow(descriptor.officeWindow);
       const pdfVisualWindow=validatePdfVisualWindow(descriptor.pdfVisualWindow);
       const imageWindow=validateImageWindow(descriptor.imageWindow);
       const pdfWindow = validatePdfWindow(descriptor.pdfWindow);
@@ -148,6 +151,7 @@ export async function createBrokerService({ socketPath, runtime, staging, pdfVis
           signal: controller.signal,
           pdfWindow,
           pdfVisualWindow,
+          officeWindow,
           archiveWindow,
           imageWindow,
           ...(streamed
@@ -201,7 +205,7 @@ export function createBrokerClient(socketPath,{pdfVisualWindows=false}={}) {
     !/^\/run\/shixu-[\w-]+\/reader\.sock$/.test(socketPath)
   )
     throw Error("INVALID_SOCKET");
-  const client = (file, { signal, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow } = {}) =>
+  const client = (file, { signal, onPhase, activeBudgetMs = 1800000, pdfWindow, archiveWindow, imageWindow, pdfVisualWindow, officeWindow } = {}) =>
     new Promise((done, reject) => {
       if (signal?.aborted)
         return reject(
@@ -240,7 +244,7 @@ export function createBrokerClient(socketPath,{pdfVisualWindows=false}={}) {
           path: "/read",
           method: "POST",
           headers: {
-            "X-Shixu-Reader-Protocol": pdfVisualWindow ? "6" : imageWindow ? "5" : archiveWindow ? "4" : pdfWindow ? "3" : "2",
+            "X-Shixu-Reader-Protocol": officeWindow ? "7" : pdfVisualWindow ? "6" : imageWindow ? "5" : archiveWindow ? "4" : pdfWindow ? "3" : "2",
             "X-Shixu-Read-Id": id,
             "X-Shixu-Active-Budget-Ms": String(activeBudgetMs),
             "Content-Type": "application/octet-stream",
@@ -251,6 +255,7 @@ export function createBrokerClient(socketPath,{pdfVisualWindows=false}={}) {
                 name: file.name,
                 size: file.size,
                 hash: file.hash,
+                ...(officeWindow?{officeWindow:validateOfficeWindow(officeWindow)}:{}),
                 ...(pdfVisualWindow ? {pdfVisualWindow:validatePdfVisualWindow(pdfVisualWindow)} : {}),
                 ...(pdfWindow ? {pdfWindow:validatePdfWindow(pdfWindow)} : {}),
                 ...(imageWindow ? {imageWindow:validateImageWindow(imageWindow)} : {}),
@@ -340,7 +345,7 @@ export function createBrokerClient(socketPath,{pdfVisualWindows=false}={}) {
       signal?.addEventListener("abort", cancel, { once: true });
       request.end(file.body);
     });
-  return Object.assign(client, { pdfWindows:true, archiveWindows:true, imageWindows:true, pdfVisualWindows });
+  return Object.assign(client, { pdfWindows:true, archiveWindows:true, imageWindows:true, pdfVisualWindows, officeWindows:true });
 }
 
 if (

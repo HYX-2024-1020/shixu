@@ -283,6 +283,7 @@ test("missing or mismatched fixed PDF tools fail closed without loading a host c
       "archive-window.mjs",
       "pdf-window.mjs",
       "pdf-visual.mjs",
+      "office-window.mjs",
     ])
       await copyFile(new URL(name, import.meta.url), join(directory, name));
     await assert.rejects(
