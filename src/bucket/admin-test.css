@@ -1,0 +1,67 @@
+.admin-test-guide {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  color: #111;
+  background: transparent;
+}
+.admin-test-guide summary {
+  min-height: 32px;
+  cursor: pointer;
+}
+.admin-test-guide summary span {
+  margin-left: 12px;
+  font-size: 13px;
+}
+.admin-test-guide p,
+.admin-test-guide li {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.admin-test-guide ol {
+  padding-left: 24px;
+}
+.admin-draft-status {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.admin-backup {
+  display: grid;
+  gap: 12px;
+}
+.admin-backup input {
+  max-width: 100%;
+  font-size: 16px;
+}
+@media (max-width: 600px) {
+  .admin-test-guide {
+    margin: 0;
+  }
+  .admin-test-guide summary span {
+    display: block;
+    margin: 6px 0 0;
+  }
+}
+
+/* Scrolling is decided at touch-down; never disable it across the whole card. */
+html[data-edition="admin-test"] .result-card {
+  touch-action: pan-y pinch-zoom;
+}
+html[data-edition="admin-test"] .bucket-app .mobile-card-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 4px;
+  background: transparent;
+  color: #595644;
+  border: 1px solid #d4cba8;
+  border-radius: 6px;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}

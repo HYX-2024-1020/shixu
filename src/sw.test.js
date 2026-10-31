@@ -77,6 +77,21 @@ describe("installed application shell", () => {
     );
     expect(w.fetch).not.toHaveBeenCalled();
   });
+  it("keeps the administrator entry on offline Home Screen navigation", async () => {
+    const w = workerHarness();
+    const cache = w.stores.get(w.prefix + "v1");
+    cache.set(w.scope, new Response("ordinary home"));
+    cache.set(
+      w.scope + "admin-test/index.html",
+      new Response("administrator home"),
+    );
+    expect(
+      await (
+        await w.request(w.scope + "admin-test/?from=home", "navigate")
+      ).text(),
+    ).toBe("administrator home");
+    expect(w.fetch).not.toHaveBeenCalled();
+  });
   it("serves cached lazy chunks and supports a preceding open tab", async () => {
     const w = workerHarness(),
       url = w.scope + "assets/previous.js";

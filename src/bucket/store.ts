@@ -1,10 +1,13 @@
 import type { Packet, Attachment } from "./types";
 import type { UsageRecord } from "../../shared/usage.mjs";
+import { ADMIN_TEST } from "./edition";
 const name = new URLSearchParams(location.search).has("preview")
   ? new URLSearchParams(location.search).get("preview") === "relations"
     ? "shixu-bucket-demo-relations"
     : "shixu-bucket-demo"
-  : "shixu-bucket";
+  : ADMIN_TEST
+    ? "shixu-admin-test"
+    : "shixu-bucket";
 let promise: Promise<IDBDatabase> | null = null;
 // Store binary bytes instead of Blob objects: some WebKit environments abort
 // IndexedDB transactions containing Blobs. Old Blob records remain readable.
@@ -238,5 +241,51 @@ async function saveDraft(value: { text: string; attachments: Attachment[] }) {
     tx.objectStore("draft").put(encoded, "current");
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(new Error("草稿未能保存，请先投递后再关闭页面"));
+  });
+}
+
+// Add-only restore is one IndexedDB transaction; a failed import cannot leave a partial backup.
+export async function restoreBrowserSnapshot(value: {
+  packets: Packet[];
+  usage: UsageRecord[];
+  draft: { text: string; attachments: Attachment[] };
+}) {
+  if (!ADMIN_TEST) throw new Error("请在管理员测试版恢复备份");
+  await Promise.all([packetWrites, draftWrites]);
+  const packets = await Promise.all(
+    value.packets.map(async (p) => ({
+      ...p,
+      attachments: await encodeAttachments(p.attachments),
+    })),
+  );
+  const draft = {
+    ...value.draft,
+    attachments: await encodeAttachments(value.draft.attachments),
+  };
+  const db = await database();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(["packets", "usage", "draft"], "readwrite");
+    const ps = tx.objectStore("packets"),
+      us = tx.objectStore("usage"),
+      ds = tx.objectStore("draft");
+    const oldPackets = ps.getAllKeys(),
+      oldUsage = us.getAllKeys(),
+      oldDraft = ds.get("current");
+    oldPackets.onsuccess = () => {
+      const ids = new Set(oldPackets.result);
+      for (const p of packets) if (!ids.has(p.id)) ps.add(p);
+    };
+    oldUsage.onsuccess = () => {
+      const ids = new Set(oldUsage.result);
+      for (const u of value.usage) if (!ids.has(u.id)) us.add(u);
+    };
+    oldDraft.onsuccess = () => {
+      const previous = oldDraft.result;
+      if (!previous || (!previous.text && !previous.attachments.length))
+        ds.put(draft, "current");
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = tx.onabort = () =>
+      reject(new Error("恢复未完成，原资料保持不变，请检查剩余空间"));
   });
 }

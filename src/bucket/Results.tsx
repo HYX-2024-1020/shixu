@@ -1,5 +1,6 @@
 import CardFiles from "./CardFiles";
 import { sourceLocation } from "../../shared/reading-view.mjs";
+import { ADMIN_TEST } from "./edition";
 import {
   absoluteItem,
   setDeadline,
@@ -9,6 +10,7 @@ import {
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Star,
+  GripVertical,
   Check,
   MoreHorizontal,
   Pin,
@@ -516,6 +518,17 @@ function Results({
                   onDragStart={(event) => event.preventDefault()}
                 >
                   <div className="card-topline">
+                    {ADMIN_TEST && (
+                      <button
+                        type="button"
+                        className="mobile-card-sort"
+                        data-card-drag-handle
+                        aria-label={"长按拖动排序：" + item.title}
+                        title="长按这里拖动排序"
+                      >
+                        <GripVertical size={20} />
+                      </button>
+                    )}
                     <button
                       className={
                         "completion-orbit" +
