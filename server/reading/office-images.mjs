@@ -149,6 +149,7 @@ function contentTypes(pkg) {
 }
 const imageTypes = {
   png: "image/png",
+  apng: "image/apng",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   gif: "image/gif",

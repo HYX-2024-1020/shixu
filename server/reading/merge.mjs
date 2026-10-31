@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
 
-export const MERGE_VERSION = "paid-semantic-pairs/3";
+export const MERGE_VERSION = "paid-semantic-pairs/4";
 const hash = (value) => sha256(JSON.stringify(value));
 const fail = () => {
   throw Error("SAFETY_RECONCILIATION");

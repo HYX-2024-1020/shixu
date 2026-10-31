@@ -423,3 +423,8 @@ Windows 0.3.20 已覆盖安装且资料摘要保持；实际活动微信 shixu-b
 ## B/C/D窗口回退核对（#73/#69，2026-11-01）
 
 Windows AccountWorkspace与微信Page共同显示WINDOW_STATE_RECONCILIATION，禁止继续/部分收下；宿主精确恢复并最终审计后显示WINDOW_STATE_AUDITED，保留根调用/费用/时间，旧继续收据失效，刷新后主动继续。两端共享服务器动作及文案，未新增本地绕过接口。实际签名HTTP temporary/deleted两链、Linux普通UID/受保护broker与独立发布包见[窗口证据](bcd/window-safety-verification.md)。Page/Node不等同原生微信；本批无本机UI/手机/安装，完整必需CI远端执行，BCD仍有剩余项。
+
+
+## B/C/D PNG动画（#73/#69，2026-11-01）
+
+Windows与微信共同显示PNG动画各帧时长/区域、独立静态默认图角色，使用同一任务/钱包/依据核对/语义版本4；小程序.apng扩展名识别同步。实际双端签名HTTP top temporary、ZIP deleted，Linux受保护broker、发布包与官方编译分别记证。真实首轮第二帧补充要求未合并，已保留失败并修正同编号补充语义提示，固定上游仅真实语义回放通过；不能冒称完整真实链第二次通过。[证据与边界](bcd/apng-verification.md)。无原生微信/手机/安装/最终整体验收结论。

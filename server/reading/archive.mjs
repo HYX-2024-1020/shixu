@@ -55,7 +55,7 @@ export async function readArchive(
   if (
     archiveWindow &&
     (index >= pkg.names.length ||
-      ((archiveWindow.page > 1 || (archiveWindow.tile||1)>1 || (archiveWindow.office&&(archiveWindow.image>0||archiveWindow.text===0))) && !(/\.(pdf|png|jpe?g|gif|webp)$/i.test(pkg.names[index]) || (archiveWindow.office&&/\.(docx|xlsx)$/i.test(pkg.names[index])))))
+      ((archiveWindow.page > 1 || (archiveWindow.tile||1)>1 || (archiveWindow.office&&(archiveWindow.image>0||archiveWindow.text===0))) && !(/\.(pdf|png|apng|jpe?g|gif|webp)$/i.test(pkg.names[index]) || (archiveWindow.office&&/\.(docx|xlsx)$/i.test(pkg.names[index])))))
   ) {
     await pkg.close?.();
     throw Error("INVALID_ARCHIVE_WINDOW");
@@ -77,7 +77,7 @@ export async function readArchive(
           ((archiveWindow.tile||1)>1 && !((extension==="pdf"&&archiveWindow.visual)||(office&&archiveWindow.office))))
           throw Error("INVALID_ARCHIVE_WINDOW");
       }
-      if (!["txt", "csv", "docx", "xlsx", "pdf", "png", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
+      if (!["txt", "csv", "docx", "xlsx", "pdf", "png", "apng", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
         missing("FORMAT_UNSUPPORTED", path);
         continue;
       }
@@ -117,7 +117,7 @@ export async function readArchive(
             windowCodepoints,
             expansionBudget: budget,
             ...(archiveWindow?.office&&["docx","xlsx"].includes(extension)?{officeWindow:{text:archiveWindow.text,image:archiveWindow.image,tile:archiveWindow.tile,offset:archiveWindow.offset-archiveWindow.base}}:{}),
-            ...(["png", "jpg", "jpeg", "gif", "webp"].includes(extension)
+            ...(["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(extension)
               ? { imageWindow: { tile: archiveWindow?.page || 1 } }
               : {}),
             ...(archiveWindow && extension === "pdf"

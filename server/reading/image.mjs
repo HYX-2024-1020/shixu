@@ -3,7 +3,7 @@ import { sha256 } from "./material.mjs";
 
 export const IMAGE_READER_VERSION = "png-tiles/3;zlib-node/24";
 export const IMAGE_TILE_EDGE = 1024;
-export const isImageName = (name) => /\.(png|jpe?g|gif|webp)$/i.test(name);
+export const isImageName = (name) => /\.(png|apng|jpe?g|gif|webp)$/i.test(name);
 export function validateModelImage(image) {
   if (
     !image ||
@@ -105,7 +105,7 @@ const paeth = (a, b, c) => {
     pc = Math.abs(p - c);
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 };
-export function decodePng(bytes) {
+export function decodePng(bytes, { preserveAlpha = false } = {}) {
   if (!bytes.subarray(0, 8).equals(signature)) throw Error("FORMAT_MISMATCH");
   let offset = 8,
     header,
@@ -329,10 +329,10 @@ export function decodePng(bytes) {
           if ([4, 6].includes(header.color)) a = Math.round(a * 255 / sampleMask);
         }
         // Flatten transparency onto white explicitly; hidden RGB is never sent.
-        pixels[p] = Math.round((r * a + 255 * (255 - a)) / 255);
-        pixels[p + 1] = Math.round((g * a + 255 * (255 - a)) / 255);
-        pixels[p + 2] = Math.round((b * a + 255 * (255 - a)) / 255);
-        pixels[p + 3] = 255;
+        pixels[p] = preserveAlpha ? r : Math.round((r * a + 255 * (255 - a)) / 255);
+        pixels[p + 1] = preserveAlpha ? g : Math.round((g * a + 255 * (255 - a)) / 255);
+        pixels[p + 2] = preserveAlpha ? b : Math.round((b * a + 255 * (255 - a)) / 255);
+        pixels[p + 3] = preserveAlpha ? a : 255;
       }
       row.copy(previous);
     }
@@ -361,7 +361,11 @@ export async function readImage(bytes, result, window) {
     }
     const webp = /\.webp$/i.test(result.name) ? await import("./webp.mjs") : null;
     if(webp){result.readerVersion=webp.WEBP_READER_VERSION;result.normalizationVersion="webp-composited-white-png-tiles/1";}
-    const image = webp ? await webp.decodeWebp(bytes,window.tile) : gifImage || (jpeg ? jpeg.decodeJpeg(bytes) : decodePng(bytes)),
+    const apngModule = !jpeg&&!gif&&!webp ? await import('./apng.mjs') : null;
+    const apng=apngModule&&apngModule.hasApngChunks(bytes)?apngModule:null;
+    let apngImage;
+    if(apng){const parsed=apng.inspectApng(bytes),perFrame=Math.ceil(parsed.width/IMAGE_TILE_EDGE)*Math.ceil(parsed.height/IMAGE_TILE_EDGE);apngImage=apng.decodeApng(bytes,Math.floor((window.tile-1)/perFrame)+1,parsed);result.readerVersion=apng.APNG_READER_VERSION;result.normalizationVersion='apng-composited-white-png-tiles/1';}
+    const image = webp ? await webp.decodeWebp(bytes,window.tile) : apngImage || gifImage || (jpeg ? jpeg.decodeJpeg(bytes) : decodePng(bytes)),
       columns = Math.ceil(image.width / IMAGE_TILE_EDGE),
       rows = Math.ceil(image.height / IMAGE_TILE_EDGE);
     if(image.decoderMetrics)result.decoderMetrics=image.decoderMetrics;
@@ -401,7 +405,7 @@ export async function readImage(bytes, result, window) {
           encodedWidth: image.encodedWidth,
           encodedHeight: image.encodedHeight,
         }
-      : gif || webp ? {frame:image.frame,totalFrames:image.totalFrames,frameStartMs:image.frameStartMs,frameDurationMs:image.frameDurationMs} : {};
+      : gif || webp || apng ? {...(apng?{frameRole:image.frameRole,frameDelayNum:image.frameDelayNum,frameDelayDen:image.frameDelayDen}:{}),frame:image.frame,totalFrames:image.totalFrames,frameStartMs:image.frameStartMs,frameDurationMs:image.frameDurationMs} : {};
     const png = encodePng(width, height, tile),
       sourceId = `${result.attachmentId.slice(0, 64)}_${sha256(result.attachmentId).slice(0, 12)}_i${window.tile}`;
     const range = {
@@ -425,7 +429,7 @@ export async function readImage(bytes, result, window) {
       {
         sourceId,
         range,
-        text: `图像模型识别，${gif||webp?`第${image.frame}/${image.totalFrames}帧（${image.frameStartMs}ms起，持续${image.frameDurationMs}ms，循环不重复展开），`:""}第${window.tile}块，像素范围(${x},${y},${width},${height})`,
+        text: `图像模型识别，${gif||webp||apng?`${apng&&image.frameRole==="default"?"静态默认图，":""}第${image.frame}/${image.totalFrames}帧（${image.frameStartMs}ms起，持续${image.frameDurationMs}ms，循环不重复展开），`:""}第${window.tile}块，像素范围(${x},${y},${width},${height})`,
         image: {
           mime: "image/png",
           data: png.toString("base64"),
@@ -457,7 +461,7 @@ export async function readImage(bytes, result, window) {
     }
   } catch (e) {
     if (e.message === "IMAGE_CURSOR_OUT_OF_RANGE") throw e;
-    const code = /^(FORMAT_MISMATCH|PNG_|JPEG_|GIF_|WEBP_|NATIVE_WEBP_|IMAGE_)/.test(e.message)
+    const code = /^(FORMAT_MISMATCH|PNG_|JPEG_|GIF_|APNG_|WEBP_|NATIVE_WEBP_|IMAGE_)/.test(e.message)
       ? e.message
       : "IMAGE_DECODE_FAILED";
     result.state = /UNSUPPORTED/.test(code) ? "unsupported" : "failed";

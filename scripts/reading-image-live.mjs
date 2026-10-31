@@ -29,6 +29,7 @@ try {
         ...(dry ? ["--dry-run"] : []),
         ...(process.argv.includes("--jpeg") ? ["--jpeg"] : []),
         ...(process.argv.includes("--gif") ? ["--gif"] : []),
+        ...(process.argv.includes("--apng") ? ["--apng"] : []),
         ...(process.argv.includes("--webp") ? ["--webp"] : []),
         ...(process.argv.includes("--pdf-visual") ? ["--pdf-visual"] : []),
         ...(process.argv.includes("--office-docx") ? ["--office-docx"] : []),

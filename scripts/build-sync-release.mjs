@@ -22,7 +22,7 @@ const files = [
   "server/reading/pdf-visual.mjs", "server/reading/pdf-canvas.mjs", "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
-  "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/webp.mjs",
+  "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/apng.mjs", "server/reading/webp.mjs",
   "server/reading/schema.mjs", "server/reading/window-safety.mjs", "server/reading/window-maintenance.mjs",
   "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
   "server/reading/root-safety.mjs",

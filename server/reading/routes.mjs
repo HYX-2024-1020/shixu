@@ -260,10 +260,11 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg","gif","webp"] : [])],
+          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","apng","jpg","jpeg","gif","webp"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
           officeImageAssets:reader.officeWindows===true&&provider.imageInput===true,
           windowProgressProofs:true,
+          animatedPng:reader.imageWindows===true&&provider.imageInput===true,
           visualFactReview:typeof provider.reviewVisual==='function',
           itemChat:typeof provider.chat==='function',
           pdfPageVisual:reader.pdfVisualWindows===true && provider.imageInput===true,

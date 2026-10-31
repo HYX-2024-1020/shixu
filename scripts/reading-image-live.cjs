@@ -8,7 +8,8 @@ const assert = require("node:assert/strict");
 const { pathToFileURL } = require("node:url");
 const probe = process.env.SHIXU_IMAGE_PROBE_DIR;
 const jpegMode = process.argv.includes("--jpeg");
-const gifMode = process.argv.includes("--gif");
+const apngMode=process.argv.includes("--apng");
+const gifMode = process.argv.includes("--gif")||apngMode;
 const webpMode = process.argv.includes("--webp");
 const officeMode=process.argv.includes("--office-docx")?"docx":process.argv.includes("--office-xlsx")?"xlsx":null;
 const reviewFixture=process.argv.includes("--review-fixture");
@@ -96,7 +97,8 @@ app
         const {gifBytes}=await load("server/reading/gif-fixtures.mjs");
         const second=new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="white"/><g fill="black" font-family="Microsoft YaHei" font-size="32"><text x="40" y="150">提交报告编号7319时，另附源代码。</text><text x="40" y="230">源代码须为UTF-8编码。</text><text x="40" y="500">尾部补充核对：7319。</text></g></svg>`).render();
         const indices=pixels=>Buffer.from(Array.from({length:900*600},(_,i)=>pixels[i*4]<128?1:0));
-        body=gifBytes({width:900,height:600,frames:[{indices:indices(rendered.pixels),delay:100,disposal:2},{indices:indices(second.pixels),delay:100,disposal:2}]});
+        if(apngMode){const {apngBytes}=await load('server/reading/apng-fixtures.mjs');body=apngBytes({width:900,height:600,frames:[{pixels:Buffer.from(rendered.pixels),delayNum:1,delayDen:1},{pixels:Buffer.from(second.pixels),delayNum:1,delayDen:1,disposal:1}]});}
+        else body=gifBytes({width:900,height:600,frames:[{indices:indices(rendered.pixels),delay:100,disposal:2},{indices:indices(second.pixels),delay:100,disposal:2}]});
       }
       if (jpegMode) {
         const encode = require("../server/reading/fixtures/jpeg-encoder.cjs");
@@ -251,9 +253,9 @@ app
         status: "pending",
       });
       const f = store.files.put("packet", "image", {
-        name: officeMode?"合成Office通知."+officeMode:pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
+        name: officeMode?"合成Office通知."+officeMode:pdfMode ? "合成扫描通知.pdf" : webpMode ? "合成通知.webp" : apngMode ? "合成动画通知.apng" : gifMode ? "合成动画通知.gif" : jpegMode ? "合成旋转照片.jpg" : "合成通知.png",
         body,
-        type: pdfMode ? "application/pdf" : webpMode ? "image/webp" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
+        type: pdfMode ? "application/pdf" : webpMode ? "image/webp" : apngMode ? "image/apng" : gifMode ? "image/gif" : jpegMode ? "image/jpeg" : "image/png",
         epoch: store.epoch,
       });
       put({ attachments: [f] });
@@ -320,7 +322,7 @@ app
         checks.falseClaimPreservedAsUncertain=!!item?.uncertainties.some(s=>s.includes("需写在报告尾部"));
       }
       const report = {
-        kind: officeMode?"synthetic-real-office-"+officeMode+"-development":pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
+        kind: officeMode?"synthetic-real-office-"+officeMode+"-development":pdfMode ? "synthetic-real-scanned-pdf-development" : webpMode ? "synthetic-real-webp-development" : apngMode ? "synthetic-real-apng-development" : gifMode ? "synthetic-real-animated-gif-development" : jpegMode
           ? "synthetic-real-rotated-jpeg-development"
           : "synthetic-real-image-development",
         testedAt: new Date().toISOString(),

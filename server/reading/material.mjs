@@ -7,7 +7,7 @@ import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { validateOfficeWindow } from "./office-window.mjs";
 import { validatePdfWindow } from "./pdf-window.mjs";
 
-export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;pdf-visual/1;archive/11;visual-review/1;office-assets/1;window-state/1";
+export const READER_VERSION = "text-csv/2;docx/1;xlsx/1;pdf-text/3;pdf-visual/1;archive/11;visual-review/1;office-assets/1;window-state/1;apng/1";
 export const NORMALIZATION_VERSION = "unicode-lf/1";
 export const WINDOW_CODEPOINTS = 120000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;

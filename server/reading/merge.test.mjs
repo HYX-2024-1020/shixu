@@ -46,7 +46,7 @@ test("semantic grouping crosses paid blocks, keeps all facts, evidence, order an
   assert.equal(f.ledger.wallet("synthetic").spent, 60);
   assert.equal(f.tasks.roots.stats("task").calls, 3);
   assert.deepEqual(p.semanticMerge, {
-    version: "paid-semantic-pairs/3",
+    version: "paid-semantic-pairs/4",
     originalItems: 2,
     mergedItems: 1,
     complete: true,

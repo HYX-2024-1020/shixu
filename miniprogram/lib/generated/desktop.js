@@ -964,6 +964,8 @@ var reasons = {
   IMAGE_WINDOW_PENDING: "后续图像区域等待读取，尚未进入整理结果",
   PNG_ENCODING_UNSUPPORTED: "此PNG位深或编码方式暂不支持",
   PNG_COLOR_OR_ORIENTATION_UNSUPPORTED: "此图像色彩或方向元数据尚未支持，未擅自忽略",
+  APNG_MALFORMED: "PNG动画结构或帧数据损坏，未只读取默认图",
+  APNG_RESOURCE_LIMIT: "PNG动画累计帧像素或结构超出安全范围",
   IMAGE_ANIMATION_UNSUPPORTED: "动画图像暂不支持，未只读取第一帧",
   IMAGE_PIXEL_LIMIT: "图像尺寸超过隔离解码上限",
   IMAGE_TILE_LIMIT: "图像区域超过安全范围",
@@ -1061,7 +1063,7 @@ function location(range) {
   if (range.kind === "image") {
     const office = ["docx", "xlsx"].includes(range.officeKind) && typeof range.mediaPart === "string" ? `${location({ ...range, kind: range.officeKind })} · 内嵌原图 “${range.mediaPart.slice(0, 512)}” · ` : "";
     const n = (v) => Number.isSafeInteger(v) && v >= 0;
-    if ([range.x, range.y, range.width, range.height].every(n)) return `${range.hiddenSheet ? "隐藏工作表 · " : ""}${office}${Number.isSafeInteger(range.page) && range.page > 0 ? `PDF 第 ${range.page} 页（${range.dpi || 108}dpi） · ` : ""}图像模型识别 · ${range.frame ? `第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · ` : ""}第 ${range.tile} 块 · ${range.orientation > 1 ? "按原图方向校正 · " : ""}像素(${range.x},${range.y},${range.width},${range.height})`;
+    if ([range.x, range.y, range.width, range.height].every(n)) return `${range.hiddenSheet ? "隐藏工作表 · " : ""}${office}${Number.isSafeInteger(range.page) && range.page > 0 ? `PDF 第 ${range.page} 页（${range.dpi || 108}dpi） · ` : ""}图像模型识别 · ${range.frame ? `${range.frameRole === "default" ? "静态默认图 · " : ""}第 ${range.frame}/${range.totalFrames} 帧（${range.frameStartMs}ms起，${range.frameDurationMs}ms） · ` : ""}第 ${range.tile} 块 · ${range.orientation > 1 ? "按原图方向校正 · " : ""}像素(${range.x},${range.y},${range.width},${range.height})`;
     return Number.isSafeInteger(range.tile) ? `图像第 ${range.tile}${range.tileEnd ? "–" + range.tileEnd : ""} 块` : "整份图像";
   }
   if (range.kind === "pdf") {

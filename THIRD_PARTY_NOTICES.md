@@ -82,3 +82,8 @@ WebP fixtures和goldens为项目自有合成图案，经Pillow12.3.0（HPND）�
 沿用锁定PDF.js6.2.108（Apache-2.0）与现有optional依赖@napi-rs/canvas1.0.13。专用渲染包局部修正Node Map/toHex兼容及RGB→RGBA末批来源偏移，不修改旧文字层bundle，不加载系统/用户字体或URL图像。来源 https://github.com/mozilla/pdf.js 与 https://github.com/Brooooooklyn/canvas/tree/00a115d9903647f116daf86eccd2c6ba36128371 。精确npm源包SRI、平台SBOM、运行文件hash与源材料随包保留。
 
 Canvas封装MIT及Chromium图标版权、Skia BSD和原生/Rust依赖各自许可见`server/reading/pdf-canvas-notices.LICENSE`、完整发布SBOM及`server/reading/pdf-canvas-sources/provenance.json`，不能全部改称MIT。127份registry源crate按SBOM SHA-256核验，12份原生组件按精确Git版本保留许可；Freetype采用FTL。四份MPL-2.0依赖cssparser/cssparser-macros/dtoa-short/selectors的完整未修改对应源码以.crate随发布提供，源地址/校验及补充版权见同目录说明。生成器`scripts/collect-pdf-canvas-notices.py`只读公开依赖材料。扫描PDF及像素图案均为项目合成；9537通知沿既有WebP合成文字栅格图，没有私人资料或字体文件再分发。
+
+
+## PNG动画固定样本（2026-11-01，Issue #73）
+
+APNG解析/合成代码及apng-animation.png、apng-poster.png图案为项目自作，MIT。结构依据W3C PNG Third Edition（https://www.w3.org/TR/png-3/）；未复制规范实现代码。可选开发生成器使用Pillow12.3.0（HPND）编码，独立动画像素oracle使用本机Edge156 ImageDecoder/Canvas，默认不含动画的静态图使用Pillow原图；普通测试仅读固定全像素hash，无浏览器/Python生产依赖。Pillow半透明OVER输出差异保留在apng-pillow-observed.json，不能将它与浏览器golden合并冒称两者全部一致。

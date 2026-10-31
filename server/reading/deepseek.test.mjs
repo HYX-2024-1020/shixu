@@ -10,11 +10,11 @@ test("semantic provider uses bounded paid-item context, reference-only edges and
   let calls=0;
   const provider=createDeepSeekReadingProvider({apiKey:"synthetic",priceAt:()=>deepseekPriceSnapshots(1)[0].id,fetcher:async(url,init)=>{
     calls++;const b=JSON.parse(init.body);
-    assert.match(b.messages[0].content,/不得创建新id/);assert.equal(b.tool_choice,"none");
+    assert.match(b.messages[0].content,/不得创建新id/);assert.match(b.messages[0].content,/另一份说提交该报告时另附源代码/);assert.match(b.messages[0].content,/明确冲突时保持独立/);assert.equal(b.tool_choice,"none");
     assert.equal(b.tools,undefined);assert.equal(b.stream,false);
     return Response.json({usage:{prompt_tokens:20,completion_tokens:10},choices:[{finish_reason:"stop",message:{content:'{"same":[],"related":[]}'}}]});
   }});
-  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/3",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
+  const sources=[{id:"merge",text:JSON.stringify({schema:"paid-semantic-pairs/4",items:[{id:"a",item:{title:"合成"}},{id:"b",item:{title:"合成"}}]})}];
   const prepared=provider.merge.prepare(sources);assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));
   assert.deepEqual((await provider.merge(sources,undefined,{prepared})).result,{same:[],related:[]});assert.equal(calls,1);
   assert.throws(()=>provider.merge.prepare([{...sources[0],image:{}}]),/INVALID_PROVIDER_INPUT/);

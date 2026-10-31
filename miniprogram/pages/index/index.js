@@ -888,7 +888,7 @@ Page({
         path = library.cache(file, packet, space, bytes);
       }
       const ext = extension(file.name);
-      if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext))
+      if (["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(ext))
         wx.previewImage({
           urls: [path],
           current: path,

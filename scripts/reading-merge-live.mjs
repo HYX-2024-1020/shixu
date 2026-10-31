@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   mergeFixture,
@@ -44,8 +44,12 @@ export async function runMergeLive({ getKey, prepareOnly }) {
       return fetch(...args);
     },
   });
+  const apngReplay=process.env.SHIXU_MERGE_FIXTURE==='apng-complement';
+  const fixed=apngReplay?JSON.parse(readFileSync(new URL('../docs/bcd/evidence/apng-real-initial.json',import.meta.url),'utf8')).result:null;
+  const sourceText=fixed?fixed.items.flatMap(i=>[i.title,i.summary,...i.facts,...i.evidence.map(e=>e.quote),i.due?.anchor||'']).join('\n'):null;
   const provider = async (sources) => {
     simulatedUpstreamCalls++;
+    if(fixed)return {usage:{prompt_tokens:10,completion_tokens:10},result:{summary:'固定APNG已核对输出，模拟上游',warnings:[],items:fixed.items.map(i=>({...structuredClone(i),evidence:i.evidence.map(e=>({...e,sourceId:sources[0].id})),due:i.due?{...i.due,sourceId:sources[0].id}:null}))}};
     const item = (title, facts) => ({
       kind: "task",
       title,
@@ -88,7 +92,7 @@ export async function runMergeLive({ getKey, prepareOnly }) {
     };
   };
   provider.merge = real.merge;
-  const f = mergeFixture(null, { provider, price });
+  const f = mergeFixture(null, { provider, price, ...(sourceText?{sourceText}:{}) });
   // Keep this synthetic ledger, including simulated rows, with an explicit
   // separate real-only accounting report; never claim mock usage as a bill.
   const { copyFileSync, mkdirSync } = await import("node:fs");
@@ -103,6 +107,9 @@ export async function runMergeLive({ getKey, prepareOnly }) {
     try {
       assert.equal(task.state, "done", task.reason);
       assert.equal(realProviderCalls, 1);
+      if(apngReplay){
+        assert.equal(packet.result.items.length,1);const item=packet.result.items[0];const text=JSON.stringify(item);assert.ok(text.includes('PDF')&&text.includes('UTF-8')&&text.includes('源代码'));assert.equal(item.due.date,'2026-10-30');assert.equal(item.due.time,'18:00');assert.equal(item.evidence.length,fixed.items.reduce((n,i)=>n+i.evidence.length,0));
+      }else{
       assert.equal(packet.result.items.length, 3);
       const a = packet.result.items.find((i) =>
         i.facts.includes("任务编号A7319"),
@@ -121,6 +128,7 @@ export async function runMergeLive({ getKey, prepareOnly }) {
       );
       assert.equal(a.evidence.length, 2);
       assert.equal(a.kind,"task");
+      }
     } catch (error) {
       qualityError = error.message;
     }
@@ -132,7 +140,7 @@ export async function runMergeLive({ getKey, prepareOnly }) {
       .all();
     const report = {
       kind: "synthetic-real-semantic-quality",
-      variant: "notice-to-action/v2",
+      variant: apngReplay?"apng-complement/v1":"notice-to-action/v2",
       testedAt: new Date().toISOString(),
       realProviderCalls,
       simulatedUpstreamCalls,

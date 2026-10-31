@@ -3,6 +3,7 @@ const KEY = "shixu:mini:originals:v1";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const types = {
   png: "image/png",
+  apng: "image/apng",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   gif: "image/gif",

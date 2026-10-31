@@ -13,6 +13,7 @@ const types = (format, extension) =>
   '" ContentType="' +
   {
     png: "image/png",
+  apng: "image/apng",
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
     gif: "image/gif",
