@@ -129,7 +129,7 @@ export async function buildReadingWebp({ sourcePath } = {}) {
     // configuration probes uname, SDL and host image libraries; none is needed.
     await writeFile(
       join(src, "shixu.make"),
-      "EXTRA_FLAGS=-O2\nEXTRA_LIBS=\n" +
+      "EXTRA_FLAGS=-O2 -march=x86-64 -mtune=generic\nEXTRA_LIBS=\n" +
         upstreamMake.slice(upstreamMake.indexOf(marker)),
     );
     const pathKey =
@@ -166,7 +166,7 @@ export async function buildReadingWebp({ sourcePath } = {}) {
           "-f",
           "shixu.make",
           "-j2",
-          "EXTRA_FLAGS=-O2",
+          "EXTRA_FLAGS=-O2 -march=x86-64 -mtune=generic",
           "EXTRA_LIBS=",
           "src/libwebpdecoder.a",
           "src/demux/libwebpdemux.a",
@@ -178,6 +178,8 @@ export async function buildReadingWebp({ sourcePath } = {}) {
         "gcc",
         [
           "-O2",
+          "-march=x86-64",
+          "-mtune=generic",
           "-Wall",
           "-Wextra",
           "-Werror",

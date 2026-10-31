@@ -41,6 +41,7 @@ export async function runClientLoop({
   rollbackRootAfterStop = false,
   auditAfterReadLimit = false,
   auditUnknownTime = false,
+  auditCheckpoint = false,
   costAudit,
   itemChat,
   semanticMerge,
@@ -70,6 +71,12 @@ export async function runClientLoop({
   const auditText=[];
   const costEvidence=new Map();
   const reading = {
+    ...(auditCheckpoint ? {
+      maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-root-checkpoint",
+      maintenanceVerifyCheckpoint:({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,
+        generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reason:review.reason,
+        reference:"synthetic-final-checkpoint-review",final:true,disposition:"resume-next-checkpoint"}),
+    } : {}),
     ...(costAudit ? {
       maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-call-cost",
       maintenanceVerifyCost:({call,evidenceHash})=>{
@@ -564,6 +571,44 @@ export async function runClientLoop({
     );
     assert.equal((await cloud.packets())[0].result, null);
     await page.sync();
+    if(auditCheckpoint) {
+      // Fixture-only independent settled calls reproduce a full no-progress
+      // interval without making 23 redundant provider invocations.
+      for(let n=1;n<24;n++){
+        const callId="checkpoint-fixture-"+n;
+        ledger.reserve({callId,account,task:task.id,block:callId,generation:1,priceId:"synthetic",maxPromptTokens:10,maxOutputTokens:10});
+        ledger.sent(callId);ledger.settle(callId,{prompt_tokens:10,completion_tokens:10});
+      }
+      calls=24;
+      const db=new DatabaseSync(join(directory,"server","users",account,"workspace.sqlite"));
+      try{
+        db.prepare("UPDATE reading_tasks SET calls=24,reason='CHECKPOINT_NO_PROGRESS' WHERE id=?").run(task.id);
+        db.prepare("UPDATE reading_roots SET reason='CHECKPOINT_NO_PROGRESS' WHERE id=?").run(task.id);
+        db.prepare("INSERT INTO reading_root_checkpoints VALUES(?,24,0,480,0,0,'CHECKPOINT_NO_PROGRESS')").run(task.id);
+      } finally { db.close(); }
+      await cloud.action("sync");await page.sync();
+      const blocked=cloud.readJobs().find(j=>j.id===task.id);
+      assert.equal(blocked.reason,"CHECKPOINT_NO_PROGRESS");assert.equal(page.data.jobs.find(j=>j.id===task.id).canContinue,false);
+      await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${task.id}/continue`,{
+        contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:blocked.generation,expectedRevision:blocked.inputRevision,
+        actor:"synthetic-maintainer",evidenceHash:"0".repeat(64),
+      }),/累计24次调用未取得新增有效块/);
+      const review=service.readingRoutes.checkpointMaintenanceReview(account,task.id,"synthetic-maintainer");
+      const request={operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
+        expectedLedgerSequence:review.ledgerSequence,evidenceHash:createHash("sha256").update("synthetic checkpoint review").digest("hex")};
+      service.readingRoutes.reconcileRootCheckpoint(account,task.id,request,"synthetic-maintainer");
+      const oldIntent={action:"continue",contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:blocked.generation,
+        expectedRevision:blocked.inputRevision,expectedMaintenanceOperation:blocked.maintenanceOperation};
+      cloud.writeJobs(cloud.readJobs().map(j=>j.id===task.id?{...j,pendingAction:oldIntent}:j));
+      page._saveJobs(page._jobs.map(j=>j.id===task.id?{...j,pendingAction:{...oldIntent,operationId:crypto.randomUUID()}}:j));
+      await assert.rejects(cloud.pollJobs(),e=>e.code==="STALE_TASK");await assert.rejects(page._pollJobs(),e=>e.code==="STALE_TASK");
+      assert.equal(calls,24);
+      await cloud.action("sync");await page.sync();
+      const reviewed=cloud.readJobs().find(j=>j.id===task.id);
+      assert.equal(reviewed.reason,"CHECKPOINT_AUDITED");assert.equal(page._jobs.find(j=>j.id===task.id).error,reviewed.error);
+      assert.ok(reviewed.actions.includes("continue"));assert.equal(page.data.jobs.find(j=>j.id===task.id).canContinue,true);
+      assert.equal(reviewed.rootCalls,24);assert.equal(reviewed.nextCheckpointCalls,48);assert.equal(calls,24);
+    }
     if (rollbackRootAfterStop) {
       const before = cloud.readJobs().find(j=>j.id===task.id);
       assert.ok(before.rootActiveMs > 0);
@@ -726,7 +771,8 @@ export async function runClientLoop({
     return {
       synthetic: true,
       realProviderCalls: 0,
-      simulatedProviderCalls: calls,
+      simulatedProviderCalls: calls-(auditCheckpoint?23:0),
+      ...(auditCheckpoint?{fixtureSeededSentCalls:23,rootCalls:calls,auditedCheckpoint:true,oldPendingReplayDeniedBoth:true,noModelBeforeFreshContinue:true}:{}),
       bytes: body.length,
       parserRuns,
       tailSeen,

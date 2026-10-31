@@ -876,8 +876,8 @@ test("a no-progress checkpoint remains paused across repeated manual continue, w
   f.enqueue();
   f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
   assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
-  f.action("continue", "retry-checkpoint");
-  assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
+  assert.throws(()=>f.action("continue", "retry-checkpoint"),e=>e.code==="CHECKPOINT_NO_PROGRESS");
+  assert.equal(f.tasks.get("task").reason, "CHECKPOINT_NO_PROGRESS");
   assert.equal(f.calls(), 0);
 });
 

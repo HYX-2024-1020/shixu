@@ -1,3 +1,7 @@
+## 2026-10-31 B/C/D 根检查点受信审计恢复（#73，整体未完成）
+
+Windows/微信共用已核对提示、累计调用/消费/时间及下一检查点，审核不排队；刷新后须主动继续。旧继续intent及旧创建请求绑定的维护/账号恢复nonce失效，不能借审计自动消费。实际AccountWorkspace和Page/Node wx签名HTTP、普通UID Linux的19页PDF temporary/deleted链通过，原件墓碑不复活、结果/来源/尾部一致。证据中23条seeded合成账本与实际provider模拟数分列，零真实API；未知费用/时间/安全回退仍门禁。无新窗口，官方编译复用未变界面上一批结果；原生微信/手机/安装版未验。见[检查点证据](bcd/checkpoint-audit-verification.md)。
+
 ## 2026-10-31 B/C/D WebP和通知语义去重（#73，整体未完成）
 
 Windows与微信共同接收静态/动画WebP的安全PNG区域，沿相同帧序/时间/像素/包内路径及停止补传/修订复用；不支持编码和工具缺失明确未读。同一行动的notice可并入task/event，保留类型、事实与来源，独立通知/日期冲突不混合。实际AccountWorkspace和Page/Node wx签名HTTP动画、受保护Linux broker temporary/deleted双端链、官方编译通过；真实小样本保留关键字段，但建议推断仍有质量限制。无新增本机UI窗口，原生微信/手机/安装版未验。见[WebP证据](bcd/webp-verification.md)。

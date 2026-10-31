@@ -2,6 +2,7 @@ import { ReadingTasks } from "./tasks.mjs";
 import { createReadingScheduler } from "./scheduler.mjs";
 import { SyncError } from "../sync-store.mjs";
 import { ReadingCostMaintenance } from "./cost-maintenance.mjs";
+import { ReadingCheckpointMaintenance } from "./checkpoint-maintenance.mjs";
 import { ReadingTimeMaintenance } from "./time-maintenance.mjs";
 import { ReadingMaintenance } from "./maintenance.mjs";
 
@@ -22,6 +23,7 @@ const shutdownMessages = {
   COST_RECONCILIATION_AUDITED: "费用已核对，累计费用与进度保留；缺失结果继续整理可能再次计费",
   UNKNOWN_COST: "调用费用待核对，请联系维护者；已完成进度保留",
   LEDGER_PAUSED: "费用账本待核对，AI已暂停；已完成进度保留",
+  CHECKPOINT_AUDITED: "调用检查点已核对，累计调用、费用、时间与进度保留；请主动继续",
   ACTIVE_TIME_AUDITED: "活跃时间已核对并保守补计，累计费用与进度保留；请主动继续",
   EXECUTION_LIMIT_AUDITED: "维护核对已延长本投递时限，累计费用与时间保留；可继续",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
@@ -38,6 +40,7 @@ export function createReadingRoutes({
   maintenanceAuthorize,
   maintenanceVerifyCost,
   maintenanceVerifyTime,
+  maintenanceVerifyCheckpoint,
   ledger,
   reader,
   provider,
@@ -122,7 +125,8 @@ export function createReadingRoutes({
     const wallet=(()=>{try{return ledger.wallet(e.account);}catch{return {available:0,pausedReason:"RECONCILIATION_REQUIRED"};}})();
     const auditedCostAvailable=recoverable.includes(t.state) && ["UNKNOWN_COST","SHUTDOWN_TIMEOUT",""].includes(t.reason) && e.auditedCostAvailable(t.id,root,wallet);
     const auditedTimeAvailable=t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
-    const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
+    const checkpointAudited=e.roots.safety.lastCheckpointAudit(root.id) && !t.reason && recoverable.includes(t.state);
+    const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : checkpointAudited ? "CHECKPOINT_AUDITED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
     return {
       contractVersion: 1,
       ...info,
@@ -243,7 +247,7 @@ export function createReadingRoutes({
         features: {
           readingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg"] : [])],
+          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","jpg","jpeg","gif","webp"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
           itemChat:typeof provider.chat==='function',
           pdfTextOnly: true,
@@ -272,6 +276,16 @@ export function createReadingRoutes({
       const e=engines.get(account);
       if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
       return new ReadingMaintenance(e,maintenanceAuthorize).extend(id,request,actor);
+    },
+    checkpointMaintenanceReview(account,id,actor) {
+      const e=engines.get(account);
+      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCheckpointMaintenance(e,maintenanceAuthorize,maintenanceVerifyCheckpoint).preview(id,actor);
+    },
+    reconcileRootCheckpoint(account,id,request,actor) {
+      const e=engines.get(account);
+      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCheckpointMaintenance(e,maintenanceAuthorize,maintenanceVerifyCheckpoint).reconcile(id,request,actor);
     },
     timeMaintenanceReview(account, id, actor) {
       const e = engines.get(account);

@@ -28,6 +28,8 @@ export class ReadingRootSafety {
       CREATE INDEX IF NOT EXISTS reading_safe_pending ON reading_safe_steps(account,root,id);
       CREATE INDEX IF NOT EXISTS reading_safe_latest ON reading_safe_events(account,root,seq DESC);`);
     for (const table of [
+      "reading_checkpoint_audits",
+      "reading_checkpoint_finalizations",
       "reading_safe_roots",
       "reading_safe_links",
       "reading_safe_events",
@@ -78,6 +80,11 @@ export class ReadingRootSafety {
         "SELECT * FROM reading_safe_limit_audits WHERE account=? AND root=? ORDER BY new_limit DESC LIMIT 1",
       )
       .get(this.account, root);
+  }
+  lastCheckpointAudit(root) {
+    return this.db.prepare(`SELECT a.* FROM reading_checkpoint_audits a
+      JOIN reading_checkpoint_finalizations f ON f.account=a.account AND f.operation=a.operation
+      WHERE a.account=? AND a.root=? ORDER BY a.rowid DESC LIMIT 1`).get(this.account,root);
   }
   lastTimeAudit(root) {
     return this.db

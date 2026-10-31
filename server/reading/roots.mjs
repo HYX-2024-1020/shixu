@@ -145,7 +145,7 @@ export class ReadingRoots {
         reason: tasks.some((t) => t.reason === "SHUTDOWN_TIME_UNCERTAIN")
           ? "ACTIVE_TIME_RECONCILIATION"
           : root.reason,
-        checkpointCalls: checkpoint?.calls || 0,
+        checkpointCalls: Math.max(checkpoint?.calls || 0, this.safety.lastCheckpointAudit(safeRoot)?.calls || 0),
         nextCheckpointCalls: (checkpoint?.calls || 0) + 24,
       },
       root.id !== safeRoot,
@@ -156,11 +156,13 @@ export class ReadingRoots {
     if (stats.calls < stats.nextCheckpointCalls) return stats;
     const prior = this.db
       .prepare(
-        "SELECT completed FROM reading_root_checkpoints WHERE root=? ORDER BY calls DESC LIMIT 1",
+        "SELECT calls,completed FROM reading_root_checkpoints WHERE root=? ORDER BY calls DESC LIMIT 1",
       )
       .get(stats.id);
+    const audited=this.safety.lastCheckpointAudit(stats.id);
+    const baseline=audited && audited.calls >= (prior?.calls || 0) ? audited.completed : (prior?.completed || 0);
     const reason =
-      stats.completed <= (prior?.completed || 0)
+      stats.completed <= baseline
         ? "CHECKPOINT_NO_PROGRESS"
         : "";
     this.db

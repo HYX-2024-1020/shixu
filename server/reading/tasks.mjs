@@ -27,6 +27,10 @@ const error = (code) =>
     code,
     code === "ACTIVE_TIME_RECONCILIATION"
       ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
+      : code === "CHECKPOINT_NO_PROGRESS"
+        ? "累计24次调用未取得新增有效块，需核对后继续"
+      : code === "CHECKPOINT_RECONCILIATION"
+        ? "历史任务的累计调用检查点待核对，已完成进度保留"
       : code === "STALE_TASK"
         ? "任务状态已变化，请刷新后再操作"
       : code === "EXECUTION_LIMIT"
@@ -248,6 +252,8 @@ export class ReadingTasks {
     const limit = this.roots.safety.lastLimit(this.roots.forTask(id).id)?.operation || null;
     const cost = this.ledger.lastCostAudit(this.account)?.operation;
     const time=this.roots.safety.lastTimeAudit(this.roots.forTask(id).id)?.operation;
+    const checkpoint=this.roots.safety.lastCheckpointAudit(this.roots.forTask(id).id)?.operation;
+    if(checkpoint)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint]));
     return time ? "audit:"+sha256(JSON.stringify([limit,cost || null,time])) : cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
   }
   auditedCostAvailable(id, root=this.roots.stats(id), wallet=this.ledger.wallet(this.account)) {
@@ -421,6 +427,7 @@ export class ReadingTasks {
             .run(id);
       } else {
         const root = this.roots.stats(id);
+        if (["CHECKPOINT_NO_PROGRESS","CHECKPOINT_RECONCILIATION"].includes(root.reason))throw error(root.reason);
         if (root.reason === "ACTIVE_TIME_RECONCILIATION")
           throw error("ACTIVE_TIME_RECONCILIATION");
         if (root.reason === "SAFETY_RECONCILIATION")

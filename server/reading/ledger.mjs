@@ -94,7 +94,17 @@ export class ReadingLedger {
       PRIMARY KEY(account,operation));
       CREATE TABLE IF NOT EXISTS reading_time_finalizations(account TEXT NOT NULL,operation TEXT NOT NULL,at INTEGER NOT NULL,
       PRIMARY KEY(account,operation));`);
-    for (const table of ["reading_time_audits", "reading_time_finalizations"])
+    this.db.exec(`CREATE TABLE IF NOT EXISTS reading_checkpoint_audits(
+      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,
+      actor TEXT NOT NULL,evidence_hash TEXT NOT NULL,reference TEXT NOT NULL,
+      request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,watermark INTEGER NOT NULL,
+      ledger_sequence INTEGER NOT NULL,generation INTEGER NOT NULL,before_snapshot TEXT NOT NULL,
+      target_snapshot TEXT NOT NULL,calls INTEGER NOT NULL,active_ms INTEGER NOT NULL,
+      completed INTEGER NOT NULL,checkpoint_calls INTEGER NOT NULL,reason TEXT NOT NULL,at INTEGER NOT NULL,
+      PRIMARY KEY(account,operation),UNIQUE(account,reference));
+      CREATE TABLE IF NOT EXISTS reading_checkpoint_finalizations(
+      account TEXT NOT NULL,operation TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,operation));`);
+    for (const table of ["reading_checkpoint_audits", "reading_checkpoint_finalizations", "reading_time_audits", "reading_time_finalizations"])
       for (const action of ["UPDATE", "DELETE"])
         this.db.exec(
           `CREATE TRIGGER IF NOT EXISTS ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
@@ -217,6 +227,8 @@ export class ReadingLedger {
         "SELECT operation FROM reading_time_audits WHERE account=? ORDER BY rowid DESC LIMIT 1",
       )
       .get(account)?.operation;
+    const checkpoint=this.db.prepare("SELECT operation FROM reading_checkpoint_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation;
+    if(checkpoint)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint]));
     return time ? "recovery:" + sha256(JSON.stringify([cost, time])) : cost;
   }
   price(priceId) {

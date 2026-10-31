@@ -1,0 +1,32 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "windows": {
+    "relatedBeforeFinalBaselineRegression": 83,
+    "finalRootAndAudit": 80,
+    "core": 97,
+    "sync": 125,
+    "policy": 8,
+    "build": true,
+    "miniCheck": true
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261031-webp",
+    "uid": "nobody",
+    "auditAndDualClients": 10,
+    "audit": 8,
+    "temporaryDeletedPageAndWindowsSignedHTTP": true
+  },
+  "fixtureSeededSentCallsPerClientCase": 23,
+  "sourceSha256": {
+    "server/reading/checkpoint-maintenance.mjs": "8b30d4ccf6a782a6980e8c381b94aba666fe4859f49177c5944d502e9102612c",
+    "server/reading/ledger.mjs": "e7a481c81ff324a95b3bd7d7e9e7f846e0626ac81eaa3e8d427f675c68c6e81f",
+    "server/reading/root-safety.mjs": "a6cf5122b539480d4b433abeeb98ccfd01d67771ab5ba957921a1225ad93ba67",
+    "server/reading/roots.mjs": "3e034b56a7c36d0c3689eac34d4b5ea22de7ebaa435096edd629578b1b30c756",
+    "server/reading/tasks.mjs": "1b6dcc494d4a8a80a6d60f61c850d6e3f320ac127d2c1268b9b311a0bdbbc251",
+    "server/reading/routes.mjs": "9097c14df3f808b9be3018fd752bce8749eb13797c7b6e69dbcef2c67796ed76",
+    "scripts/reading-client-loop.mjs": "e692be35621cd34b1e4296cb787e9277c9e3f827c59af22d7f543ff3ee2e65de"
+  },
+  "nativeWeChatPhoneInstalledClient": false,
+  "finalBCDWholeAcceptance": false
+}
