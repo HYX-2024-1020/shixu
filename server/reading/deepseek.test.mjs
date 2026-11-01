@@ -140,3 +140,8 @@ test('visual reviewer sends exact claims and normalized pixels through the commo
  const r=await provider.reviewVisual(sources,undefined,{prepared});assert.equal(r.result.claims[0].status,'unsupported');assert.equal(calls,1);
  assert.throws(()=>provider.reviewVisual.prepare(sources.slice(0,1),{captureDate:'2026-10-31'}),/INVALID_PROVIDER_INPUT/);
 });
+
+test('saved history association provider binds bounded role-labelled items to the same no-retry usage adapter',async()=>{
+ let calls=0;const provider=createDeepSeekReadingProvider({apiKey:'synthetic',priceAt:()=>deepseekPriceSnapshots(1)[1].id,fetcher:async(url,init)=>{calls++;const body=JSON.parse(init.body);assert.equal(body.tools,undefined);assert.equal(body.tool_choice,'none');assert.match(body.messages[0].content,/没有重新读取历史原件/);assert.match(body.messages[0].content,/confidence至少0.90/);return Response.json({usage:{prompt_tokens:10,completion_tokens:10},choices:[{finish_reason:'stop',message:{content:'{"links":[]}'}}]});}});
+ const sources=[{id:'association',text:JSON.stringify({schema:'saved-history-association/1',items:[{id:'new:0',role:'new',item:{title:'合成'}},{id:'old#item',role:'history',item:{title:'合成'}}]})}],prepared=provider.association.prepare(sources);assert.ok(prepared.maxPromptTokens>Buffer.byteLength(prepared.body));assert.equal(calls,0);assert.deepEqual((await provider.association(sources,undefined,{prepared})).result,{links:[]});assert.equal(calls,1);assert.throws(()=>provider.association.prepare([{...sources[0],image:{}}]),/INVALID_PROVIDER_INPUT/);
+});

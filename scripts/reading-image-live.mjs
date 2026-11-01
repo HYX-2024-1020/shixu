@@ -36,6 +36,7 @@ try {
         ...(process.argv.includes("--office-xlsx") ? ["--office-xlsx"] : []),
         ...(process.argv.includes("--review-fixture") ? ["--review-fixture"] : []),
         ...(process.argv.includes("--chat") ? ["--chat"] : []),
+        ...(process.argv.includes("--association") ? ["--association"] : []),
         ...(process.argv.includes("--merge") ? ["--merge"] : []),
         ...(process.argv.includes("--prepare-only") ? ["--prepare-only"] : []),
       ],

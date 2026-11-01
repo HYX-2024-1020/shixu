@@ -1,3 +1,4 @@
+import { applyReadingMigrations, assertReadingSchema } from "./schema.mjs";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
@@ -12,9 +13,14 @@ const unique = (values) => [
 ];
 const dueKey = (due) =>
   due ? JSON.stringify([due.date, due.time, due.endDate, due.endTime]) : null;
-const compatibleKinds = items => {
-  const kinds=new Set(items.map(item=>item.kind));
-  return kinds.size===1 || (kinds.size===2 && kinds.has("notice") && (kinds.has("task") || kinds.has("event")));
+const compatibleKinds = (items) => {
+  const kinds = new Set(items.map((item) => item.kind));
+  return (
+    kinds.size === 1 ||
+    (kinds.size === 2 &&
+      kinds.has("notice") &&
+      (kinds.has("task") || kinds.has("event")))
+  );
 };
 
 // Models propose only equivalence/related edges. All actual content and evidence
@@ -41,7 +47,7 @@ export function validateMerge(value, items) {
       const [a, b] = edge.map((id) => ids.get(id));
       if (
         kind === "same" &&
-        (!compatibleKinds([a,b]) ||
+        (!compatibleKinds([a, b]) ||
           (a.due && b.due && dueKey(a.due) !== dueKey(b.due)))
       )
         throw Error("INVALID_MERGE_CONFLICT");
@@ -73,7 +79,10 @@ export function assembleMerge(items, decisions) {
   const index = new Map();
   const merged = [...groups.values()].map((rows, i) => {
     const originals = rows.map((row) => row.item),
-      item = structuredClone(originals.find(item=>["task","event"].includes(item.kind)) || originals[0]);
+      item = structuredClone(
+        originals.find((item) => ["task", "event"].includes(item.kind)) ||
+          originals[0],
+      );
     if (
       !compatibleKinds(originals) ||
       new Set(originals.map((i) => dueKey(i.due)).filter(Boolean)).size > 1
@@ -98,7 +107,9 @@ export function assembleMerge(items, decisions) {
     ]);
     item.due = originals.find((i) => i.due)?.due || null;
     item.importance = Math.max(...originals.map((i) => i.importance ?? 1));
-    item.importanceReason=originals.find(i=>i.importance===item.importance)?.importanceReason || item.importanceReason;
+    item.importanceReason =
+      originals.find((i) => i.importance === item.importance)
+        ?.importanceReason || item.importanceReason;
     return item;
   });
   const related = unique(
@@ -116,35 +127,59 @@ export function assembleMerge(items, decisions) {
 }
 
 export class ReadingMerge {
-  constructor(engine) {
+  constructor(engine, { namespace = "merge", version = MERGE_VERSION } = {}) {
+    if (
+      !["merge", "association"].includes(namespace) ||
+      typeof version !== "string"
+    )
+      throw Error("INVALID_PAID_STAGE");
+    this.namespace = namespace;
+    this.version = version;
     this.e = engine;
     this.db = engine.db;
     this.ledger = engine.ledger;
     this.db.exec(
-      `CREATE TABLE IF NOT EXISTS reading_merge_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
+      `CREATE TABLE IF NOT EXISTS reading_${this.namespace}_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
     );
-    this.ledger.db
-      .exec(`CREATE TABLE IF NOT EXISTS reading_merge_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,dependency_hash TEXT NOT NULL,PRIMARY KEY(account,task));
-      CREATE TABLE IF NOT EXISTS reading_merge_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
-      CREATE TRIGGER IF NOT EXISTS reading_merge_intents_no_update BEFORE UPDATE ON reading_merge_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_merge_intents_no_delete BEFORE DELETE ON reading_merge_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_merge_proofs_no_update BEFORE UPDATE ON reading_merge_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_merge_proofs_no_delete BEFORE DELETE ON reading_merge_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;`);
+    const schema = `CREATE TABLE IF NOT EXISTS reading_${this.namespace}_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,dependency_hash TEXT NOT NULL,PRIMARY KEY(account,task));
+      CREATE TABLE IF NOT EXISTS reading_${this.namespace}_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
+      CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_intents_no_update BEFORE UPDATE ON reading_${this.namespace}_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_intents_no_delete BEFORE DELETE ON reading_${this.namespace}_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_proofs_no_update BEFORE UPDATE ON reading_${this.namespace}_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_proofs_no_delete BEFORE DELETE ON reading_${this.namespace}_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;`;
+    if (namespace === "association") {
+      applyReadingMigrations(this.ledger, "history-association", [
+        { version: 1, sql: schema },
+      ]);
+      assertReadingSchema(this.ledger, schema);
+    } else this.ledger.db.exec(schema);
+  }
+  validate(value, items) {
+    return validateMerge(value, items);
+  }
+  complete(task) {
+    if (this.namespace === "merge" && this.e.association?.begin(task))
+      return this.e.get(task.id);
+    return this.e.publish(task, JSON.parse(this.e.get(task.id).coverage));
   }
   intent(task) {
     return this.ledger.db
-      .prepare("SELECT * FROM reading_merge_intents WHERE account=? AND task=?")
+      .prepare(
+        `SELECT * FROM reading_${this.namespace}_intents WHERE account=? AND task=?`,
+      )
       .get(this.e.account, task);
   }
   active(task) {
     return !!this.intent(task);
   }
   plan(task) {
-    const linkedTasks = new Set(this.e.roots.safety.tasks(this.e.roots.stats(task.id).id));
+    const linkedTasks = new Set(
+      this.e.roots.safety.tasks(this.e.roots.stats(task.id).id),
+    );
     const blocks = this.db
       .prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid")
       .all(task.id);
-    const projected=[];
+    const projected = [];
     const dependencies = blocks.map((b) => {
       const copied = this.db
         .prepare(
@@ -167,11 +202,12 @@ export class ReadingMerge {
         original.result_hash !== sha256(b.result)
       )
         fail();
-      const effective=this.e.visual.effective(task,b);projected.push(effective.result);
-      return [original.reuse_key, sha256(b.result),effective.dependency];
+      const effective = this.e.visual.effective(task, b);
+      projected.push(effective.result);
+      return [original.reuse_key, sha256(b.result), effective.dependency];
     });
     const dependencyHash = hash([
-      MERGE_VERSION,
+      this.version,
       this.e.modelVersion,
       dependencies,
     ]);
@@ -205,11 +241,13 @@ export class ReadingMerge {
     return { items, chunks, dependencyHash };
   }
   begin(task) {
-    if (typeof this.e.provider.merge !== "function") return false;
+    if (typeof this.e.provider[this.namespace] !== "function") return false;
     const plan = this.plan(task);
     if (plan.items.length < 2) return false;
     this.ledger.db
-      .prepare("INSERT OR IGNORE INTO reading_merge_intents VALUES(?,?,?,?)")
+      .prepare(
+        `INSERT OR IGNORE INTO reading_${this.namespace}_intents VALUES(?,?,?,?)`,
+      )
       .run(this.e.account, task.id, task.packet, plan.dependencyHash);
     return true;
   }
@@ -220,7 +258,7 @@ export class ReadingMerge {
           a === b ? plan.chunks[a] : [...plan.chunks[a], ...plan.chunks[b]];
         if (items.length < 2) continue;
         const fingerprint = hash([
-          MERGE_VERSION,
+          this.version,
           plan.dependencyHash,
           a,
           b,
@@ -232,7 +270,7 @@ export class ReadingMerge {
   proof(task, fingerprint) {
     return this.ledger.db
       .prepare(
-        "SELECT * FROM reading_merge_proofs WHERE account=? AND task=? AND fingerprint=?",
+        `SELECT * FROM reading_${this.namespace}_proofs WHERE account=? AND task=? AND fingerprint=?`,
       )
       .get(this.e.account, task, fingerprint);
   }
@@ -250,7 +288,9 @@ export class ReadingMerge {
     if (prior && (prior.result_hash !== value || prior.call_id !== callId))
       fail();
     this.ledger.db
-      .prepare("INSERT OR IGNORE INTO reading_merge_proofs VALUES(?,?,?,?,?)")
+      .prepare(
+        `INSERT OR IGNORE INTO reading_${this.namespace}_proofs VALUES(?,?,?,?,?)`,
+      )
       .run(this.e.account, task.id, fingerprint, callId, value);
   }
   verify(task, pair, row) {
@@ -266,7 +306,7 @@ export class ReadingMerge {
       call.block !== pair.fingerprint
     )
       fail();
-    return validateMerge(JSON.parse(row.result), pair.items);
+    return this.validate(JSON.parse(row.result), pair.items);
   }
   result(task, partial = false) {
     if (!this.active(task.id)) return null;
@@ -275,7 +315,7 @@ export class ReadingMerge {
     for (const pair of this.pairs(plan)) {
       const row = this.db
         .prepare(
-          "SELECT * FROM reading_merge_results WHERE task=? AND fingerprint=?",
+          `SELECT * FROM reading_${this.namespace}_results WHERE task=? AND fingerprint=?`,
         )
         .get(task.id, pair.fingerprint);
       if (!row) {
@@ -297,7 +337,7 @@ export class ReadingMerge {
     for (const pair of this.pairs(plan)) {
       const row = this.db
         .prepare(
-          "SELECT * FROM reading_merge_results WHERE task=? AND fingerprint=?",
+          `SELECT * FROM reading_${this.namespace}_results WHERE task=? AND fingerprint=?`,
         )
         .get(task.id, pair.fingerprint);
       if (row) {
@@ -312,7 +352,7 @@ export class ReadingMerge {
       );
       if (recovered) {
         callId = recovered.call_id;
-        result = validateMerge(JSON.parse(recovered.result), pair.items);
+        result = this.validate(JSON.parse(recovered.result), pair.items);
       } else {
         // A lost tenant decision cannot cause another payment or a guessed merge.
         if (this.proof(task.id, pair.fingerprint)) fail();
@@ -320,7 +360,7 @@ export class ReadingMerge {
         // model/prompt version and stable pair IDs; never semantic cache guesses.
         const old = this.db
           .prepare(
-            `SELECT r.* FROM reading_merge_results r JOIN reading_tasks t ON t.id=r.task
+            `SELECT r.* FROM reading_${this.namespace}_results r JOIN reading_tasks t ON t.id=r.task
           WHERE r.fingerprint=? AND t.packet=? AND t.id!=? AND t.state!='purged' ORDER BY t.rowid DESC LIMIT 1`,
           )
           .get(pair.fingerprint, task.packet, task.id);
@@ -333,15 +373,15 @@ export class ReadingMerge {
           if (remaining <= 0) throw Error("EXECUTION_LIMIT");
           const sources = [
             {
-              id: "merge",
-              name: "已校验付费事项.json",
+              id: this.namespace,
+              name:this.namespace==="association"?"本次事项与已保存历史事项.json":"已校验付费事项.json",
               text: JSON.stringify({
-                schema: MERGE_VERSION,
+                schema: this.version,
                 items: pair.items,
               }),
             },
           ];
-          const provider = this.e.provider.merge;
+          const provider = this.e.provider[this.namespace];
           if (typeof provider !== "function") throw Error("MERGE_NOT_READY");
           const prepared = provider.prepare?.(sources, {
             maxOutputTokens: this.e.maxOutputTokens,
@@ -393,7 +433,7 @@ export class ReadingMerge {
             return this.e.get(task.id);
           }
           try {
-            result = validateMerge(response.result, pair.items);
+            result = this.validate(response.result, pair.items);
           } catch (error) {
             this.ledger.settle(callId, response.usage);
             throw error;
@@ -409,7 +449,9 @@ export class ReadingMerge {
       }
       this.certify(task, pair.fingerprint, callId, result);
       this.db
-        .prepare("INSERT INTO reading_merge_results VALUES(?,?,?,?)")
+        .prepare(
+          `INSERT INTO reading_${this.namespace}_results VALUES(?,?,?,?)`,
+        )
         .run(task.id, pair.fingerprint, callId, JSON.stringify(result));
       this.ledger.clearEnvelope(callId);
       // Reused calls are not fresh checkpoint progress.
@@ -417,9 +459,11 @@ export class ReadingMerge {
         this.e.roots.progress(task.id, pair.fingerprint);
       return this.e.get(task.id);
     }
-    return this.e.publish(task, JSON.parse(this.e.get(task.id).coverage));
+    return this.complete(task);
   }
   purge(task) {
-    this.db.prepare("DELETE FROM reading_merge_results WHERE task=?").run(task);
+    this.db
+      .prepare(`DELETE FROM reading_${this.namespace}_results WHERE task=?`)
+      .run(task);
   }
 }

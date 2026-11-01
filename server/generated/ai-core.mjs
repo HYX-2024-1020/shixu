@@ -986,9 +986,96 @@ function validateChatUpdate(value, item, instruction, today) {
   }
   return validated;
 }
+
+// shared/relations.mjs
+var itemRef = (packetId, index) => `${packetId}#${index}`;
+var eligible = (item) => ["task", "idea", "habit"].includes(item.kind);
+function itemMap(packets) {
+  const map = /* @__PURE__ */ new Map();
+  for (const packet of packets) {
+    if (packet.deletedAt || packet.status !== "ready" || !packet.result)
+      continue;
+    packet.result.items.forEach((item, index) => {
+      const meta = packet.itemState?.[packet.itemIds?.[index] || `${packet.id}:${index}`];
+      if (meta?.deletedAt || meta?.purgedAt) return;
+      const ref = itemRef(packet.id, packet.itemIds?.[index] || index);
+      map.set(ref, {
+        ref,
+        packet,
+        index,
+        item,
+        done: meta?.status === "done" || packet.doneIds.includes(index)
+      });
+    });
+  }
+  return map;
+}
+var unionFind = (keys) => {
+  const parent = new Map(keys.map((k) => [k, k]));
+  const find = (key) => {
+    if (parent.get(key) !== key) parent.set(key, find(parent.get(key)));
+    return parent.get(key);
+  };
+  return { find, join: (a, b) => parent.set(find(a), find(b)) };
+};
+function buildGroups(packets) {
+  const nodes = itemMap(packets), graph = unionFind([...nodes.keys()]), same = unionFind([...nodes.keys()]), edges = [];
+  for (const packet of packets) {
+    if (packet.deletedAt || packet.status !== "ready") continue;
+    for (const link of packet.association?.links || []) {
+      const a = nodes.get(link.from), b = nodes.get(link.target);
+      if (!a || !b || a.packet.id !== packet.id || a.item.kind !== b.item.kind || !eligible(a.item) || !["same", "related"].includes(link.relation))
+        continue;
+      graph.join(a.ref, b.ref);
+      if (link.relation === "same") same.join(a.ref, b.ref);
+      edges.push({ ...link, at: packet.capturedAt });
+    }
+  }
+  const components = /* @__PURE__ */ new Map();
+  for (const node of nodes.values()) {
+    const root = graph.find(node.ref);
+    if (!components.has(root)) components.set(root, []);
+    components.get(root).push(node);
+  }
+  return [...components.values()].filter((rows) => rows.length > 1).map((rows) => {
+    rows.sort(
+      (a, b) => a.packet.capturedAt.localeCompare(b.packet.capturedAt) || a.ref.localeCompare(b.ref)
+    );
+    const refs = rows.map((n) => n.ref), memberSet = new Set(refs);
+    const links = edges.filter((e) => memberSet.has(e.from) && memberSet.has(e.target)).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+    const units = /* @__PURE__ */ new Map();
+    for (const node of rows) {
+      const root = same.find(node.ref);
+      if (!units.has(root)) units.set(root, []);
+      units.get(root).push(node);
+    }
+    return {
+      id: [...refs].sort()[0],
+      refs,
+      title: links.find((link) => {
+        const context = link.contextRefs || [link.from, link.target];
+        return context.every((ref) => memberSet.has(ref)) && refs.every((ref) => context.includes(ref));
+      })?.title || `${rows[0].item.title} 等 ${units.size} 项`,
+      kind: rows[0].item.kind,
+      latestAt: rows[rows.length - 1].packet.capturedAt,
+      units: [...units.values()].map((members) => ({
+        refs: members.map((n) => n.ref),
+        members,
+        item: {
+          ...members[members.length - 1].item,
+          due: [...members].reverse().find((n) => n.item.due)?.item.due || null,
+          facts: [...new Set(members.flatMap((n) => n.item.facts))]
+        },
+        done: members.every((n) => n.done)
+      })),
+      packetIds: [...new Set(rows.map((n) => n.packet.id))]
+    };
+  }).sort((a, b) => b.latestAt.localeCompare(a.latestAt));
+}
 export {
   DEFAULT_MODEL,
   absoluteItem,
+  buildGroups,
   chatWithItem,
   organizePacket,
   validateChatUpdate,

@@ -10,6 +10,8 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
+  ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
   WINDOW_STATE_RECONCILIATION:"读取进度与独立记录不一致，已暂停；请联系维护者核对",
   WINDOW_STATE_AUDITED:"读取进度已核对，累计调用、费用和时间保留；请主动继续",
   VISUAL_REVIEW_REQUIRED: "图像事项尚待依据核对，已识别进度保留",
@@ -141,8 +143,9 @@ export function createReadingRoutes({
       id: t.id,
       packetId: t.packet,
       state: t.state,
-      phase: info.kind!=="chat" && e.visual.active(t.id) ? "verifying" : info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
+      phase: info.kind!=="chat" && (e.association.active(t.id)||["ASSOCIATION_INPUT_CHANGED","ASSOCIATION_CONTEXT_LIMIT"].includes(t.reason)) ? "associating" : info.kind!=="chat" && e.visual.active(t.id) ? "verifying" : info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
       completedVisualBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_visual_results WHERE task=?").get(t.id).n,
+      completedAssociationBatches:e.db.prepare("SELECT COUNT(*) n FROM reading_association_results WHERE task=?").get(t.id).n,
       completedMergeBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_merge_results WHERE task=?").get(t.id).n,
       generation: t.generation,
       maintenanceOperation: e.maintenanceOperation(t.id),
@@ -168,6 +171,7 @@ export function createReadingRoutes({
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
               ...(recoverable.includes(t.state) &&
+              t.reason!=="ASSOCIATION_INPUT_CHANGED" &&
               (t.reason !== "EXECUTION_LIMIT" || auditedTimeAvailable) &&
               root.activeMs < e.executionLimit(t.id) &&
               !wallet.pausedReason &&
@@ -267,6 +271,7 @@ export function createReadingRoutes({
           solid7z:reader.archiveWindows===true,
           animatedPng:reader.imageWindows===true&&provider.imageInput===true,
           visualFactReview:typeof provider.reviewVisual==='function',
+          historyAssociation:typeof provider.association==="function",
           itemChat:typeof provider.chat==='function',
           pdfPageVisual:reader.pdfVisualWindows===true && provider.imageInput===true,
           pdfTextOnly: !(reader.pdfVisualWindows===true && provider.imageInput===true),

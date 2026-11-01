@@ -47,6 +47,7 @@ export async function runClientLoop({
   itemChat,
   semanticMerge,
   visualReview,
+  historyAssociation,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -137,7 +138,7 @@ export async function runClientLoop({
           warnings: [],
           items: [
             {
-              kind: "note",
+              kind: historyAssociation?"task":"note",
               title: "有来源的合成事项",
               summary: "合成事项",
               facts: [],
@@ -158,6 +159,7 @@ export async function runClientLoop({
   };
   if(reader.imageWindows===true)reading.provider.imageInput=true;
   if(itemChat)reading.provider.chat=itemChat.provider;
+  if(historyAssociation)reading.provider.association=async(...args)=>{calls++;return historyAssociation.provider(...args);};
   if(visualReview)reading.provider.reviewVisual=async (...args)=>{calls++;return visualReview.provider(...args);};
   if(semanticMerge)reading.provider.merge=async (...args)=>{calls++;return semanticMerge.provider(...args);};
   const service = createMultiUserService({
@@ -334,6 +336,7 @@ export async function runClientLoop({
         cloud.config.active,
       );
     await cloud.action("sync");
+    if(historyAssociation?.prepare)await historyAssociation.prepare({cloud,page,service,account});
     if (expireBeforeStart) originalNow += 31 * 60 * 1000;
     if (deleteBeforeStart) {
       const row = cloud.status().originalStorage.originals[0];
@@ -406,7 +409,7 @@ export async function runClientLoop({
       await page.taskAction({currentTarget:{dataset:{id:initial.job,action:"continue"}}});
       while(service.readingRoutes.snapshot().accounts)await tick();
       await page.sync();await cloud.action("sync");
-      const finished=cloud.readJobs().find(j=>j.id===initial.job),winPacket=(await cloud.packets())[0],miniPacket=page._record("packet").data;
+      const finished=cloud.readJobs().find(j=>j.id===initial.job),winPacket=(await cloud.packets()).find(p=>p.id==="packet"),miniPacket=page._record("packet").data;
       assert.equal(finished.state,"done");assert.equal(finished.rootCalls,calls);assert.ok(finished.rootActiveMs>=review.activeMs);
       assert.equal(ledger.wallet(account).spent,(calls-1)*20+(costAudit==="usage"?40:0));
       assert.equal(auditText.join(""),original.expectedText);assert.ok(tailSeen);
@@ -459,7 +462,7 @@ export async function runClientLoop({
       assert.ok(win.actions.includes("purge"));
       assert.equal(win.rootCalls, 0);
       assert.equal(calls, 0);
-      assert.equal((await cloud.packets())[0].result, null);
+      assert.equal((await cloud.packets()).find(p=>p.id==="packet").result, null);
       if (auditAfterReadLimit || auditUnknownTime) {
         assert.equal(expectedReadPause,auditUnknownTime ? "ACTIVE_TIME_RECONCILIATION" : "EXECUTION_LIMIT");
         await assert.rejects(cloud.request(cloud.config.active,"POST",`/api/v4/tasks/${initial.job}/continue`,{
@@ -492,7 +495,7 @@ export async function runClientLoop({
         await page.sync();await cloud.action("sync");
         const finished=cloud.readJobs().find(j=>j.id===initial.job);
         assert.equal(finished.state,"done");assert.ok(finished.rootActiveMs >= review.activeMs);
-        const winPacket=(await cloud.packets())[0],miniPacket=page._record("packet").data;
+        const winPacket=(await cloud.packets()).find(p=>p.id==="packet"),miniPacket=page._record("packet").data;
         assert.deepEqual(JSON.parse(JSON.stringify(winPacket.result)),JSON.parse(JSON.stringify(miniPacket.result)));
         assert.ok(tailSeen);assert.equal(ledger.wallet(account).spent,calls*20);
         if (typeof original?.expectedText === "string") assert.equal(auditText.join(""),original.expectedText);
@@ -576,7 +579,7 @@ export async function runClientLoop({
       cloud.readJobs().find((j) => j.id === task.id).state,
       "cancelled",
     );
-    assert.equal((await cloud.packets())[0].result, null);
+    assert.equal((await cloud.packets()).find(p=>p.id==="packet").result, null);
     await page.sync();
     if(auditCheckpoint) {
       // Fixture-only independent settled calls reproduce a full no-progress
@@ -634,7 +637,7 @@ export async function runClientLoop({
         contractVersion:1,operationId:crypto.randomUUID(),expectedGeneration:win.generation,expectedRevision:win.inputRevision,
       }),/资料进度与安全记录不一致/);
       assert.equal(calls,1); assert.equal(ledger.wallet(account).spent,20);
-      assert.equal((await cloud.packets())[0].result,null);
+      assert.equal((await cloud.packets()).find(p=>p.id==="packet").result,null);
       return {synthetic:true,realProviderCalls:0,simulatedProviderCalls:calls,spentMicros:20,
         rootActiveMs:win.rootActiveMs,sameReasonAndActions:true,continueDenied:true,
         desktopTransport:"AccountWorkspace signed HTTP",miniTransport:"Page lifecycle with Node wx adapter, not native WeChat"};
@@ -648,7 +651,7 @@ export async function runClientLoop({
     while (service.readingRoutes.snapshot().accounts) await tick();
     await page.sync();
     await cloud.action("sync");
-    const win = (await cloud.packets())[0],
+    const win = (await cloud.packets()).find(p=>p.id==="packet"),
       mini = page._record("packet").data;
     assert.deepEqual(
       JSON.parse(JSON.stringify(win.result)),
@@ -672,6 +675,7 @@ export async function runClientLoop({
     );
     if (original?.verify)
       await original.verify({ win, mini, page, cloud, service, ledger, account });
+    if(historyAssociation)await historyAssociation.verify({win,mini,page,cloud,service,ledger,account});
     if(itemChat)await itemChat.verify({win,mini,page,cloud,service,ledger,account,parserRuns:()=>parserRuns});
     if(visualReview)await visualReview.verify({win,mini,page,cloud,service,ledger,account});
     if(semanticMerge)await semanticMerge.verify({win,mini,page,cloud,service,ledger,account});
@@ -706,7 +710,7 @@ export async function runClientLoop({
       assert.equal(revised.rootCalls, previousJob.rootCalls + 1);
       assert.equal(ledger.wallet(account).spent, previousSpent + 20);
       assert.match(page.data.jobs.find(j => j.id === revisionId).reuseLabel, /已核验当前材料/);
-      const revisedWin = (await cloud.packets())[0];
+      const revisedWin = (await cloud.packets()).find(p=>p.id==="packet");
       assert.deepEqual(revisedWin.result, JSON.parse(JSON.stringify(page._record("packet").data.result)));
       assert.deepEqual(revisedWin.readingCoverage.filter(c => c.attachmentId !== "input"), win.readingCoverage);
       revisionEvidence = { reusedBlocks: revised.reusedBlocks, newCalls: revised.calls,
@@ -752,8 +756,8 @@ export async function runClientLoop({
       assert.equal(page.data.error, "");
       assert.equal(page.data.originalStorage.originals[0].state, "deleted");
       assert.equal(cloud.status().originalStorage.usedBytes, 0);
-      assert.deepEqual((await cloud.packets())[0].result, win.result);
-      const afterDelete = (await cloud.packets())[0];
+      assert.deepEqual((await cloud.packets()).find(p=>p.id==="packet").result, win.result);
+      const afterDelete = (await cloud.packets()).find(p=>p.id==="packet");
       await cloud.call(
         "savePackets",
         [{ ...afterDelete, error: "synthetic edit after original deletion" }],

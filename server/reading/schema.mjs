@@ -1,4 +1,37 @@
 import { sha256 } from "./material.mjs";
+import { DatabaseSync } from "node:sqlite";
+
+// Derive the expected SQLite DDL with SQLite itself, rather than silently
+// recreating a removed append-only trigger in an already versioned component.
+export function assertReadingSchema(ledger, sql) {
+  const expected = new DatabaseSync(":memory:");
+  try {
+    expected.exec(sql);
+    const normalize = (v) =>
+      v
+        .replace(/\bIF NOT EXISTS\s+/gi, "")
+        .replace(/;\s*$/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    for (const row of expected
+      .prepare(
+        "SELECT name,type,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()) {
+      const actual = ledger.db
+        .prepare("SELECT type,sql FROM sqlite_master WHERE name=?")
+        .get(row.name);
+      if (
+        !actual ||
+        actual.type !== row.type ||
+        normalize(actual.sql) !== normalize(row.sql)
+      )
+        throw Error("READING_SCHEMA_MISMATCH");
+    }
+  } finally {
+    expected.close();
+  }
+}
 // Versioned component migrations run only on the independently owned ledger.
 // An unknown future version or changed historical SQL never silently downgrades.
 export function applyReadingMigrations(ledger, component, migrations) {

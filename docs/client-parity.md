@@ -433,3 +433,8 @@ Windows与微信共同显示PNG动画各帧时长/区域、独立静态默认图
 ## B/C/D 7z solid（#73/#69，2026-11-01）
 
 Windows与微信均沿现有逐成员/逐页任务读取7z共享压缩块，来源/未读/停止/核验补传/费用/修订复用保持同一行为；共同接收archiveCompression摘要，capabilities.solid7z由读取服务声明。实际签名HTTP19页PDF temporary/deleted双端链、普通UID与受保护broker、发布包见[solid证据](bcd/solid-7z-verification.md)。每块/全包100:1及共享64MiB不放宽；RAR solid与真正流式未支持。没有原生微信/手机/安装及全BCD最终验收结论。
+
+
+## B/C/D历史投递关联AI（#73/#69，2026-11-01）
+
+Windows与微信整理后共同接入同账号历史未完成事项关联，沿共享buildGroups显示same/related，保留原事项/完成/日期；新历史关联阶段和批数、费用/停止/unknown/超限及历史变化提示同步。capabilities.historyAssociation明示接入，未接入时不会本地另付费。实际签名HTTP temporary/deleted两链、普通UID34及受保护broker/发布包、官方编译和真实关联1调用分别记证，见[关联证据](bcd/association-verification.md)。容量内遍历全部候选，16MiB全量内存边界仍是待补流式缺口；无原生微信/手机/安装/最终联合验收结论。

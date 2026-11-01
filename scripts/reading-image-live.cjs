@@ -52,11 +52,11 @@ app
         return;
       }
       phase = "imports";
-      if (process.argv.includes("--chat") || process.argv.includes("--merge")) {
-        const merge=process.argv.includes("--merge");
-        phase = merge ? "merge" : "chat";
-        const runner = await load(merge ? "scripts/reading-merge-live.mjs" : "scripts/reading-chat-live.mjs");
-        await (merge ? runner.runMergeLive : runner.runChatLive)({
+      if (process.argv.includes("--chat") || process.argv.includes("--merge") || process.argv.includes("--association")) {
+        const merge=process.argv.includes("--merge"),association=process.argv.includes("--association");
+        phase = association?"association":merge ? "merge" : "chat";
+        const runner = await load(association?"scripts/reading-association-live.mjs":merge ? "scripts/reading-merge-live.mjs" : "scripts/reading-chat-live.mjs");
+        await (association?runner.runAssociationLive:merge ? runner.runMergeLive : runner.runChatLive)({
           probe,
           getKey: async () => (await safeStorage.decryptStringAsync(
             readFileSync(path.join(existing, "api-key.enc")),

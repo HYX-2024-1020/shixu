@@ -14,6 +14,7 @@ import { validateUsage } from "./ledger.mjs";
 import { ReadingRoots } from "./roots.mjs";
 import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
+import {ReadingAssociation} from "./association.mjs";
 import { ReadingChat } from './chat.mjs';
 import { ReadingVisualReview } from "./visual-review.mjs";
 import { ReadingMerge, MERGE_VERSION } from './merge.mjs';
@@ -26,7 +27,9 @@ const error = (code) =>
   new SyncError(
     409,
     code,
-    code === "ACTIVE_TIME_RECONCILIATION"
+    code === "ASSOCIATION_INPUT_CHANGED"
+      ? "历史事项已变化，已付费进度保留；可收下本次结果或重新整理"
+      : code === "ACTIVE_TIME_RECONCILIATION"
       ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
       : code === "CHECKPOINT_NO_PROGRESS"
         ? "累计24次调用未取得新增有效块，需核对后继续"
@@ -203,6 +206,7 @@ export class ReadingTasks {
     this.chat = new ReadingChat(this);
     this.visual = new ReadingVisualReview(this);
     this.merge = new ReadingMerge(this);
+    this.association = new ReadingAssociation(this);
     this.roots = new ReadingRoots(store, ledger, account);
     this.db
       .prepare(
@@ -384,6 +388,7 @@ export class ReadingTasks {
         task.input_revision !== expectedRevision
       )
         throw error("STALE_TASK");
+      if(action==="continue"&&task.reason==="ASSOCIATION_INPUT_CHANGED")throw error("ASSOCIATION_INPUT_CHANGED");
       if (action === "continue" && expectedMaintenanceOperation !== this.maintenanceOperation(id))
         throw error("STALE_TASK");
       if (action === "accept-partial") {
@@ -412,6 +417,7 @@ export class ReadingTasks {
         this.windows.purge(id);
         this.chat.purge(id);
         this.merge.purge(id);
+        this.association.purge(id);
         this.visual.purge(id);
         this.db.prepare("DELETE FROM reading_blocks WHERE task=?").run(id);
         this.db
@@ -623,6 +629,9 @@ export class ReadingTasks {
     if(!isChat&&selected.length<rawBlocks.length)result.warnings.push(`另有${rawBlocks.length-selected.length}个已识别图像块尚未完成依据核对，未收下`);
     const semantic = !isChat ? this.merge.result(task, partial) : null;
     if (semantic) result.items = semantic.items;
+    const history = !isChat ? this.association.result(task,partial) : null;
+    if(history)result.warnings.push(...history.warnings);
+    if(!isChat&&partial&&(this.association.active(id)||['ASSOCIATION_CONTEXT_LIMIT','ASSOCIATION_INPUT_CHANGED'].includes(task.reason)))result.warnings.push('收下部分结果，未应用历史事项关联');
     if (!isChat && result.items.length > 1 && (!semantic || partial))
       result.warnings.push(partial ? "收下部分结果，跨块语义核对尚未全部完成" : "未启用跨块语义核对，可能存在重复或未关联事项");
     const processed = this.db
@@ -657,15 +666,16 @@ export class ReadingTasks {
           readingCoverage: coverage,
           processingCoverage,
           itemIds: result.items.map((_, i) => `${id}_item_${i}`),
-          ...(semantic ? {
-            association: { links: semantic.related.map(([from,target],i) => ({
+          ...((semantic||history) ? {
+            association: { links: [...(semantic?.related||[]).map(([from,target],i) => ({
               id: `${id}_relation_${i}`, from: `${task.packet}#${id}_item_${from}`,
               target: `${task.packet}#${id}_item_${target}`, relation: "related", reason: "本次投递已读取事项的模型语义关联",
               title: result.items[from].group || result.items[from].title,
-            })) },
-            semanticMerge: { version: MERGE_VERSION, originalItems: semantic.originalItems,
-              mergedItems: semantic.mergedItems, complete: !partial },
-          } : {}),
+            })),...(history?.links||[])] },
+            historyAssociation:history?{version:history.version,complete:history.complete,candidates:history.candidates}:null,
+            ...(semantic?{semanticMerge: { version: MERGE_VERSION, originalItems: semantic.originalItems,
+              mergedItems: semantic.mergedItems, complete: !partial }}:{}),
+          } : {association:{links:[]},historyAssociation:null}),
           sources: [],
           updatedAt: new Date().toISOString(),
         },
@@ -678,6 +688,7 @@ export class ReadingTasks {
           // A chat changes its saved-item dependency; verify the old context
           // inside this transaction before applying the patch itself.
           if(isChat && this.revision(task)!==task.input_revision)throw error('INPUT_CHANGED');
+          if(!isChat&&this.association.active(id))this.association.plan(task);
         },
         beforeCommit: (response) => {
           this.windows.safety.assertRoot(id);
@@ -898,6 +909,7 @@ export class ReadingTasks {
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
       safetyStep = this.roots.safety.begin(root.id,id,task.generation);
+      if(!isChat&&this.association.active(id))return await this.association.step(task,{signal:controller.signal,execution,remainingMs:()=>activeLimitMs-root.activeMs-(performance.now()-started-excludedMs)});
       if (!isChat && this.merge.active(id)) return await this.merge.step(task, {
         signal: controller.signal, execution,
         remainingMs: () => activeLimitMs - root.activeMs - (performance.now() - started - excludedMs),
@@ -1212,6 +1224,7 @@ export class ReadingTasks {
         if (this.windows.pending(id,pendingInputs,{archiveWindows:this.reader.archiveWindows === true,imageWindows:this.reader.imageWindows === true,pdfVisualWindows:this.reader.pdfVisualWindows === true && this.provider.imageInput === true,officeWindows:this.reader.officeWindows===true&&this.provider.imageInput===true})) return this.get(id);
       }
       if (!isChat && this.merge.begin(task)) return this.get(id);
+      if(!isChat&&this.association.begin(task))return this.get(id);
       return this.publish(task, coverage);
     } catch (e) {
       const reason = e.code || e.message;
@@ -1235,6 +1248,8 @@ export class ReadingTasks {
               "VISUAL_REVIEW_REQUIRED",
               "VISUAL_REVIEW_NOT_READY",
               "VISUAL_REVIEW_CONTEXT_LIMIT",
+              "ASSOCIATION_CONTEXT_LIMIT",
+              "ASSOCIATION_INPUT_CHANGED",
               "TASK_INFLIGHT_BUDGET",
               "CHECKPOINT_NO_PROGRESS",
               "CHECKPOINT_RECONCILIATION",
