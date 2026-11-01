@@ -1,3 +1,4 @@
+import { ReadingLegacyMaintenance } from "../server/reading/legacy-ledger.mjs";
 import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import {
@@ -49,6 +50,7 @@ export async function runClientLoop({
   visualReview,
   historyAssociation,
   providerReceiptMetadata=false,
+  legacyLedger=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -197,7 +199,12 @@ export async function runClientLoop({
     await cloud.action("activate", { invite });
     const account = cloud.config.devices[cloud.config.active].userId;
     service.registry.limits(account, { requestsPerMinute: 1000 }); // Burst-heavy synthetic replay only.
-    ledger.grantInitial(account); // Explicit synthetic reconciliation, never automatic on login.
+    let legacyHost;
+    if(legacyLedger){
+      service.registry.db.prepare('INSERT INTO ai_usage VALUES(?,?,?,?,?,?)').run(account,'synthetic-old-job','a'.repeat(64),'2026-10-31',5000,'done');
+      legacyHost=new ReadingLegacyMaintenance(ledger,({actor})=>actor==='synthetic-host',({account,sourceHash,usageHash,evidenceHash})=>({account,sourceHash,usageHash,evidenceHash,final:true,currency:'CNY',allHistoricalActivityCovered:true,proofIdHash:'b'.repeat(64),spentMicros:1400,beijingDays:[{day:new Date(Date.now()+8*3600000).toISOString().slice(0,10),micros:1400}]}));
+      legacyHost.intake(service.registry,{operationId:'synthetic-intake',expectedSourceHash:legacyHost.preview(service.registry,'synthetic-host').sourceHash},'synthetic-host');
+    }else ledger.grantInitial(account); // Explicit synthetic reconciliation, never automatic on login.
     const response = await fetch(base + "/api/v3/activate/wechat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -282,6 +289,26 @@ export async function runClientLoop({
     };
     page.onLoad();
     page._activate({ ...binding, base: SERVICE_ORIGIN });
+    if(legacyLedger){
+      await cloud.action('sync');await page.sync();
+      assert.equal(cloud.status().account.wallet.unknownRisk,5000);
+      assert.equal(cloud.status().account.wallet.pausedReason,'RECONCILIATION_REQUIRED');
+      assert.match(page.data.accountAiState,/历史费用待核对/);
+      const miniWallet=await page._transport('GET','/api/v4/wallet');assert.equal(miniWallet.granted,0);assert.equal(miniWallet.unknownRisk,5000);
+      await assert.rejects(cloud.request(cloud.config.active,'POST','/api/v4/maintenance/legacy-ledger',{actor:'synthetic-host',spentMicros:0}),e=>e.code==='NOT_FOUND');
+      const oldCostOperation=cloud.status().account.wallet.costAuditOperation;
+      const review=legacyHost.review(account,'synthetic-host');
+      legacyHost.reconcile(account,{operationId:'synthetic-final-bill',evidenceHash:'c'.repeat(64),expectedLedgerSequence:review.ledgerSequence},'synthetic-host');
+      await cloud.action('sync');await page.sync();
+      assert.equal(cloud.status().account.wallet.spent,1400);assert.equal(cloud.status().account.wallet.granted,20000000);
+      assert.match(page.data.accountAiState,/累计已消费/);
+      const after=await page._transport('GET','/api/v4/wallet');assert.equal(after.spent,1400);assert.equal(after.unknownRisk,0);
+      const stale={id:crypto.randomUUID(),packetId:'legacy-missing-packet',kind:'organize',contractVersion:1,epoch:cloud.config.devices[cloud.config.active].epoch,baseVersion:1,expectedCostOperation:oldCostOperation};
+      await assert.rejects(cloud.request(cloud.config.active,'POST','/api/v4/tasks',stale),e=>e.code==='STALE_COST_REVIEW');
+      await assert.rejects(page._transport('POST','/api/v4/tasks',{...stale,id:crypto.randomUUID()}),e=>e.code==='STALE_COST_REVIEW');
+      assert.equal(calls,0);assert.equal(parserRuns,0);assert.equal(cloud.readJobs().length,0);assert.equal(page._jobs.length,0);
+      return {synthetic:true,realProviderCalls:0,simulatedProviderCalls:calls,spentMicros:1400,unknownBefore:5000,unknownAfter:0,bothClientAdapters:true,noAutomaticTask:true};
+    }
     const body =
       original?.body ||
       Buffer.from("合成报告要求与顺序😀。\n".repeat(20000) + "尾部唯一标记");

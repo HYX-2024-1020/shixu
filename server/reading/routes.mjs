@@ -10,6 +10,7 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
   ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
   ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
   WINDOW_STATE_RECONCILIATION:"读取进度与独立记录不一致，已暂停；请联系维护者核对",

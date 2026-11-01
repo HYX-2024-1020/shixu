@@ -1,3 +1,4 @@
+import { ReadingLegacyLedger } from "./legacy-ledger.mjs";
 import { ensureDatabaseSchema } from '../database-schema.mjs';
 import { LEDGER_CORE_SCHEMA, LEDGER_COST_SCHEMA, LEDGER_TIME_SCHEMA, LEDGER_CHECKPOINT_SCHEMA } from '../database-schemas.mjs';
 import {ReadingProviderReceipts} from './provider-receipts.mjs';
@@ -101,7 +102,10 @@ export class ReadingLedger {
       this.db.close();
       throw Error("DATABASE_STATE_RECONCILIATION");
     }
-    this.receipts = new ReadingProviderReceipts(this);
+    try {
+      this.receipts = new ReadingProviderReceipts(this);
+      this.legacy = new ReadingLegacyLedger(this);
+    } catch(error) { this.db.close(); throw error; }
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -222,6 +226,8 @@ export class ReadingLedger {
       .get(account)?.operation;
     const checkpoint=this.db.prepare("SELECT operation FROM reading_checkpoint_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation;
     const window=this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_window_audits'").get()?this.db.prepare("SELECT operation FROM reading_window_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation:null;
+    const legacy=this.legacy.token(account);
+    if(legacy)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint||null,window||null,legacy]));
     if(window)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint||null,window]));
     if(checkpoint)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint]));
     return time ? "recovery:" + sha256(JSON.stringify([cost, time])) : cost;
@@ -243,7 +249,7 @@ export class ReadingLedger {
         "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE account=? AND state IN ('reserved','sent')",
       )
       .get(account).n;
-    const unknownRisk = this.db
+    const unknownRisk = this.legacy.risk(account) + this.db
       .prepare(
         "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE account=? AND state='unknown'",
       )
@@ -257,7 +263,7 @@ export class ReadingLedger {
       reserved,
       unknownRisk,
       available: Math.max(0, w.granted - w.spent - reserved - unknownRisk),
-      pausedReason: unknownRisk
+      pausedReason: this.legacy.pending(account) ? "RECONCILIATION_REQUIRED" : unknownRisk
         ? "UNKNOWN_COST"
         : paused
           ? "LEDGER_PAUSED"
@@ -300,6 +306,8 @@ export class ReadingLedger {
         if (previous.fingerprint !== fingerprint) throw Error("CALL_ID_REUSED");
         return previous;
       }
+      if(this.legacy.pending(account))throw Error("RECONCILIATION_REQUIRED");
+      if(!this.legacy.approved(account,task,generation))throw Error("STALE_COST_REVIEW");
       if (
         this.db.prepare("SELECT paused FROM reading_controls WHERE id=1").get()
           .paused
@@ -334,7 +342,7 @@ export class ReadingLedger {
           "SELECT COALESCE(SUM(CASE WHEN state='settled' AND day=? THEN actual WHEN state IN ('reserved','sent','unknown') THEN reserved ELSE 0 END),0) n FROM reading_calls",
         )
         .get(day).n;
-      if (site + reserve > this.limits.siteDailyMicros)
+      if (site + this.legacy.risk() + this.legacy.site(day) + reserve > this.limits.siteDailyMicros)
         throw Error("SITE_BUDGET");
       this.db
         .prepare(
@@ -491,17 +499,17 @@ export class ReadingLedger {
     for (const wallet of wallets) {
       const events = this.db
         .prepare(
-          "SELECT COALESCE(SUM(CASE WHEN kind='grant' THEN amount ELSE 0 END),0) granted,COALESCE(SUM(CASE WHEN kind='settle' THEN amount ELSE 0 END),0) spent FROM reading_events WHERE account=?",
+          "SELECT COALESCE(SUM(CASE WHEN kind='grant' THEN amount ELSE 0 END),0) granted,COALESCE(SUM(CASE WHEN kind IN ('settle','legacy-settle') THEN amount ELSE 0 END),0) spent FROM reading_events WHERE account=?",
         )
         .get(wallet.account);
       let valid =
-        events.granted === wallet.granted && events.spent === wallet.spent;
+        events.granted === wallet.granted && events.spent === wallet.spent && this.legacy.audit(wallet.account);
       const projection = this.db
         .prepare(
           "SELECT COALESCE(SUM(actual),0) spent FROM reading_calls WHERE account=? AND state='settled'",
         )
         .get(wallet.account);
-      valid &&= projection.spent === wallet.spent;
+      valid &&= projection.spent + this.legacy.spent(wallet.account) === wallet.spent;
       for (const call of this.db
         .prepare("SELECT * FROM reading_calls WHERE account=?")
         .all(wallet.account)) {

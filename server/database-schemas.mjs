@@ -102,6 +102,7 @@ export const LEDGER_CORE_SCHEMA = [
     sql: "CREATE INDEX IF NOT EXISTS reading_calls_account_task ON reading_calls(account,task);",
   },
   { version: 3, sql: "" },
+  { version: 4, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {
@@ -352,3 +353,11 @@ CREATE TRIGGER IF NOT EXISTS reading_schema_versions_update BEFORE UPDATE ON rea
 CREATE TRIGGER IF NOT EXISTS reading_schema_versions_delete BEFORE DELETE ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;`,
   },
 ];
+
+export const LEGACY_LEDGER_SCHEMA = [{version:1,sql:`
+CREATE TABLE reading_legacy_accounts(account TEXT PRIMARY KEY REFERENCES reading_wallets(account),source_hash TEXT NOT NULL,usage_hash TEXT NOT NULL,at INTEGER NOT NULL);
+CREATE TABLE reading_legacy_usage(account TEXT NOT NULL REFERENCES reading_legacy_accounts(account),job TEXT NOT NULL,fingerprint TEXT NOT NULL,legacy_day TEXT NOT NULL,reserved INTEGER NOT NULL CHECK(reserved>=0),legacy_state TEXT NOT NULL,PRIMARY KEY(account,job));
+CREATE TABLE reading_legacy_intakes(operation TEXT PRIMARY KEY,source_hash TEXT NOT NULL,request_hash TEXT NOT NULL,actor TEXT NOT NULL,accounts INTEGER NOT NULL,usages INTEGER NOT NULL,at INTEGER NOT NULL);
+CREATE TABLE reading_legacy_work(account TEXT NOT NULL REFERENCES reading_legacy_accounts(account),task TEXT NOT NULL,generation INTEGER NOT NULL CHECK(generation>=1),operation TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,task,generation));
+CREATE TABLE reading_legacy_settlements(account TEXT PRIMARY KEY REFERENCES reading_legacy_accounts(account),source_hash TEXT NOT NULL,evidence_hash TEXT NOT NULL,proof_id_hash TEXT UNIQUE NOT NULL,spent INTEGER NOT NULL CHECK(spent>=0),days TEXT NOT NULL,actor TEXT NOT NULL,operation TEXT UNIQUE NOT NULL,request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,at INTEGER NOT NULL);
+`+['reading_legacy_accounts','reading_legacy_usage','reading_legacy_intakes','reading_legacy_settlements','reading_legacy_work'].flatMap(table=>['UPDATE','DELETE'].map(action=>`CREATE TRIGGER ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'IMMUTABLE_LEGACY_LEDGER');END;`)).join('')}];

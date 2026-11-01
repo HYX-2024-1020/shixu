@@ -254,6 +254,8 @@ export class ReadingTasks {
     const time=this.roots.safety.lastTimeAudit(this.roots.forTask(id).id)?.operation;
     const checkpoint=this.roots.safety.lastCheckpointAudit(this.roots.forTask(id).id)?.operation;
     const window=this.windows.safety.lastAudit(this.roots.forTask(id).id)?.operation;
+    const legacy=this.ledger.legacy.token(this.account);
+    if(legacy)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint||null,window||null,legacy]));
     if(window)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint||null,window]));
     if(checkpoint)return "audit:"+sha256(JSON.stringify([limit,cost||null,time||null,checkpoint]));
     return time ? "audit:"+sha256(JSON.stringify([limit,cost || null,time])) : cost ? "audit:" + sha256(JSON.stringify([limit,cost])) : limit;
@@ -300,6 +302,7 @@ export class ReadingTasks {
         return prior;
       }
       if (expectedCostOperation !== this.ledger.recoveryOperation(this.account))throw error("STALE_COST_REVIEW");
+      if(this.ledger.legacy.pending(this.account))throw error("RECONCILIATION_REQUIRED");
       if (this.store.files.unlinked(packetId))
         throw error("ATTACHMENT_UNLINKED");
       if (
@@ -334,6 +337,7 @@ export class ReadingTasks {
           revision,
           this.store.record(packetId).version,
         );
+      this.ledger.legacy.approve(this.account,id,1);
       if(prepared)this.chat.register(this.get(id),prepared);
       this.roots.attach(this.get(id));
       return this.get(id);
@@ -470,6 +474,7 @@ export class ReadingTasks {
             .get(this.account)
         )
           throw error("UNKNOWN_COST");
+        this.ledger.legacy.approve(this.account,id,task.generation+1);
         this.db
           .prepare(
             "UPDATE reading_tasks SET generation=generation+1,state='queued',reason='',base_version=?,device=? WHERE id=?",
@@ -1234,6 +1239,8 @@ export class ReadingTasks {
           )
           .run(
             [
+              "STALE_COST_REVIEW",
+              "RECONCILIATION_REQUIRED",
               "PERSONAL_BUDGET",
               "SITE_BUDGET",
               "UNKNOWN_COST",
