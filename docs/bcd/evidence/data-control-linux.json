@@ -1,0 +1,25 @@
+{
+  "kind": "kernel-registration-recovery-and-seven-day-copy-retirement",
+  "platform": "linux",
+  "directory": "/opt/shixu-bcd-test-20261101-data-control",
+  "uid": 65534,
+  "newRealProviderCalls": 0,
+  "initialRelatedTests": 63,
+  "refinedRelatedTests": 66,
+  "lastTests": 35,
+  "lastExitCode": 0,
+  "kernelEvidence": "real owned child process exit and process-generation/namespace reads; no forced PID reuse, reboot or physical power-cut exercise",
+  "scope": "Host-only control primitive, synthetic identities/data, actual AccountWorkspace/Page Node transports; unknown risk preserved; no production or whole BCD acceptance",
+  "sourceSha256": {
+    "server/data-control.mjs": "804aeccb39262fe93c010cb0a1303165498d499ed48800e533ffbf54c180961d",
+    "server/data-versions.mjs": "4c05b1417425365b4a5272fa56da605ab1dade7f685bbf1c04904e8e0be5c04e",
+    "server/data-migration.mjs": "730f654421d2457df4871ae8fcccf4a23d7b3ded859e06b90ebea8ea7b886e1c",
+    "server/database-schemas.mjs": "a35de6e65dfa71e54ffc3edc3a4a006a5e829395ae4cb2475adbd5ba62c5beb5",
+    "server/reading/data-recovery.test.mjs": "67385c91003d109bda75b8c195ccda7cf85b20f5232732d764cdcf7fcfe8b888",
+    "server/reading/data-retirement.test.mjs": "5f38b82b09bdde320a3ca8ea4824a40b1c8c3107582d2b227d0daba5549bd1d2",
+    "server/reading/data-versions.test.mjs": "c3195c681f0d715b42ad4436564caa226c50d98e94f73f8eb5b42b14f47464f1",
+    "deploy/sync/backup-accounts.mjs": "1db4941e94ce81929f853350940e561d8a2164475fb880da1943258e1076d868"
+  },
+  "afterSyntheticFixtureRefinementTests": 8,
+  "afterCapabilityFreezeTests": 17
+}

@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D 宿主恢复与旧副本清理（#73，整体未完成）
+
+Windows AccountWorkspace及微信Page/Node wx继续使用同一版本2资料集合和独立账本。宿主真实内核证据只恢复死进程的写入登记，不能清除费用/活跃时间或自动继续；旧根/历史版本/失败影子的七天清理只删已核对的非当前路径，账号身份与有效结果/unknown保持。双端retained/temporary任务链通过；无普通用户恢复/删除底层HTTP接口，无产品UI窗口/安装/原生微信或手机验证。[开发证据](bcd/data-control-verification.md)。
+
 ## 2026-11-01 B/C/D 资料版本切换后双端接续（#73，整体未完成）
 
 Windows AccountWorkspace和微信Page/Node wx签名HTTP，在排空服务、完整影子集合迁移及原子指针切换后保持身份/发件箱重连；retained/temporary两链的上传、停止/继续、全文/尾部、结果、续期/删除墓碑通过。账本和安全前缀位于资料版本外；不自动消费旧任务。服务、CLI和停止备份共用写屏障与版本解析。原生微信/手机/安装版未验，无新UI窗口，真实API新增0。[开发证据](bcd/data-versions-verification.md)。

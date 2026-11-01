@@ -50,6 +50,7 @@ export const ACCOUNTS_CORE_SCHEMA = [
   },
   { version: 2, sql: "" },
   { version: 3, sql: "" },
+  { version: 4, sql: "" },
 ];
 export const ACCOUNTS_AUTH_SCHEMA = [
   {

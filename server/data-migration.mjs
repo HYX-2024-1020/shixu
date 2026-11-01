@@ -1,4 +1,7 @@
-import { basename, dirname } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { ensureDatabaseSchema } from "./database-schema.mjs";
+import { ACCOUNTS_CORE_SCHEMA } from "./database-schemas.mjs";
 import { AccountRegistry } from "./sync-accounts.mjs";
 import { AccountsV4 } from "./accounts-v4.mjs";
 import { SyncStore } from "./sync-store.mjs";
@@ -30,6 +33,24 @@ export function createRuntimeMigrator({
   };
   return ({ directory, path, kind }) => {
     if (kind === "registry") {
+      if (
+        basename(dirname(directory)) !== "data-versions" ||
+        resolve(path) !== resolve(join(directory, "accounts.sqlite"))
+      )
+        throw Error("MIGRATION_SHADOW_REQUIRED");
+      const db = new DatabaseSync(path);
+      try {
+        ensureDatabaseSchema(db, "accounts-core", ACCOUNTS_CORE_SCHEMA, {
+          compatibleObjects: [
+            "CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0",
+          ],
+        });
+        db.prepare("DELETE FROM account_meta WHERE key=?").run(
+          "data_version_required",
+        );
+      } finally {
+        db.close();
+      }
       const registry = new AccountRegistry(directory, secret);
       try {
         if (credentials) new AccountsV4(registry).close();

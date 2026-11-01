@@ -25,6 +25,9 @@ async function backupActiveAccounts(source,destination) {
     files = [];
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
+      // Shadows are not the selected data set, including before the first
+      // activation. Never back up partial/expired copies by recursive discovery.
+      if(directory===root&&entry.name==='data-versions')continue;
       const file = join(directory, entry.name);
       if ((await lstat(file)).isSymbolicLink())
         throw Error("Refusing a symlink in account data");

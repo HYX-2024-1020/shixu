@@ -28,6 +28,8 @@ import {
   prepareShadowVersion,
   activateDataVersion,
   completeDataActivation,
+  reviewDataWriters,
+  recoverDataWriters,
 } from "../data-versions.mjs";
 const secret = "synthetic-version-secret-at-least-32-chars";
 function fixture(t) {
@@ -102,6 +104,8 @@ test("shared runtime/admin writers and exclusive maintenance are mutually exclud
   const f = fixture(t),
     writer = f.acquire("writer"),
     other = f.acquire("writer");
+  assert.throws(()=>{writer.mode='maintenance';},TypeError);
+  assert.throws(()=>{writer.root=join(f.root,'other');},TypeError);
   assert.throws(() => f.acquire(), /DATA_WRITERS_ACTIVE/);
   writer.release();
   assert.throws(() => f.acquire(), /DATA_WRITERS_ACTIVE/);
@@ -366,6 +370,26 @@ test("the existing stopped backup path snapshots only the selected complete vers
     registry.close();
   }
 });
+test("a legacy-root backup never recursively copies a partial migration shadow", async (t) => {
+  const f = fixture(t),
+    lease = f.acquire();
+  assert.throws(
+    () =>
+      f.prepare(lease, "incomplete", {
+        afterStep: () => {
+          throw Error("INJECTED_SHADOW");
+        },
+      }),
+    /INJECTED_SHADOW/,
+  );
+  lease.release();
+  const snapshot = await backupAccounts(
+    f.root,
+    join(f.root, "..", "legacy-backups"),
+    { serviceStopped: true },
+  );
+  assert.equal(existsSync(join(snapshot, "data-versions")), false);
+});
 
 test("independent Node processes cannot accept shared writers and exclusive maintenance at the same barrier", async (t) => {
   const f = fixture(t),
@@ -382,6 +406,7 @@ test("independent Node processes cannot accept shared writers and exclusive main
       const ready = new Promise((done, reject) => {
         child.once("message", done);
         child.once("error", reject);
+        child.once("exit", () => reject(Error("CHILD_REGISTRATION_FAILED")));
       });
       const exited = new Promise((done) => child.once("exit", done));
       children.push({ child, mode, ready, exited });
@@ -400,7 +425,69 @@ test("independent Node processes cannot accept shared writers and exclusive main
       !accepted.some((r) => r.mode === "maintenance") || accepted.length === 1,
     );
   } finally {
-    for (const { child } of children) child.send("release");
+    for (const { child } of children)
+      if (child.connected) child.send("release");
     await Promise.all(children.map((c) => c.exited));
   }
+});
+test("pointer v2 cannot start between the file receipt and independent activation record; host completion rechecks the baseline", (t) => {
+  const f = fixture(t),
+    lease = f.acquire(),
+    prepared = f.prepare(lease);
+  assert.throws(
+    () =>
+      activateDataVersion(lease, prepared, {
+        afterReceipt: () => {
+          throw Error("INJECTED_ACTIVATION_RECORD");
+        },
+      }),
+    /INJECTED_ACTIVATION_RECORD/,
+  );
+  assert.throws(() => resolveDataVersion(lease), /DATA_VERSION_RECONCILIATION/);
+  completeDataActivation(lease);
+  assert.equal(resolveDataVersion(lease).version, "v1");
+});
+test("a real dead maintenance process can be recovered after the first pre-rename activation failure without an unrecoverable lock cycle", async (t) => {
+  const f = fixture(t),
+    lease = f.acquire(),
+    prepared = f.prepare(lease);
+  assert.throws(
+    () =>
+      activateDataVersion(lease, prepared, {
+        beforeRename: () => {
+          throw Error("INJECTED_INITIAL");
+        },
+      }),
+    /INJECTED_INITIAL/,
+  );
+  lease.release();
+  const url = new URL("../data-versions.mjs", import.meta.url).href;
+  const code = `import {acquireDataLease} from ${JSON.stringify(url)};acquireDataLease(process.argv[1],'maintenance');process.send('ready');process.on('message',()=>process.exit(0));`;
+  const child = spawn(
+    process.execPath,
+    ["--input-type=module", "-e", code, f.root],
+    { stdio: ["ignore", "ignore", "pipe", "ipc"] },
+  );
+  const exit = new Promise((done) => child.once("exit", done));
+  await new Promise((done, reject) => {
+    child.once("message", done);
+    child.once("error", reject);
+    child.once("exit", () => reject(Error("CHILD_REGISTRATION_FAILED")));
+  });
+  child.send("exit");
+  await exit;
+  const authority = ({ actor }) => actor === "synthetic-host",
+    review = reviewDataWriters(f.root, "synthetic-host", authority);
+  recoverDataWriters(
+    f.root,
+    {
+      operationId: "initial-recovery",
+      actor: "synthetic-host",
+      expectedSnapshotHash: review.snapshotHash,
+    },
+    authority,
+  );
+  const maintained = f.acquire();
+  activateDataVersion(maintained, prepared);
+  assert.equal(resolveDataVersion(maintained).version, "v1");
 });

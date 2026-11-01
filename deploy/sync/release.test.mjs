@@ -46,6 +46,21 @@ test("account service and protected CLI run from the self-contained release", as
     }finally{releasedLegacy.close();}
     const {ReadingLegacyMaintenance}=await import(pathToFileURL(join(release,'server/reading/legacy-ledger.mjs')));
     const {AccountRegistry}=await import(pathToFileURL(join(release,'server/sync-accounts.mjs')));
+    const versionHost=await import(pathToFileURL(join(release,'server/data-versions.mjs')));
+    const {createRuntimeMigrator:releasedMigrator}=await import(pathToFileURL(join(release,'server/data-migration.mjs')));
+    const {ReadingRootSafety:ReleasedSafety}=await import(pathToFileURL(join(release,'server/reading/root-safety.mjs')));
+    const retirementRoot=join(directory,'retirement-root'),retirementLedgerPath=join(directory,'retirement-ledger.sqlite'),retirementSecret='synthetic-release-retirement-secret-32-characters';
+    const retirementRegistry=new AccountRegistry(retirementRoot,retirementSecret);retirementRegistry.generate(1);retirementRegistry.close();
+    const retirementLedger=new ReadingLedger(retirementLedgerPath);let retirementLease;
+    try {
+      retirementLedger.freezePrice({id:'synthetic',model:'synthetic',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});new ReleasedSafety(retirementLedger,'synthetic');
+      retirementLease=versionHost.acquireDataLease(retirementRoot,'maintenance');
+      const prepared=versionHost.prepareShadowVersion(retirementLease,{id:'release-v1',ledgerPath:retirementLedgerPath,migrate:releasedMigrator({secret:retirementSecret,ledger:retirementLedger,priceId:'synthetic',modelVersion:'synthetic',credentials:false}),now:1000});
+      versionHost.activateDataVersion(retirementLease,prepared,{now:1000});
+      assert.deepEqual(versionHost.purgeRetiredData(retirementLease,{operationId:'release-purge',actor:'release-host',now:1000+7*86400000},({actor})=>actor==='release-host'),{completed:['release-v1']});
+      assert.equal(versionHost.resolveDataVersion(retirementLease).version,'release-v1');
+      assert.equal(retirementLedger.db.prepare('SELECT COUNT(*) n FROM reading_wallets').get().n,0);
+    }finally{retirementLease?.release();retirementLedger.close();}
     const oldRegistry=new AccountRegistry(join(directory,'legacy-cost-source'),'synthetic-release-legacy-secret-32-chars'),oldLedger=new ReadingLedger(':memory:');
     try{
       const account=oldRegistry.generate(1)[0].userId;
@@ -234,7 +249,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "data-control.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
     assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "provider-receipts.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
