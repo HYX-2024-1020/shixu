@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D任务组件迁移（#73，整体未完成）
+
+Windows与微信共用服务端27类按功能初始化组件及旧写入保护，覆盖任务/发布/复用/根/窗口/对话/视觉/语义/历史关联；协议保持。实际AccountWorkspace与Page/Node签名HTTP窗口/检查点/历史关联/对话在Linux nobody的37项联合中通过，最后账号与任务33项通过；故障注入使用当前schema验证写入器，未关闭运行保护。自有真实调用账本副本39表保持、无新增调用，原生手机/安装版未验。旧任务与费用数据转换、全局切换/安全重放仍待实施。[开发证据](bcd/task-schema-verification.md)。
+
 ## 2026-11-01 B/C/D运行核心组件版本迁移（#73，整体未完成）
 
 Windows与微信共用服务端账号、租户、附件/原件及独立账本的9核心组件版本门禁；HTTP协议与用户操作不变，数据/额度/unknown保持，旧服务写入器拒绝写升级库。实际AccountWorkspace/Page Node signed HTTP temporary/deleted两链在Linux nobody的迁移/账号/费用等40项中通过；固定历史模块合成旧库，Windows与Linux各4种正常/中断恢复演练，保留身份/撤销/原件/epoch/费用与去重，不操作真实客户端资料。剩余任务表与全域安全回放未完成，原生手机/安装版未验。[开发证据](bcd/runtime-schema-verification.md)。

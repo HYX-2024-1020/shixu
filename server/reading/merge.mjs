@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {READING_MERGE_RESULTS_SCHEMA,READING_ASSOCIATION_RESULTS_SCHEMA,LEDGER_MERGE_SCHEMA}from '../database-schemas.mjs';
 import { applyReadingMigrations, assertReadingSchema } from "./schema.mjs";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
@@ -138,9 +140,7 @@ export class ReadingMerge {
     this.e = engine;
     this.db = engine.db;
     this.ledger = engine.ledger;
-    this.db.exec(
-      `CREATE TABLE IF NOT EXISTS reading_${this.namespace}_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
-    );
+    ensureDatabaseSchema(this.db,'tenant-'+namespace+'-results',namespace==='association'?READING_ASSOCIATION_RESULTS_SCHEMA:READING_MERGE_RESULTS_SCHEMA);
     const schema = `CREATE TABLE IF NOT EXISTS reading_${this.namespace}_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,dependency_hash TEXT NOT NULL,PRIMARY KEY(account,task));
       CREATE TABLE IF NOT EXISTS reading_${this.namespace}_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
       CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_intents_no_update BEFORE UPDATE ON reading_${this.namespace}_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
@@ -152,7 +152,7 @@ export class ReadingMerge {
         { version: 1, sql: schema },
       ]);
       assertReadingSchema(this.ledger, schema);
-    } else this.ledger.db.exec(schema);
+    } else ensureDatabaseSchema(this.ledger.db,'ledger-merge',LEDGER_MERGE_SCHEMA,{now:this.ledger.now});
   }
   validate(value, items) {
     return validateMerge(value, items);

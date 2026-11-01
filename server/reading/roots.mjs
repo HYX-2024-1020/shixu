@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {READING_ROOTS_SCHEMA}from '../database-schemas.mjs';
 import { ReadingRootSafety } from "./root-safety.mjs";
 
 // Root safety metadata contains no input, extracted text or model result. A
@@ -8,11 +10,7 @@ export class ReadingRoots {
     this.ledger = ledger;
     this.account = account;
     this.safety = new ReadingRootSafety(ledger, account);
-    this.db
-      .exec(`CREATE TABLE IF NOT EXISTS reading_roots(id TEXT PRIMARY KEY,packet TEXT NOT NULL UNIQUE,reason TEXT NOT NULL DEFAULT '');
-      CREATE TABLE IF NOT EXISTS reading_root_progress(root TEXT NOT NULL,fingerprint TEXT NOT NULL,PRIMARY KEY(root,fingerprint));
-      CREATE TABLE IF NOT EXISTS reading_root_checkpoints(root TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,unknown_risk INTEGER NOT NULL,active_ms INTEGER NOT NULL,reason TEXT NOT NULL,PRIMARY KEY(root,calls));
-      CREATE INDEX IF NOT EXISTS reading_tasks_packet ON reading_tasks(packet);`);
+    ensureDatabaseSchema(this.db,'tenant-roots',READING_ROOTS_SCHEMA);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       for (const task of this.db

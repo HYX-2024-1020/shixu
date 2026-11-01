@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from './database-schema.mjs';
+import {LEGACY_JOBS_SCHEMA}from './database-schemas.mjs';
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
 
@@ -44,10 +46,7 @@ function withFileSources(store, packet) {
 }
 export function createJobQueue(store, ai, hooks = {}) {
   const db = store.db;
-  db.exec(`CREATE TABLE IF NOT EXISTS sync_jobs(
-    id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES sync_devices(id), record_id TEXT NOT NULL,
-    fingerprint TEXT NOT NULL, request TEXT NOT NULL, state TEXT NOT NULL, output TEXT, error TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
-  )`);
+  ensureDatabaseSchema(db,'tenant-jobs',LEGACY_JOBS_SCHEMA);
   // A provider may already have charged for an interrupted request. Never repeat it automatically.
   db.prepare(
     "UPDATE sync_jobs SET state='interrupted', error='服务重启中断了任务，请核对后手动重试' WHERE state='running'",

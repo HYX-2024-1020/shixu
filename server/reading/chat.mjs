@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {READING_CHAT_REQUESTS_SCHEMA,LEDGER_CHAT_SCHEMA}from '../database-schemas.mjs';
 import { isDeepStrictEqual } from "node:util";
 import { SyncError } from "../sync-store.mjs";
 import { absoluteItem, validateChatUpdate } from "../generated/ai-core.mjs";
@@ -37,19 +39,8 @@ export class ReadingChat {
     this.db = engine.db;
     this.ledger = engine.ledger;
     this.account = engine.account;
-    this.db.exec(
-      `CREATE TABLE IF NOT EXISTS reading_chat_requests(task TEXT PRIMARY KEY,request_hash TEXT NOT NULL,body TEXT);`,
-    );
-    this.ledger.db.exec(`CREATE TABLE IF NOT EXISTS reading_chat_intents(
-      account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,request_hash TEXT NOT NULL,context_hash TEXT NOT NULL,day TEXT NOT NULL,
-      PRIMARY KEY(account,task));
-      CREATE TABLE IF NOT EXISTS reading_chat_proofs(call_id TEXT PRIMARY KEY,account TEXT NOT NULL,task TEXT NOT NULL,
-      fingerprint TEXT NOT NULL,request_hash TEXT NOT NULL,result_hash TEXT NOT NULL);
-      CREATE INDEX IF NOT EXISTS reading_chat_proofs_task ON reading_chat_proofs(account,task,fingerprint);
-      CREATE TRIGGER IF NOT EXISTS reading_chat_intents_no_update BEFORE UPDATE ON reading_chat_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_INTENT'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_chat_intents_no_delete BEFORE DELETE ON reading_chat_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_INTENT'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_chat_proofs_no_update BEFORE UPDATE ON reading_chat_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_PROOF'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_chat_proofs_no_delete BEFORE DELETE ON reading_chat_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_PROOF'); END;`);
+    ensureDatabaseSchema(this.db,'tenant-chat',READING_CHAT_REQUESTS_SCHEMA);
+    ensureDatabaseSchema(this.ledger.db,'ledger-chat',LEDGER_CHAT_SCHEMA,{now:this.ledger.now});
   }
   intent(id) {
     return this.ledger.db

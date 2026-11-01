@@ -1,3 +1,4 @@
+import { AccountsV4 } from "./accounts-v4.mjs";
 import { assertReadingSchema } from "./reading/schema.mjs";
 import { spawnSync } from "node:child_process";
 import { AccountRegistry } from "./sync-accounts.mjs";
@@ -307,7 +308,7 @@ test("historical factory sources are frozen at the stage-A commit and verified b
   const root = new URL("../scripts/stage-a/legacy/", import.meta.url),
     proof = JSON.parse(readFileSync(new URL("provenance.json", root), "utf8"));
   assert.equal(proof.commit, "aad190373781a52454a6875426d46b2cf0c8fcd5");
-  assert.equal(proof.files.length, 3);
+  assert.equal(proof.files.length, 4);
   for (const file of proof.files)
     assert.equal(
       createHash("sha256")
@@ -423,4 +424,28 @@ test("schema adoption preserves whitespace inside SQL literals instead of equati
       ]),
     /DATABASE_SCHEMA_MISMATCH/,
   );
+});
+
+test("auth mode and the legacy slot index must agree; lost markers cannot reopen legacy enrollment", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "shixu-schema-auth-mode-"));
+  t.after(() => removeFixture(directory));
+  const secret = "synthetic-schema-auth-mode-secret-32-chars";
+  for (const mode of ["lost-index", "extra-index", "lost-mode"]) {
+    const root = join(directory, mode),
+      registry = new AccountRegistry(root, secret);
+    if (mode === "lost-index") registry.db.exec("DROP INDEX active_slot");
+    else {
+      new AccountsV4(registry);
+      registry.db.exec(
+        "CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0",
+      );
+      if (mode === "lost-mode")
+        registry.db.exec("DELETE FROM account_meta WHERE key='auth_v4'");
+    }
+    registry.close();
+    assert.throws(
+      () => new AccountRegistry(root, secret),
+      /DATABASE_STATE_RECONCILIATION/,
+    );
+  }
 });

@@ -12,7 +12,7 @@ import { xlsxBytes, inline } from "../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes, pdfLimitSample, pdfWindowSample } from "../server/reading/pdf-fixtures.mjs";
 import { archiveSample, archiveWindowSample } from "../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../server/reading/native-archive-fixtures.mjs";
-import { DatabaseSync } from "node:sqlite";
+import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from "./reading-synthetic-writer.mjs";
 const costAudit=process.argv.includes("--audit-cost");
 const costDisposition=process.argv.includes("--not-billed") ? "not-billed" : "usage";
 const costEvidence=new Map();
@@ -190,6 +190,7 @@ const reading = {
   },
 };
 const fixture = await accountUIFixture({}, { reading });
+registerSyntheticTenantWriter(fixture.service,fixture.root);
 ledger.grantInitial(fixture.invitation.userId);
 const remote = process.env.SHIXU_SYNTHETIC_REMOTE_ORIGIN;
 if (remote) {
@@ -356,7 +357,7 @@ scenario: try {
       const before=await page.evaluate(()=>window.desktop.cloud("status"));
       const task=before.jobs.find(j=>j.packetId==="task-ui");
       assert.ok(task.rootActiveMs > 0);
-      const db=new DatabaseSync(join(fixture.root,"server","users",fixture.invitation.userId,"workspace.sqlite"));
+      const db=openSyntheticTenantWriter(fixture.service,fixture.invitation.userId);
       try {db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id);} finally {db.close();}
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
       await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();

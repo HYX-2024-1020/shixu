@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {READING_VISUAL_RESULTS_SCHEMA,LEDGER_VISUAL_SCHEMA}from '../database-schemas.mjs';
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
 import { validateUsage } from "./ledger.mjs";
@@ -135,26 +137,8 @@ export class ReadingVisualReview {
     this.e = engine;
     this.db = engine.db;
     this.ledger = engine.ledger;
-    this.db
-      .exec(`CREATE TABLE IF NOT EXISTS reading_visual_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,
-      upstream TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`);
-    this.ledger.db
-      .exec(`CREATE TABLE IF NOT EXISTS reading_visual_inputs(account TEXT NOT NULL,task TEXT NOT NULL,
-      upstream TEXT NOT NULL,packet TEXT NOT NULL,ranges_hash TEXT NOT NULL,images_hash TEXT NOT NULL,PRIMARY KEY(account,task,upstream));
-      CREATE TABLE IF NOT EXISTS reading_visual_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,
-      upstream TEXT NOT NULL,dependency_hash TEXT NOT NULL,claims_hash TEXT NOT NULL,chunks TEXT NOT NULL,
-      PRIMARY KEY(account,task,upstream));
-      CREATE TABLE IF NOT EXISTS reading_visual_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,
-      upstream TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));`);
-    for (const table of [
-      "reading_visual_inputs",
-      "reading_visual_intents",
-      "reading_visual_proofs",
-    ])
-      for (const action of ["UPDATE", "DELETE"])
-        this.ledger.db
-          .exec(`CREATE TRIGGER IF NOT EXISTS ${table}_${action.toLowerCase()}
-        BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;`);
+    ensureDatabaseSchema(this.db,'tenant-visual',READING_VISUAL_RESULTS_SCHEMA);
+    ensureDatabaseSchema(this.ledger.db,'ledger-visual',LEDGER_VISUAL_SCHEMA,{now:this.ledger.now});
   }
   enabled() {
     return typeof this.e.provider.reviewVisual === "function";

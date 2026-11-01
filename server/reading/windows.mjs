@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {READING_WINDOWS_SCHEMA}from '../database-schemas.mjs';
 import {ReadingWindowSafety} from "./window-safety.mjs";
 import {validateSolidCompression} from './native-archive.mjs';
 import { isImageName, validateModelImage } from "./image.mjs";
@@ -15,9 +17,7 @@ import {
 export class ReadingWindows {
   constructor(db,{engine}={}) {
     this.db = db;
-    db.exec(`CREATE TABLE IF NOT EXISTS reading_windows(task TEXT NOT NULL,attachment TEXT NOT NULL,
-      content_hash TEXT NOT NULL,next_page INTEGER NOT NULL,next_offset INTEGER NOT NULL,coverage TEXT NOT NULL,
-      PRIMARY KEY(task,attachment));`);
+    ensureDatabaseSchema(db,'tenant-windows',READING_WINDOWS_SCHEMA);
     if(engine)this.safety=new ReadingWindowSafety(engine);
   }
   rows(task) {

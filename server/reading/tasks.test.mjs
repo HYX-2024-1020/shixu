@@ -1,3 +1,4 @@
+import {manufactureLegacyTaskTenant}from './legacy-task-fixtures.mjs';
 import test from "node:test";
 import { encodePng } from "./image.mjs";
 import { spawnSync } from "node:child_process";
@@ -995,18 +996,14 @@ test("legacy root upgrade is idempotent, preserves paid progress, and requires a
   await f.tasks.run("task");
   f.action("stop", "before_upgrade");
   f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
-  f.store.db.exec(
-    "DROP TABLE reading_root_checkpoints; DROP TABLE reading_root_progress; DROP TABLE reading_roots",
-  );
-  const upgraded = new ReadingTasks(f.taskArgs);
-  const root = upgraded.roots.stats("task");
-  assert.equal(root.reason, "CHECKPOINT_RECONCILIATION");
-  assert.equal(root.calls, 24);
-  assert.equal(root.completed, 1);
-  const twice = new ReadingTasks(f.taskArgs);
-  assert.deepEqual(twice.roots.stats("task"), root);
-  upgraded.close();
-  twice.close();
+  const legacyStore=manufactureLegacyTaskTenant(f),args={...f.taskArgs,store:legacyStore};
+  let upgraded,twice;
+  try{
+    upgraded=new ReadingTasks(args);const root=upgraded.roots.stats('task');
+    assert.equal(root.reason,'CHECKPOINT_RECONCILIATION');assert.equal(root.calls,24);assert.equal(root.completed,1);
+    twice=new ReadingTasks(args);assert.deepEqual(twice.roots.stats('task'),root);
+  }finally{upgraded?.close();twice?.close();legacyStore.close();}
+
 });
 
 test("crash-persisted running work cannot lose its unrecorded active interval by restarting or creating a new task", (t) => {

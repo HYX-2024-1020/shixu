@@ -1,0 +1,47 @@
+{
+  "kind": "own-synthetic-real-usage-ledger-copy-schema-upgrade",
+  "testedAt": "2026-11-01T06:49:13.133Z",
+  "sourceSha256": "c0a8d148ad83c1401537f7601e8887f0e16aa2873b58cc5c43b277e19e023397",
+  "sourceUnchanged": true,
+  "comparedTables": 39,
+  "allOldTableRowsPreserved": true,
+  "totalSpentMicros": 692,
+  "realProviderSpentMicros": 642,
+  "simulatedUpstreamSpentMicros": 50,
+  "unknownRiskMicros": 0,
+  "newProviderCalls": 0,
+  "providerReceipt": {
+    "status": "linked",
+    "provider": "deepseek",
+    "requestHash": "ea8b71471a6e41e744c2f9003111010db3f01cc300dfe238128a7f26b01d2e85",
+    "responseIdHash": "4f7aa77da5c2e3ffa9a3e8011d1dcc2e29bfe9ca63088dfa4f90e9ad75e31df7",
+    "model": "deepseek-flash",
+    "created": 1793510897,
+    "httpStatus": 200,
+    "responseHash": "77268c8ab7abd0584f569d9ba5979df5a9a40718371fbeb379b0f5e2a9010e77",
+    "usageHash": "7f2e0930a3dbb0dc8555d1a89750d8fb579a72d05636e4ad454d66051f7efe2a",
+    "finalBillingEvidence": false
+  },
+  "components": [
+    "ledger-chat",
+    "ledger-checkpoint",
+    "ledger-core",
+    "ledger-cost",
+    "ledger-merge",
+    "ledger-paid",
+    "ledger-reading-registry",
+    "ledger-root",
+    "ledger-time",
+    "ledger-visual",
+    "reading-history-association",
+    "reading-provider-receipts",
+    "reading-window-safety"
+  ],
+  "boundaries": [
+    "Only the previously retained synthetic real-call ledger copy was upgraded",
+    "Source ledger was read-only and unchanged",
+    "No tenant/original/private database or production migration",
+    "No new provider call or final billing evidence"
+  ],
+  "afterQuiescenceRowsPreserved": true
+}

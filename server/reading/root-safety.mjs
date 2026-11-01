@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {LEDGER_ROOT_SAFETY_SCHEMA}from '../database-schemas.mjs';
 import { randomUUID } from "node:crypto";
 
 // Independent ledger-side metadata. Never contains input, evidence or results.
@@ -8,41 +10,7 @@ export class ReadingRootSafety {
     this.now = ledger.now;
     this.transaction = ledger.transaction.bind(ledger);
     this.owned = new Set();
-    this.db.exec(`CREATE TABLE IF NOT EXISTS reading_safe_roots(
-      account TEXT NOT NULL,packet TEXT NOT NULL,root TEXT NOT NULL,PRIMARY KEY(account,packet));
-      CREATE TABLE IF NOT EXISTS reading_safe_links(
-      account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,root TEXT NOT NULL,PRIMARY KEY(account,task));
-      CREATE TABLE IF NOT EXISTS reading_safe_events(
-      seq INTEGER PRIMARY KEY,account TEXT NOT NULL,root TEXT NOT NULL,calls INTEGER NOT NULL,
-      active_ms INTEGER NOT NULL,completed INTEGER NOT NULL,checkpoint_calls INTEGER NOT NULL,
-      reason TEXT NOT NULL,at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_safe_steps(
-      id TEXT PRIMARY KEY,account TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,generation INTEGER NOT NULL,at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_safe_drains(step TEXT PRIMARY KEY,at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_safe_limit_audits(
-      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,actor TEXT NOT NULL,
-      evidence_hash TEXT NOT NULL,watermark INTEGER NOT NULL,generation INTEGER NOT NULL,
-      previous_limit INTEGER NOT NULL,new_limit INTEGER NOT NULL CHECK(new_limit>previous_limit),
-      active_ms INTEGER NOT NULL,calls INTEGER NOT NULL,request_hash TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,operation));
-      CREATE INDEX IF NOT EXISTS reading_safe_root_limits ON reading_safe_limit_audits(account,root,new_limit DESC);
-      CREATE INDEX IF NOT EXISTS reading_safe_pending ON reading_safe_steps(account,root,id);
-      CREATE INDEX IF NOT EXISTS reading_safe_latest ON reading_safe_events(account,root,seq DESC);`);
-    for (const table of [
-      "reading_checkpoint_audits",
-      "reading_checkpoint_finalizations",
-      "reading_safe_roots",
-      "reading_safe_links",
-      "reading_safe_events",
-      "reading_safe_steps",
-      "reading_safe_drains",
-      "reading_safe_limit_audits",
-      "reading_time_audits",
-      "reading_time_finalizations",
-    ])
-      for (const action of ["UPDATE", "DELETE"])
-        this.db
-          .exec(`CREATE TRIGGER IF NOT EXISTS ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table}
-          BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`);
+    ensureDatabaseSchema(this.db,'ledger-root',LEDGER_ROOT_SAFETY_SCHEMA,{now:this.now});
   }
   bind(packet, task, proposedRoot) {
     return this.transaction(() => this.bindLocked(packet, task, proposedRoot));

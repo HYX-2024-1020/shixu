@@ -1,6 +1,5 @@
+import {openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
-import { DatabaseSync } from "node:sqlite";
-import { join } from "node:path";
 import { runClientLoop } from "./reading-client-loop.mjs";
 import { pdfBytes } from "../server/reading/pdf-fixtures.mjs";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
@@ -33,9 +32,7 @@ export async function runWindowSafetyClients({
           oldJob = cloud.readJobs()[0],
           spent = oldJob.rootSpent,
           calls = oldJob.rootCalls;
-        const db = new DatabaseSync(
-          join(directory, "server", "users", account, "workspace.sqlite"),
-        );
+        const db = openSyntheticTenantWriter(service,account);
         let trusted;
         try {
           trusted = {

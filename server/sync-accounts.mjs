@@ -42,12 +42,16 @@ export class AccountRegistry {
       this.db.close();
       throw error;
     }
-    if (
-      !this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get()
-    )
-      this.db.exec(
-        "CREATE UNIQUE INDEX IF NOT EXISTS active_slot ON bindings(user_id,kind) WHERE revoked=0",
-      );
+    const authMode=this.db.prepare("SELECT value FROM account_meta WHERE key='auth_v4'").get();
+    const legacySlot=!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='active_slot'").get();
+    const knownAuth=!!this.db.prepare("SELECT 1 FROM service_schema_versions WHERE component='accounts-auth' LIMIT 1").get()||!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_credentials'").get();
+    if(authMode&&authMode.value!=='1'){this.db.close();throw Error('UNKNOWN_AUTH_SCHEMA');}
+    if((knownAuth&&!authMode)||(authMode&&legacySlot)){this.db.close();throw Error('DATABASE_STATE_RECONCILIATION');}
+    if(!authMode&&!legacySlot){
+      const initialized=['account_meta','accounts','bindings','nonces','request_rates','ai_usage'].some(table=>this.db.prepare('SELECT 1 FROM '+table+' LIMIT 1').get());
+      if(initialized){this.db.close();throw Error('DATABASE_STATE_RECONCILIATION');}
+      this.db.exec('CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0');
+    }
     const check = digest(secret);
     const previous = this.db
       .prepare("SELECT value FROM account_meta WHERE key='secret_check'")

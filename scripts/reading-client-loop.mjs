@@ -1,3 +1,4 @@
+import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import {
   readFileSync,
@@ -13,7 +14,6 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import vm from "node:vm";
-import { DatabaseSync } from "node:sqlite";
 import { createMultiUserService } from "../server/sync-multi-user.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 const require = createRequire(import.meta.url);
@@ -179,6 +179,7 @@ export async function runClientLoop({
     reading,
     wechat: async (code) => "synthetic-" + code,
   });
+  registerSyntheticTenantWriter(service,directory);
   await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
   const base = `http://127.0.0.1:${service.server.address().port}`;
   const cloud = new AccountWorkspace({
@@ -601,7 +602,7 @@ export async function runClientLoop({
         ledger.sent(callId);ledger.settle(callId,{prompt_tokens:10,completion_tokens:10});
       }
       calls=24;
-      const db=new DatabaseSync(join(directory,"server","users",account,"workspace.sqlite"));
+      const db=openSyntheticTenantWriter(service,account);
       try{
         db.prepare("UPDATE reading_tasks SET calls=24,reason='CHECKPOINT_NO_PROGRESS' WHERE id=?").run(task.id);
         db.prepare("UPDATE reading_roots SET reason='CHECKPOINT_NO_PROGRESS' WHERE id=?").run(task.id);
@@ -633,7 +634,7 @@ export async function runClientLoop({
     if (rollbackRootAfterStop) {
       const before = cloud.readJobs().find(j=>j.id===task.id);
       assert.ok(before.rootActiveMs > 0);
-      const db = new DatabaseSync(join(directory,"server","users",account,"workspace.sqlite"));
+      const db = openSyntheticTenantWriter(service,account);
       try { db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id); }
       finally { db.close(); }
       await cloud.action("sync"); await page.sync();

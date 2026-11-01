@@ -1,4 +1,5 @@
 // Exact runtime baseline DDL. Changes require an explicit next migration version.
+// Empty core migrations intentionally raise the minimum writer without rewriting user rows.
 export const TENANT_SYNC_SCHEMA = [
   {
     version: 1,
@@ -19,6 +20,7 @@ export const TENANT_SYNC_SCHEMA = [
       );
 `,
   },
+  { version: 2, sql: "" },
 ];
 export const TENANT_ATTACHMENTS_SCHEMA = [
   {
@@ -27,6 +29,7 @@ export const TENANT_ATTACHMENTS_SCHEMA = [
     CREATE TABLE IF NOT EXISTS sync_attachments(packet_id TEXT NOT NULL REFERENCES sync_records(id),id TEXT NOT NULL,hash TEXT NOT NULL REFERENCES sync_blobs(hash),name TEXT NOT NULL,type TEXT NOT NULL,PRIMARY KEY(packet_id,id));
     CREATE INDEX IF NOT EXISTS sync_attachments_hash ON sync_attachments(hash);`,
   },
+  { version: 2, sql: "" },
 ];
 export const ACCOUNTS_CORE_SCHEMA = [
   {
@@ -44,6 +47,7 @@ export const ACCOUNTS_CORE_SCHEMA = [
       CREATE TABLE IF NOT EXISTS ai_usage(user_id TEXT NOT NULL,job_id TEXT NOT NULL,fingerprint TEXT NOT NULL,
         day TEXT NOT NULL,reserved_micros INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(user_id,job_id));`,
   },
+  { version: 2, sql: "" },
 ];
 export const ACCOUNTS_AUTH_SCHEMA = [
   {
@@ -59,6 +63,7 @@ export const ACCOUNTS_AUTH_SCHEMA = [
         CREATE TABLE IF NOT EXISTS account_login_failures(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,locked_until INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS account_grant_intents(account TEXT PRIMARY KEY REFERENCES accounts(id),operation TEXT UNIQUE NOT NULL);`,
   },
+  { version: 2, sql: "" },
 ];
 export const TENANT_ORIGINALS_SCHEMA = [
   {
@@ -70,6 +75,7 @@ export const TENANT_ORIGINALS_SCHEMA = [
       CREATE TABLE IF NOT EXISTS original_file_submissions(packet TEXT NOT NULL,id TEXT NOT NULL,submission TEXT NOT NULL,PRIMARY KEY(packet,id));
       CREATE TABLE IF NOT EXISTS original_trash(packet TEXT PRIMARY KEY,cleanup INTEGER NOT NULL);`,
   },
+  { version: 2, sql: "" },
 ];
 export const LEDGER_CORE_SCHEMA = [
   {
@@ -95,6 +101,7 @@ export const LEDGER_CORE_SCHEMA = [
     version: 2,
     sql: "CREATE INDEX IF NOT EXISTS reading_calls_account_task ON reading_calls(account,task);",
   },
+  { version: 3, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {
@@ -111,6 +118,7 @@ export const LEDGER_COST_SCHEMA = [
       CREATE TRIGGER IF NOT EXISTS reading_cost_audits_no_delete BEFORE DELETE ON reading_cost_audits BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 `,
   },
+  { version: 2, sql: "" },
 ];
 export const LEDGER_TIME_SCHEMA = [
   {
@@ -129,6 +137,7 @@ CREATE TRIGGER IF NOT EXISTS reading_time_audits_delete BEFORE DELETE ON reading
 CREATE TRIGGER IF NOT EXISTS reading_time_finalizations_update BEFORE UPDATE ON reading_time_finalizations BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
 CREATE TRIGGER IF NOT EXISTS reading_time_finalizations_delete BEFORE DELETE ON reading_time_finalizations BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
   },
+  { version: 2, sql: "" },
 ];
 export const LEDGER_CHECKPOINT_SCHEMA = [
   {
@@ -147,5 +156,199 @@ CREATE TRIGGER IF NOT EXISTS reading_checkpoint_audits_update BEFORE UPDATE ON r
 CREATE TRIGGER IF NOT EXISTS reading_checkpoint_audits_delete BEFORE DELETE ON reading_checkpoint_audits BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
 CREATE TRIGGER IF NOT EXISTS reading_checkpoint_finalizations_update BEFORE UPDATE ON reading_checkpoint_finalizations BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
 CREATE TRIGGER IF NOT EXISTS reading_checkpoint_finalizations_delete BEFORE DELETE ON reading_checkpoint_finalizations BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
+  },
+  { version: 2, sql: "" },
+];
+
+export const LEGACY_JOBS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS sync_jobs(
+    id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES sync_devices(id), record_id TEXT NOT NULL,
+    fingerprint TEXT NOT NULL, request TEXT NOT NULL, state TEXT NOT NULL, output TEXT, error TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
+  )`,
+  },
+];
+
+export const READING_TASKS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_tasks(id TEXT PRIMARY KEY,packet TEXT NOT NULL,device TEXT NOT NULL,
+      input_revision TEXT NOT NULL,base_version INTEGER NOT NULL,generation INTEGER NOT NULL DEFAULT 1,state TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',coverage TEXT NOT NULL DEFAULT '[]',calls INTEGER NOT NULL DEFAULT 0,active_ms INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS reading_blocks(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,
+        result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));
+      CREATE TABLE IF NOT EXISTS reading_block_ranges(task TEXT NOT NULL,fingerprint TEXT NOT NULL,ranges TEXT NOT NULL,PRIMARY KEY(task,fingerprint));
+      CREATE TABLE IF NOT EXISTS reading_checkpoints(task TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,PRIMARY KEY(task,calls));
+      CREATE TABLE IF NOT EXISTS reading_publications(task TEXT PRIMARY KEY,version INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_actions(operation TEXT PRIMARY KEY,task TEXT NOT NULL,action TEXT NOT NULL,generation INTEGER NOT NULL,response TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_action_audits(operation TEXT PRIMARY KEY,maintenance_operation TEXT);`,
+  },
+  {
+    version: 2,
+    sql: "CREATE INDEX IF NOT EXISTS reading_tasks_packet ON reading_tasks(packet);",
+  },
+];
+
+export const READING_ROOTS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_roots(id TEXT PRIMARY KEY,packet TEXT NOT NULL UNIQUE,reason TEXT NOT NULL DEFAULT '');
+      CREATE TABLE IF NOT EXISTS reading_root_progress(root TEXT NOT NULL,fingerprint TEXT NOT NULL,PRIMARY KEY(root,fingerprint));
+      CREATE TABLE IF NOT EXISTS reading_root_checkpoints(root TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,unknown_risk INTEGER NOT NULL,active_ms INTEGER NOT NULL,reason TEXT NOT NULL,PRIMARY KEY(root,calls));
+`,
+  },
+];
+
+export const LEDGER_ROOT_SAFETY_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_safe_roots(
+      account TEXT NOT NULL,packet TEXT NOT NULL,root TEXT NOT NULL,PRIMARY KEY(account,packet));
+      CREATE TABLE IF NOT EXISTS reading_safe_links(
+      account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,root TEXT NOT NULL,PRIMARY KEY(account,task));
+      CREATE TABLE IF NOT EXISTS reading_safe_events(
+      seq INTEGER PRIMARY KEY,account TEXT NOT NULL,root TEXT NOT NULL,calls INTEGER NOT NULL,
+      active_ms INTEGER NOT NULL,completed INTEGER NOT NULL,checkpoint_calls INTEGER NOT NULL,
+      reason TEXT NOT NULL,at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_safe_steps(
+      id TEXT PRIMARY KEY,account TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,generation INTEGER NOT NULL,at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_safe_drains(step TEXT PRIMARY KEY,at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading_safe_limit_audits(
+      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,actor TEXT NOT NULL,
+      evidence_hash TEXT NOT NULL,watermark INTEGER NOT NULL,generation INTEGER NOT NULL,
+      previous_limit INTEGER NOT NULL,new_limit INTEGER NOT NULL CHECK(new_limit>previous_limit),
+      active_ms INTEGER NOT NULL,calls INTEGER NOT NULL,request_hash TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,operation));
+      CREATE INDEX IF NOT EXISTS reading_safe_root_limits ON reading_safe_limit_audits(account,root,new_limit DESC);
+      CREATE INDEX IF NOT EXISTS reading_safe_pending ON reading_safe_steps(account,root,id);
+      CREATE INDEX IF NOT EXISTS reading_safe_latest ON reading_safe_events(account,root,seq DESC);
+CREATE TRIGGER IF NOT EXISTS reading_safe_roots_update BEFORE UPDATE ON reading_safe_roots BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_roots_delete BEFORE DELETE ON reading_safe_roots BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_links_update BEFORE UPDATE ON reading_safe_links BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_links_delete BEFORE DELETE ON reading_safe_links BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_events_update BEFORE UPDATE ON reading_safe_events BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_events_delete BEFORE DELETE ON reading_safe_events BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_steps_update BEFORE UPDATE ON reading_safe_steps BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_steps_delete BEFORE DELETE ON reading_safe_steps BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_drains_update BEFORE UPDATE ON reading_safe_drains BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_drains_delete BEFORE DELETE ON reading_safe_drains BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_limit_audits_update BEFORE UPDATE ON reading_safe_limit_audits BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+CREATE TRIGGER IF NOT EXISTS reading_safe_limit_audits_delete BEFORE DELETE ON reading_safe_limit_audits BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
+  },
+];
+
+export const LEDGER_PAID_PROOFS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_paid_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
+      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_update BEFORE UPDATE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_delete BEFORE DELETE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;`,
+  },
+];
+
+export const READING_REUSE_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_reuse_keys(
+      task TEXT NOT NULL,fingerprint TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,
+      PRIMARY KEY(task,fingerprint));
+      CREATE INDEX IF NOT EXISTS reading_reuse_key ON reading_reuse_keys(reuse_key);
+      CREATE TABLE IF NOT EXISTS reading_reused_blocks(
+      task TEXT NOT NULL,fingerprint TEXT NOT NULL,source_task TEXT NOT NULL,source_fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,
+      PRIMARY KEY(task,fingerprint));`,
+  },
+];
+
+export const READING_WINDOWS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_windows(task TEXT NOT NULL,attachment TEXT NOT NULL,
+      content_hash TEXT NOT NULL,next_page INTEGER NOT NULL,next_offset INTEGER NOT NULL,coverage TEXT NOT NULL,
+      PRIMARY KEY(task,attachment));`,
+  },
+];
+
+export const READING_CHAT_REQUESTS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_chat_requests(task TEXT PRIMARY KEY,request_hash TEXT NOT NULL,body TEXT);`,
+  },
+];
+
+export const LEDGER_CHAT_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_chat_intents(
+      account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,request_hash TEXT NOT NULL,context_hash TEXT NOT NULL,day TEXT NOT NULL,
+      PRIMARY KEY(account,task));
+      CREATE TABLE IF NOT EXISTS reading_chat_proofs(call_id TEXT PRIMARY KEY,account TEXT NOT NULL,task TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,request_hash TEXT NOT NULL,result_hash TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS reading_chat_proofs_task ON reading_chat_proofs(account,task,fingerprint);
+      CREATE TRIGGER IF NOT EXISTS reading_chat_intents_no_update BEFORE UPDATE ON reading_chat_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_chat_intents_no_delete BEFORE DELETE ON reading_chat_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_chat_proofs_no_update BEFORE UPDATE ON reading_chat_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_PROOF'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_chat_proofs_no_delete BEFORE DELETE ON reading_chat_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_CHAT_PROOF'); END;`,
+  },
+];
+
+export const READING_VISUAL_RESULTS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_visual_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,
+      upstream TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
+  },
+];
+
+export const LEDGER_VISUAL_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_visual_inputs(account TEXT NOT NULL,task TEXT NOT NULL,
+      upstream TEXT NOT NULL,packet TEXT NOT NULL,ranges_hash TEXT NOT NULL,images_hash TEXT NOT NULL,PRIMARY KEY(account,task,upstream));
+      CREATE TABLE IF NOT EXISTS reading_visual_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,
+      upstream TEXT NOT NULL,dependency_hash TEXT NOT NULL,claims_hash TEXT NOT NULL,chunks TEXT NOT NULL,
+      PRIMARY KEY(account,task,upstream));
+      CREATE TABLE IF NOT EXISTS reading_visual_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,
+      upstream TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
+CREATE TRIGGER IF NOT EXISTS reading_visual_inputs_update BEFORE UPDATE ON reading_visual_inputs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;
+CREATE TRIGGER IF NOT EXISTS reading_visual_inputs_delete BEFORE DELETE ON reading_visual_inputs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;
+CREATE TRIGGER IF NOT EXISTS reading_visual_intents_update BEFORE UPDATE ON reading_visual_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;
+CREATE TRIGGER IF NOT EXISTS reading_visual_intents_delete BEFORE DELETE ON reading_visual_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;
+CREATE TRIGGER IF NOT EXISTS reading_visual_proofs_update BEFORE UPDATE ON reading_visual_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;
+CREATE TRIGGER IF NOT EXISTS reading_visual_proofs_delete BEFORE DELETE ON reading_visual_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_VISUAL_PROOF'); END;`,
+  },
+];
+
+export const READING_MERGE_RESULTS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_merge_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
+  },
+];
+
+export const READING_ASSOCIATION_RESULTS_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_association_results(task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(task,fingerprint));`,
+  },
+];
+
+export const LEDGER_MERGE_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_merge_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,dependency_hash TEXT NOT NULL,PRIMARY KEY(account,task));
+      CREATE TABLE IF NOT EXISTS reading_merge_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
+      CREATE TRIGGER IF NOT EXISTS reading_merge_intents_no_update BEFORE UPDATE ON reading_merge_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_merge_intents_no_delete BEFORE DELETE ON reading_merge_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_merge_proofs_no_update BEFORE UPDATE ON reading_merge_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;
+      CREATE TRIGGER IF NOT EXISTS reading_merge_proofs_no_delete BEFORE DELETE ON reading_merge_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;`,
+  },
+];
+
+export const READING_REGISTRY_SCHEMA = [
+  {
+    version: 1,
+    sql: `CREATE TABLE IF NOT EXISTS reading_schema_versions(component TEXT NOT NULL,version INTEGER NOT NULL,checksum TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(component,version));
+CREATE TRIGGER IF NOT EXISTS reading_schema_versions_update BEFORE UPDATE ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;
+CREATE TRIGGER IF NOT EXISTS reading_schema_versions_delete BEFORE DELETE ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;`,
   },
 ];

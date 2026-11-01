@@ -1,3 +1,5 @@
+import {ensureDatabaseSchema}from '../database-schema.mjs';
+import {LEDGER_PAID_PROOFS_SCHEMA,READING_REUSE_SCHEMA}from '../database-schemas.mjs';
 import { sha256 } from "./material.mjs";
 
 // Certificates are hashes and bounded result references, never extracted text.
@@ -5,16 +7,8 @@ import { sha256 } from "./material.mjs";
 export class ReadingReuse {
   constructor(db, ledger, account) {
     Object.assign(this, { db, ledger, account });
-    ledger.db.exec(`CREATE TABLE IF NOT EXISTS reading_paid_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
-      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_update BEFORE UPDATE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_paid_proofs_no_delete BEFORE DELETE ON reading_paid_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PAID_PROOF'); END;`);
-    db.exec(`CREATE TABLE IF NOT EXISTS reading_reuse_keys(
-      task TEXT NOT NULL,fingerprint TEXT NOT NULL,reuse_key TEXT NOT NULL,result_hash TEXT NOT NULL,
-      PRIMARY KEY(task,fingerprint));
-      CREATE INDEX IF NOT EXISTS reading_reuse_key ON reading_reuse_keys(reuse_key);
-      CREATE TABLE IF NOT EXISTS reading_reused_blocks(
-      task TEXT NOT NULL,fingerprint TEXT NOT NULL,source_task TEXT NOT NULL,source_fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,
-      PRIMARY KEY(task,fingerprint));`);
+    ensureDatabaseSchema(ledger.db,'ledger-paid',LEDGER_PAID_PROOFS_SCHEMA,{now:ledger.now});
+    ensureDatabaseSchema(db,'tenant-reuse',READING_REUSE_SCHEMA);
   }
   key(batch, materials, context) {
     const ids = new Set(batch.map((s) => s.sourceId));

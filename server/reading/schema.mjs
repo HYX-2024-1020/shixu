@@ -1,4 +1,9 @@
-import {normalizeDatabaseSql}from '../database-schema.mjs';
+import {
+  normalizeDatabaseSql,
+  ensureDatabaseSchema,
+  reviewDatabaseSchema,
+} from "../database-schema.mjs";
+import { READING_REGISTRY_SCHEMA } from "../database-schemas.mjs";
 import { sha256 } from "./material.mjs";
 import { DatabaseSync } from "node:sqlite";
 
@@ -8,7 +13,7 @@ export function assertReadingSchema(ledger, sql) {
   const expected = new DatabaseSync(":memory:");
   try {
     expected.exec(sql);
-    const normalize=normalizeDatabaseSql;
+    const normalize = normalizeDatabaseSql;
     for (const row of expected
       .prepare(
         "SELECT name,type,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -38,57 +43,77 @@ export function applyReadingMigrations(ledger, component, migrations) {
     migrations.some((m, i) => m.version !== i + 1 || typeof m.sql !== "string")
   )
     throw Error("INVALID_READING_MIGRATION");
-  return ledger.transaction(() => {
-    const normalize=normalizeDatabaseSql;
-    const definitions = [
-      [
-        "reading_schema_versions",
-        "CREATE TABLE reading_schema_versions(component TEXT NOT NULL,version INTEGER NOT NULL,checksum TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(component,version))",
-      ],
-      ...["UPDATE", "DELETE"].map((action) => [
-        `reading_schema_versions_${action.toLowerCase()}`,
-        `CREATE TRIGGER reading_schema_versions_${action.toLowerCase()} BEFORE ${action} ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;`,
-      ]),
-    ];
-    if (
-      ledger.db
+  try {
+    ensureDatabaseSchema(
+      ledger.db,
+      "ledger-reading-registry",
+      READING_REGISTRY_SCHEMA,
+      { now: ledger.now },
+    );
+    return ledger.transaction(() => {
+      const previous = ledger.db
         .prepare(
-          "SELECT 1 FROM sqlite_master WHERE name='reading_schema_versions'",
+          "SELECT * FROM reading_schema_versions WHERE component=? ORDER BY version",
         )
-        .get()
-    ) {
-      for (const [name, sql] of definitions) {
-        const stored = ledger.db
-          .prepare("SELECT sql FROM sqlite_master WHERE name=?")
-          .get(name);
-        if (!stored || normalize(stored.sql) !== normalize(sql))
-          throw Error("READING_SCHEMA_MISMATCH");
-      }
-    }
-    ledger.db
-      .exec(`CREATE TABLE IF NOT EXISTS reading_schema_versions(component TEXT NOT NULL,version INTEGER NOT NULL,checksum TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(component,version));
-   CREATE TRIGGER IF NOT EXISTS reading_schema_versions_update BEFORE UPDATE ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;
-   CREATE TRIGGER IF NOT EXISTS reading_schema_versions_delete BEFORE DELETE ON reading_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;`);
-    const previous = ledger.db
-      .prepare(
-        "SELECT * FROM reading_schema_versions WHERE component=? ORDER BY version",
+        .all(component);
+      if (
+        previous.some(
+          (row, i) =>
+            row.version !== i + 1 ||
+            !migrations[i] ||
+            row.checksum !== sha256(migrations[i].sql),
+        )
       )
-      .all(component);
+        throw Error("READING_SCHEMA_MISMATCH");
+      const name = "reading-" + component,
+        review = reviewDatabaseSchema(ledger.db, name, migrations);
+      if (
+        (review.currentVersion > 0 &&
+          review.currentVersion !== previous.length) ||
+        (!review.currentVersion &&
+          previous.length > 0 &&
+          (previous.length !== 1 || review.action !== "adopt")) ||
+        (!previous.length && review.action !== "create")
+      )
+        throw Error("READING_SCHEMA_MISMATCH");
+      ensureDatabaseSchema(ledger.db, name, migrations, {
+        now: ledger.now,
+        afterStep: (version) => {
+          if (version > previous.length)
+            ledger.db
+              .prepare("INSERT INTO reading_schema_versions VALUES(?,?,?,?)")
+              .run(
+                component,
+                version,
+                sha256(migrations[version - 1].sql),
+                ledger.now(),
+              );
+        },
+      });
+      const final = ledger.db
+        .prepare(
+          "SELECT * FROM reading_schema_versions WHERE component=? ORDER BY version",
+        )
+        .all(component);
+      if (
+        final.length !== migrations.length ||
+        final.some(
+          (row, i) =>
+            row.version !== i + 1 || row.checksum !== sha256(migrations[i].sql),
+        )
+      )
+        throw Error("READING_SCHEMA_MISMATCH");
+      return migrations.length;
+    });
+  } catch (error) {
     if (
-      previous.some(
-        (p, i) =>
-          p.version !== i + 1 ||
-          !migrations[i] ||
-          p.checksum !== sha256(migrations[i].sql),
+      ["DATABASE_SCHEMA_MISMATCH", "DATABASE_STATE_RECONCILIATION"].includes(
+        error.message,
       )
     )
-      throw Error("READING_SCHEMA_MISMATCH");
-    for (const m of migrations.slice(previous.length)) {
-      ledger.db.exec(m.sql);
-      ledger.db
-        .prepare("INSERT INTO reading_schema_versions VALUES(?,?,?,?)")
-        .run(component, m.version, sha256(m.sql), ledger.now());
-    }
-    return migrations.length;
-  });
+      throw Object.assign(Error("READING_SCHEMA_MISMATCH"), {
+        schemaObject: error.schemaObject,
+      });
+    throw error;
+  }
 }

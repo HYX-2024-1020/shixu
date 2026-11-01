@@ -16,6 +16,11 @@
       "file": "sync-files.mjs",
       "source": "server/sync-files.mjs",
       "sha256": "f770b69affe1ae332b906717392f37913bbd60cbbe7b0afa09b2508f61d94591"
+    },
+    {
+      "file": "sync-jobs.mjs",
+      "source": "server/sync-jobs.mjs",
+      "sha256": "ea698ba99ce1fbc7ad690b7fce13ae46927784b0c48636ef1686d06291adbfbc"
     }
   ]
 }
