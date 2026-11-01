@@ -49,6 +49,7 @@ export const ACCOUNTS_CORE_SCHEMA = [
         day TEXT NOT NULL,reserved_micros INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(user_id,job_id));`,
   },
   { version: 2, sql: "" },
+  { version: 3, sql: "" },
 ];
 export const ACCOUNTS_AUTH_SCHEMA = [
   {

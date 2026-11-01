@@ -15,6 +15,7 @@ import { createServerAI } from "./sync-provider.mjs";
 import { createReadingRoutes } from "./reading/routes.mjs";
 import { AccountsV4 } from "./accounts-v4.mjs";
 import { OriginalStore, originalMemoryPool } from "./originals.mjs";
+import { acquireDataLease, resolveDataVersion } from "./data-versions.mjs";
 
 export const DEFAULT_AI_LIMITS = Object.freeze({
   enabled: false,
@@ -57,7 +58,29 @@ function parse(req, bytes) {
 }
 // This module never opens the legacy workspace.sqlite. Each account gets its own
 // SQLite file, including its records, cursors, blobs, idempotency log and jobs.
-export function createMultiUserService({
+export function createMultiUserService(options) {
+  const lease = acquireDataLease(options.directory,'runtime'), cleanup = [];
+  try {
+    const selected=resolveDataVersion(lease,{ledgerPath:options.reading?.ledger?.db.location() || undefined});
+    if(selected.version && (!options.reading || !options.reading.ledger.db.location()))
+      throw Error('VERSIONED_READING_REQUIRED');
+    const service=createAccountService({...options,directory:selected.directory},cleanup);
+    service.server.once("close",()=>{
+      if(options.reading)service.drained().then(()=>lease.release());
+      else lease.release();
+    });
+    return {...service,dataVersion:selected.version,async quiesce(){
+      await new Promise((done,reject)=>service.server.close(error=>error?reject(error):done()));
+      await service.drained();lease.release();
+    }};
+  } catch(error) {
+    let safelyClosed=true;
+    for(const close of cleanup.reverse()) {try{close();}catch(closeError){if(!/database is not open/i.test(closeError.message))safelyClosed=false;}}
+    if(safelyClosed)lease.release();else error.dataLeaseRetained=true;
+    throw error;
+  }
+}
+function createAccountService({
   directory,
   secret,
   origin = "https://sync.shixunote.top",
@@ -66,7 +89,7 @@ export function createMultiUserService({
   wechat = null,
   reading = null,
   shutdownGraceMs = 30000,
-}) {
+}, startupCleanup) {
   if (
     !Number.isSafeInteger(shutdownGraceMs) ||
     shutdownGraceMs < 1 ||
@@ -109,6 +132,7 @@ export function createMultiUserService({
     throw Error("Invalid AI queue configuration");
   const registry = new AccountRegistry(directory, secret),
     tenants = new Map();
+  startupCleanup.push(()=>registry.close());
   if (
     registry.db
       .prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'")
@@ -120,6 +144,7 @@ export function createMultiUserService({
   }
   const originalPool = originalMemoryPool();
   const credentials = reading?.credentials ? new AccountsV4(registry) : null;
+  if(credentials)startupCleanup.push(()=>credentials.close());
   if (credentials)
     for (const intent of registry.db
       .prepare("SELECT account FROM account_grant_intents")
@@ -137,6 +162,7 @@ export function createMultiUserService({
         enabled: () => reading.enabled === true && !registry.aiPaused(),
       })
     : null;
+  if(readingRoutes)startupCleanup.push(()=>readingRoutes.finalizeShutdown());
   let running = 0,
     closed = false;
   let finalized = false;
@@ -226,6 +252,7 @@ export function createMultiUserService({
         finish: (id, state) => registry.finish(userId, id, state),
       },
     });
+    startupCleanup.push(()=>{service.jobs.stop();service.store.originals?.close();service.store.close();});
     // Also check queued work and result application against the authoritative
     // registry, so disabling/revoking takes effect without restarting a tenant.
     const apply = service.store.apply.bind(service.store);
@@ -768,7 +795,7 @@ export function createMultiUserService({
       if (existsSync(join(directory, "users", account.id, "workspace.sqlite")))
         tenant(account.id);
     }
-  for (const row of registry.db
+  if (!readingRoutes) for (const row of registry.db
     .prepare("SELECT DISTINCT user_id FROM ai_usage WHERE state='pending'")
     .all()) {
     try {

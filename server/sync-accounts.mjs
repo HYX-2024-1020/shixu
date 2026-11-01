@@ -42,6 +42,9 @@ export class AccountRegistry {
       this.db.close();
       throw error;
     }
+    if(this.db.prepare("SELECT 1 FROM account_meta WHERE key=?").get("data_version_required")) {
+      this.db.close();throw Error("DATA_VERSION_ROOT_FENCED");
+    }
     const authMode=this.db.prepare("SELECT value FROM account_meta WHERE key='auth_v4'").get();
     const legacySlot=!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='active_slot'").get();
     const knownAuth=!!this.db.prepare("SELECT 1 FROM service_schema_versions WHERE component='accounts-auth' LIMIT 1").get()||!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_credentials'").get();

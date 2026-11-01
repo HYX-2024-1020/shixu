@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D 资料版本切换后双端接续（#73，整体未完成）
+
+Windows AccountWorkspace和微信Page/Node wx签名HTTP，在排空服务、完整影子集合迁移及原子指针切换后保持身份/发件箱重连；retained/temporary两链的上传、停止/继续、全文/尾部、结果、续期/删除墓碑通过。账本和安全前缀位于资料版本外；不自动消费旧任务。服务、CLI和停止备份共用写屏障与版本解析。原生微信/手机/安装版未验，无新UI窗口，真实API新增0。[开发证据](bcd/data-versions-verification.md)。
+
 ## 2026-11-01 B/C/D 旧任务归档与全文副本清理（#73，整体仍未完成）
 
 Windows AccountWorkspace与微信Page/Node wx共同经签名HTTP获取七种旧任务转换状态、eligible=false/verified=false及小型待核对输出；清理sources后记录版本推进，旧任务POST拒绝，旧pending费用元数据不改。服务端不调度旧任务、不发新额度、不二次发布；未验证输出七天清理。双端实际适配专项通过，原生微信/手机/安装版未验，未新增UI窗口。[开发证据](bcd/legacy-jobs-verification.md)。

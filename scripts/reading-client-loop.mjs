@@ -1,6 +1,8 @@
 import { ReadingLegacyMaintenance } from "../server/reading/legacy-ledger.mjs";
 import { SyncStore as LegacyStore } from "./stage-a/legacy/sync-store.mjs";
 import { createJobQueue as legacyQueue } from "./stage-a/legacy/sync-jobs.mjs";
+import {acquireDataLease,prepareShadowVersion,activateDataVersion} from '../server/data-versions.mjs';
+import {createRuntimeMigrator} from '../server/data-migration.mjs';
 import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import {
@@ -54,6 +56,7 @@ export async function runClientLoop({
   providerReceiptMetadata=false,
   legacyLedger=false,
   legacyJobs=false,
+  shadowVersion=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -178,7 +181,7 @@ export async function runClientLoop({
     reading.provider=wrap(reading.provider);
     for(const kind of ['chat','merge','association','reviewVisual'])if(reading.provider[kind])reading.provider[kind]=wrap(reading.provider[kind]);
   }
-  const service = createMultiUserService({
+  let service = createMultiUserService({
     directory: join(directory, "server"),
     secret: "synthetic-v4-client-secret-with-32-characters",
     reading,
@@ -186,7 +189,7 @@ export async function runClientLoop({
   });
   registerSyntheticTenantWriter(service,directory);
   await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
-  const base = `http://127.0.0.1:${service.server.address().port}`;
+  let base = `http://127.0.0.1:${service.server.address().port}`;
   const cloud = new AccountWorkspace({
     root: join(directory, "windows"),
     local: new DesktopStore(join(directory, "local")),
@@ -305,6 +308,22 @@ export async function runClientLoop({
     };
     page.onLoad();
     page._activate({ ...binding, base: SERVICE_ORIGIN });
+    if(shadowVersion) {
+      await cloud.action('sync');await page.sync();
+      await service.quiesce();
+      const lease=acquireDataLease(join(directory,'server'),'maintenance');
+      try {
+        const prepared=prepareShadowVersion(lease,{id:'synthetic-v1',ledgerPath:join(directory,'ledger.sqlite'),migrate:createRuntimeMigrator({secret:'synthetic-v4-client-secret-with-32-characters',ledger,priceId:'synthetic',modelVersion:'synthetic',credentials:false})});
+        activateDataVersion(lease,prepared);
+      }finally{lease.release();}
+      service=createMultiUserService({directory:join(directory,'server'),secret:'synthetic-v4-client-secret-with-32-characters',reading,wechat:async code=>'synthetic-'+code});
+      await new Promise(done=>service.server.listen(0,'127.0.0.1',done));
+      base=`http://127.0.0.1:${service.server.address().port}`;
+      cloud.origin=base; // Reconnect the isolated test transport, preserving identity/outbox.
+      assert.equal(service.dataVersion,'synthetic-v1');
+      await cloud.action('sync');await page.sync();
+      assert.equal(calls,0);assert.equal(parserRuns,0);
+    }
     if(legacyJobs) {
       await cloud.action("sync"); await page.sync();
       for(const [n,state] of ["interrupted","interrupted","conflict","done","error","conflict","interrupted"].entries()) {
@@ -855,6 +874,7 @@ export async function runClientLoop({
     return {
       synthetic: true,
       realProviderCalls: 0,
+      ...(shadowVersion?{dataVersion:service.dataVersion}:{}),
       simulatedProviderCalls: calls-(auditCheckpoint?23:0),
       ...(auditCheckpoint?{fixtureSeededSentCalls:23,rootCalls:calls,auditedCheckpoint:true,oldPendingReplayDeniedBoth:true,noModelBeforeFreshContinue:true}:{}),
       bytes: body.length,

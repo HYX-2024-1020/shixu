@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readdir, lstat, writeFile } from "node:fs/promises";
 import { join, resolve, dirname, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
+import {acquireDataLease,resolveDataVersion} from '../../server/data-versions.mjs';
 
 export async function backupAccounts(
   source,
@@ -13,6 +14,12 @@ export async function backupAccounts(
     throw Error(
       "Stop the account service before taking a cross-database snapshot",
     );
+  const lease=acquireDataLease(source,'maintenance');
+  try {
+    return await backupActiveAccounts(resolveDataVersion(lease).directory,destination);
+  }finally{lease.release();}
+}
+async function backupActiveAccounts(source,destination) {
   process.umask(0o077);
   const root = resolve(source),
     files = [];

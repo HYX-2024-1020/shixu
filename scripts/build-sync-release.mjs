@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
-  "server/database-schema.mjs", "server/database-schemas.mjs", "server/sync-server.mjs", "server/sync-store.mjs",
+  "server/data-migration.mjs", "server/data-versions.mjs", "server/database-schema.mjs", "server/database-schemas.mjs", "server/sync-server.mjs", "server/sync-store.mjs",
   "server/sync-jobs.mjs", "server/generated/ai-core.mjs",
   "server/sync-files.mjs",
   "server/originals.mjs",
