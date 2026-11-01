@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const NATIVE_ARCHIVE_SOURCE = Object.freeze({
   version: "26.05",
-  protocol: "shixu-raw-path/2",
+  protocol: "shixu-raw-path/3",
   url: "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-src.tar.xz",
   sha256: "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
 });
@@ -122,7 +122,7 @@ const handlerPatches = [
   [
     "CPP/7zip/Archive/Rar/RarHandler.cpp",
     "  item.Flags = m_BlockHeader.Flags;",
-    "  item.Flags = m_BlockHeader.Flags;\n  // Shixu: reject split, encryption, solid, comments, versions and unknown flags before filtering.\n  if (item.Flags & (UInt16)~0x93e0) return false;",
+    "  item.Flags = m_BlockHeader.Flags;\n  // Shixu: reject split, encryption, comments, versions and unknown flags before filtering.\n  if (item.Flags & (UInt16)~0x93f0) return false;",
   ],
   [
     "CPP/7zip/Archive/Rar/RarHandler.cpp",

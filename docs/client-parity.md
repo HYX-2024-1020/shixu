@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D RAR4/RAR5 solid共享字典（#73，整体未完成）
+
+Windows AccountWorkspace与微信实际Page/Node wx共用完整共享块核算、包内来源/覆盖和付费复用；两原包签名HTTP停止/继续、原件过期或删除补传、9条路径/尾件、修订新增1次且复用9块通过。Linux普通UID、受保护broker和自包含发布通过；无UI重跑，未验安装版/原生微信/手机。真实API新增0。[开发证据](bcd/rar-solid-verification.md)。
+
 ## 2026-11-01 B/C/D 宿主恢复与旧副本清理（#73，整体未完成）
 
 Windows AccountWorkspace及微信Page/Node wx继续使用同一版本2资料集合和独立账本。宿主真实内核证据只恢复死进程的写入登记，不能清除费用/活跃时间或自动继续；旧根/历史版本/失败影子的七天清理只删已核对的非当前路径，账号身份与有效结果/unknown保持。双端retained/temporary任务链通过；无普通用户恢复/删除底层HTTP接口，无产品UI窗口/安装/原生微信或手机验证。[开发证据](bcd/data-control-verification.md)。

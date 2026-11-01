@@ -1,0 +1,123 @@
+{
+  "resource": [
+    {
+      "version": 4,
+      "inputBytes": 464,
+      "inputHash": "b158d4b0e3506f04fcaff18db9b369b573fd54f313062c7b8c622cb33b9c5da4",
+      "sharedBlock": {
+        "block": 0,
+        "packedBytes": 50,
+        "expandedBytes": 54,
+        "members": 9
+      },
+      "tailHash": "9c03f1a0e14af0400b2fd4942754c99718d2a247ab10820f3f2523ffc9e7760b",
+      "elapsedMs": 221.10528700000032,
+      "parseMs": 90.212633,
+      "serializationAndTransferMs": 0.855795999999998,
+      "maxRssKiB": 59208
+    },
+    {
+      "version": 5,
+      "inputBytes": 423,
+      "inputHash": "d004997e805cb7bb47bd73904aae113f81ee1d82d80bed9372c5dd64d1684754",
+      "sharedBlock": {
+        "block": 0,
+        "packedBytes": 67,
+        "expandedBytes": 54,
+        "members": 9
+      },
+      "tailHash": "9c03f1a0e14af0400b2fd4942754c99718d2a247ab10820f3f2523ffc9e7760b",
+      "elapsedMs": 218.84426399999938,
+      "parseMs": 91.84962100000001,
+      "serializationAndTransferMs": 0.9014449999999954,
+      "maxRssKiB": 59080
+    }
+  ],
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 11,
+      "bytes": 464,
+      "parserRuns": 20,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 220,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 9,
+        "newCalls": 1,
+        "rootCalls": 11,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 11,
+      "bytes": 423,
+      "parserRuns": 20,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 220,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 9,
+        "newCalls": 1,
+        "rootCalls": 11,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    }
+  ],
+  "validation": {
+    "sourceTree": "/opt/shixu-bcd-test-20261101-rar-solid",
+    "uid": 65534,
+    "testsPassed": 29,
+    "finalMultiBlockAndOpaqueTestsPassed": 8,
+    "logs": [
+      "tests.txt (first failure, generated-source permissions)",
+      "tests-final.txt",
+      "multi-final.txt",
+      "broker-final.txt",
+      "fixture-final.txt"
+    ],
+    "nativeProtocol": "shixu-raw-path/3",
+    "nativeToolSha256": "4c02829873c7d6ead9b10fdeca2bfe2e893d004bfda91b92486b3390c3db284e",
+    "workingTreeHashes": {
+      "server/reading/native-archive.mjs": "0393ddda4abf0e2b6c8d92fe502259210ad9c2e1beb7faa051fd1298ddf8efbc",
+      "server/reading/rar-solid-fixtures.mjs": "dddd861542ce2fcdd545aeabc0eac1b7711ce8d39d41a2bb0572b9ca92e16ee3",
+      "server/reading/rar-solid.test.mjs": "24e718b25661ea67bf9b67a8ff8ec5595aca053ed00758f00ad8b77bc9bedacb"
+    },
+    "uuEncoding": "Equivalent zero sextets use backticks; original archive bytes unchanged"
+  }
+}

@@ -139,7 +139,7 @@ export async function runClientLoop({
         enter();
         if (!auditAfterReadLimit && !auditUnknownTime && !costAudit) await held;
       }
-      tailSeen ||= sources.some((s) => (original?.tailSourceSuffix && s.id.endsWith(original.tailSourceSuffix)) || s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
+      tailSeen ||= sources.some((s) => (original?.tailText && s.text.includes(original.tailText)) || (original?.tailSourceSuffix && s.id.endsWith(original.tailSourceSuffix)) || s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
       return {
         usage: { prompt_tokens: 10, completion_tokens: 10 },
         result: {

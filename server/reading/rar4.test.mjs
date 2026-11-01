@@ -132,7 +132,7 @@ test("RAR4 ambiguous legacy names, unsafe paths, duplicates and unverified heade
   );
   for (const flags of [1, 2, 4, 8, 16, 0x400, 0x800, 0x2000, 0x4000])
     bodies.push(rar4Bytes({ "a.txt": "never" }, { fileFlags: flags }));
-  for (const archiveFlags of [1, 2, 8, 0x20, 0x40, 0x80])
+  for (const archiveFlags of [1, 2, 0x20, 0x40, 0x80])
     bodies.push(rar4Bytes({ "a.txt": "never" }, { archiveFlags }));
   for (const body of bodies) {
     const m = await read(body);

@@ -21,6 +21,7 @@ import {jpegSample} from '../../server/reading/jpeg-fixtures.mjs';
 import {officeImageBytes} from '../../server/reading/office-fixtures.mjs';
 import {apngBytes} from '../../server/reading/apng-fixtures.mjs';
 import {sevenZipBytes} from '../../server/reading/native-archive-fixtures.mjs';
+import {rarSolidSample} from '../../server/reading/rar-solid-fixtures.mjs';
 import {gifBytes} from '../../server/reading/gif-fixtures.mjs';
 
 test("account service and protected CLI run from the self-contained release", async () => {
@@ -112,6 +113,11 @@ test("account service and protected CLI run from the self-contained release", as
       assert.equal(chatTasks.roots.stats('visual-task').calls,2);
       const solid=await sevenZipBytes({'01.txt':Buffer.from('solid首件'),'02.txt':Buffer.from('solid尾部唯一标记')},['-mx=1','-ms=on']),solidMaterial=await readReleased({id:'solid',name:'release.7z',body:solid,size:solid.length,hash:createHash('sha256').update(solid).digest('hex')});
       assert.equal(solidMaterial.state,'read');assert.equal(solidMaterial.segments.map(s=>s.text).join(''),'solid首件solid尾部唯一标记');assert.equal(solidMaterial.archiveCompression.blocks.length,1);assert.equal(solidMaterial.archiveCompression.blocks[0].members,2);
+      for (const version of [4,5]) {
+        const sample=await rarSolidSample(version),material=await readReleased({id:'rar-solid',name:'release.rar',body:sample.body,size:sample.body.length,hash:createHash('sha256').update(sample.body).digest('hex')});
+        assert.equal(material.state,'read');assert.equal(material.segments.map(s=>s.text).join(''),sample.expectedText);
+        assert.equal(material.archiveCompression.packedBytes,sample.packed);assert.equal(material.archiveCompression.blocks[0].members,9);
+      }
       const animation=apngBytes({frames:[{delayNum:3,delayDen:0},{delayNum:7,delayDen:100}]}),apngMaterial=await readReleased({id:'apng',name:'release.apng',body:animation,size:animation.length,hash:createHash('sha256').update(animation).digest('hex')},{imageWindow:{tile:2}});
       assert.equal(apngMaterial.covered[0].frame,2);assert.equal(apngMaterial.covered[0].frameStartMs,30);assert.equal(apngMaterial.covered[0].frameDurationMs,70);assert.equal(apngMaterial.imagePagination.nextTile,null);
       const office=officeImageBytes('xlsx',{body:png}).body,descriptor={id:'office',name:'release.xlsx',body:office,size:office.length,hash:createHash('sha256').update(office).digest('hex')};
