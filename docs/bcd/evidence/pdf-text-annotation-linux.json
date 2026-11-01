@@ -1,0 +1,125 @@
+{
+  "resource": [
+    {
+      "kind": "stamp",
+      "inputBytes": 3785,
+      "inputHash": "f5e2c89bd2bf9ef65f49eecfb4a2654fe8ea269981f0c765acde5e142b129488",
+      "elapsedMs": 466.9695690000008,
+      "parseMs": 304.045813,
+      "serializationAndTransferMs": 2.9064989999999966,
+      "maxRssKiB": 70656
+    },
+    {
+      "kind": "text",
+      "inputBytes": 4419,
+      "inputHash": "c400d9f4b618f21a2c66fb0bbe4370b1233bcd2ebc08cf8b30ca832760698cb6",
+      "elapsedMs": 508.16313100000116,
+      "parseMs": 305.622497,
+      "serializationAndTransferMs": 3.0338949999999727,
+      "maxRssKiB": 71520
+    },
+    {
+      "kind": "choice",
+      "inputBytes": 4554,
+      "inputHash": "d8a997962d87905c0d73442ac6c97721173a886b1a447a168fc740e6d9e3bcb7",
+      "elapsedMs": 481.59653099999923,
+      "parseMs": 297.821934,
+      "serializationAndTransferMs": 3.5715230000000133,
+      "maxRssKiB": 71092
+    },
+    {
+      "kind": "checkbox",
+      "inputBytes": 4455,
+      "inputHash": "13e33e1a42ef85f89527747a385f5f3af04aeff772b3ebf9e535fa1b057791d2",
+      "elapsedMs": 575.9373999999989,
+      "parseMs": 307.724602,
+      "serializationAndTransferMs": 63.81187399999999,
+      "maxRssKiB": 72180
+    }
+  ],
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 4554,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 4670,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    }
+  ],
+  "validation": {
+    "tree": "/opt/shixu-bcd-test-20261102-pdf-annotations",
+    "reusedOwnedTestTree": true,
+    "uid": 65534,
+    "testsPassed": 39,
+    "logs": [
+      "text-finish-tests.txt",
+      "text-finish-broker.txt"
+    ],
+    "reader": "pdf-text/5;annotations/1",
+    "realProviderCalls": 0,
+    "workingTreeHashes": {
+      "server/reading/pdf.mjs": "515da71f0a96a4292848429e182b8752fc375ff8e502d18d893a9f5452cedb60",
+      "server/reading/material.mjs": "b4ceb8268b5ae099dea1a98b46a2095f60f253ffbcf04b37f76c56670b8a69b5",
+      "server/reading/windows.mjs": "3626a7a2e8607668481c15989665ef4f25834a2f09d36a8ef3a127a952642096",
+      "scripts/patch-pdf-compat.mjs": "3b152d578c051817e7a90b4e62fcd105fdc4272738242805094409a04111ab20",
+      "scripts/reading-pdf-text-annotation-linux.mjs": "65a3b0cd21b4e407312636b0a23100e3a98ad82f9a1ff5f3ad0fe0917fbf19de"
+    }
+  }
+}

@@ -134,6 +134,9 @@ test("account service and protected CLI run from the self-contained release", as
       assert.equal(fontMaterial.state,'read');assert.equal(fontMaterial.segments.find(s=>!s.image).text,'✐✑✒✓\n');assert.ok(fontMaterial.segments.some(s=>s.image));
       assert.equal(annotationMaterial.state,'read');assert.equal(annotationMaterial.covered[0].annotation,1);assert.equal(annotationMaterial.covered[0].annotationType,'Widget');
       assert.deepEqual(annotationMaterial.covered[0].annotationRect,[20,20,60,40]);assert.match(annotationMaterial.segments[0].text,/保存值：Alice 42/);assert.ok(annotationMaterial.segments.some(s=>s.image));
+      const plainAnnotation=await readReleased({id:'plain-annot',name:'annot.pdf',body:annotationBody,size:annotationBody.length,hash:createHash('sha256').update(annotationBody).digest('hex')},{pdfWindow:{page:1,offset:0}});
+      assert.equal(plainAnnotation.state,'partial');assert.equal(plainAnnotation.segments.some(s=>s.image),false);assert.match(plainAnnotation.segments[0].text,/保存值：Alice 42/);
+      assert.ok(plainAnnotation.reasons.includes('PDF_ANNOTATION_UNREAD'));assert.equal(plainAnnotation.covered[0].annotation,1);
       const cmapBody=fontPdfBytes({cmap:true}),cmapMaterial=await readReleased({id:'cmap',name:'cmap.pdf',body:cmapBody,size:cmapBody.length,hash:createHash('sha256').update(cmapBody).digest('hex')});
       assert.equal(cmapMaterial.segments.map(s=>s.text).join(''),'中文\n');
       const animation=apngBytes({frames:[{delayNum:3,delayDen:0},{delayNum:7,delayDen:100}]}),apngMaterial=await readReleased({id:'apng',name:'release.apng',body:animation,size:animation.length,hash:createHash('sha256').update(animation).digest('hex')},{imageWindow:{tile:2}});

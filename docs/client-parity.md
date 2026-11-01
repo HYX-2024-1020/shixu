@@ -1,3 +1,7 @@
+## 2026-11-02 文字专用PDF批注收尾后暂停（#73）
+
+Windows AccountWorkspace与实际Page/Node wx共同读取九页批注/字段/完整选项，保留编号/矩形来源并明确外观未读；PDF/ZIP签名HTTP停止/补传及付费复用通过，Linux相关39项/受保护链通过。同步125通过，未新增UI/安装/原生手机验证，真实API新增0。当前暂停开发，先讨论范围与资源；[开发证据](bcd/pdf-text-annotations-verification.md)、[范围审视](bcd/scope-review-20261102.md)。
+
 ## 2026-11-02 B/C/D PDF批注与表单外观（#73，整体未完成）
 
 Windows AccountWorkspace与微信实际Page/Node wx共用批注/表单编号、原页矩形、保存值/选项来源与未读标记；两页PDF和ZIP签名HTTP停止/补传、页图/来源一致，修订新增1次且复用2块。Linux普通UID41、受保护6样本和两端链、自包含发布通过；mini重新生成/核对，同步125通过。文字专用注释与更复杂交互层继续；未验安装版/原生微信/手机，本批无新本机UI，真实API新增0。[开发证据](bcd/pdf-annotations-verification.md)。

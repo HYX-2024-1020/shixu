@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { patchPdfFontUnicode, patchPdfFormAppearance } from "./patch-pdf-fonts.mjs";
+import { patchPdfNodeCompatibility } from "./patch-pdf-compat.mjs";
 
 const root = new URL("../", import.meta.url);
 const pkg = JSON.parse(
@@ -18,11 +19,7 @@ for (const [name, input] of [
   );
   // Node24 on the deployed runtime lacks the new Uint8Array hex helpers. Use
   // a local pure function, not global prototype patches or legacy canvas code.
-  source = source.replace(
-    /([\w.]+)\.toHex\(\)/g,
-    "Array.from($1, b => b.toString(16).padStart(2, '0')).join('')",
-  );
-  source = 'import {pdfSumPrecise as shixuSumPrecise} from "./server/reading/pdf-number.mjs";\n' + source.replaceAll("Math.sumPrecise(","shixuSumPrecise(");
+  source = patchPdfNodeCompatibility(source,"./server/reading/pdf-number.mjs");
   if (name === "core") source = patchPdfFormAppearance(patchPdfFontUnicode(source));
   if (name === "api") {
     // Upstream eagerly creates a rendering-only matrix at module load. Text

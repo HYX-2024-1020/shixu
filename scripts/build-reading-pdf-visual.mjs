@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile, copyFile, open } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { patchPdfNodeCompatibility } from "./patch-pdf-compat.mjs";
 import { copyPdfResources } from "./build-pdf-resources.mjs";
 import { patchPdfFontUnicode, patchPdfFormAppearance } from "./patch-pdf-fonts.mjs";
 
@@ -32,27 +33,7 @@ const change = (text, before, after) => {
     throw Error("PDF_VISUAL_PATCH_REVIEW_REQUIRED");
   return text.replace(before, after);
 };
-function compat(source) {
-  source = source.replaceAll("Math.sumPrecise(", "shixuSumPrecise(");
-  source = source.replace(
-    /([\w.]+)\.toHex\(\)/g,
-    "Array.from($1,b=>b.toString(16).padStart(2,'0')).join('')",
-  );
-  source = source.replace("map?.getOrInsertComputed(", "shixuOptionalMap(map,");
-  source = source.replace(
-    "(bCache ??= new Map()).getOrInsertComputed(",
-    "shixuMap((bCache ??= new Map()),",
-  );
-  source = source.replace(/([\w.$#]+)\.getOrInsertComputed\(/g, "shixuMap($1,");
-  source = source.replace(/([\w.$#]+)\.getOrInsert\(/g, "shixuMapValue($1,");
-  if (/getOrInsertComputed|getOrInsert\(/.test(source))
-    throw Error("PDF_VISUAL_COMPAT_REVIEW_REQUIRED");
-  return (
-    'import {pdfSumPrecise as shixuSumPrecise} from "../../pdf-number.mjs";\n' +
-    "function shixuMap(m,k,f){if(m.has(k))return m.get(k);const v=f(k);m.set(k,v);return v;}\nfunction shixuOptionalMap(m,k,f){return m==null?undefined:shixuMap(m,k,f);}\nfunction shixuMapValue(m,k,v){if(m.has(k))return m.get(k);m.set(k,v);return v;}\n" +
-    source
-  );
-}
+const compat = source => patchPdfNodeCompatibility(source, "../../pdf-number.mjs");
 export async function buildPdfVisual(
   platform = process.platform + "-" + process.arch,
 ) {
@@ -205,6 +186,7 @@ export async function buildPdfVisual(
     );
     await copyFile(new URL("./build-pdf-resources.mjs", import.meta.url), join(output,"source/build-pdf-resources.mjs"));
     await copyFile(new URL("./patch-pdf-fonts.mjs", import.meta.url), join(output,"source/patch-pdf-fonts.mjs"));
+    await copyFile(new URL("./patch-pdf-compat.mjs", import.meta.url), join(output,"source/patch-pdf-compat.mjs"));
     await copyFile(join(root,"server/reading/pdf-number.mjs"), join(output,"source/pdf-number.mjs"));
     let api = await readFile(
       join(root, "node_modules/pdfjs-dist/build/pdf.mjs"),

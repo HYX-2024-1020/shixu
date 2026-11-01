@@ -129,14 +129,20 @@ export class ReadingWindows {
           !Number.isSafeInteger(r.page) ||
           r.page < p.startPage ||
           r.page >= p.startPage + PDF_WINDOW_PAGES ||
-          r.page > p.totalPages,
+          r.page > p.totalPages || !validAnnotationRange(r),
       )
     )
       throw Error("INVALID_READER_WINDOW");
     let offset = requested.offset,
       page = requested.page;
-    for (const range of material.covered || []) {
+    if(material.segments?.length!==material.covered?.length)throw Error('INVALID_READER_WINDOW');
+    const ids=new Set();
+    for (const [index,range] of (material.covered || []).entries()) {
+      const segment=material.segments[index];
       if (
+        segment.image || segment.sourceId!==range.sourceId || ids.has(range.sourceId) ||
+        JSON.stringify(segment.range)!==JSON.stringify(range) ||
+        typeof segment.text!=='string' || range.end-range.start!==[...segment.text].length ||
         range.page < page ||
         range.start !== offset ||
         !Number.isSafeInteger(range.end) ||
@@ -146,6 +152,7 @@ export class ReadingWindows {
         throw Error("INVALID_READER_WINDOW");
       offset = range.end;
       page = range.page;
+      ids.add(range.sourceId);
     }
     if (p.nextOffset !== offset) throw Error("INVALID_READER_WINDOW");
   }
@@ -222,15 +229,13 @@ export class ReadingWindows {
       if(!!p.office.next!==(next?.entry===start.entry))invalid();
     } else if (p.pdf) {
       const relative = start.offset - start.base;
+      if(material.segments.length!==material.covered.length || material.segments.some((s,i)=>JSON.stringify(s.range)!==JSON.stringify(material.covered[i])))invalid();
+      const covered=material.covered.map(r=>({...r,start:r.start-start.base,end:r.end-start.base}));
       this.verify(
         {
           pagination: p.pdf,
-          segments: material.segments,
-          covered: material.covered.map((r) => ({
-            ...r,
-            start: r.start - start.base,
-            end: r.end - start.base,
-          })),
+          segments: material.segments.map((s,i)=>({...s,range:covered[i]})),
+          covered,
         },
         { page: start.page, offset: relative },
       );
