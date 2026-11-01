@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D累计历史内容分批读取（#73，整体未完成）
+
+Windows与微信共用服务端历史关联的按记录/批次读取及完整依赖摘要；全部候选、人工字段、原记录与近分歧义规则一致，已有付费判断可复用，尾部改变仍暂停。实际AccountWorkspace/Page Node signed HTTP temporary/deleted两链及Linux nobody同链29项通过；401大事实候选访问尾部、33大概述记录实际关联到尾部，未启动重复UI。图索引/单记录/单项/组上限仍暂停，不等同原件或无限历史流式；原生手机/安装版未验。[开发证据](bcd/association-stream-verification.md)。
+
 ## 2026-11-01 B/C/D调用关联证据（#73，整体未完成）
 
 Windows与微信小程序的整理、事项对话、视觉核对、语义/历史关联共同经过服务端请求/响应/usage独立元数据证据；冲突保留费用并暂停AI，既有费用暂停提示可见。客户端没有写入凭据、提供最终账单或清unknown权限。实际AccountWorkspace与Page/Node wx签名HTTP temporary/deleted两链均验证linked及原记录保持；Linux nobody同链验证，发布包执行带关联证据的对话。真实合成1调用642微元验证实际响应；响应ID留在受保护账本，公开报告只给hash。原生微信/手机/安装版未验，完整CI按本提交核对。[实现、费用与边界](bcd/provider-receipts-verification.md)。

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ReadingMerge } from "./merge.mjs";
 import { sha256 } from "./material.mjs";
 import { absoluteItem, buildGroups } from "../generated/ai-core.mjs";
@@ -73,24 +74,22 @@ export function validateAssociation(value, items) {
   }
   return { links };
 }
-const chunks = (rows) => {
-  const chunks = [];
+function* chunks(rows) {
   let batch = [],
     bytes = 0;
   for (const row of rows) {
     const n = Buffer.byteLength(JSON.stringify(row));
     if (n > 56000) throw Error("ASSOCIATION_CONTEXT_LIMIT");
     if (batch.length && (batch.length === 16 || bytes + n > 56000)) {
-      chunks.push(batch);
+      yield batch;
       batch = [];
       bytes = 0;
     }
     batch.push(row);
     bytes += n;
   }
-  if (batch.length) chunks.push(batch);
-  return chunks;
-};
+  if (batch.length) yield batch;
+}
 // All saved open candidates are visited; no keyword-only filter or recency cut.
 // Models can only add links to existing items, never rewrite old/new content.
 export class ReadingAssociation extends ReadingMerge {
@@ -100,38 +99,14 @@ export class ReadingAssociation extends ReadingMerge {
   validate(value, items) {
     return validateAssociation(value, items);
   }
-  plan(task) {
-    const upstream = this.e.merge.plan(task),
-      semantic = this.e.merge.result(task),
-      result = semantic?.items || upstream.items.map((r) => r.item),
-      fresh = result
-        .map((item, index) => ({
-          id: "new:" + index,
-          index,
-          role: "new",
-          item,
-        }))
-        .filter((r) => eligible(r.item));
-    if (!fresh.length) {
-      if (this.intent(task.id)) throw Error("ASSOCIATION_INPUT_CHANGED");
-      return {
-        items: [],
-        fresh: [],
-        history: [],
-        freshChunks: [],
-        historyChunks: [],
-        dependencyHash: hash([ASSOCIATION_VERSION, upstream.dependencyHash]),
-      };
-    }
-    const kinds = new Set(fresh.map((r) => r.item.kind));
-    const packets = [];
-    let metadataBytes = 0;
-    for (const { id } of this.db
+  *packets(task) {
+    for (const { id, bytes } of this.db
       .prepare(
-        "SELECT id FROM sync_records WHERE deleted_at IS NULL AND purged=0 ORDER BY id",
+        "SELECT id,length(CAST(data AS BLOB)) bytes FROM sync_records WHERE deleted_at IS NULL AND purged=0 AND json_extract(data,'$.status')='ready' ORDER BY id",
       )
       .iterate()) {
       if (id === task.packet) continue;
+      if (bytes > 16 * 1024 * 1024) throw Error("ASSOCIATION_CONTEXT_LIMIT");
       const p = this.e.store.record(id).data;
       if (p.status !== "ready" || !Array.isArray(p.result?.items)) continue;
       const value = {
@@ -169,13 +144,66 @@ export class ReadingAssociation extends ReadingMerge {
           }),
         },
       };
-      metadataBytes += Buffer.byteLength(JSON.stringify(value));
-      if (metadataBytes > 16 * 1024 * 1024)
+      yield value;
+    }
+  }
+  plan(task) {
+    const upstream = this.e.merge.plan(task),
+      semantic = this.e.merge.result(task),
+      result = semantic?.items || upstream.items.map((r) => r.item),
+      fresh = result
+        .map((item, index) => ({
+          id: "new:" + index,
+          index,
+          role: "new",
+          item,
+        }))
+        .filter((r) => eligible(r.item));
+    if (!fresh.length) {
+      if (this.intent(task.id)) throw Error("ASSOCIATION_INPUT_CHANGED");
+      return {
+        fresh: [],
+        historyCount: 0,
+        freshChunks: [],
+        groupByRef: new Map(),
+        historyRows: function* () {},
+        dependencyHash: hash([ASSOCIATION_VERSION, upstream.dependencyHash]),
+      };
+    }
+    const kinds = new Set(fresh.map((r) => r.item.kind));
+    const packets = [];
+    let graphBytes = 0;
+    for (const p of this.packets(task)) {
+      // Only relation topology, titles, dates and completion state remain resident.
+      const skeleton = {
+        ...p,
+        association: {
+          links: (p.association?.links || []).map(
+            ({ id, from, target, relation, title, contextRefs }) => ({
+              id,
+              from,
+              target,
+              relation,
+              title,
+              contextRefs,
+            }),
+          ),
+        },
+        result: {
+          items: p.result.items.map((item) => ({
+            kind: item.kind,
+            title: item.title,
+            due: item.due,
+            facts: [],
+          })),
+        },
+      };
+      graphBytes += Buffer.byteLength(JSON.stringify(skeleton));
+      if (graphBytes > 16 * 1024 * 1024)
         throw Error("ASSOCIATION_CONTEXT_LIMIT");
-      packets.push(value);
+      packets.push(skeleton);
     }
     const groups = buildGroups(packets),
-      history = [],
       groupByRef = new Map(),
       unitByRef = new Map();
     for (const group of groups) {
@@ -183,70 +211,89 @@ export class ReadingAssociation extends ReadingMerge {
       for (const unit of group.units)
         for (const ref of unit.refs) unitByRef.set(ref, unit);
     }
-    for (const p of packets)
-      for (let index = 0; index < p.result.items.length; index++) {
-        const item = p.result.items[index],
-          itemId = p.itemIds?.[index] ?? String(index),
-          meta = p.itemState?.[p.itemIds?.[index] || p.id + ":" + index] || {};
-        if (
-          meta.deletedAt ||
-          meta.purgedAt ||
-          meta.status === "done" ||
-          p.doneIds.includes(index) ||
-          !eligible(item) ||
-          !kinds.has(item.kind)
-        )
-          continue;
-        const id = p.id + "#" + itemId,
-          group = groupByRef.get(id),
-          unit = unitByRef.get(id);
-        history.push({
-          id,
-          role: "history",
-          item,
-          unitDue: unit?.item.due || item.due,
-          group: group
-            ? {
-                id: group.id,
-                title: group.title,
-                refs: group.refs,
-                members: group.units.map((u) => ({
-                  title: u.item.title,
-                  done: u.done,
-                })),
-              }
-            : null,
-        });
+    const historyRows = function* (engine) {
+      for (const p of engine.packets(task))
+        for (let index = 0; index < p.result.items.length; index++) {
+          const item = p.result.items[index],
+            itemId = p.itemIds?.[index] ?? String(index),
+            meta =
+              p.itemState?.[p.itemIds?.[index] || p.id + ":" + index] || {};
+          if (
+            meta.deletedAt ||
+            meta.purgedAt ||
+            meta.status === "done" ||
+            p.doneIds.includes(index) ||
+            !eligible(item) ||
+            !kinds.has(item.kind)
+          )
+            continue;
+          const id = p.id + "#" + itemId,
+            group = groupByRef.get(id),
+            unit = unitByRef.get(id);
+          yield {
+            id,
+            role: "history",
+            item,
+            unitDue: unit?.item.due || item.due,
+            group: group
+              ? {
+                  id: group.id,
+                  title: group.title,
+                  refs: group.refs,
+                  members: group.units.map((u) => ({
+                    title: u.item.title,
+                    done: u.done,
+                  })),
+                }
+              : null,
+          };
+        }
+    };
+
+    const prefix = [
+      ASSOCIATION_VERSION,
+      this.e.account,
+      task.packet,
+      this.e.modelVersion,
+      upstream.dependencyHash,
+      semantic?.items || null,
+      fresh,
+    ];
+    const digest = createHash("sha256");
+    digest.update(JSON.stringify(prefix).slice(0, -1) + ",[");
+    let historyCount = 0;
+    const freshChunks = Array.from(chunks(fresh));
+    // Preflight every candidate before the first fee. Hash exactly the legacy JSON array,
+    // incrementally, so unchanged paid decisions keep their original fingerprints.
+    for (const batch of chunks(historyRows(this)))
+      for (const row of batch) {
+        if (historyCount++) digest.update(",");
+        digest.update(JSON.stringify(row));
       }
-    const dependencyHash = hash([
-        ASSOCIATION_VERSION,
-        this.e.account,
-        task.packet,
-        this.e.modelVersion,
-        upstream.dependencyHash,
-        semantic?.items || null,
-        fresh,
-        history,
-      ]),
+    digest.update("]]");
+    const dependencyHash = digest.digest("hex"),
       prior = this.intent(task.id);
+
     if (
       prior &&
       (prior.packet !== task.packet || prior.dependency_hash !== dependencyHash)
     )
       throw Error("ASSOCIATION_INPUT_CHANGED");
     return {
-      items: [...fresh, ...history],
       fresh,
-      history,
-      freshChunks: history.length ? chunks(fresh) : [],
-      historyChunks: history.length ? chunks(history) : [],
+      historyCount,
+      historyRows: () => historyRows(this),
+      freshChunks: historyCount ? freshChunks : [],
+      groupByRef,
       dependencyHash,
+      graphBytes,
     };
   }
+
   begin(task) {
     if (typeof this.e.provider.association !== "function") return false;
     const plan = this.plan(task);
-    if (!plan.fresh.length || !plan.history.length) return false;
+    if (!plan.fresh.length || !plan.historyCount) return false;
     this.ledger.db
       .prepare(
         "INSERT OR IGNORE INTO reading_association_intents VALUES(?,?,?,?)",
@@ -255,25 +302,27 @@ export class ReadingAssociation extends ReadingMerge {
     return true;
   }
   *pairs(plan) {
-    for (let a = 0; a < plan.freshChunks.length; a++)
-      for (let b = 0; b < plan.historyChunks.length; b++) {
-        const items = [...plan.freshChunks[a], ...plan.historyChunks[b]];
+    for (let a = 0; a < plan.freshChunks.length; a++) {
+      let b = 0;
+      for (const batch of chunks(plan.historyRows())) {
+        const items = [...plan.freshChunks[a], ...batch];
         yield {
           items,
           fingerprint: hash([
             ASSOCIATION_VERSION,
             plan.dependencyHash,
             a,
-            b,
+            b++,
             items,
           ]),
         };
       }
+    }
   }
   result(task, partial = false) {
     if (!this.active(task.id) || partial) return null;
     const plan = this.plan(task),
-      choices = [];
+      choices = new Map();
     for (const pair of this.pairs(plan)) {
       const row = this.db
         .prepare(
@@ -281,22 +330,21 @@ export class ReadingAssociation extends ReadingMerge {
         )
         .get(task.id, pair.fingerprint);
       if (!row) throw Error("SAFETY_RECONCILIATION");
-      choices.push(...this.verify(task, pair, row).links);
-    }
-    const links = [],
-      warnings = [],
-      historyById = new Map(plan.history.map((r) => [r.id, r]));
-    const root = (id) => {
-      const r = historyById.get(id);
-      return r?.group?.id || id;
-    };
-    for (const item of plan.fresh) {
-      const ranked = choices
-        .filter((c) => c.from === item.id)
-        .sort(
+      for (const link of this.verify(task, pair, row).links) {
+        const ranked = choices.get(link.from) || [];
+        ranked.push(link);
+        ranked.sort(
           (a, b) =>
             b.confidence - a.confidence || a.target.localeCompare(b.target),
         );
+        choices.set(link.from, ranked.slice(0, 2));
+      }
+    }
+    const links = [],
+      warnings = [];
+    const root = (id) => plan.groupByRef.get(id)?.id || id;
+    for (const item of plan.fresh) {
+      const ranked = choices.get(item.id) || [];
       if (!ranked.length) continue;
       if (
         ranked[1] &&
@@ -307,7 +355,7 @@ export class ReadingAssociation extends ReadingMerge {
         continue;
       }
       const raw = ranked[0],
-        target = historyById.get(raw.target),
+        group = plan.groupByRef.get(raw.target),
         from = task.packet + "#" + task.id + "_item_" + item.index;
       links.push({
         id:
@@ -320,7 +368,7 @@ export class ReadingAssociation extends ReadingMerge {
         title: raw.title,
         confidence: raw.confidence,
 
-        contextRefs: [from, ...(target.group?.refs || [target.id])],
+        contextRefs: [from, ...(group?.refs || [raw.target])],
       });
     }
     return {
@@ -328,7 +376,7 @@ export class ReadingAssociation extends ReadingMerge {
       warnings,
       version: ASSOCIATION_VERSION,
       complete: true,
-      candidates: plan.history.length,
+      candidates: plan.historyCount,
     };
   }
   complete(task) {
