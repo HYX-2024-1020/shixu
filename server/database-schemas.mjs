@@ -21,6 +21,7 @@ export const TENANT_SYNC_SCHEMA = [
 `,
   },
   { version: 2, sql: "" },
+  { version: 3, sql: "" },
 ];
 export const TENANT_ATTACHMENTS_SCHEMA = [
   {
@@ -169,7 +170,20 @@ export const LEGACY_JOBS_SCHEMA = [
     fingerprint TEXT NOT NULL, request TEXT NOT NULL, state TEXT NOT NULL, output TEXT, error TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
   )`,
   },
+  { version: 2, sql: "" },
 ];
+
+export const LEGACY_JOB_ARCHIVE_SCHEMA = [{version:1,sql:`
+CREATE TABLE legacy_job_archive(id TEXT PRIMARY KEY,packet TEXT NOT NULL,source_state TEXT NOT NULL,target_state TEXT NOT NULL,request_hash TEXT NOT NULL,output_hash TEXT,source_hash TEXT NOT NULL,target_hash TEXT NOT NULL,expires INTEGER NOT NULL);
+CREATE TABLE legacy_job_disposals(id TEXT PRIMARY KEY REFERENCES legacy_job_archive(id),target_hash TEXT NOT NULL,at INTEGER NOT NULL);
+CREATE TABLE legacy_source_cleanup(packet TEXT PRIMARY KEY,before_hash TEXT NOT NULL,after_hash TEXT NOT NULL,version INTEGER NOT NULL);
+CREATE TRIGGER legacy_job_archive_no_update BEFORE UPDATE ON legacy_job_archive BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER legacy_job_archive_no_delete BEFORE DELETE ON legacy_job_archive BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER legacy_job_disposals_no_update BEFORE UPDATE ON legacy_job_disposals BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER legacy_job_disposals_no_delete BEFORE DELETE ON legacy_job_disposals BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER legacy_source_cleanup_no_update BEFORE UPDATE ON legacy_source_cleanup BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER legacy_source_cleanup_no_delete BEFORE DELETE ON legacy_source_cleanup BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+`}];
 
 export const READING_TASKS_SCHEMA = [
   {

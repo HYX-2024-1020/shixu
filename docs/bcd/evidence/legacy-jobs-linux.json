@@ -1,0 +1,23 @@
+{
+  "kind": "legacy-jobs-targeted-development",
+  "platform": "linux",
+  "directory": "/opt/shixu-bcd-test-20261101-legacy-jobs",
+  "uid": 65534,
+  "newRealProviderCalls": 0,
+  "relatedTests": 48,
+  "finalTests": 9,
+  "finalExitCode": 0,
+  "initialWrapperErrors": "PowerShell dollar expansion and CRLF; test logs pass; wrapper corrected and final explicit exit 0",
+  "sourceSha256": {
+    "server/database-schemas.mjs": "af7c537b8c9abe97494a04b04bb84ae509a2d597f2fc45e182574edc5d7aac3c",
+    "server/sync-jobs.mjs": "58aa8e26d1509d40f69f9ef336c8204e7400e5c8400d1569c2dd803ab69c2b9e",
+    "server/sync-store.mjs": "4f28b647a06e69e2f0e4c41ac896c1009cbaeb8bec20fdec8dcc04a15dc0b52c",
+    "server/sync-server.mjs": "1088f3fa41e6bce617dcc1df8a4fcabe0f8898add746fadda3dcdf7dabaadfc0",
+    "server/sync-multi-user.mjs": "64eb48086702a0a04fe83f0af84a17d6c878110cd6939a487fc45a1729866c2c",
+    "server/reading/legacy-jobs.mjs": "a3681d5e513ceccf261604bb78ad6555de9aa58d05e47878ba2a2341a06d62f8",
+    "server/reading/legacy-jobs.test.mjs": "2b06b0b1f96adcdcfa0a7dce6559bc42c50ed4789f5b598ba2582db649eea494",
+    "server/reading/legacy-jobs-clients.test.mjs": "9cc2c360dbc649fd2bc6c62a31866a6eea323996b118b1eb455282a3007a26fa",
+    "scripts/reading-client-loop.mjs": "b61c013d2bc7e8f21060032b354e28a6137474364f83371735b884e81c814871"
+  },
+  "afterFinalWriterRefinementTests": 35
+}

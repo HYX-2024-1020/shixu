@@ -267,7 +267,7 @@ export function createMultiUserService({
       });
     readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);
-    for (const row of registry.db
+    if (!readingRoutes) for (const row of registry.db
       .prepare(
         "SELECT job_id FROM ai_usage WHERE user_id=? AND state='pending'",
       )

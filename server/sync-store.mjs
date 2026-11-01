@@ -329,6 +329,10 @@ export class SyncStore {
           : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      // v4 reads authoritative user text/original bytes. Client extraction
+      // previews must never reintroduce a persistent full-text cache.
+      if (type === "put" && this.meta("legacy_jobs_v4") === "1")
+        nextData.sources = [];
       internal.beforeValidate?.();
       if (type === "put") this.validateStorage?.(nextData, current);
       if (type === "put") {

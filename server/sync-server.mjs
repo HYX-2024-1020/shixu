@@ -68,8 +68,14 @@ export function createSyncService({
     store.close();
     throw Error("ORIGINALS_V4_REQUIRED");
   }
-  const files = createAttachmentStore(store, fileLimits);
-  const jobs = createJobQueue(store, ai, jobHooks);
+  let files, jobs;
+  try {
+    files = createAttachmentStore(store, fileLimits);
+    jobs = createJobQueue(store, ai, jobHooks, { archiveLegacy: originalsV4 });
+  } catch(error) {
+    store.close();
+    throw error;
+  }
   const failures = new Map();
   const passwordHash = digest(password);
   const handleRequest = async (req, res) => {

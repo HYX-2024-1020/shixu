@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D 旧任务归档与全文副本清理（#73，整体仍未完成）
+
+Windows AccountWorkspace与微信Page/Node wx共同经签名HTTP获取七种旧任务转换状态、eligible=false/verified=false及小型待核对输出；清理sources后记录版本推进，旧任务POST拒绝，旧pending费用元数据不改。服务端不调度旧任务、不发新额度、不二次发布；未验证输出七天清理。双端实际适配专项通过，原生微信/手机/安装版未验，未新增UI窗口。[开发证据](bcd/legacy-jobs-verification.md)。
+
 ## 2026-11-01 B/C/D旧费用账本转换（#73，整体未完成）
 
 Windows AccountWorkspace与微信实际Page/Node签名HTTP共同显示旧费用待核对与最终确认后的累计消费；零预留也不自动放行，公共HTTP不能提供结算金额或导入权限。旧创建/继续token及逐代次授权阻止核对后自动消费，只有主动新操作可运行。Windows/Linux实际双端13项相关验证通过；旧5000微元风险、实际1400微元与0模型调用分列，发布包也实际导入/核对合成旧费用。真实最终账单源、原生手机/安装版仍未验；本批结束后按要求暂停。[开发证据](bcd/legacy-ledger-verification.md)。

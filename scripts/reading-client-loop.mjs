@@ -1,4 +1,6 @@
 import { ReadingLegacyMaintenance } from "../server/reading/legacy-ledger.mjs";
+import { SyncStore as LegacyStore } from "./stage-a/legacy/sync-store.mjs";
+import { createJobQueue as legacyQueue } from "./stage-a/legacy/sync-jobs.mjs";
 import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import {
@@ -51,6 +53,7 @@ export async function runClientLoop({
   historyAssociation,
   providerReceiptMetadata=false,
   legacyLedger=false,
+  legacyJobs=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -194,7 +197,20 @@ export async function runClientLoop({
   }); // Synthetic harness only, never a personal profile.
   let page;
   try {
-    const invite = service.registry.generate(1)[0].invite;
+    const invitation = service.registry.generate(1)[0];
+    const invite = invitation.invite;
+    if (legacyJobs) {
+      const old = new LegacyStore(join(directory,"server","users",invitation.userId,"workspace.sqlite"));
+      try {
+        const device = old.createDevice("synthetic-old").deviceId;
+        legacyQueue(old,null).stop();
+        old.apply(device,{id:"legacy-packet",opId:"legacy-seed",type:"put",baseVersion:0,data:{text:"canonical",sources:[{id:"input",name:"inline",text:"canonical"}],attachments:[],itemIds:["kept"],result:{summary:"",warnings:[],items:[{title:"kept paid item"}]}}},old.epoch);
+        for (const [n,state] of ["queued","running","applying","done","error","conflict","interrupted"].entries()) {
+          old.db.prepare("INSERT INTO sync_jobs VALUES(?,?,?,?,?,?,?,?,?)").run("old-job-"+n,device,"legacy-packet","a".repeat(64),JSON.stringify({id:"old-job-"+n,packetId:"legacy-packet",kind:"organize",instruction:"discarded full input"}),state,state==="applying"?JSON.stringify({result:{items:[{title:"unverified paid result"}]}}):null,"",new Date().toISOString());
+        }
+      } finally { old.close(); }
+      service.registry.db.prepare("INSERT INTO ai_usage VALUES(?,?,?,?,?,?)").run(invitation.userId,"old-job-0","a".repeat(64),"2026-10-31",5000,"pending");
+    }
     await cloud.init();
     await cloud.action("activate", { invite });
     const account = cloud.config.devices[cloud.config.active].userId;
@@ -289,6 +305,23 @@ export async function runClientLoop({
     };
     page.onLoad();
     page._activate({ ...binding, base: SERVICE_ORIGIN });
+    if(legacyJobs) {
+      await cloud.action("sync"); await page.sync();
+      for(const [n,state] of ["interrupted","interrupted","conflict","done","error","conflict","interrupted"].entries()) {
+        const windows=await cloud.request(cloud.config.active,"GET","/api/v3/jobs/old-job-"+n);
+        const mini=await page._transport("GET","/api/v3/jobs/old-job-"+n);
+        assert.equal(windows.state,state);assert.equal(mini.state,state);
+        assert.equal(windows.eligible,false);assert.equal(mini.verified,false);
+        if(n===2){assert.equal(windows.output.result.items[0].title,"unverified paid result");assert.equal(mini.output.result.items[0].title,"unverified paid result");}
+      }
+      for(const pull of [await cloud.request(cloud.config.active,"GET","/api/v4/changes?cursor=0"),await page._transport("GET","/api/v4/changes?cursor=0")]) {
+        const record=pull.records.find(r=>r.id==="legacy-packet");assert.deepEqual(record.data.sources,[]);assert.deepEqual(record.data.itemIds,["kept"]);assert.equal(record.version,2);
+      }
+      await assert.rejects(page._transport("POST","/api/v3/jobs",{id:"retry"}),e=>e.code==="CLIENT_UPGRADE_REQUIRED");
+      assert.equal(service.registry.db.prepare("SELECT state FROM ai_usage WHERE job_id='old-job-0'").get().state,"pending");
+      assert.equal(calls,0);assert.equal(parserRuns,0);
+      return {bothClientAdapters:true,realProviderCalls:0,simulatedProviderCalls:calls,states:7,noAutomaticTask:true};
+    }
     if(legacyLedger){
       await cloud.action('sync');await page.sync();
       assert.equal(cloud.status().account.wallet.unknownRisk,5000);

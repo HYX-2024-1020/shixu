@@ -1,3 +1,5 @@
+2026-11-01：恢复B/C/D开发，新增[旧任务七态与全文副本迁移](legacy-jobs-verification.md)：不自动运行、不认证旧结果，清理正文副本并推进同步游标，七天未验证输出清理、不可改删收据及双端签名HTTP验证；全集切换/安全重放等仍继续。
+
 2026-11-01：完成[旧费用账本导入与最终证据核对](legacy-ledger-verification.md)运行底层：原始预留/UTC日键不冒充usage，零额度待核对、跨日全站风险、最终证据实际结算及一次额度、旧动作/代次授权门禁。Windows/Linux联合59项、最后13项、实际双端与发布包通过；0新真实调用。真实最终账单适配器与旧任务/全集切换/安全重放仍缺。按用户要求，本批收尾后暂停。
 
 2026-11-01：补齐[任务组件版本迁移与旧写入保护](task-schema-verification.md)，共27类组件按功能初始化，双阅读版本历史事务推进、核心最小写入版本升级、V4模式丢失拒绝；Linux37及最终33项、旧付费复用、真实调用账本副本39表不变均验证。旧任务/费用数据转换及影子全集切换与完整安全重放继续。
@@ -40,7 +42,7 @@
 | B图像 | JPEG/JPG（含8种EXIF方向、顺序/渐进与严格终态）、WebP严格规范子集静态/动画、GIF逐帧/处置/时间合成、APNG逐帧合成/独立默认图及静态PNG（8/16位、1/2/4位灰度/调色板及Adam7）隔离解码/1024瓦片/像素坐标/模型输入，顶层与ZIP/RAR4/RAR5/7z包内同任务费用/恢复；[归档图像证据](archive-images-verification.md)；[PNG证据](image-verification.md)与[JPEG证据](jpeg-verification.md)合计真实API2次 | ICC/CMYK/多图等JPEG未支持特性、高级色彩；跨区域边缘文字识别质量；PDF未支持资源/字体/批注；Office未支持的图像引用/编码与布局 |
 | B归档 | ZIP、明确编码非solid RAR4/RAR5、7z含已证明块预算的solid，固定源自建工具协议2、完整预检和共享64MiB预算；[RAR4证据](rar4-verification.md) | RAR solid共享块预算，未知旧代码页/未实现RAR4特性；更大压缩成员真正流式；不得放宽安全限制假装支持 |
 | C任务/费用 | 独立账本/原子预留、usage/unknown、全站公平/每账号槽、停止generation、付费块/信封复用、分页/原子发布、根1800秒/24调用和独立水位；同投递跨修订精确复用；[语义合并及完整上游hash依赖](semantic-verification.md)；[事项对话共账](chat-verification.md)、[历史投递关联共账](association-verification.md)、独立意图/付费凭据、双端发布与恢复 | [累计历史内容已分记录/批次读取](association-stream-verification.md)，极大图结构、单记录/事项/组上下文流式及语义核对性能仍未完成；供应商可证明安全的重试（当前只对broker明确未执行的读取429有限退避） |
-| C维护恢复 | 已知时限扩展、未知费用最终证据结算/未计费、未知时间保守补计、历史检查点/无进度审计恢复的受信宿主原语；旧动作/旧新建收据门禁；[时间证据](time-audit-verification.md) | [请求/响应关联](provider-receipts-verification.md)已接真实接口；真实供应商最终账单源、真实宿主终止/活跃时间证据接线；资料回退审计；完整独立安全事件及重放保护；[28类组件及旧费用迁移底层](legacy-ledger-verification.md)已补，旧任务完整状态转换/全文副本清理、影子全集切换仍缺 |
+| C维护恢复 | 已知时限扩展、未知费用最终证据结算/未计费、未知时间保守补计、历史检查点/无进度审计恢复的受信宿主原语；旧动作/旧新建收据门禁；[时间证据](time-audit-verification.md) | [请求/响应关联](provider-receipts-verification.md)已接真实接口；真实供应商最终账单源、真实宿主终止/活跃时间证据接线；资料回退审计；完整独立安全事件及重放保护；[28类组件及旧费用迁移底层](legacy-ledger-verification.md)已补，[旧任务七态/正文副本清理](legacy-jobs-verification.md)已补，影子全集切换仍缺 |
 | D账号/原件 | 邀请/密码/旧账号claim、3 Windows+1微信和明确替换撤销、manifest原子预留/commit、500MiB/整次temporary/30+7、同hash补传/墓碑与离线锁 | [核心组件正式迁移底层](runtime-schema-verification.md)已补，完整多库切换/全域安全恢复及账号/删除/撤销重放仍缺；真实身份和原生环境的独立开发/验收证据 |
 | D双端交互 | 共同行为均评估双端，Page/Node wx与Windows AccountWorkspace签名HTTP、共享来源/范围/费用/维护/区域进度；旧专项源码Electron证据保留 | 新PNG/JPEG/RAR4窗口交互未另开本机窗口；原生微信/手机/安装版仍未验。用户最新要求优先无窗口，仅确有新UI问题才说明后启动一次针对窗口；完整必需CI照常远端 |
 
