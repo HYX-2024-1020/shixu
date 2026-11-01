@@ -292,10 +292,17 @@ scenario: try {
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
       await expect(page.getByText(auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长本投递时限/)).toBeVisible();
       await page.getByRole("button",{name:"继续",exact:true}).click();
-      await waitForPageState(page,async()=>{
-        await window.desktop.cloud("sync");
-        return (await window.desktop.cloud("status")).jobs[0].state==="done";
-      });
+      try {
+        await waitForPageState(page,async()=>{
+          await window.desktop.cloud("sync");
+          return (await window.desktop.cloud("status")).jobs[0].state==="done";
+        });
+      } catch (error) {
+        const jobs=await page.evaluate(async()=>(await window.desktop.cloud("status")).jobs.map(
+          ({state,phase,reason,error,calls,rootCalls,rootActiveMs,actions})=>({state,phase,reason,error,calls,rootCalls,rootActiveMs,actions})));
+        console.error(JSON.stringify({synthetic:true,stage:'audit-time-continue-timeout',jobs}));
+        throw error;
+      }
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
       await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
       const after=await page.evaluate(()=>window.desktop.cloud("status"));

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { sha256 } from "./material.mjs";
+import { PDF_RESOURCE_CATALOG } from "./pdf-resource-catalog.mjs";
 
 export const directory = new URL(
   `./generated-pdf-visual/${process.platform}-${process.arch}/`,
@@ -23,9 +24,10 @@ try {
     "third-party.LICENSE",
     "api.mjs",
     "core.mjs",
+    ...Object.keys(PDF_RESOURCE_CATALOG.files).map(n=>"resources/"+n),
   ];
   if (
-    manifest.protocol !== "shixu-pdf-visual/1" ||
+    manifest.protocol !== "shixu-pdf-visual/2" ||
     manifest.platform !== process.platform + "-" + process.arch ||
     manifest.pdfjs !== "6.2.108" ||
     manifest.canvas !== "1.0.13" ||

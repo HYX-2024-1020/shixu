@@ -5,6 +5,8 @@ import { mkdir, readFile, writeFile, copyFile, open } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { copyPdfResources } from "./build-pdf-resources.mjs";
+import { patchPdfFontUnicode } from "./patch-pdf-fonts.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const sha = (b, algorithm = "sha256") =>
@@ -31,6 +33,7 @@ const change = (text, before, after) => {
   return text.replace(before, after);
 };
 function compat(source) {
+  source = source.replaceAll("Math.sumPrecise(", "shixuSumPrecise(");
   source = source.replace(
     /([\w.]+)\.toHex\(\)/g,
     "Array.from($1,b=>b.toString(16).padStart(2,'0')).join('')",
@@ -45,6 +48,7 @@ function compat(source) {
   if (/getOrInsertComputed|getOrInsert\(/.test(source))
     throw Error("PDF_VISUAL_COMPAT_REVIEW_REQUIRED");
   return (
+    'import {pdfSumPrecise as shixuSumPrecise} from "../../pdf-number.mjs";\n' +
     "function shixuMap(m,k,f){if(m.has(k))return m.get(k);const v=f(k);m.set(k,v);return v;}\nfunction shixuOptionalMap(m,k,f){return m==null?undefined:shixuMap(m,k,f);}\nfunction shixuMapValue(m,k,v){if(m.has(k))return m.get(k);m.set(k,v);return v;}\n" +
     source
   );
@@ -199,6 +203,9 @@ export async function buildPdfVisual(
       fileURLToPath(import.meta.url),
       join(output, "source/build-reading-pdf-visual.mjs"),
     );
+    await copyFile(new URL("./build-pdf-resources.mjs", import.meta.url), join(output,"source/build-pdf-resources.mjs"));
+    await copyFile(new URL("./patch-pdf-fonts.mjs", import.meta.url), join(output,"source/patch-pdf-fonts.mjs"));
+    await copyFile(join(root,"server/reading/pdf-number.mjs"), join(output,"source/pdf-number.mjs"));
     let api = await readFile(
       join(root, "node_modules/pdfjs-dist/build/pdf.mjs"),
       "utf8",
@@ -260,6 +267,7 @@ export async function buildPdfVisual(
         "utf8",
       ),
     );
+    workerSource = patchPdfFontUnicode(workerSource);
     workerSource = change(
       workerSource,
       "function warn(msg) {",
@@ -282,6 +290,7 @@ export async function buildPdfVisual(
       legalComments: "inline",
     });
     await writeFile(join(output, "core.mjs"), worker.outputFiles[0].contents);
+    const resourceNames = await copyPdfResources(root, output);
     const files = {};
     for (const name of [
       "canvas.cjs",
@@ -293,10 +302,11 @@ export async function buildPdfVisual(
       "third-party.LICENSE",
       "api.mjs",
       "core.mjs",
+      ...resourceNames,
     ])
       files[name] = sha(await readFile(join(output, name)));
     const manifest = {
-      protocol: "shixu-pdf-visual/1",
+      protocol: "shixu-pdf-visual/2",
       platform,
       pdfjs: "6.2.108",
       canvas: "1.0.13",

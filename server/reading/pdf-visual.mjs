@@ -1,7 +1,8 @@
 import { sha256 } from "./material.mjs";
 import { encodePng } from "./image.mjs";
+import { createPdfResources } from "./pdf-resources.mjs";
 
-export const PDF_VISUAL_VERSION = "pdf-visual/1;pdfjs/6.2.108;canvas/1.0.13";
+export const PDF_VISUAL_VERSION = "pdf-visual/2;pdfjs/6.2.108;canvas/1.0.13;resources/1";
 export function validatePdfVisualWindow(value) {
   if (value === undefined) return undefined;
   if (
@@ -18,11 +19,6 @@ export function validatePdfVisualWindow(value) {
     throw Error("INVALID_PDF_VISUAL_WINDOW");
   return { page: value.page, tile: value.tile, offset: value.offset };
 }
-const noResource = class {
-  fetch() {
-    throw Error("PDF_EXTERNAL_RESOURCE_UNSUPPORTED");
-  }
-};
 export async function readPdfVisual(bytes, result, window) {
   window = validatePdfVisualWindow(window);
   if (!window) throw Error("INVALID_PDF_VISUAL_WINDOW");
@@ -89,6 +85,7 @@ export async function readPdfVisual(bytes, result, window) {
     );
     takeWorkerWarningCount();
     globalThis.pdfjsWorker = { WorkerMessageHandler };
+    const resources = createPdfResources();
     loading = getDocument({
       data: Uint8Array.from(bytes),
       verbosity: 0,
@@ -105,9 +102,8 @@ export async function readPdfVisual(bytes, result, window) {
       disableRange: true,
       maxImageSize: 32_000_000,
       CanvasFactory: BoundedCanvasFactory,
-      CMapReaderFactory: noResource,
-      StandardFontDataFactory: noResource,
-      WasmFactory: noResource,
+      cMapPacked: true,
+      BinaryDataFactory: resources.BinaryDataFactory,
       canvasMaxAreaInBytes: 128_000_000,
     });
     document = await loading.promise;
@@ -144,6 +140,7 @@ export async function readPdfVisual(bytes, result, window) {
       } finally {
         stream.releaseLock();
       }
+      if (resources.failed) throw Error("PDF_RESOURCE_UNAVAILABLE");
       if (limited) missing("PDF_RESOURCE_LIMIT");
       else addText(text.endsWith("\n") ? text : text + "\n");
     }
@@ -165,6 +162,7 @@ export async function readPdfVisual(bytes, result, window) {
     if (totalTiles > 64) throw Error("PDF_VISUAL_PIXEL_LIMIT");
     if (window.tile > totalTiles) throw Error("PDF_CURSOR_OUT_OF_RANGE");
     const operators = await page.getOperatorList({ annotationMode: 0 });
+    if (resources.failed) throw Error("PDF_RESOURCE_UNAVAILABLE");
     for (let n = 0; n < operators.fnArray.length; n++)
       if (operators.fnArray[n] === OPS.setFont) {
         const font = page.commonObjs.get(operators.argsArray[n][0]);

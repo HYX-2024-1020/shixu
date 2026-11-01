@@ -1,3 +1,5 @@
+2026-11-02：新增[PDF固定字体/CMap与Node24兼容](pdf-font-resources-verification.md)：185固定资源/完整许可、实际BinaryDataFactory白名单与有界读取、14标准字体轮廓、中文映射、Zapf语义及精确求和。Windows完整536项（535通过、1跳过）、同步125，Linux普通UID27/受保护broker两链/自包含发布通过。注释、CJK缺失轮廓、流式及其余BCD继续；RAR前头CI失败保留，本头待独立核对。
+
 2026-11-01：新增[真实RAR4/RAR5 solid共享字典](rar-solid-verification.md)：完整连续块/物理字节核算、RAR5全原始头预检及拒绝隐藏记录、两种原包全文与末件接续、双端停止/补传/付费复用、Linux普通UID/受保护broker/自包含发布通过。Windows完整526项（525通过、1跳过），Linux29项；真正大成员流式及其余BCD继续。
 
 2026-11-01：新增[真实宿主写入登记恢复与七天副本清理](data-control-verification.md)：内核进程代次/namespace、独立控制库和意图重放，保留unknown/累计；旧根空封锁库、历史版本与失败影子精确路径清理、过期拒激活及首次失败重建。指针2绑定独立激活记录；完整安全事件/逐步骤时间/最终账单及材料流式仍继续。

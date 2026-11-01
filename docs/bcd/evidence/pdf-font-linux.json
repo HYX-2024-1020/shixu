@@ -1,0 +1,111 @@
+{
+  "resource": [
+    {
+      "cmap": false,
+      "inputBytes": 614,
+      "inputHash": "4836bd33138e938a8280193a95f7748f6eb2dc2f3a06d27a66b7a1a122d5ac27",
+      "elapsedMs": 987.1340430000018,
+      "parseMs": 797.297106,
+      "serializationAndTransferMs": 2.965887000000066,
+      "maxRssKiB": 103808
+    },
+    {
+      "cmap": true,
+      "inputBytes": 811,
+      "inputHash": "7c3e6b170674036d2c34b9979daa11f7c37d1ff9782ac7e7c0010c52e319f111",
+      "elapsedMs": 716.7775379999985,
+      "parseMs": 501.513928,
+      "serializationAndTransferMs": 2.811764999999923,
+      "maxRssKiB": 91744
+    }
+  ],
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 765,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 879,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    }
+  ],
+  "validation": {
+    "tree": "/opt/shixu-bcd-test-20261102-pdf-fonts",
+    "uid": 65534,
+    "testsPassed": 27,
+    "logs": [
+      "text-build.txt (missing build-only esbuild, no host install)",
+      "tests-final.txt (21 passed)",
+      "tests-last.txt (27 passed)",
+      "broker-final.txt (client capability missing)",
+      "broker-last.txt (native runtime dependency missing)",
+      "broker-native.txt (both clients and isolated reads passed)"
+    ],
+    "crossBuild": "Windows esbuild with exact SRI-verified linux-x64 canvas package; executed under Linux ordinary UID and protected systemd worker",
+    "nativeHash": "d069aa85c077131fec7e75eaabc2f33a1bfb61f7a626f2f371d778b426489e3b",
+    "workingTreeHashes": {
+      "server/reading/pdf.mjs": "98cb30c812c794c5c09a4ec4a942b34c64a2db68eb5ce172025d2ccaf4dc20ea",
+      "server/reading/pdf-visual.mjs": "417b6c639b07c2acab647f283f17c81f21ec36b5b7bd747ec830c66fd28bc072",
+      "server/reading/pdf-resources.mjs": "c61a9897392eca2367b4ac3513d5cdbbcb4b217f39b1096bc6ec11de5b2de5ce",
+      "server/reading/pdf-resource-catalog.mjs": "5ae3008943b575fff5d9391572b8ab05c8d82fceddf509e8573e0d6113044627",
+      "server/reading/pdf-number.mjs": "0d3048c07a0fb3d15ae67ef64403ea8288633a21199d6b2ca8b0301da0f69e8d",
+      "scripts/reading-prepare-runtime.py": "fb54581bd5088fe84f4ed72b4386205ea4cf0e1b99493b4733626ea228e0eb8d"
+    }
+  }
+}

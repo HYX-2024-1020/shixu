@@ -1,8 +1,9 @@
 import { getDocument } from "./pdf-api.mjs";
 import { WorkerMessageHandler } from "./pdf-core.mjs";
 import { validatePdfWindow, PDF_WINDOW_PAGES } from "./pdf-window.mjs";
+import { createPdfResources } from "./pdf-resources.mjs";
 
-export const PDF_READER_VERSION = "pdf-text/3;pdfjs/6.2.108";
+export const PDF_READER_VERSION = "pdf-text/4;pdfjs/6.2.108;resources/1";
 // A resource ceiling, not a document/page limit. Unvisited pages are reported.
 export const PDF_TEXT_UNITS = 8 * 1024 * 1024;
 
@@ -18,6 +19,7 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
     return;
   }
   globalThis.pdfjsWorker = { WorkerMessageHandler };
+  const resources = createPdfResources();
   const loading = getDocument({
     data: Uint8Array.from(bytes),
     verbosity: 0,
@@ -32,17 +34,8 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
     disableAutoFetch: true,
     disableStream: true,
     disableRange: true,
-    // Unsupported CMaps/fonts must fail a page instead of consulting the host.
-    CMapReaderFactory: class {
-      fetch() {
-        throw Error("PDF_CMAP_UNAVAILABLE");
-      }
-    },
-    StandardFontDataFactory: class {
-      fetch() {
-        throw Error("PDF_FONT_UNAVAILABLE");
-      }
-    },
+    cMapPacked: true,
+    BinaryDataFactory: resources.BinaryDataFactory,
   });
   let document;
   let units = 0;
@@ -98,6 +91,7 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
         } finally {
           stream.releaseLock();
         }
+        if (resources.failed) throw Error("PDF_RESOURCE_UNAVAILABLE");
         if (overLimit) {
           missing("PDF_RESOURCE_LIMIT", { kind: "pdf", page: pageNumber, pageEnd: document.numPages });
           break;
@@ -114,7 +108,7 @@ export async function readPdf(bytes, { add, missing, textUnitLimit = PDF_TEXT_UN
         } else missing("PDF_NO_TEXT", range);
       } catch (e) {
         missing(
-          e.message === "PDF_RESOURCE_LIMIT" ? e.message : "PDF_PAGE_FAILED",
+          ["PDF_RESOURCE_LIMIT","PDF_RESOURCE_UNAVAILABLE"].includes(e.message) ? e.message : "PDF_PAGE_FAILED",
           {
             kind: "pdf",
             page: pageNumber,

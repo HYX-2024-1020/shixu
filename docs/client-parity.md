@@ -1,3 +1,7 @@
+## 2026-11-02 B/C/D PDF固定字体/CMap（#73，整体未完成）
+
+Windows AccountWorkspace与微信实际Page/Node wx共用本地固定资源、文字/视觉语义和资源不可用提示。两页PDF/ZIP内PDF签名HTTP停止/补传、页图与来源覆盖、修订新增1次且复用2块通过；Linux普通UID及受保护broker同链通过。mini已重新生成/核对，同步125通过；未验安装版/原生微信/手机，本批无新UI窗口。真实API新增0。[开发证据](bcd/pdf-font-resources-verification.md)。
+
 ## 2026-11-01 B/C/D RAR4/RAR5 solid共享字典（#73，整体未完成）
 
 Windows AccountWorkspace与微信实际Page/Node wx共用完整共享块核算、包内来源/覆盖和付费复用；两原包签名HTTP停止/继续、原件过期或删除补传、9条路径/尾件、修订新增1次且复用9块通过。Linux普通UID、受保护broker和自包含发布通过；无UI重跑，未验安装版/原生微信/手机。真实API新增0。[开发证据](bcd/rar-solid-verification.md)。

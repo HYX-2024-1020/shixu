@@ -955,6 +955,7 @@ var reasons = {
   PDF_VISUAL_TOOL_UNSUPPORTED: "服务端固定页面渲染工具未就绪",
   PDF_VISUAL_PIXEL_LIMIT: "PDF页面或中间画布超过隔离像素范围，本页视觉未完成",
   PDF_VISUAL_FONT_UNSUPPORTED: "页面缺少必要字体轮廓，本页视觉未完整读取",
+  PDF_RESOURCE_UNAVAILABLE: "PDF所需字体或字符映射不可用，相应内容尚未读取",
   PDF_VISUAL_RENDER_WARNING: "页面渲染存在缺失或不支持内容，本页视觉未完整读取",
   PDF_VISUAL_RGB_BOUNDS: "页面图像样本长度与声明不符，本页视觉未完成",
   PDF_VISUAL_RENDER_FAILED: "PDF页面渲染失败，本页视觉未完成",
