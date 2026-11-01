@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { TENANT_ORIGINALS_SCHEMA } from './database-schemas.mjs';
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
 
@@ -53,13 +55,14 @@ export class OriginalStore {
       .prepare("SELECT value FROM sync_meta WHERE key='originals_v4'")
       .get()?.value;
     if (version && version !== "1") throw Error("ORIGINALS_SCHEMA_UNSUPPORTED");
-    this.db
-      .exec(`CREATE TABLE IF NOT EXISTS original_submissions(id TEXT PRIMARY KEY,packet TEXT NOT NULL,fingerprint TEXT NOT NULL,manifest TEXT NOT NULL,mode TEXT NOT NULL,state TEXT NOT NULL,reserved INTEGER NOT NULL,until_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS original_files(packet TEXT NOT NULL,id TEXT NOT NULL,hash TEXT NOT NULL,name TEXT NOT NULL,type TEXT NOT NULL,size INTEGER NOT NULL,mode TEXT NOT NULL,state TEXT NOT NULL,expires INTEGER,cleanup INTEGER,version INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(packet,id));
-      CREATE TABLE IF NOT EXISTS original_actions(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,response TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS original_commits(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS original_file_submissions(packet TEXT NOT NULL,id TEXT NOT NULL,submission TEXT NOT NULL,PRIMARY KEY(packet,id));
-      CREATE TABLE IF NOT EXISTS original_trash(packet TEXT PRIMARY KEY,cleanup INTEGER NOT NULL);`);
+    const originalTable = !!this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE name='original_files'")
+      .get();
+    if (!!version !== originalTable)
+      throw Error("DATABASE_STATE_RECONCILIATION");
+    ensureDatabaseSchema(this.db, "tenant-originals", TENANT_ORIGINALS_SCHEMA, {
+      now: this.now,
+    });
     this.db
       .prepare("INSERT OR IGNORE INTO sync_meta VALUES('originals_v4','1')")
       .run();

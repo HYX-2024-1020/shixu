@@ -1,0 +1,498 @@
+{
+  "kind": "runtime-core-schema-development",
+  "testedAt": "2026-11-01T06:20:38.536Z",
+  "uid": null,
+  "node": "v24.20.0",
+  "rehearsals": [
+    {
+      "kind": "synthetic-runtime-core-schema-rehearsal",
+      "legacySource": "aad190373781a52454a6875426d46b2cf0c8fcd5",
+      "failAfter": "",
+      "interruptedAndResumed": false,
+      "schemaReviews": [
+        {
+          "component": "accounts-core",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "432c482dcbae752e159ded24a5554983c55b6c53bc868c8e9eba8db017247a74",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "160647e9003efbb6b3bd0ecbcb06b6eeb102b37c23716cea2b2133bbfa3bd3db",
+          "planHash": "49d463d80c8c169ab74ea8084a2879c30473b353b7edf32dc695566612067c7d"
+        },
+        {
+          "component": "accounts-auth",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "a476333b397134b4cf726273d02f1881d69bbd5a34b17cc004c042b04405bac5",
+          "planHash": "b9bfe7d4bbbabf216f9841d8e6e0ac81dd133547b6ef5814ce9f7701e7421e79"
+        },
+        {
+          "component": "tenant-sync",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "ed1e115129d96c07dcfa3d6f43bc7b5660973ed5cec60ec526da6ed95dd47919",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "567787568ad386112905a63c773b2166f1cc2736418a9b6ab8ee87bec64150a7",
+          "planHash": "b0400927eb2050fd2d0f650d8dc6bc8188cfbde8b5338469908ec6d5f95b42ae"
+        },
+        {
+          "component": "tenant-attachments",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "f95121ec9317ce92525d2a102de8e9d90f4a5d11357199159218a64970bed79b",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "20ea9283b8a0ef030230cdc97cdb3a5c81cadbeea709b8e4074b52884de48fd7",
+          "planHash": "8e1fcb6dd8a77bc44134c9f5386d826e9664a2a3f0fccdf701d4d9203d3eaa52"
+        },
+        {
+          "component": "tenant-originals",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "c3ba0ee1f5c73ad5d4e3b5d6177a1dfc661d361b7f9d6c2c701dc2c20a806241",
+          "planHash": "c1cc01ee3086999a7d84bf6481109930e26979a9f392d6820586c9cc7a7f34ed"
+        },
+        {
+          "component": "ledger-core",
+          "currentVersion": 0,
+          "targetVersion": 2,
+          "action": "adopt",
+          "schemaHash": "cacec66a5f09d2fe771db4c03c6d9983fab00eb4c1726abc4cd60f1862588018",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "f573354b4d4df303eb399c958c7c7a1d123ca749bd6f1084f2dffef3f484a05e",
+          "planHash": "9179c7dd4eb19820e3bffd30ab6e9a4f36bf4c958a184d591239bd82c6776de0"
+        },
+        {
+          "component": "ledger-cost",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "695e181d5c18cb81daedfef146f4ce7ccd8f78749e38f0f92137ec04c76fe955",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "4c565d5e0538921a2099fd8e02111f64fcf2e7a44adc3b398014eba8c2b4f7b4",
+          "planHash": "b96eec9fdccbfa36ef6207abcc6f91bef9c38345bdd324d962a43e969730a7d3"
+        },
+        {
+          "component": "ledger-time",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "d6f45a3a477473b4f61c7c311fac2d390ce6bceb7e81c4815d03c19f8cc7e6ee",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "5d0b758ba9233a01cb95a3366faf055bf7542f24b0bcd66bcf8638432fa72157",
+          "planHash": "6c034d99afbc01152656315f2789df8f27b77f52697b34cf087ac75f8e021208"
+        },
+        {
+          "component": "ledger-checkpoint",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "4a94a502a3d5a1f50be37af08f9c3589c790cdca874d7003dd7cd32a6c4503c3",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "1d32f83709377874b4241cae89d289e499914f7dbcdf35b8969f00d56ba561f0",
+          "planHash": "4b85520de61b33779fbead8daa8c047b9915555011be52edf3c02ce73036d36d"
+        }
+      ],
+      "accountsPreserved": true,
+      "revocationPreserved": true,
+      "slots": 2,
+      "tenantDataAndBlobPreserved": true,
+      "epochAndOperationsPreserved": true,
+      "removedRecordPreserved": true,
+      "originalState": "legacy_pending_notice",
+      "legacySpentMicros": 14,
+      "unknownRiskMicros": 1000,
+      "initialGrantMicros": 20000000,
+      "noDuplicateGrants": true,
+      "repeatedStartupPreserved": true,
+      "boundaries": [
+        "Core component schemas only; not all legacy job/state conversion",
+        "No production or caller-provided directory",
+        "No shadow-set switch or global safety replay",
+        "No live API or final B/C/D acceptance"
+      ]
+    },
+    {
+      "kind": "synthetic-runtime-core-schema-rehearsal",
+      "legacySource": "aad190373781a52454a6875426d46b2cf0c8fcd5",
+      "failAfter": "accounts",
+      "interruptedAndResumed": true,
+      "schemaReviews": [
+        {
+          "component": "accounts-core",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "432c482dcbae752e159ded24a5554983c55b6c53bc868c8e9eba8db017247a74",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "160647e9003efbb6b3bd0ecbcb06b6eeb102b37c23716cea2b2133bbfa3bd3db",
+          "planHash": "49d463d80c8c169ab74ea8084a2879c30473b353b7edf32dc695566612067c7d"
+        },
+        {
+          "component": "accounts-auth",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "a476333b397134b4cf726273d02f1881d69bbd5a34b17cc004c042b04405bac5",
+          "planHash": "b9bfe7d4bbbabf216f9841d8e6e0ac81dd133547b6ef5814ce9f7701e7421e79"
+        },
+        {
+          "component": "tenant-sync",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "ed1e115129d96c07dcfa3d6f43bc7b5660973ed5cec60ec526da6ed95dd47919",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "567787568ad386112905a63c773b2166f1cc2736418a9b6ab8ee87bec64150a7",
+          "planHash": "b0400927eb2050fd2d0f650d8dc6bc8188cfbde8b5338469908ec6d5f95b42ae"
+        },
+        {
+          "component": "tenant-attachments",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "f95121ec9317ce92525d2a102de8e9d90f4a5d11357199159218a64970bed79b",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "20ea9283b8a0ef030230cdc97cdb3a5c81cadbeea709b8e4074b52884de48fd7",
+          "planHash": "8e1fcb6dd8a77bc44134c9f5386d826e9664a2a3f0fccdf701d4d9203d3eaa52"
+        },
+        {
+          "component": "tenant-originals",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "c3ba0ee1f5c73ad5d4e3b5d6177a1dfc661d361b7f9d6c2c701dc2c20a806241",
+          "planHash": "c1cc01ee3086999a7d84bf6481109930e26979a9f392d6820586c9cc7a7f34ed"
+        },
+        {
+          "component": "ledger-core",
+          "currentVersion": 0,
+          "targetVersion": 2,
+          "action": "adopt",
+          "schemaHash": "cacec66a5f09d2fe771db4c03c6d9983fab00eb4c1726abc4cd60f1862588018",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "f573354b4d4df303eb399c958c7c7a1d123ca749bd6f1084f2dffef3f484a05e",
+          "planHash": "9179c7dd4eb19820e3bffd30ab6e9a4f36bf4c958a184d591239bd82c6776de0"
+        },
+        {
+          "component": "ledger-cost",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "695e181d5c18cb81daedfef146f4ce7ccd8f78749e38f0f92137ec04c76fe955",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "4c565d5e0538921a2099fd8e02111f64fcf2e7a44adc3b398014eba8c2b4f7b4",
+          "planHash": "b96eec9fdccbfa36ef6207abcc6f91bef9c38345bdd324d962a43e969730a7d3"
+        },
+        {
+          "component": "ledger-time",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "d6f45a3a477473b4f61c7c311fac2d390ce6bceb7e81c4815d03c19f8cc7e6ee",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "5d0b758ba9233a01cb95a3366faf055bf7542f24b0bcd66bcf8638432fa72157",
+          "planHash": "6c034d99afbc01152656315f2789df8f27b77f52697b34cf087ac75f8e021208"
+        },
+        {
+          "component": "ledger-checkpoint",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "4a94a502a3d5a1f50be37af08f9c3589c790cdca874d7003dd7cd32a6c4503c3",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "1d32f83709377874b4241cae89d289e499914f7dbcdf35b8969f00d56ba561f0",
+          "planHash": "4b85520de61b33779fbead8daa8c047b9915555011be52edf3c02ce73036d36d"
+        }
+      ],
+      "accountsPreserved": true,
+      "revocationPreserved": true,
+      "slots": 2,
+      "tenantDataAndBlobPreserved": true,
+      "epochAndOperationsPreserved": true,
+      "removedRecordPreserved": true,
+      "originalState": "legacy_pending_notice",
+      "legacySpentMicros": 14,
+      "unknownRiskMicros": 1000,
+      "initialGrantMicros": 20000000,
+      "noDuplicateGrants": true,
+      "repeatedStartupPreserved": true,
+      "boundaries": [
+        "Core component schemas only; not all legacy job/state conversion",
+        "No production or caller-provided directory",
+        "No shadow-set switch or global safety replay",
+        "No live API or final B/C/D acceptance"
+      ]
+    },
+    {
+      "kind": "synthetic-runtime-core-schema-rehearsal",
+      "legacySource": "aad190373781a52454a6875426d46b2cf0c8fcd5",
+      "failAfter": "tenant",
+      "interruptedAndResumed": true,
+      "schemaReviews": [
+        {
+          "component": "accounts-core",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "432c482dcbae752e159ded24a5554983c55b6c53bc868c8e9eba8db017247a74",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "160647e9003efbb6b3bd0ecbcb06b6eeb102b37c23716cea2b2133bbfa3bd3db",
+          "planHash": "49d463d80c8c169ab74ea8084a2879c30473b353b7edf32dc695566612067c7d"
+        },
+        {
+          "component": "accounts-auth",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "a476333b397134b4cf726273d02f1881d69bbd5a34b17cc004c042b04405bac5",
+          "planHash": "b9bfe7d4bbbabf216f9841d8e6e0ac81dd133547b6ef5814ce9f7701e7421e79"
+        },
+        {
+          "component": "tenant-sync",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "ed1e115129d96c07dcfa3d6f43bc7b5660973ed5cec60ec526da6ed95dd47919",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "567787568ad386112905a63c773b2166f1cc2736418a9b6ab8ee87bec64150a7",
+          "planHash": "b0400927eb2050fd2d0f650d8dc6bc8188cfbde8b5338469908ec6d5f95b42ae"
+        },
+        {
+          "component": "tenant-attachments",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "f95121ec9317ce92525d2a102de8e9d90f4a5d11357199159218a64970bed79b",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "20ea9283b8a0ef030230cdc97cdb3a5c81cadbeea709b8e4074b52884de48fd7",
+          "planHash": "8e1fcb6dd8a77bc44134c9f5386d826e9664a2a3f0fccdf701d4d9203d3eaa52"
+        },
+        {
+          "component": "tenant-originals",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "c3ba0ee1f5c73ad5d4e3b5d6177a1dfc661d361b7f9d6c2c701dc2c20a806241",
+          "planHash": "c1cc01ee3086999a7d84bf6481109930e26979a9f392d6820586c9cc7a7f34ed"
+        },
+        {
+          "component": "ledger-core",
+          "currentVersion": 0,
+          "targetVersion": 2,
+          "action": "adopt",
+          "schemaHash": "cacec66a5f09d2fe771db4c03c6d9983fab00eb4c1726abc4cd60f1862588018",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "f573354b4d4df303eb399c958c7c7a1d123ca749bd6f1084f2dffef3f484a05e",
+          "planHash": "9179c7dd4eb19820e3bffd30ab6e9a4f36bf4c958a184d591239bd82c6776de0"
+        },
+        {
+          "component": "ledger-cost",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "695e181d5c18cb81daedfef146f4ce7ccd8f78749e38f0f92137ec04c76fe955",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "4c565d5e0538921a2099fd8e02111f64fcf2e7a44adc3b398014eba8c2b4f7b4",
+          "planHash": "b96eec9fdccbfa36ef6207abcc6f91bef9c38345bdd324d962a43e969730a7d3"
+        },
+        {
+          "component": "ledger-time",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "d6f45a3a477473b4f61c7c311fac2d390ce6bceb7e81c4815d03c19f8cc7e6ee",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "5d0b758ba9233a01cb95a3366faf055bf7542f24b0bcd66bcf8638432fa72157",
+          "planHash": "6c034d99afbc01152656315f2789df8f27b77f52697b34cf087ac75f8e021208"
+        },
+        {
+          "component": "ledger-checkpoint",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "4a94a502a3d5a1f50be37af08f9c3589c790cdca874d7003dd7cd32a6c4503c3",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "1d32f83709377874b4241cae89d289e499914f7dbcdf35b8969f00d56ba561f0",
+          "planHash": "4b85520de61b33779fbead8daa8c047b9915555011be52edf3c02ce73036d36d"
+        }
+      ],
+      "accountsPreserved": true,
+      "revocationPreserved": true,
+      "slots": 2,
+      "tenantDataAndBlobPreserved": true,
+      "epochAndOperationsPreserved": true,
+      "removedRecordPreserved": true,
+      "originalState": "legacy_pending_notice",
+      "legacySpentMicros": 14,
+      "unknownRiskMicros": 1000,
+      "initialGrantMicros": 20000000,
+      "noDuplicateGrants": true,
+      "repeatedStartupPreserved": true,
+      "boundaries": [
+        "Core component schemas only; not all legacy job/state conversion",
+        "No production or caller-provided directory",
+        "No shadow-set switch or global safety replay",
+        "No live API or final B/C/D acceptance"
+      ]
+    },
+    {
+      "kind": "synthetic-runtime-core-schema-rehearsal",
+      "legacySource": "aad190373781a52454a6875426d46b2cf0c8fcd5",
+      "failAfter": "ledger",
+      "interruptedAndResumed": true,
+      "schemaReviews": [
+        {
+          "component": "accounts-core",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "432c482dcbae752e159ded24a5554983c55b6c53bc868c8e9eba8db017247a74",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "160647e9003efbb6b3bd0ecbcb06b6eeb102b37c23716cea2b2133bbfa3bd3db",
+          "planHash": "49d463d80c8c169ab74ea8084a2879c30473b353b7edf32dc695566612067c7d"
+        },
+        {
+          "component": "accounts-auth",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "a476333b397134b4cf726273d02f1881d69bbd5a34b17cc004c042b04405bac5",
+          "planHash": "b9bfe7d4bbbabf216f9841d8e6e0ac81dd133547b6ef5814ce9f7701e7421e79"
+        },
+        {
+          "component": "tenant-sync",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "ed1e115129d96c07dcfa3d6f43bc7b5660973ed5cec60ec526da6ed95dd47919",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "567787568ad386112905a63c773b2166f1cc2736418a9b6ab8ee87bec64150a7",
+          "planHash": "b0400927eb2050fd2d0f650d8dc6bc8188cfbde8b5338469908ec6d5f95b42ae"
+        },
+        {
+          "component": "tenant-attachments",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "f95121ec9317ce92525d2a102de8e9d90f4a5d11357199159218a64970bed79b",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "20ea9283b8a0ef030230cdc97cdb3a5c81cadbeea709b8e4074b52884de48fd7",
+          "planHash": "8e1fcb6dd8a77bc44134c9f5386d826e9664a2a3f0fccdf701d4d9203d3eaa52"
+        },
+        {
+          "component": "tenant-originals",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "create",
+          "schemaHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "c3ba0ee1f5c73ad5d4e3b5d6177a1dfc661d361b7f9d6c2c701dc2c20a806241",
+          "planHash": "c1cc01ee3086999a7d84bf6481109930e26979a9f392d6820586c9cc7a7f34ed"
+        },
+        {
+          "component": "ledger-core",
+          "currentVersion": 0,
+          "targetVersion": 2,
+          "action": "adopt",
+          "schemaHash": "cacec66a5f09d2fe771db4c03c6d9983fab00eb4c1726abc4cd60f1862588018",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "f573354b4d4df303eb399c958c7c7a1d123ca749bd6f1084f2dffef3f484a05e",
+          "planHash": "9179c7dd4eb19820e3bffd30ab6e9a4f36bf4c958a184d591239bd82c6776de0"
+        },
+        {
+          "component": "ledger-cost",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "695e181d5c18cb81daedfef146f4ce7ccd8f78749e38f0f92137ec04c76fe955",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "4c565d5e0538921a2099fd8e02111f64fcf2e7a44adc3b398014eba8c2b4f7b4",
+          "planHash": "b96eec9fdccbfa36ef6207abcc6f91bef9c38345bdd324d962a43e969730a7d3"
+        },
+        {
+          "component": "ledger-time",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "d6f45a3a477473b4f61c7c311fac2d390ce6bceb7e81c4815d03c19f8cc7e6ee",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "5d0b758ba9233a01cb95a3366faf055bf7542f24b0bcd66bcf8638432fa72157",
+          "planHash": "6c034d99afbc01152656315f2789df8f27b77f52697b34cf087ac75f8e021208"
+        },
+        {
+          "component": "ledger-checkpoint",
+          "currentVersion": 0,
+          "targetVersion": 1,
+          "action": "adopt",
+          "schemaHash": "4a94a502a3d5a1f50be37af08f9c3589c790cdca874d7003dd7cd32a6c4503c3",
+          "historyHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "migrationsHash": "1d32f83709377874b4241cae89d289e499914f7dbcdf35b8969f00d56ba561f0",
+          "planHash": "4b85520de61b33779fbead8daa8c047b9915555011be52edf3c02ce73036d36d"
+        }
+      ],
+      "accountsPreserved": true,
+      "revocationPreserved": true,
+      "slots": 2,
+      "tenantDataAndBlobPreserved": true,
+      "epochAndOperationsPreserved": true,
+      "removedRecordPreserved": true,
+      "originalState": "legacy_pending_notice",
+      "legacySpentMicros": 14,
+      "unknownRiskMicros": 1000,
+      "initialGrantMicros": 20000000,
+      "noDuplicateGrants": true,
+      "repeatedStartupPreserved": true,
+      "boundaries": [
+        "Core component schemas only; not all legacy job/state conversion",
+        "No production or caller-provided directory",
+        "No shadow-set switch or global safety replay",
+        "No live API or final B/C/D acceptance"
+      ]
+    }
+  ],
+  "hashes": {
+    "server/database-schema.mjs": "06f1b3fbb004d310dd25f8f5cd7ac1405e3248a8d4f2c74a5afdc33436a9f0be",
+    "server/database-schemas.mjs": "ec04e86e5aa1cda199adfb7e71e1ebd4633b59965524b422327017c39439e5e9",
+    "server/reading/schema.mjs": "b4a209ea653f8b39b03acee8c1db875cc9ef449ec8ea5fe94a638eeff0dbdcf4",
+    "server/sync-store.mjs": "b20e4d1ae5d3a5cf110785b22101f8cb2478a049b767d83834123c4a0d51f531",
+    "server/sync-accounts.mjs": "a15898a75f4e47f72ec1960fe79302ec0226e37dba7a4c51b2a970fc44532dba",
+    "server/accounts-v4.mjs": "d94ee1bd4a45697f38fb3e4ae9b7924115b2b8e7443738a2ed2fa2821bf68f7e",
+    "server/originals.mjs": "7035d4231217edb7054abc857f6c995e6ae62bac6b508861ca90df84076dcafb",
+    "server/reading/ledger.mjs": "616add3634e8dfbd3eb2eb7ac3bb8800a52663099ce902146249bd631bcf3f17",
+    "scripts/runtime-schema-rehearsal.mjs": "839464c92c1c956088d5e9f73155b03722ff262cfe52ae3f2fd605c39aa12e20"
+  },
+  "boundaries": [
+    "Nine runtime core components only",
+    "No caller-provided directory or private data",
+    "No all-database atomic switch or complete state replay",
+    "No provider API calls, native client or final B/C/D acceptance"
+  ],
+  "validation": {
+    "readingSuiteBeforeFinalSqlLiteralTightening": 451,
+    "sync": 125,
+    "release": 4,
+    "stageADesign": 20,
+    "finalSchemaSpecialized": 16,
+    "earlierSchemaWindowHistoryReceiptsJoint": 54,
+    "allNineReviewPlansEqualOnWindowsAndLinux": true
+  }
+}

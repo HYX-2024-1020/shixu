@@ -1,3 +1,4 @@
+import {normalizeDatabaseSql}from '../database-schema.mjs';
 import { sha256 } from "./material.mjs";
 import { DatabaseSync } from "node:sqlite";
 
@@ -7,12 +8,7 @@ export function assertReadingSchema(ledger, sql) {
   const expected = new DatabaseSync(":memory:");
   try {
     expected.exec(sql);
-    const normalize = (v) =>
-      v
-        .replace(/\bIF NOT EXISTS\s+/gi, "")
-        .replace(/;\s*$/, "")
-        .replace(/\s+/g, " ")
-        .trim();
+    const normalize=normalizeDatabaseSql;
     for (const row of expected
       .prepare(
         "SELECT name,type,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -43,8 +39,7 @@ export function applyReadingMigrations(ledger, component, migrations) {
   )
     throw Error("INVALID_READING_MIGRATION");
   return ledger.transaction(() => {
-    const normalize = (sql) =>
-      sql.replace(/;\s*$/, "").replace(/\s+/g, " ").trim();
+    const normalize=normalizeDatabaseSql;
     const definitions = [
       [
         "reading_schema_versions",

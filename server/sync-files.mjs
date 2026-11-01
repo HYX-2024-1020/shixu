@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { TENANT_ATTACHMENTS_SCHEMA } from './database-schemas.mjs';
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
 
@@ -19,9 +21,7 @@ export function createAttachmentStore(store, limits = {}) {
     if (!Number.isSafeInteger(value) || value < 1)
       throw new Error("附件容量配置必须为正整数");
   const db = store.db;
-  db.exec(`CREATE TABLE IF NOT EXISTS sync_blobs(hash TEXT PRIMARY KEY,size INTEGER NOT NULL,body BLOB NOT NULL);
-    CREATE TABLE IF NOT EXISTS sync_attachments(packet_id TEXT NOT NULL REFERENCES sync_records(id),id TEXT NOT NULL,hash TEXT NOT NULL REFERENCES sync_blobs(hash),name TEXT NOT NULL,type TEXT NOT NULL,PRIMARY KEY(packet_id,id));
-    CREATE INDEX IF NOT EXISTS sync_attachments_hash ON sync_attachments(hash);`);
+  ensureDatabaseSchema(db, "tenant-attachments", TENANT_ATTACHMENTS_SCHEMA);
   const lookup = (packetId, id) =>
     db
       .prepare(

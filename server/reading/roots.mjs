@@ -13,9 +13,6 @@ export class ReadingRoots {
       CREATE TABLE IF NOT EXISTS reading_root_progress(root TEXT NOT NULL,fingerprint TEXT NOT NULL,PRIMARY KEY(root,fingerprint));
       CREATE TABLE IF NOT EXISTS reading_root_checkpoints(root TEXT NOT NULL,calls INTEGER NOT NULL,completed INTEGER NOT NULL,spent INTEGER NOT NULL,unknown_risk INTEGER NOT NULL,active_ms INTEGER NOT NULL,reason TEXT NOT NULL,PRIMARY KEY(root,calls));
       CREATE INDEX IF NOT EXISTS reading_tasks_packet ON reading_tasks(packet);`);
-    ledger.db.exec(
-      "CREATE INDEX IF NOT EXISTS reading_calls_account_task ON reading_calls(account,task)",
-    );
     this.db.exec("BEGIN IMMEDIATE");
     try {
       for (const task of this.db

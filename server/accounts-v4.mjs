@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { ACCOUNTS_AUTH_SCHEMA } from './database-schemas.mjs';
 import {
   createHmac,
   randomBytes,
@@ -77,17 +79,15 @@ export class AccountsV4 {
         .prepare("SELECT value FROM account_meta WHERE key='auth_v4'")
         .get();
       if (version && version.value !== "1") throw Error("UNKNOWN_AUTH_SCHEMA");
-      this.db
-        .exec(`CREATE TABLE IF NOT EXISTS account_credentials(user_id TEXT PRIMARY KEY REFERENCES accounts(id),username TEXT UNIQUE NOT NULL,salt TEXT NOT NULL,hash TEXT NOT NULL,scheme TEXT NOT NULL DEFAULT 'scrypt:131072:8:1:64' CHECK(scheme='scrypt:131072:8:1:64'),version INTEGER NOT NULL DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS account_device_slots(binding TEXT PRIMARY KEY REFERENCES bindings(id),user_id TEXT NOT NULL REFERENCES accounts(id),kind TEXT NOT NULL,slot INTEGER NOT NULL,name TEXT NOT NULL,last_seen INTEGER NOT NULL,CHECK((kind='windows' AND slot BETWEEN 1 AND 3) OR (kind='wechat' AND slot=1)),UNIQUE(user_id,kind,slot));
-        CREATE TABLE IF NOT EXISTS account_v4_operations(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,response TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS account_v4_events(seq INTEGER PRIMARY KEY,operation TEXT UNIQUE NOT NULL,kind TEXT NOT NULL,account TEXT NOT NULL,binding TEXT,at INTEGER NOT NULL);
-        CREATE TRIGGER IF NOT EXISTS account_v4_events_no_update BEFORE UPDATE ON account_v4_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-        CREATE TRIGGER IF NOT EXISTS account_v4_events_no_delete BEFORE DELETE ON account_v4_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-        CREATE TABLE IF NOT EXISTS account_login_attempts(key TEXT NOT NULL,at INTEGER NOT NULL);
-        CREATE INDEX IF NOT EXISTS account_login_window ON account_login_attempts(key,at);
-        CREATE TABLE IF NOT EXISTS account_login_failures(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,locked_until INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS account_grant_intents(account TEXT PRIMARY KEY REFERENCES accounts(id),operation TEXT UNIQUE NOT NULL);`);
+      try {
+        ensureDatabaseSchema(this.db, "accounts-auth", ACCOUNTS_AUTH_SCHEMA, {
+          now: this.now,
+        });
+      } catch (error) {
+        if (error.schemaObject === "account_credentials")
+          throw Error("UNKNOWN_CREDENTIAL_SCHEMA");
+        throw error;
+      }
       if (
         this.db
           .prepare("PRAGMA table_info(account_credentials)")

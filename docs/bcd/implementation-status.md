@@ -1,3 +1,5 @@
+2026-11-01：新增[9个运行核心组件版本迁移底层](runtime-schema-verification.md)，事务DDL/精确历史接纳/只读计划hash/旧写入器门禁，实际旧模块与Windows/Linux跨库中断演练；保留身份、原件、费用/unknown及初始额度。剩余任务表、影子全集切换和完整安全回放继续，不能写全部迁移完成。
+
 2026-11-01：新增[大历史内容分记录/批次读取](association-stream-verification.md)，401个完整事项累计超过16MiB仍全部预检到尾部；增量hash保持旧付费契约、选择结果有界累计，双端与普通UID验证已补。16MiB图索引/单记录、单项/组及原件流式缺口仍保留，无新增真实调用。
 
 2026-11-01：新增[调用请求/响应与usage关联](provider-receipts-verification.md)，五类付费阶段共账、独立元数据/哈希、冲突保费暂停、崩溃恢复与双端/普通UID/发布包验证；真实1次642微元，累计33次usage估算¥0.060148。最终账单证据源与其他BCD缺口仍保留。
@@ -34,8 +36,8 @@
 | B图像 | JPEG/JPG（含8种EXIF方向、顺序/渐进与严格终态）、WebP严格规范子集静态/动画、GIF逐帧/处置/时间合成、APNG逐帧合成/独立默认图及静态PNG（8/16位、1/2/4位灰度/调色板及Adam7）隔离解码/1024瓦片/像素坐标/模型输入，顶层与ZIP/RAR4/RAR5/7z包内同任务费用/恢复；[归档图像证据](archive-images-verification.md)；[PNG证据](image-verification.md)与[JPEG证据](jpeg-verification.md)合计真实API2次 | ICC/CMYK/多图等JPEG未支持特性、高级色彩；跨区域边缘文字识别质量；PDF未支持资源/字体/批注；Office未支持的图像引用/编码与布局 |
 | B归档 | ZIP、明确编码非solid RAR4/RAR5、7z含已证明块预算的solid，固定源自建工具协议2、完整预检和共享64MiB预算；[RAR4证据](rar4-verification.md) | RAR solid共享块预算，未知旧代码页/未实现RAR4特性；更大压缩成员真正流式；不得放宽安全限制假装支持 |
 | C任务/费用 | 独立账本/原子预留、usage/unknown、全站公平/每账号槽、停止generation、付费块/信封复用、分页/原子发布、根1800秒/24调用和独立水位；同投递跨修订精确复用；[语义合并及完整上游hash依赖](semantic-verification.md)；[事项对话共账](chat-verification.md)、[历史投递关联共账](association-verification.md)、独立意图/付费凭据、双端发布与恢复 | [累计历史内容已分记录/批次读取](association-stream-verification.md)，极大图结构、单记录/事项/组上下文流式及语义核对性能仍未完成；供应商可证明安全的重试（当前只对broker明确未执行的读取429有限退避） |
-| C维护恢复 | 已知时限扩展、未知费用最终证据结算/未计费、未知时间保守补计、历史检查点/无进度审计恢复的受信宿主原语；旧动作/旧新建收据门禁；[时间证据](time-audit-verification.md) | [请求/响应关联](provider-receipts-verification.md)已接真实接口；真实供应商最终账单源、真实宿主终止/活跃时间证据接线；资料回退审计；完整独立安全事件及重放保护，正式迁移底层和合成演练 |
-| D账号/原件 | 邀请/密码/旧账号claim、3 Windows+1微信和明确替换撤销、manifest原子预留/commit、500MiB/整次temporary/30+7、同hash补传/墓碑与离线锁 | 全域安全恢复/正式多库迁移与账号/删除/撤销重放；真实身份和原生环境的独立开发/验收证据 |
+| C维护恢复 | 已知时限扩展、未知费用最终证据结算/未计费、未知时间保守补计、历史检查点/无进度审计恢复的受信宿主原语；旧动作/旧新建收据门禁；[时间证据](time-audit-verification.md) | [请求/响应关联](provider-receipts-verification.md)已接真实接口；真实供应商最终账单源、真实宿主终止/活跃时间证据接线；资料回退审计；完整独立安全事件及重放保护；[9核心组件迁移底层与中断演练](runtime-schema-verification.md)已补，剩余任务表/影子全集切换仍缺 |
+| D账号/原件 | 邀请/密码/旧账号claim、3 Windows+1微信和明确替换撤销、manifest原子预留/commit、500MiB/整次temporary/30+7、同hash补传/墓碑与离线锁 | [核心组件正式迁移底层](runtime-schema-verification.md)已补，完整多库切换/全域安全恢复及账号/删除/撤销重放仍缺；真实身份和原生环境的独立开发/验收证据 |
 | D双端交互 | 共同行为均评估双端，Page/Node wx与Windows AccountWorkspace签名HTTP、共享来源/范围/费用/维护/区域进度；旧专项源码Electron证据保留 | 新PNG/JPEG/RAR4窗口交互未另开本机窗口；原生微信/手机/安装版仍未验。用户最新要求优先无窗口，仅确有新UI问题才说明后启动一次针对窗口；完整必需CI照常远端 |
 
 “真实外部证据源尚未接线”与“实现仍待编写”分别保留：合成账单/计时验证器仅证明集成契约，不能替代真实供应商或宿主证据；扫描/solid/其他AI共账/安全迁移等不能仅写成外部环境阻碍。E正式管理端/备份运维、F容量部署、生产开放、真实资料迁移/客户端安装不在本轮授权范围，不自动操作。B/C/D需要的底层及合成演练仍可继续。

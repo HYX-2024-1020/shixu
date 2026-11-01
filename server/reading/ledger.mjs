@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from '../database-schema.mjs';
+import { LEDGER_CORE_SCHEMA, LEDGER_COST_SCHEMA, LEDGER_TIME_SCHEMA, LEDGER_CHECKPOINT_SCHEMA } from '../database-schemas.mjs';
 import {ReadingProviderReceipts} from './provider-receipts.mjs';
 import { DatabaseSync } from "node:sqlite";
 import { sha256 } from "./material.mjs";
@@ -58,59 +60,48 @@ export class ReadingLedger {
     this.now = now;
     this.limits = { siteDailyMicros, taskInflightMicros };
     this.db = new DatabaseSync(path);
-    this.db
-      .exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=3000;
-      CREATE TABLE IF NOT EXISTS reading_wallets(account TEXT PRIMARY KEY,granted INTEGER NOT NULL,spent INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS reading_prices(id TEXT PRIMARY KEY,body TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_calls(id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES reading_wallets(account),
-        task TEXT NOT NULL,block TEXT NOT NULL,generation INTEGER NOT NULL,price TEXT NOT NULL REFERENCES reading_prices(id),
-        day TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('reserved','sent','settled','unknown','released')),
-        reserved INTEGER NOT NULL,actual INTEGER,usage TEXT,fingerprint TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_events(seq INTEGER PRIMARY KEY,operation TEXT UNIQUE NOT NULL,kind TEXT NOT NULL,
-        account TEXT NOT NULL,call TEXT,amount INTEGER NOT NULL,at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_controls(id INTEGER PRIMARY KEY CHECK(id=1),paused INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS reading_envelopes(call TEXT PRIMARY KEY REFERENCES reading_calls(id),fingerprint TEXT NOT NULL,result TEXT NOT NULL,usage TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS reading_cost_audits(seq INTEGER PRIMARY KEY,account TEXT NOT NULL,operation TEXT NOT NULL,
-        root TEXT NOT NULL,task TEXT NOT NULL,call_id TEXT NOT NULL UNIQUE REFERENCES reading_calls(id),actor TEXT NOT NULL,evidence_hash TEXT NOT NULL,
-        reference TEXT NOT NULL,disposition TEXT NOT NULL CHECK(disposition IN ('usage','not-billed')),request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,
-        ledger_sequence INTEGER NOT NULL,watermark INTEGER NOT NULL,generation INTEGER NOT NULL,
-        spent_before INTEGER NOT NULL,spent_after INTEGER NOT NULL,actual INTEGER,usage TEXT,at INTEGER NOT NULL,
-        UNIQUE(account,operation));
-      CREATE INDEX IF NOT EXISTS reading_cost_audits_account ON reading_cost_audits(account,seq DESC);
-      CREATE INDEX IF NOT EXISTS reading_cost_audits_root ON reading_cost_audits(account,root,seq DESC);
-      CREATE TRIGGER IF NOT EXISTS reading_cost_audits_no_update BEFORE UPDATE ON reading_cost_audits BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_cost_audits_no_delete BEFORE DELETE ON reading_cost_audits BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-      INSERT OR IGNORE INTO reading_controls(id) VALUES(1);
-      CREATE TRIGGER IF NOT EXISTS reading_events_no_update BEFORE UPDATE ON reading_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_events_no_delete BEFORE DELETE ON reading_events BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_prices_no_update BEFORE UPDATE ON reading_prices BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PRICE'); END;
-      CREATE TRIGGER IF NOT EXISTS reading_prices_no_delete BEFORE DELETE ON reading_prices BEGIN SELECT RAISE(ABORT,'IMMUTABLE_PRICE'); END;
-      PRAGMA foreign_keys=ON;`);
-    this.db.exec(`CREATE TABLE IF NOT EXISTS reading_time_audits(
-      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,actor TEXT NOT NULL,
-      evidence_hash TEXT NOT NULL,reference TEXT NOT NULL,request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,
-      watermark INTEGER NOT NULL,ledger_sequence INTEGER NOT NULL,generation INTEGER NOT NULL,
-      before_snapshot TEXT NOT NULL,target_snapshot TEXT NOT NULL,active_ms INTEGER NOT NULL,
-      calls INTEGER NOT NULL,completed INTEGER NOT NULL,checkpoint_calls INTEGER NOT NULL,at INTEGER NOT NULL,
-      PRIMARY KEY(account,operation));
-      CREATE TABLE IF NOT EXISTS reading_time_finalizations(account TEXT NOT NULL,operation TEXT NOT NULL,at INTEGER NOT NULL,
-      PRIMARY KEY(account,operation));`);
-    this.db.exec(`CREATE TABLE IF NOT EXISTS reading_checkpoint_audits(
-      account TEXT NOT NULL,operation TEXT NOT NULL,root TEXT NOT NULL,task TEXT NOT NULL,
-      actor TEXT NOT NULL,evidence_hash TEXT NOT NULL,reference TEXT NOT NULL,
-      request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,watermark INTEGER NOT NULL,
-      ledger_sequence INTEGER NOT NULL,generation INTEGER NOT NULL,before_snapshot TEXT NOT NULL,
-      target_snapshot TEXT NOT NULL,calls INTEGER NOT NULL,active_ms INTEGER NOT NULL,
-      completed INTEGER NOT NULL,checkpoint_calls INTEGER NOT NULL,reason TEXT NOT NULL,at INTEGER NOT NULL,
-      PRIMARY KEY(account,operation),UNIQUE(account,reference));
-      CREATE TABLE IF NOT EXISTS reading_checkpoint_finalizations(
-      account TEXT NOT NULL,operation TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,operation));`);
-    for (const table of ["reading_checkpoint_audits", "reading_checkpoint_finalizations", "reading_time_audits", "reading_time_finalizations"])
-      for (const action of ["UPDATE", "DELETE"])
-        this.db.exec(
-          `CREATE TRIGGER IF NOT EXISTS ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
-        );
-    this.receipts=new ReadingProviderReceipts(this);
+    this.db.exec(
+      "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=3000; PRAGMA foreign_keys=ON;",
+    );
+    if (
+      this.db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1",
+        )
+        .get() &&
+      !this.db
+        .prepare("SELECT 1 FROM sqlite_master WHERE name='reading_wallets'")
+        .get()
+    ) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
+    }
+    try {
+      for (const [component, migrations] of [
+        ["ledger-core", LEDGER_CORE_SCHEMA],
+        ["ledger-cost", LEDGER_COST_SCHEMA],
+        ["ledger-time", LEDGER_TIME_SCHEMA],
+        ["ledger-checkpoint", LEDGER_CHECKPOINT_SCHEMA],
+      ])
+        ensureDatabaseSchema(this.db, component, migrations, {
+          now: this.now,
+          ...(component === "ledger-core"
+            ? {
+                compatibleObjects: [
+                  "CREATE INDEX reading_calls_account_task ON reading_calls(account,task)",
+                ],
+              }
+            : {}),
+        });
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
+    if (!this.db.prepare("SELECT 1 FROM reading_controls WHERE id=1").get()) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
+    }
+    this.receipts = new ReadingProviderReceipts(this);
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");

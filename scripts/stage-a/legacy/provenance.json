@@ -1,0 +1,21 @@
+{
+  "commit": "aad190373781a52454a6875426d46b2cf0c8fcd5",
+  "license": "MIT, original project sources",
+  "files": [
+    {
+      "file": "sync-store.mjs",
+      "source": "server/sync-store.mjs",
+      "sha256": "318da6b80588697c4aa91319054e7b439b60a9279ac4393ede599d229df68da2"
+    },
+    {
+      "file": "sync-accounts.mjs",
+      "source": "server/sync-accounts.mjs",
+      "sha256": "564c92258571a90be3bce833961596d8bf53614c3a92248c027c3af1d4faeec8"
+    },
+    {
+      "file": "sync-files.mjs",
+      "source": "server/sync-files.mjs",
+      "sha256": "f770b69affe1ae332b906717392f37913bbd60cbbe7b0afa09b2508f61d94591"
+    }
+  ]
+}

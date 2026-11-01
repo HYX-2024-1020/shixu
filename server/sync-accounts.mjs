@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { ACCOUNTS_CORE_SCHEMA } from './database-schemas.mjs';
 import { DatabaseSync } from "node:sqlite";
 import {
   createHash,
@@ -27,20 +29,19 @@ export class AccountRegistry {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.secret = secret;
     this.db = new DatabaseSync(join(directory, "accounts.sqlite"));
-    this.db
-      .exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS account_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 1,
-        invite_hash TEXT UNIQUE NOT NULL,limits TEXT NOT NULL,created_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS bindings(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES accounts(id),
-        kind TEXT NOT NULL CHECK(kind IN ('windows','wechat')),identity TEXT NOT NULL,public_key TEXT,
-        revoked INTEGER NOT NULL DEFAULT 0,expires INTEGER NOT NULL);
-      CREATE UNIQUE INDEX IF NOT EXISTS active_identity ON bindings(kind,identity) WHERE revoked=0;
-      CREATE TABLE IF NOT EXISTS nonces(binding_id TEXT NOT NULL,nonce TEXT NOT NULL,expires INTEGER NOT NULL,
-        PRIMARY KEY(binding_id,nonce));
-      CREATE TABLE IF NOT EXISTS request_rates(key TEXT PRIMARY KEY,window INTEGER NOT NULL,n INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS ai_usage(user_id TEXT NOT NULL,job_id TEXT NOT NULL,fingerprint TEXT NOT NULL,
-        day TEXT NOT NULL,reserved_micros INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(user_id,job_id));`);
+    this.db.exec(
+      "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
+    );
+    try {
+      ensureDatabaseSchema(this.db, "accounts-core", ACCOUNTS_CORE_SCHEMA, {
+        compatibleObjects: [
+          "CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0",
+        ],
+      });
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
     if (
       !this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get()
     )
@@ -51,6 +52,10 @@ export class AccountRegistry {
     const previous = this.db
       .prepare("SELECT value FROM account_meta WHERE key='secret_check'")
       .get();
+    if (!previous && this.db.prepare("SELECT 1 FROM accounts LIMIT 1").get()) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
+    }
     if (previous && previous.value !== check) {
       this.db.close();
       throw Error("Account secret changed; restore the original secret");

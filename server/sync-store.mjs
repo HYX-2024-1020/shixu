@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { TENANT_SYNC_SCHEMA } from './database-schemas.mjs';
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -93,30 +95,32 @@ export class SyncStore {
     if (path !== ":memory:")
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
-    this.db.exec(`
-      PRAGMA journal_mode=WAL;
-      PRAGMA foreign_keys=ON;
-      PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS sync_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS sync_records(
-        id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT,
-        deleted_at TEXT, purged INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS sync_records_version ON sync_records(version);
-      CREATE TABLE IF NOT EXISTS sync_devices(
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL,
-        expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS sync_operations(
-        device_id TEXT NOT NULL REFERENCES sync_devices(id), op_id TEXT NOT NULL,
-        fingerprint TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL,
-        PRIMARY KEY(device_id, op_id)
-      );
-    `);
+    this.db.exec(
+      "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
+    );
+    const existingSchema = !!this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE name='sync_meta'")
+      .get();
+    try {
+      ensureDatabaseSchema(this.db, "tenant-sync", TENANT_SYNC_SCHEMA);
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
     const schema = this.meta("schema");
     if (schema && schema !== "1") {
       this.db.close();
       throw new Error("同步数据库版本不兼容，请使用匹配版本的服务");
+    }
+    if (
+      existingSchema &&
+      (!this.meta("epoch") ||
+        !this.meta("schema") ||
+        !/^\d+$/.test(this.meta("sequence") || "") ||
+        !Number.isSafeInteger(Number(this.meta("sequence"))))
+    ) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
     }
     this.db
       .prepare("INSERT OR IGNORE INTO sync_meta VALUES(?,?)")
