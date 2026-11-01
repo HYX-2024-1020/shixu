@@ -44,6 +44,7 @@ export class ReadingReuse {
   certify(task, fingerprint, key, result) {
     const row = this.db.prepare("SELECT * FROM reading_blocks WHERE task=? AND fingerprint=?").get(task,fingerprint);
     const call = row && this.ledger.call(row.call_id), value = sha256(JSON.stringify(result));
+    if(call)this.ledger.receipts.assertUsable(call.id);
     if(!call || call.state!=="settled" || call.account!==this.account || call.task!==task || call.block!==fingerprint || row.result!==JSON.stringify(result))throw Error("SAFETY_RECONCILIATION");
     const prior=this.proof(task,fingerprint);
     if(prior && (prior.call_id!==call.id || prior.reuse_key!==key || prior.result_hash!==value))throw Error("SAFETY_RECONCILIATION");
@@ -53,7 +54,8 @@ export class ReadingReuse {
       .run(task, fingerprint, key, sha256(JSON.stringify(result)));
   }
   proof(task, fingerprint) {
-    return this.ledger.db.prepare("SELECT * FROM reading_paid_proofs WHERE account=? AND task=? AND fingerprint=?").get(this.account,task,fingerprint);
+    const proof=this.ledger.db.prepare("SELECT * FROM reading_paid_proofs WHERE account=? AND task=? AND fingerprint=?").get(this.account,task,fingerprint);
+    if(proof)this.ledger.receipts.assertUsable(proof.call_id);return proof;
   }
   find(task, key, validate) {
     const candidates = this.db

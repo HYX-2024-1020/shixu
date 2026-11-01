@@ -286,6 +286,7 @@ export class ReadingChat {
     return normalized;
   }
   certify(task, fingerprint, callId, value) {
+    this.ledger.receipts.assertUsable(callId);
     this.normalized(task, value);
     const call = this.ledger.call(callId),
       intent = this.intent(task.id);
@@ -317,6 +318,7 @@ export class ReadingChat {
         .run(...Object.values(proof));
   }
   verifyBlock(task, block) {
+    this.ledger.receipts.assertUsable(block.call_id);
     const call = this.ledger.call(block.call_id),
       intent = this.intent(task.id);
     const proof = this.ledger.db

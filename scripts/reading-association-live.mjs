@@ -145,6 +145,7 @@ export async function runAssociationLive({ getKey, prepareOnly }) {
       realSpentMicros,
       realUnknownCalls: realCalls.filter((c) => c.state === "unknown").length,
       calls,
+      providerReceipts:realCalls.map(c=>({callId:c.id,...f.ledger.receipts.review(c.id)})),
       association: packet.association,
       historyAssociation: packet.historyAssociation,
       result: packet.result,

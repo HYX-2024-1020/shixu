@@ -1,0 +1,140 @@
+{
+  "kind": "synthetic-real-history-association-quality",
+  "testedAt": "2026-11-01T05:28:19.269Z",
+  "realProviderCalls": 1,
+  "simulatedUpstreamCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793510897895,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "state": "done",
+  "reason": "",
+  "qualityError": null,
+  "realSpentMicros": 642,
+  "realUnknownCalls": 0,
+  "calls": [
+    {
+      "id": "8401b47a-8d78-4f26-ac58-bb4e44119769",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 136000,
+      "actual": 50,
+      "usage": "{\"prompt_tokens\":10,\"completion_tokens\":10,\"prompt_cache_hit_tokens\":0}",
+      "simulated": true
+    },
+    {
+      "id": "366d44a5-9ca6-4f96-ac50-cd7fc7f78333",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22435,
+      "actual": 642,
+      "usage": "{\"prompt_tokens\":1128,\"completion_tokens\":98,\"prompt_cache_hit_tokens\":896}",
+      "simulated": false
+    }
+  ],
+  "providerReceipts": [
+    {
+      "callId": "366d44a5-9ca6-4f96-ac50-cd7fc7f78333",
+      "status": "linked",
+      "provider": "deepseek",
+      "requestHash": "ea8b71471a6e41e744c2f9003111010db3f01cc300dfe238128a7f26b01d2e85",
+      "responseIdHash": "4f7aa77da5c2e3ffa9a3e8011d1dcc2e29bfe9ca63088dfa4f90e9ad75e31df7",
+      "model": "deepseek-flash",
+      "created": 1793510897,
+      "httpStatus": 200,
+      "responseHash": "77268c8ab7abd0584f569d9ba5979df5a9a40718371fbeb379b0f5e2a9010e77",
+      "usageHash": "7f2e0930a3dbb0dc8555d1a89750d8fb579a72d05636e4ad454d66051f7efe2a",
+      "finalBillingEvidence": false
+    }
+  ],
+  "association": {
+    "links": [
+      {
+        "id": "task_history_4a8225cdd7d94fd03355",
+        "from": "packet#task_item_0",
+        "target": "old0#old-item",
+        "relation": "same",
+        "title": "提交算法实验A7319",
+        "confidence": 0.98,
+        "contextRefs": [
+          "packet#task_item_0",
+          "old0#old-item"
+        ]
+      }
+    ]
+  },
+  "historyAssociation": {
+    "version": "saved-history-association/1",
+    "complete": true,
+    "candidates": 3
+  },
+  "result": {
+    "summary": "模拟已经读取的本次事项",
+    "warnings": [],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交算法实验A7319",
+        "summary": "算法课实验报告",
+        "facts": [
+          "实验编号A7319",
+          "格式PDF",
+          "另附UTF-8源代码"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "算法课实验A7319，提交PDF报告并另附UTF-8源代码。截止2026-11-03 16:45。"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_0_m0"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026-11-03 16:45",
+          "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "links": [
+        {
+          "from": "new:0",
+          "target": "old0#old-item",
+          "relation": "same",
+          "title": "提交算法实验A7319",
+          "confidence": 0.98,
+          "newEvidence": {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "算法课实验A7319，提交PDF报告"
+          },
+          "oldEvidence": {
+            "sourceId": "old-source0",
+            "quote": "算法课实验A7319，提交PDF报告"
+          }
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    "Only history association model call real; upstream recognition simulated",
+    "Synthetic saved history, completed candidate excluded",
+    "No UI window or final B/C/D acceptance"
+  ]
+}

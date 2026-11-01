@@ -268,13 +268,15 @@ export class ReadingMerge {
       }
   }
   proof(task, fingerprint) {
-    return this.ledger.db
+    const proof=this.ledger.db
       .prepare(
         `SELECT * FROM reading_${this.namespace}_proofs WHERE account=? AND task=? AND fingerprint=?`,
       )
       .get(this.e.account, task, fingerprint);
+    if(proof)this.ledger.receipts.assertUsable(proof.call_id);return proof;
   }
   certify(task, fingerprint, callId, result) {
+    this.ledger.receipts.assertUsable(callId);
     const value = sha256(JSON.stringify(result)),
       prior = this.proof(task.id, fingerprint),
       call = this.ledger.call(callId);
@@ -399,7 +401,7 @@ export class ReadingMerge {
             maxOutputTokens:
               prepared?.maxOutputTokens || this.e.maxOutputTokens,
           });
-          this.ledger.sent(callId);
+          this.ledger.sent(callId,prepared?.receiptIntent);
           this.db
             .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
             .run(task.id);
@@ -416,8 +418,9 @@ export class ReadingMerge {
               ]),
               { prepared },
             );
-          } catch {
+          } catch (error) {
             if (this.e.finalSnapshots) return this.e.get(task.id);
+            this.ledger.captureUnknownReceipt(callId,error?.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
@@ -425,17 +428,18 @@ export class ReadingMerge {
           try {
             validateUsage(response.usage);
           } catch {
+            this.ledger.captureUnknownReceipt(callId,response.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
           if (!this.e.current(task)) {
-            this.ledger.settle(callId, response.usage);
+            this.ledger.settle(callId, response.usage,response.receipt);
             return this.e.get(task.id);
           }
           try {
             result = this.validate(response.result, pair.items);
           } catch (error) {
-            this.ledger.settle(callId, response.usage);
+            this.ledger.settle(callId, response.usage,response.receipt);
             throw error;
           }
           this.ledger.saveEnvelope(
@@ -444,7 +448,7 @@ export class ReadingMerge {
             result,
             response.usage,
           );
-          this.ledger.settle(callId, response.usage);
+          this.ledger.settle(callId, response.usage,response.receipt);
         }
       }
       this.certify(task, pair.fingerprint, callId, result);

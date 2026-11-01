@@ -48,6 +48,7 @@ export async function runClientLoop({
   semanticMerge,
   visualReview,
   historyAssociation,
+  providerReceiptMetadata=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -162,6 +163,16 @@ export async function runClientLoop({
   if(historyAssociation)reading.provider.association=async(...args)=>{calls++;return historyAssociation.provider(...args);};
   if(visualReview)reading.provider.reviewVisual=async (...args)=>{calls++;return visualReview.provider(...args);};
   if(semanticMerge)reading.provider.merge=async (...args)=>{calls++;return semanticMerge.provider(...args);};
+  if(providerReceiptMetadata){
+    let responseSequence=0;
+    const digest=value=>createHash('sha256').update(value).digest('hex');
+    const wrap=fn=>Object.assign(async(sources,signal,context)=>{
+      const response=await fn(sources,signal,context);
+      return {...response,receipt:{provider:'deepseek',requestHash:context.prepared.receiptIntent.requestHash,responseId:'synthetic-client-'+(++responseSequence),model:'synthetic',created:1,httpStatus:200,responseHash:digest(JSON.stringify(response))}};
+    },fn,{prepare:sources=>({receiptIntent:{provider:'deepseek',requestHash:digest(JSON.stringify(sources)),model:'synthetic'}})});
+    reading.provider=wrap(reading.provider);
+    for(const kind of ['chat','merge','association','reviewVisual'])if(reading.provider[kind])reading.provider[kind]=wrap(reading.provider[kind]);
+  }
   const service = createMultiUserService({
     directory: join(directory, "server"),
     secret: "synthetic-v4-client-secret-with-32-characters",

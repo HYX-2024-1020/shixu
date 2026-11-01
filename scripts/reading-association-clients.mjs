@@ -14,6 +14,7 @@ export async function runAssociationClients({
     reader:
       reader ||
       Object.assign((f, o) => readMaterial(f, o), { pdfWindows: true }),
+    providerReceiptMetadata:true,
     sourceByMini: true,
     startByMini: true,
     ...(deleted
@@ -92,7 +93,8 @@ export async function runAssociationClients({
           },
         };
       },
-      async verify({ win, mini, page, cloud }) {
+      async verify({ win, mini, page, cloud,ledger }) {
+        for(const {id}of ledger.db.prepare("SELECT id FROM reading_calls").all())assert.equal(ledger.receipts.review(id).status,"linked");
         assert.equal(win.historyAssociation.complete, true);
         assert.equal(win.historyAssociation.candidates, 1);
         assert.deepEqual(
@@ -128,6 +130,7 @@ export async function runAssociationClients({
   return {
     ...report,
     historyAssociationProviderCalls: calls,
+    providerReceiptsBoth:true,
     unchangedHistoryBoth: true,
     completedItemExcluded: true,
   };

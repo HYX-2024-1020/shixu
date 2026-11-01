@@ -199,11 +199,12 @@ export class ReadingVisualReview {
       .get(this.e.account, task, upstream);
   }
   proof(task, fingerprint) {
-    return this.ledger.db
+    const proof=this.ledger.db
       .prepare(
         "SELECT * FROM reading_visual_proofs WHERE account=? AND task=? AND fingerprint=?",
       )
       .get(this.e.account, task, fingerprint);
+    if(proof)this.ledger.receipts.assertUsable(proof.call_id);return proof;
   }
   publishable(task) {
     return this.db
@@ -351,6 +352,7 @@ export class ReadingVisualReview {
     return validateVisualReview(JSON.parse(row.result), job.claims);
   }
   certify(task, upstream, fingerprint, callId, result) {
+    this.ledger.receipts.assertUsable(callId);
     const call = this.ledger.call(callId),
       prior = this.proof(task.id, fingerprint),
       resultHash = hash(result);
@@ -518,7 +520,7 @@ export class ReadingVisualReview {
             maxOutputTokens:
               prepared?.maxOutputTokens || this.e.maxOutputTokens,
           });
-          this.ledger.sent(callId);
+          this.ledger.sent(callId,prepared?.receiptIntent);
           this.db
             .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
             .run(task.id);
@@ -535,8 +537,9 @@ export class ReadingVisualReview {
               ]),
               { prepared },
             );
-          } catch {
+          } catch (error) {
             if (this.e.finalSnapshots) return this.e.get(task.id);
+            this.ledger.captureUnknownReceipt(callId,error?.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
@@ -544,17 +547,18 @@ export class ReadingVisualReview {
           try {
             validateUsage(response.usage);
           } catch {
+            this.ledger.captureUnknownReceipt(callId,response.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
           if (!this.e.current(task)) {
-            this.ledger.settle(callId, response.usage);
+            this.ledger.settle(callId, response.usage,response.receipt);
             return this.e.get(task.id);
           }
           try {
             result = validateVisualReview(response.result, job.claims);
           } catch (error) {
-            this.ledger.settle(callId, response.usage);
+            this.ledger.settle(callId, response.usage,response.receipt);
             throw error;
           }
           this.ledger.saveEnvelope(
@@ -563,7 +567,7 @@ export class ReadingVisualReview {
             result,
             response.usage,
           );
-          this.ledger.settle(callId, response.usage);
+          this.ledger.settle(callId, response.usage,response.receipt);
         }
       }
       this.certify(task, block.fingerprint, job.fingerprint, callId, result);

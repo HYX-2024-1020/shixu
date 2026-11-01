@@ -53,7 +53,7 @@ export class ReadingCostMaintenance {
       reason: root.reason || task.reason,
       spentMicros: this.ledger.wallet(this.engine.account).spent,
       unknownRiskMicros: this.ledger.wallet(this.engine.account).unknownRisk,
-      unknownCalls: calls.slice(0, 100).filter((c) => linked.has(c.task)),
+      unknownCalls: calls.slice(0, 100).filter((c) => linked.has(c.task)).map(c=>({...c,providerReceipt:this.ledger.receipts.review(c.id)})),
       hasMore: calls.length > 100,
     };
   }
@@ -128,6 +128,7 @@ export class ReadingCostMaintenance {
       actor,
       evidenceHash: request.evidenceHash,
       call: { ...call },
+      providerReceipt:this.ledger.receipts.review(call.id,{includeIds:true}),
     });
     if (proof && typeof proof.then === "function") {
       Promise.resolve(proof).catch(() => {});

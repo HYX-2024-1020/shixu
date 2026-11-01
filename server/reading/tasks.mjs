@@ -1141,7 +1141,7 @@ export class ReadingTasks {
           maxPromptTokens: prepared?.maxPromptTokens || this.maxPromptTokens,
           maxOutputTokens: prepared?.maxOutputTokens || this.maxOutputTokens,
         });
-        this.ledger.sent(callId);
+        this.ledger.sent(callId,prepared?.receiptIntent);
         this.db
           .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
           .run(id);
@@ -1172,8 +1172,9 @@ export class ReadingTasks {
               maxOutputTokens: this.maxOutputTokens,
             },
           );
-        } catch {
+        } catch (error) {
           if (this.finalSnapshots) return this.get(id);
+          this.ledger.captureUnknownReceipt(callId,error?.receipt);
           this.ledger.unknown(callId);
           throw Error("UNKNOWN_COST");
         }
@@ -1181,13 +1182,14 @@ export class ReadingTasks {
         try {
           validateUsage(response.usage);
         } catch {
+          this.ledger.captureUnknownReceipt(callId,response.receipt);
           this.ledger.unknown(callId);
           throw Error("UNKNOWN_COST");
         }
         // Billing remains valid for stale or invalid output. Persist only a
         // validated, bounded result envelope before committing its settlement.
         if (!this.current(task)) {
-          this.ledger.settle(callId, response.usage);
+          this.ledger.settle(callId, response.usage,response.receipt);
           return this.get(id);
         }
         let result;
@@ -1198,12 +1200,12 @@ export class ReadingTasks {
             packet.captureDate,
           );
         } catch (e) {
-          this.ledger.settle(callId, response.usage);
+          this.ledger.settle(callId, response.usage,response.receipt);
           throw e;
         }
-        try {if(!isChat)this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage);throw e;}
+        try {if(!isChat)this.boundQuotes(id, result, readable, batch);} catch(e) {this.ledger.settle(callId,response.usage,response.receipt);throw e;}
         this.ledger.saveEnvelope(callId, fingerprint, result, response.usage);
-        this.ledger.settle(callId, response.usage);
+        this.ledger.settle(callId, response.usage,response.receipt);
         if(isChat)this.chat.certify(task,fingerprint,callId,result);
         this.db
           .prepare("INSERT OR REPLACE INTO reading_blocks VALUES(?,?,?,?)")

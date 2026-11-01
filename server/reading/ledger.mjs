@@ -1,3 +1,4 @@
+import {ReadingProviderReceipts} from './provider-receipts.mjs';
 import { DatabaseSync } from "node:sqlite";
 import { sha256 } from "./material.mjs";
 
@@ -109,6 +110,7 @@ export class ReadingLedger {
         this.db.exec(
           `CREATE TRIGGER IF NOT EXISTS ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
         );
+    this.receipts=new ReadingProviderReceipts(this);
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -362,10 +364,11 @@ export class ReadingLedger {
       return this.call(callId);
     });
   }
-  sent(callId) {
-    return this.transaction(() => {
+  sent(callId,intent) {
+    const result=this.transaction(() => {
       const c = this.call(callId);
       if (!c) throw Error("CALL_NOT_FOUND");
+      const request=this.receipts.requestLocked(c,intent);if(request?.conflict)return {conflict:true};
       if (c.state === "sent") return c;
       if (c.state !== "reserved") throw Error("INVALID_CALL_TRANSITION");
       this.db
@@ -374,6 +377,7 @@ export class ReadingLedger {
       this.event("sent:" + callId, "sent", c.account, callId, 0);
       return this.call(callId);
     });
+    if(result?.conflict)throw Error("PROVIDER_REQUEST_CONFLICT");return result;
   }
   unknown(callId) {
     return this.transaction(() => {
@@ -388,12 +392,17 @@ export class ReadingLedger {
       return this.call(callId);
     });
   }
-  settle(callId, usage) {
+  captureUnknownReceipt(callId,receipt){if(receipt===undefined)return;try{this.captureProviderReceipt(callId,receipt);}catch{this.receipts.pause(this.call(callId),'provider-receipt-write-failed');}}
+  captureProviderReceipt(callId,receipt,usage){const normalized=usage===undefined?undefined:validateUsage(usage);return this.transaction(()=>{const call=this.call(callId);if(!call)throw Error('CALL_NOT_FOUND');return this.receipts.captureLocked(call,receipt,normalized);});}
+  settle(callId, usage, receipt) {
     const normalized = validateUsage(usage),
       serialized = JSON.stringify(normalized);
-    const result = this.transaction(() =>
-      this.settleLocked(callId, normalized, serialized),
-    );
+    let observed,receiptError;
+    if(receipt!==undefined)try{observed=this.captureProviderReceipt(callId,receipt,normalized);}catch(error){receiptError=error;}
+    const result = this.transaction(() => this.settleLocked(callId, normalized, serialized));
+    if(receiptError){this.receipts.pause(this.call(callId),'provider-receipt-write-failed');throw Error('PROVIDER_RECEIPT_WRITE_FAILED');}
+    if(this.receipts.request(callId)&&!this.receipts.latest(callId)){this.receipts.pause(this.call(callId),'provider-receipt-missing');throw Error('PROVIDER_RECEIPT_RECONCILIATION');}
+    if(observed&&['conflict','invalid'].includes(observed.status))throw Error('PROVIDER_RECEIPT_RECONCILIATION');
     if (result?.conflict) throw Error(result.conflict);
     return result;
   }
@@ -478,7 +487,7 @@ export class ReadingLedger {
         .prepare("SELECT usage FROM reading_envelopes WHERE call=?")
         .get(c.id);
       if (envelope) this.settle(c.id, JSON.parse(envelope.usage));
-      else this.unknown(c.id);
+      else {const usage=this.receipts.usage(c.id);if(usage)this.settle(c.id,usage);else this.unknown(c.id);}
     }
   }
   audit(account) {
@@ -613,12 +622,13 @@ export class ReadingLedger {
       throw Error("RESULT_ENVELOPE_CONFLICT");
   }
   completedEnvelope(account, task, fingerprint, price) {
-    return this.db
+    const envelope=this.db
       .prepare(
         `SELECT e.*,c.id call_id FROM reading_envelopes e JOIN reading_calls c ON e.call=c.id
       WHERE c.account=? AND c.task=? AND e.fingerprint=? AND (? IS NULL OR c.price=?) AND c.state='settled' ORDER BY c.rowid LIMIT 1`,
       )
       .get(account, task, fingerprint, price ?? null, price ?? null);
+    if(envelope)this.receipts.assertUsable(envelope.call_id);return envelope;
   }
   clearEnvelope(callId) {
     this.db.prepare("DELETE FROM reading_envelopes WHERE call=?").run(callId);

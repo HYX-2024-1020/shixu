@@ -1,0 +1,37 @@
+{
+  "kind": "provider-receipts-linux-development",
+  "directory": "/opt/shixu-bcd-test-20261101-provider-receipts",
+  "executionUser": "nobody",
+  "uid": 65534,
+  "runs": [
+    {
+      "tests": 30,
+      "exitCode": 0,
+      "resultFile": "/opt/shixu-bcd-test-20261101-provider-receipts/final-results.txt"
+    },
+    {
+      "tests": 11,
+      "exitCode": 0,
+      "resultFile": "/opt/shixu-bcd-test-20261101-provider-receipts/last-results.txt"
+    }
+  ],
+  "signedClientChains": [
+    "AccountWorkspace + Page/Node wx temporary",
+    "AccountWorkspace + Page/Node wx deleted"
+  ],
+  "provider": "synthetic only; no live API",
+  "hashes": {
+    "server/reading/provider-receipts.mjs": "6937ba1ec63df8ba5e9e8d915b7eabb629d6743473a0c6d83afd737403d89e24",
+    "server/reading/provider-receipts.test.mjs": "c7e21acc42fa494315c49d368c69d33b944d8427fa8464cfe35ca4a3f38bd4da",
+    "server/reading/ledger.mjs": "724a854fadb2d38cc50ef34d3de5d64bdfa4e3259c42a408865ae3d4ab0facdb",
+    "server/reading/deepseek.mjs": "73ff95c07ded7ba2e50ec0c87dcc946d583773926bb59d3523263289a70336a6",
+    "scripts/reading-client-loop.mjs": "b401a15e7c55d60864889773adb7de3230dd18ca5bd41fdb41b391f10324510a",
+    "scripts/reading-association-clients.mjs": "65b9c1308cc2d1bdf8d5606c4963430ae4158d3048d6a05797ded118792f8584"
+  },
+  "boundaries": [
+    "No final supplier billing source",
+    "No production or private data",
+    "No native WeChat, installer or final B/C/D acceptance"
+  ],
+  "initialAttempt": "27 imported-module tests passed but did not execute clients; SSH exit wrapper malformed. Replaced with actual association-clients.test.mjs and recorded exit codes."
+}

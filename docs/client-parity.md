@@ -1,3 +1,7 @@
+## 2026-11-01 B/C/D调用关联证据（#73，整体未完成）
+
+Windows与微信小程序的整理、事项对话、视觉核对、语义/历史关联共同经过服务端请求/响应/usage独立元数据证据；冲突保留费用并暂停AI，既有费用暂停提示可见。客户端没有写入凭据、提供最终账单或清unknown权限。实际AccountWorkspace与Page/Node wx签名HTTP temporary/deleted两链均验证linked及原记录保持；Linux nobody同链验证，发布包执行带关联证据的对话。真实合成1调用642微元验证实际响应；响应ID留在受保护账本，公开报告只给hash。原生微信/手机/安装版未验，完整CI按本提交核对。[实现、费用与边界](bcd/provider-receipts-verification.md)。
+
 ## 2026-10-31 B/C/D Office引用图片（#73，整体未完成）
 
 Windows/微信共同显示DOCX段落、XLSX工作表/单元格锚点、隐藏工作表状态、内嵌原图文件名/像素/动画帧与区域进度；顶层及包内文档共用停止补传、核对共账和修订复用。说明明确原图资源不代表裁剪/变换/页面布局，VML、图表与其他嵌入对象仍未读。实际AccountWorkspace与Page/Node wx签名HTTP顶层DOCX/XLSX、ZIP内DOCX/RAR4内XLSX四链通过，普通UID Linux与受保护broker temporary/deleted两链通过；小程序官方无窗口编译通过，没有新增本机窗口。真实DOCX图像通知关键要求/时刻/来源保留，小样本不代表任意Office或模型准确率。见[Office证据](bcd/office-verification.md)；原生微信/手机/安装版未验，B/C/D其余实施继续。
