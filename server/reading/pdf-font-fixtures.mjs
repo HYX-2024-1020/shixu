@@ -19,9 +19,12 @@ export function fontPdfBytes({ baseFont="Helvetica", text="Hello 0123 PDF", cmap
   const kids=['3 0 R'];
   for(let i=1;i<pages;i++){objects.push(objects[2]);kids.push(`${objects.length} 0 R`);}
   objects[1]=`<< /Type /Pages /Count ${pages} /Kids [${kids.join(' ')}] >>`;
+  return pdfObjectsBytes(objects);
+}
+export function pdfObjectsBytes(objects) {
   const parts=[Buffer.from("%PDF-1.7\n")], offsets=[0]; let size=parts[0].length;
   for(const [i,object] of objects.entries()) {
-    offsets.push(size);const b=Buffer.from(`${i+1} 0 obj\n${object}\nendobj\n`);parts.push(b);size+=b.length;
+    offsets.push(size);const b=Buffer.concat([Buffer.from(`${i+1} 0 obj\n`),Buffer.isBuffer(object)?object:Buffer.from(object),Buffer.from('\nendobj\n')]);parts.push(b);size+=b.length;
   }
   parts.push(Buffer.from(`xref\n0 ${objects.length+1}\n0000000000 65535 f \n${offsets.slice(1).map(n=>`${String(n).padStart(10,"0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${size}\n%%EOF\n`));
   return Buffer.concat(parts);

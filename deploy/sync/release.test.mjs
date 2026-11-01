@@ -23,6 +23,7 @@ import {apngBytes} from '../../server/reading/apng-fixtures.mjs';
 import {sevenZipBytes} from '../../server/reading/native-archive-fixtures.mjs';
 import {rarSolidSample} from '../../server/reading/rar-solid-fixtures.mjs';
 import {fontPdfBytes} from '../../server/reading/pdf-font-fixtures.mjs';
+import {annotationPdfBytes} from '../../server/reading/pdf-annotation-fixtures.mjs';
 import {gifBytes} from '../../server/reading/gif-fixtures.mjs';
 
 test("account service and protected CLI run from the self-contained release", async () => {
@@ -120,14 +121,19 @@ test("account service and protected CLI run from the self-contained release", as
         assert.equal(material.archiveCompression.packedBytes,sample.packed);assert.equal(material.archiveCompression.blocks[0].members,9);
       }
       const fontBody=fontPdfBytes({baseFont:'ZapfDingbats',text:'0123'});
+      const annotationBody=annotationPdfBytes({kind:'text'});
       // The Windows native renderer must exit before its release DLL can be
       // removed; keep this new visual check in its own real Node process.
       const fontChild=await promisify(execFile)(process.execPath,['--input-type=module','-e',`
         import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/material.mjs')).href)};
         const body=Buffer.from('${fontBody.toString('base64')}','base64');
-        const m=await readMaterial({id:'font',name:'font.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});console.log(JSON.stringify(m));`],{windowsHide:true});
-      const fontMaterial=JSON.parse(fontChild.stdout);
+        const m=await readMaterial({id:'font',name:'font.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
+        const annotated=Buffer.from('${annotationBody.toString('base64')}','base64');
+        const a=await readMaterial({id:'annot',name:'annot.pdf',body:annotated,size:annotated.length,hash:sha256(annotated)},{pdfVisualWindow:{page:1,tile:1,offset:0}});console.log(JSON.stringify([m,a]));`],{windowsHide:true});
+      const [fontMaterial,annotationMaterial]=JSON.parse(fontChild.stdout);
       assert.equal(fontMaterial.state,'read');assert.equal(fontMaterial.segments.find(s=>!s.image).text,'✐✑✒✓\n');assert.ok(fontMaterial.segments.some(s=>s.image));
+      assert.equal(annotationMaterial.state,'read');assert.equal(annotationMaterial.covered[0].annotation,1);assert.equal(annotationMaterial.covered[0].annotationType,'Widget');
+      assert.deepEqual(annotationMaterial.covered[0].annotationRect,[20,20,60,40]);assert.match(annotationMaterial.segments[0].text,/保存值：Alice 42/);assert.ok(annotationMaterial.segments.some(s=>s.image));
       const cmapBody=fontPdfBytes({cmap:true}),cmapMaterial=await readReleased({id:'cmap',name:'cmap.pdf',body:cmapBody,size:cmapBody.length,hash:createHash('sha256').update(cmapBody).digest('hex')});
       assert.equal(cmapMaterial.segments.map(s=>s.text).join(''),'中文\n');
       const animation=apngBytes({frames:[{delayNum:3,delayDen:0},{delayNum:7,delayDen:100}]}),apngMaterial=await readReleased({id:'apng',name:'release.apng',body:animation,size:animation.length,hash:createHash('sha256').update(animation).digest('hex')},{imageWindow:{tile:2}});
@@ -268,7 +274,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
     assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "data-control.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-resource-catalog.mjs", "pdf-resources.mjs", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "provider-receipts.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-annotations.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-resource-catalog.mjs", "pdf-resources.mjs", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "provider-receipts.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

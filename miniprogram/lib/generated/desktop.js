@@ -961,6 +961,8 @@ var reasons = {
   PDF_VISUAL_RENDER_FAILED: "PDF页面渲染失败，本页视觉未完成",
   PDF_EXTERNAL_RESOURCE_UNSUPPORTED: "页面所需外部字体或资源未加载",
   PDF_ANNOTATION_UNREAD: "页面批注或表单外观尚未读取",
+  PDF_ANNOTATION_LIMIT: "本页批注超过读取资源限制，相关内容尚未完整读取",
+  PDF_ANNOTATION_INVALID: "PDF批注结构无法完整核对，相关内容尚未读取",
   PDF_VISUAL_WINDOW_PENDING: "后续PDF页面或区域尚未读取",
   IMAGE_PROVIDER_UNSUPPORTED: "服务端安全图像读取或模型图像输入尚未就绪",
   IMAGE_WINDOW_PENDING: "后续图像区域等待读取，尚未进入整理结果",
@@ -1070,7 +1072,8 @@ function location(range) {
   }
   if (range.kind === "pdf") {
     const valid = (n) => Number.isSafeInteger(n) && n > 0;
-    return valid(range.page) ? `PDF 第 ${range.page}${valid(range.pageEnd) && range.pageEnd > range.page ? "–" + range.pageEnd : ""} 页` : "PDF整份文件";
+    const rect = Array.isArray(range.annotationRect) && range.annotationRect.length === 4 && range.annotationRect.every(Number.isFinite) ? ` · 原页坐标(${range.annotationRect.join(",")})` : "";
+    return valid(range.page) ? `PDF 第 ${range.page}${valid(range.pageEnd) && range.pageEnd > range.page ? "–" + range.pageEnd : ""} 页${valid(range.annotation) ? ` · ${range.annotationType === "Widget" ? "表单字段" : "批注"} ${range.annotation}${rect}` : ""}` : "PDF整份文件";
   }
   if (range.kind === "xlsx") {
     const sheet = typeof range.sheet === "string" ? `工作表 “${range.sheet.slice(0, 31)}”` : "工作簿";

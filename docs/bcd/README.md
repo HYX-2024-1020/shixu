@@ -1,3 +1,5 @@
+2026-11-02：新增[PDF批注与表单外观](pdf-annotations-verification.md)：实际外观操作/页图、独立编号/矩形来源、保存值/完整选项、NeedAppearances字体度量重建；不可编码/坏外观/未呈现项保留未读。Windows完整544项（543通过、1跳过）、同步125；Linux普通UID41及受保护6样本/双端两链/发布包通过。更多交互层、文字专用注释及其余BCD继续。
+
 2026-11-02：新增[PDF固定字体/CMap与Node24兼容](pdf-font-resources-verification.md)：185固定资源/完整许可、实际BinaryDataFactory白名单与有界读取、14标准字体轮廓、中文映射、Zapf语义及精确求和。Windows完整536项（535通过、1跳过）、同步125，Linux普通UID27/受保护broker两链/自包含发布通过。注释、CJK缺失轮廓、流式及其余BCD继续；RAR前头CI失败保留，本头待独立核对。
 
 2026-11-01：新增[真实RAR4/RAR5 solid共享字典](rar-solid-verification.md)：完整连续块/物理字节核算、RAR5全原始头预检及拒绝隐藏记录、两种原包全文与末件接续、双端停止/补传/付费复用、Linux普通UID/受保护broker/自包含发布通过。Windows完整526项（525通过、1跳过），Linux29项；真正大成员流式及其余BCD继续。

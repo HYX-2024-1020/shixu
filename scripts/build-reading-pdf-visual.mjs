@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { copyPdfResources } from "./build-pdf-resources.mjs";
-import { patchPdfFontUnicode } from "./patch-pdf-fonts.mjs";
+import { patchPdfFontUnicode, patchPdfFormAppearance } from "./patch-pdf-fonts.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const sha = (b, algorithm = "sha256") =>
@@ -267,7 +267,7 @@ export async function buildPdfVisual(
         "utf8",
       ),
     );
-    workerSource = patchPdfFontUnicode(workerSource);
+    workerSource = patchPdfFormAppearance(patchPdfFontUnicode(workerSource));
     workerSource = change(
       workerSource,
       "function warn(msg) {",
@@ -306,7 +306,7 @@ export async function buildPdfVisual(
     ])
       files[name] = sha(await readFile(join(output, name)));
     const manifest = {
-      protocol: "shixu-pdf-visual/2",
+      protocol: "shixu-pdf-visual/3",
       platform,
       pdfjs: "6.2.108",
       canvas: "1.0.13",

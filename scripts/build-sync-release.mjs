@@ -20,7 +20,7 @@ const files = [
   "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",
   "server/reading/xlsx.mjs", "server/reading/ooxml-xml.mjs",
   "server/reading/xlsx-reader.cjs", "server/reading/xlsx-reader.LICENSE",
-  "server/reading/pdf-resource-catalog.mjs", "server/reading/pdf-resources.mjs", "server/reading/pdf-visual.mjs", "server/reading/pdf-canvas.mjs", "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
+  "server/reading/pdf-annotations.mjs", "server/reading/pdf-resource-catalog.mjs", "server/reading/pdf-resources.mjs", "server/reading/pdf-visual.mjs", "server/reading/pdf-canvas.mjs", "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
   "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/apng.mjs", "server/reading/webp.mjs",

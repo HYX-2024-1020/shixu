@@ -1,8 +1,9 @@
 import { sha256 } from "./material.mjs";
 import { encodePng } from "./image.mjs";
 import { createPdfResources } from "./pdf-resources.mjs";
+import { annotationRange, annotationText } from "./pdf-annotations.mjs";
 
-export const PDF_VISUAL_VERSION = "pdf-visual/2;pdfjs/6.2.108;canvas/1.0.13;resources/1";
+export const PDF_VISUAL_VERSION = "pdf-visual/3;pdfjs/6.2.108;canvas/1.0.13;resources/1;annotations/1";
 export function validatePdfVisualWindow(value) {
   if (value === undefined) return undefined;
   if (
@@ -23,7 +24,7 @@ export async function readPdfVisual(bytes, result, window) {
   window = validatePdfVisualWindow(window);
   if (!window) throw Error("INVALID_PDF_VISUAL_WINDOW");
   result.readerVersion = PDF_VISUAL_VERSION;
-  result.normalizationVersion = "pdf-108dpi-white-png/1";
+  result.normalizationVersion = "pdf-108dpi-white-png/2";
   const missing = (code, range = { kind: "pdf", page: window.page }) => {
     result.uncovered.push({ ...range, code });
     if (!result.reasons.includes(code)) result.reasons.push(code);
@@ -34,14 +35,15 @@ export async function readPdfVisual(bytes, result, window) {
     surface,
     document,
     factory,
-    offset = window.offset;
-  const addText = (text) => {
+    offset = window.offset,
+    textUnits = 0;
+  const addText = (text, annotation) => {
     let chunk = "",
       count = 0,
       part = 0;
     const flush = () => {
       if (!chunk) return;
-      const sourceId = `${prefix}_vp${window.page}_t${part++}`;
+      const sourceId = `${prefix}_vp${window.page}${annotation?"_a"+annotation.annotation:""}_t${part++}`;
       const range = {
         name: result.name,
         sourceId,
@@ -51,13 +53,14 @@ export async function readPdfVisual(bytes, result, window) {
         page: window.page,
         part: part - 1,
         rotation: page.rotate,
+        ...annotation,
       };
       result.covered.push(range);
       result.segments.push({
         sourceId,
         range,
         text: chunk,
-        structure: { encoding: "pdf-content-order" },
+        structure: { encoding: annotation?"pdf-annotation":"pdf-content-order" },
       });
       offset += count;
       chunk = "";
@@ -76,7 +79,7 @@ export async function readPdfVisual(bytes, result, window) {
     const { directory, BoundedCanvasFactory } = await import(
       "./pdf-canvas.mjs"
     );
-    const { getDocument, OPS, takeRenderWarningCount } = await import(
+    const { getDocument, OPS, AnnotationMode, takeRenderWarningCount } = await import(
       new URL("api.mjs", directory)
     );
     takeRenderWarningCount();
@@ -141,6 +144,7 @@ export async function readPdfVisual(bytes, result, window) {
         stream.releaseLock();
       }
       if (resources.failed) throw Error("PDF_RESOURCE_UNAVAILABLE");
+      textUnits = units;
       if (limited) missing("PDF_RESOURCE_LIMIT");
       else addText(text.endsWith("\n") ? text : text + "\n");
     }
@@ -161,7 +165,10 @@ export async function readPdfVisual(bytes, result, window) {
       totalTiles = columns * Math.ceil(height / 1024);
     if (totalTiles > 64) throw Error("PDF_VISUAL_PIXEL_LIMIT");
     if (window.tile > totalTiles) throw Error("PDF_CURSOR_OUT_OF_RANGE");
-    const operators = await page.getOperatorList({ annotationMode: 0 });
+    const annotations = await page.getAnnotations({ intent: "any" });
+    if(annotations.length>1000)throw Error("PDF_ANNOTATION_LIMIT");
+    if(new Set(annotations.map(a=>a.id)).size!==annotations.length)throw Error("PDF_ANNOTATION_INVALID");
+    const operators = await page.getOperatorList({ annotationMode: AnnotationMode.ENABLE });
     if (resources.failed) throw Error("PDF_RESOURCE_UNAVAILABLE");
     for (let n = 0; n < operators.fnArray.length; n++)
       if (operators.fnArray[n] === OPS.setFont) {
@@ -169,15 +176,28 @@ export async function readPdfVisual(bytes, result, window) {
         if (font.missingFile && !font.isType3Font)
           throw Error("PDF_VISUAL_FONT_UNSUPPORTED");
       }
-    const annotations = await page.getAnnotations({ intent: "display" });
-    if (annotations.length) missing("PDF_ANNOTATION_UNREAD");
+    const rendered=new Set();
+    for(let n=0;n<operators.fnArray.length;n++)
+      if(operators.fnArray[n]===OPS.beginAnnotation)rendered.add(operators.argsArray[n][0]);
+    for(const [index,annotation] of annotations.entries()) {
+      const range={kind:"pdf",page:window.page,...annotationRange(annotation,index)};
+      const content=annotationText(annotation);
+      if(window.tile===1 && content.text) {
+        textUnits+=content.text.length;
+        if(textUnits>8*1024*1024)missing("PDF_ANNOTATION_LIMIT",range);
+        else addText(content.text,annotationRange(annotation,index));
+      }
+      // Only actual page operators count as flattened appearance coverage.
+      // Metadata alone cannot certify HTML-only, hidden or unsupported media.
+      if(content.unread || !rendered.has(annotation.id))missing("PDF_ANNOTATION_UNREAD",range);
+    }
     surface = factory.create(width, height);
     await page.render({
       canvas: surface.canvas,
       canvasContext: surface.context,
       viewport,
       background: "rgb(255,255,255)",
-      annotationMode: 0,
+      annotationMode: AnnotationMode.ENABLE,
     }).promise;
     if (takeRenderWarningCount() + takeWorkerWarningCount())
       throw Error("PDF_VISUAL_RENDER_WARNING");

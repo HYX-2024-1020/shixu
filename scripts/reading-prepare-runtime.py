@@ -28,7 +28,7 @@ if len(sys.argv) == 4:
         raise SystemExit('absolute verified PDF visual directory required')
     manifest = json.loads((renderer / 'manifest.json').read_text())
     native = renderer / 'skia.node'
-    if (manifest.get('protocol') != 'shixu-pdf-visual/2' or manifest.get('platform') != 'linux-x64'
+    if (manifest.get('protocol') not in ('shixu-pdf-visual/2','shixu-pdf-visual/3') or manifest.get('platform') != 'linux-x64'
             or manifest.get('pdfjs') != '6.2.108' or manifest.get('canvas') != '1.0.13'
             or native.is_symlink()
             or manifest['files']['skia.node'] != 'd069aa85c077131fec7e75eaabc2f33a1bfb61f7a626f2f371d778b426489e3b'

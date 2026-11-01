@@ -1,3 +1,7 @@
+## 2026-11-02 B/C/D PDF批注与表单外观（#73，整体未完成）
+
+Windows AccountWorkspace与微信实际Page/Node wx共用批注/表单编号、原页矩形、保存值/选项来源与未读标记；两页PDF和ZIP签名HTTP停止/补传、页图/来源一致，修订新增1次且复用2块。Linux普通UID41、受保护6样本和两端链、自包含发布通过；mini重新生成/核对，同步125通过。文字专用注释与更复杂交互层继续；未验安装版/原生微信/手机，本批无新本机UI，真实API新增0。[开发证据](bcd/pdf-annotations-verification.md)。
+
 ## 2026-11-02 B/C/D PDF固定字体/CMap（#73，整体未完成）
 
 Windows AccountWorkspace与微信实际Page/Node wx共用本地固定资源、文字/视觉语义和资源不可用提示。两页PDF/ZIP内PDF签名HTTP停止/补传、页图与来源覆盖、修订新增1次且复用2块通过；Linux普通UID及受保护broker同链通过。mini已重新生成/核对，同步125通过；未验安装版/原生微信/手机，本批无新UI窗口。真实API新增0。[开发证据](bcd/pdf-font-resources-verification.md)。

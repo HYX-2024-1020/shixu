@@ -1,0 +1,148 @@
+{
+  "resource": [
+    {
+      "kind": "stamp",
+      "inputBytes": 1072,
+      "inputHash": "de1ab95cb109ea87275e69d95d10aded3825cc38c6122ff855de8da890de8825",
+      "elapsedMs": 754.4293850000013,
+      "parseMs": 602.847374,
+      "serializationAndTransferMs": 2.930423000000019,
+      "maxRssKiB": 103896
+    },
+    {
+      "kind": "text",
+      "inputBytes": 1195,
+      "inputHash": "35f18a183e163a65d4f05f574cdaa29fd9934e00269f1ec654da0e70dbecff06",
+      "elapsedMs": 774.5815020000009,
+      "parseMs": 613.567054,
+      "serializationAndTransferMs": 2.4119779999999764,
+      "maxRssKiB": 103844
+    },
+    {
+      "kind": "checkbox",
+      "inputBytes": 1199,
+      "inputHash": "0d8a9c2ccfb28a05bdb9f6393cf0507ad5013e339610ab0cf188533a8924e118",
+      "elapsedMs": 773.7769290000015,
+      "parseMs": 615.76852,
+      "serializationAndTransferMs": 2.1255939999999782,
+      "maxRssKiB": 99860
+    },
+    {
+      "kind": "auto-text",
+      "inputBytes": 1198,
+      "inputHash": "c942f4ce62c36fd852f73dc07434573c5275a88cae53a1352f5b47fdbab2f3cf",
+      "elapsedMs": 848.0006240000002,
+      "parseMs": 699.163123,
+      "serializationAndTransferMs": 2.759226999999896,
+      "maxRssKiB": 103724
+    },
+    {
+      "kind": "auto-choice",
+      "inputBytes": 1213,
+      "inputHash": "68cf80db494c5a879bba7f3bbadb9aac44ef179ec81afbb8b1b7a72157cb12b6",
+      "elapsedMs": 816.6918649999989,
+      "parseMs": 701.8859729999999,
+      "serializationAndTransferMs": 2.0915070000000924,
+      "maxRssKiB": 103808
+    },
+    {
+      "kind": "unencoded",
+      "inputBytes": 1210,
+      "inputHash": "cb59a87cc8efb44464d606ffbe7d7a376defe67abe43ff761571d9430e561876",
+      "elapsedMs": 879.1933910000007,
+      "parseMs": 689.775383,
+      "serializationAndTransferMs": 2.5940970000000334,
+      "maxRssKiB": 100180
+    }
+  ],
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 1412,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 1528,
+      "parserRuns": 6,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    }
+  ],
+  "validation": {
+    "tree": "/opt/shixu-bcd-test-20261102-pdf-annotations",
+    "uid": 65534,
+    "testsPassed": 41,
+    "logs": [
+      "tests.txt (40 passed before auto appearances)",
+      "broker.txt (first three scenarios)",
+      "tests-final.txt (41 passed)",
+      "broker-final.txt (six scenarios and both client loops)"
+    ],
+    "visualProtocol": "shixu-pdf-visual/3",
+    "visualReader": "pdf-visual/3",
+    "normalization": "pdf-108dpi-white-png/2",
+    "linuxBuild": "Windows cross-build of same SRI-pinned Linux native package, executed on Linux",
+    "workingTreeHashes": {
+      "server/reading/pdf-annotations.mjs": "f58abaeeaf84908afcb723b3aea7d8ffd08d0895dd1f0c1ff4262cf2b9e76016",
+      "server/reading/pdf-visual.mjs": "bf6e7cd00b29c1de0ca406ba12e916e3ad8e75a53ced5f5aabdf967853134da2",
+      "server/reading/pdf-canvas.mjs": "720e1205913d5ab93f7ad7ca50d8031ad308673caab4863341ae1f85676794a8",
+      "server/reading/windows.mjs": "ea3530778e163a291dac43fdad7a952d3b999083a98a3e5b319cf09bc158aea5",
+      "server/reading/pdf-annotation-fixtures.mjs": "22aa7068257cf6d936f8d8fd699707649b0ee0f9d2cebb1590a709bffd83b5a5",
+      "scripts/patch-pdf-fonts.mjs": "93f322ccef858c8fb9d2929c81cf3cbe026d2e3f2b26c5db9f469eff30db0005",
+      "scripts/reading-pdf-annotation-linux.mjs": "4e14db5f5766e08fea94fd16169faee41c275263d5b2e9c12e4e7c2172e290b5"
+    }
+  }
+}

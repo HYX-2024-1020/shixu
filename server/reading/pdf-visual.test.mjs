@@ -280,6 +280,7 @@ test("missing or mismatched fixed PDF tools fail closed without loading a host c
       "pdf-canvas.mjs",
       "pdf-resource-catalog.mjs",
       "pdf-resources.mjs",
+      "pdf-annotations.mjs",
       "material.mjs",
       "image.mjs",
       "archive-window.mjs",

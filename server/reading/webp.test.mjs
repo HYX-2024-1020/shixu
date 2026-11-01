@@ -233,6 +233,7 @@ test("WebP tool missing or protocol/hash mismatch fails closed in an isolated mo
       "pdf-canvas.mjs",
       "pdf-resource-catalog.mjs",
       "pdf-resources.mjs",
+      "pdf-annotations.mjs",
       "office-window.mjs",
     ])
       await copyFile(

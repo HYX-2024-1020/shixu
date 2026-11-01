@@ -1,4 +1,5 @@
 import {ensureDatabaseSchema}from '../database-schema.mjs';
+import { validAnnotationRange } from "./pdf-annotations.mjs";
 import {READING_WINDOWS_SCHEMA}from '../database-schemas.mjs';
 import {ReadingWindowSafety} from "./window-safety.mjs";
 import {validateSolidCompression} from './native-archive.mjs';
@@ -295,10 +296,10 @@ export class ReadingWindows {
     for(let n=0;n<material.segments.length;n++){
       const segment=material.segments[n],r=segment.range;
       if(JSON.stringify(r)!==JSON.stringify(material.covered[n]) || segment.sourceId!==r.sourceId ||
-        r.page!==requested.page || r.start!==offset || ![0,90,180,270].includes(r.rotation))invalid();
+        r.page!==requested.page || r.start!==offset || ![0,90,180,270].includes(r.rotation) || !validAnnotationRange(r))invalid();
       if(segment.image){
         validateModelImage(segment.image);
-        if(p.failedPage || r.kind!=="image" || r.end!==r.start+1 || r.tile!==requested.tile || r.dpi!==108 ||
+        if(p.failedPage || r.annotation!==undefined || r.kind!=="image" || r.end!==r.start+1 || r.tile!==requested.tile || r.dpi!==108 ||
           r.totalTiles!==p.totalTiles || r.imageWidth!==p.width || r.imageHeight!==p.height ||
           r.width!==segment.image.width || r.height!==segment.image.height || r.imageHash!==segment.image.hash)invalid();
       }else if(requested.tile!==1 || r.kind!=="pdf" || r.end!==r.start+[...segment.text].length)invalid();

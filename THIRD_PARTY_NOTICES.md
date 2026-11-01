@@ -1,5 +1,7 @@
 # 第三方代码、素材与样本
 
+PDF注释/表单沿上述固定PDF.js源和许可；新增局部补丁仅将`_getAppearance`的OffscreenCanvas告警限定为确有字体编码缺口的分支：完整编码路径只使用已加载字体度量，不依赖OffscreenCanvas；其他告警/缺失轮廓/不可编码值仍拒绝可信页图。精确源码匹配、正/负例和独立字形参考见[注释表单验证](docs/bcd/pdf-annotations-verification.md)。补丁构建器随自包含包保留，未开启宿主字体或全局OffscreenCanvas。
+
 PDF本地资源沿固定`pdfjs-dist@6.2.108`：168个Adobe压缩CMap、14个Foxit/Liberation标准字体及3份许可，共185文件/1,948,053字节。[固定目录与逐文件hash](server/reading/pdf-resource-catalog.mjs)由同一lockfile版本生成，构建时核对，原文件和完整`cmaps/LICENSE`（Adobe BSD类条款）、`standard_fonts/LICENSE_FOXIT`（PDFium BSD-3-Clause）、`standard_fonts/LICENSE_LIBERATION`（Google/Red Hat，SIL OFL1.1及保留字体名）随自包含包保留。字体未改名/修改，不将其声明为MIT。版本升级须同时复核目录、字节/hash与许可。本地改动还包括Node24局部精确求和兼容、PDF.js自有Dingbats Unicode表的默认编码修正（显式ToUnicode仍优先），两文字/视觉bundle均重建。MuPDF1.28.2只用于合成字体页独立栅格参考生成，不分发该引擎；参考差异与边界见[字体资源验证](docs/bcd/pdf-font-resources-verification.md)。
 
 RAR4/RAR5 solid测试原包来自[junrar固定提交c831d1e](https://github.com/junrar/junrar/tree/c831d1ed9eccf63083f2d4304149019d43f48c06/src/test/resources/com/github/junrar/solid)的`rar4-solid.rar`和`rar5-solid.rar`，各9个`fileN.txt`，内容为`fileN`加换行，无个人资料。压缩流及头部逐字节不改，仅转为[uu文本4](server/reading/fixtures/rar4-solid.uu)/[uu文本5](server/reading/fixtures/rar5-solid.uu)入库，保留[该提交根目录完整上游许可](server/reading/fixtures/rar-solid.LICENSE)（Alexander L. Roshal，UnRAR freeware及禁止重建RAR压缩算法限制），不声明为本项目MIT。原包SHA-256分别为`b158d4b0e3506f04fcaff18db9b369b573fd54f313062c7b8c622cb33b9c5da4`和`d004997e805cb7bb47bd73904aae113f81ee1d82d80bed9372c5dd64d1684754`；uu校验和见[验证说明](docs/bcd/rar-solid-verification.md)。未引入RAR压缩算法或压缩器。原路径协议v3仅在已审查标志中允许RAR4 solid，仍使用上述固定7-Zip源及原许可。

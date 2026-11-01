@@ -27,7 +27,7 @@ try {
     ...Object.keys(PDF_RESOURCE_CATALOG.files).map(n=>"resources/"+n),
   ];
   if (
-    manifest.protocol !== "shixu-pdf-visual/2" ||
+    manifest.protocol !== "shixu-pdf-visual/3" ||
     manifest.platform !== process.platform + "-" + process.arch ||
     manifest.pdfjs !== "6.2.108" ||
     manifest.canvas !== "1.0.13" ||
