@@ -222,7 +222,7 @@ test("receipt mismatch and lost migration marker cannot silently recertify old t
   createJobQueue(store, null, {}, { archiveLegacy: true }).stop();
   store.db.exec("UPDATE sync_jobs SET state='queued' WHERE id='job_0'");
   assert.throws(() => migrateLegacyJobs(store), /LEGACY_JOB_RECONCILIATION/);
-  store.db.exec("DELETE FROM sync_meta WHERE key='legacy_jobs_v4'");
+  store.db.prepare("DELETE FROM sync_meta WHERE key=?").run("legacy_jobs_v4");
   assert.throws(() => migrateLegacyJobs(store), /LEGACY_JOB_RECONCILIATION/);
 });
 test("legacy job purge keeps metadata receipt and never resurrects its output", (t) => {
