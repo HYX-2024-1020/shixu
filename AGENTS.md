@@ -8,6 +8,8 @@
 
 ## 每次任务必须遵守
 
+本机有工作区登记表时，必须使用登记的日常checkout，其他旧目录只读参考，不因新任务换到旧checkout。新任务先fetch并在专用分支运行 `npm run workspace:check -- --start`；继续任务及构建/送达前运行 `npm run workspace:check`。失败先解决位置、基线或冲突，不自动stash/reset，不带着失败构建。默认串行收尾后再开下一任务。接触已有模块时明确保留哪些旧修复并运行相应回归；Git祖先检查不能替代行为验证。具体操作及未合并成果规则见[固定开发位置](docs/project-continuity/local-workspace.md)。
+
 1. 先执行 `git status --short --branch`、检查远端和现有 PR。保护用户尚未提交的文件，不自动 reset、clean、stash 或覆盖别人的改动。
 2. 涉及仓库文件修改，必须在专用分支工作。分支格式为 `feat/<topic>`、`fix/<topic>`、`docs/<topic>`、`refactor/<topic>`、`test/<topic>`、`chore/<topic>`、`ci/<topic>` 或 `perf/<topic>`；使用小写英文及连字符。可以继续同一任务的已有分支/PR。禁止直接在 `main` 上开发或推送。
 3. 新任务从更新后的 `origin/main` 开始。当前目录有其他任务改动时，使用独立 worktree 隔离，不把其他对话的成果夹带进来。
