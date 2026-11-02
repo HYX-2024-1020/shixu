@@ -9,6 +9,8 @@
 
 ## 参与开发
 
+- [63份历史本地改动：逐文件核对、归档与清理结果](project-continuity/local-remnants-20261102.md)
+
 - [固定开发位置、任务基线检查与保留旧修复](project-continuity/local-workspace.md)
 
 - [当前成果与接续入口](current-baseline.md) · [成果复用与推进约束](project-continuity/README.md) · [2026-11-02本地/远端盘点](project-continuity/inventory-20261102.md)
