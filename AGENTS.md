@@ -2,7 +2,13 @@
 
 本文件适用于本仓库所有目录、所有后续开发对话和所有编码代理。开始修改前先读本文件与 `CONTRIBUTING.md`；桌面产品变更还须读 `docs/desktop-product-plan.md` 和 `docs/desktop-implementation.md`。历史 HANDOFF 中的进度记录不能替代当前 Git 状态或本文件的协作流程。
 
+## 当前接续要求（2026-11-02）
+
+开始任务还须读 [当前基线](docs/current-baseline.md) 和 [成果复用与推进约束](docs/project-continuity/README.md)。本轮仅整理，功能开发保持暂停，直至用户明确恢复。此次修正推进方式，不重开产品或丢弃已有实现；总需求清单负责交付跟踪，不自动成为持续执行队列或所有新工作的共同分支。历史文档中的“继续”不替代当前授权。复用成果前核对主线、未合并PR、实际部署/安装与对应证据，不能以测试数或格式数当作整体完成度。
+
 ## 每次任务必须遵守
+
+本机有工作区登记表时，必须使用登记的日常checkout，其他旧目录只读参考，不因新任务换到旧checkout。新任务先fetch并在专用分支运行 `npm run workspace:check -- --start`；继续任务及构建/送达前运行 `npm run workspace:check`。失败先解决位置、基线或冲突，不自动stash/reset，不带着失败构建。默认串行收尾后再开下一任务。接触已有模块时明确保留哪些旧修复并运行相应回归；Git祖先检查不能替代行为验证。具体操作及未合并成果规则见[固定开发位置](docs/project-continuity/local-workspace.md)。
 
 1. 先执行 `git status --short --branch`、检查远端和现有 PR。保护用户尚未提交的文件，不自动 reset、clean、stash 或覆盖别人的改动。
 2. 涉及仓库文件修改，必须在专用分支工作。分支格式为 `feat/<topic>`、`fix/<topic>`、`docs/<topic>`、`refactor/<topic>`、`test/<topic>`、`chore/<topic>`、`ci/<topic>` 或 `perf/<topic>`；使用小写英文及连字符。可以继续同一任务的已有分支/PR。禁止直接在 `main` 上开发或推送。
