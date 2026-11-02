@@ -32,6 +32,7 @@ jobs:
       - run: node --test scripts/check-client-parity.test.mjs
       - run: node scripts/check-client-parity.mjs
       - run: node --test scripts/check-development-base.test.mjs
+      - run: node --test scripts/reading-limit-fixture.test.mjs
 
   secrets:
     name: Secret scan

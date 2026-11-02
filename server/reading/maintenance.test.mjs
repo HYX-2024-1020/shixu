@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
 import { readMaterial } from "./material.mjs";
 import { pdfWindowSample } from "./pdf-fixtures.mjs";
+import { executionLimitReader } from "../../scripts/reading-limit-fixture.mjs";
 
 test(
   "known exhausted PDF time can be audited by the trusted host and explicitly continued by the other client",
   { timeout: 30000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "shixu-time-audit-"));
-    let reads = 0;
     try {
       const report = await runClientLoop({
         directory,
@@ -24,22 +24,7 @@ test(
         expireBeforeStart: true,
         startByMini: true,
         reader: Object.assign(
-          async (f, { signal, pdfWindow }) => {
-            if (++reads === 1)
-              return new Promise((resolve, reject) =>
-                signal.addEventListener(
-                  "abort",
-                  () =>
-                    reject(
-                      Object.assign(Error("READING_ABORTED"), {
-                        timing: { waitingMs: 0 },
-                      }),
-                    ),
-                  { once: true },
-                ),
-              );
-            return readMaterial(f, { pdfWindow });
-          },
+          executionLimitReader(readMaterial),
           { pdfWindows: true },
         ),
       });

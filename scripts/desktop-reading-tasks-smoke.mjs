@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { waitForPageState } from "./desktop-test-wait.mjs";
+import { executionLimitReader } from "./reading-limit-fixture.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 import { docxBytes, paragraph } from "../server/reading/docx-fixtures.mjs";
@@ -106,6 +107,7 @@ ledger.freezePrice({
 });
 let calls = 0;
 let auditedReads = 0;
+const auditedLimitReader = executionLimitReader((f, options) => readMaterial(f, options));
 const reading = {
   ...(costAudit ? {maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-call-cost",
     maintenanceVerifyCost:({call,evidenceHash})=>{
@@ -135,12 +137,13 @@ const reading = {
   enabled: true,
   ledger,
   ...(readFailure === "EXECUTION_LIMIT" ? { activeLimitMs: 80 } : {}),
-  reader: Object.assign(async (f, { signal, pdfWindow, archiveWindow }) => {
+  reader: Object.assign(async (f, { signal, pdfWindow, archiveWindow, activeBudgetMs }) => {
     if (readFailure === "ACTIVE_TIME_RECONCILIATION" && (!auditUnknownTime || ++auditedReads===1))
       throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
         timingUncertain: true,
       });
-    if (readFailure === "EXECUTION_LIMIT" && (!auditTime || ++auditedReads === 1))
+    if (auditTime) return auditedLimitReader(f, { signal, pdfWindow, archiveWindow, activeBudgetMs });
+    if (readFailure === "EXECUTION_LIMIT")
       return new Promise((resolve, reject) =>
         signal.addEventListener(
           "abort",
