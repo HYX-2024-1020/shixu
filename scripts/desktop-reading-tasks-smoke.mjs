@@ -263,7 +263,8 @@ scenario: try {
   if (partialRemaining) {
     await waitForPageState(page, async () => {
       await window.desktop.cloud("sync");
-      return (await window.desktop.cloud("status")).jobs[0]?.state === "error";
+      const job = (await window.desktop.cloud("status")).jobs[0];
+      return job?.completedBlocks === 1 && job.calls === 2 && job.actions.includes("accept-partial");
     });
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
     await page.getByRole("button", { name: "查看已完成内容", exact: true }).click();
