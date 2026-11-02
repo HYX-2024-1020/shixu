@@ -1017,6 +1017,7 @@ function minimalRootTombstone(root, id) {
       JSON.stringify(tables) !==
       JSON.stringify([
         "account_meta",
+        "account_safety_checkpoint",
         "accounts",
         "ai_usage",
         "bindings",
@@ -1033,6 +1034,7 @@ function minimalRootTombstone(root, id) {
     )
       fail();
     for (const table of [
+      "account_safety_checkpoint",
       "accounts",
       "bindings",
       "nonces",

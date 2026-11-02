@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { AccountRegistry } from "../sync-accounts.mjs";
 import { SyncStore } from "../sync-store.mjs";
 import { createAttachmentStore } from "../sync-files.mjs";
@@ -119,6 +120,9 @@ test("seven-day retirement clears old root and old version contents, preserves e
   assert.equal(existsSync(f.tenant), true);
   assert.deepEqual(f.purge(1000 + 7 * day), { completed: ["v1"] });
   assert.equal(existsSync(f.tenant), false);
+  const tombstone = new DatabaseSync(join(f.root, "accounts.sqlite"), { readOnly: true });
+  try { assert.equal(tombstone.prepare("SELECT COUNT(*) n FROM account_safety_checkpoint").get().n, 0); }
+  finally { tombstone.close(); }
   assert.equal(
     existsSync(join(f.root, "data-versions", "v1", "accounts.sqlite")),
     true,
