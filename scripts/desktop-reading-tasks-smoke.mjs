@@ -21,6 +21,7 @@ const archiveWindows = process.argv.includes("--archive-windows") || costAudit;
 const safetyRollback = process.argv.includes("--safety-rollback");
 const auditUnknownTime=process.argv.includes("--audit-unknown-time");
 const auditTime = process.argv.includes("--audit-time");
+const partialRemaining = process.argv.includes("--remaining");
 const revisionReuse = process.argv.includes("--reuse");
 const zip = process.argv.includes("--zip") || revisionReuse;
 const nativeFormat=process.argv.includes("--rar")?"rar":process.argv.includes("--7z")?"7z":null;
@@ -162,8 +163,9 @@ const reading = {
   modelVersion: "synthetic/1",
   provider: async (sources, signal) => {
     calls++;
+    if (partialRemaining && calls === 2) return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { invalid: true } };
     if(costAudit && calls===2)throw Error("synthetic missing usage and response");
-    if (calls === 1 && !auditTime && !auditUnknownTime && !costAudit)
+    if (calls === 1 && !auditTime && !auditUnknownTime && !costAudit && !partialRemaining)
       await new Promise((done) => {
         signal.addEventListener("abort", () => setTimeout(done, 30), {
           once: true,
@@ -258,6 +260,43 @@ scenario: try {
     });
   }, original);
   await page.locator(".bucket-settings").click();
+  if (partialRemaining) {
+    await waitForPageState(page, async () => {
+      await window.desktop.cloud("sync");
+      return (await window.desktop.cloud("status")).jobs[0]?.state === "error";
+    });
+    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "查看已完成内容", exact: true }).click();
+    await expect(page.getByText(/尚未保存到世界/)).toBeVisible();
+    await page.getByRole("button", { name: "收下有效部分", exact: true }).click();
+    await waitForPageState(page, async () => {
+      await window.desktop.cloud("sync");
+      return (await window.desktop.cloud("status")).jobs.some(j => j.state === "partial");
+    });
+    const firstId = await page.evaluate(async () => {
+      const p = (await window.desktop.store("packets")).find(p => p.id === "task-ui");
+      p.result.items[0].title = "已核对的首项";
+      p.itemState = { [p.itemIds[0]]: { starred: true, order: 4, status: "done" } };
+      p.doneIds = [p.itemIds[0]];
+      await window.desktop.store("savePackets", [p]); await window.desktop.cloud("sync");
+      return p.itemIds[0];
+    });
+    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "完成剩余材料", exact: true }).click();
+    await waitForPageState(page, async () => {
+      await window.desktop.cloud("sync");
+      return (await window.desktop.cloud("status")).jobs.some(j => j.remainingOf && j.state === "done");
+    });
+    const final = await page.evaluate(async () => ({ p: (await window.desktop.store("packets")).find(p => p.id === "task-ui"), status: await window.desktop.cloud("status") }));
+    assert.equal(final.p.itemIds[0], firstId); assert.equal(final.p.result.items[0].title, "已核对的首项");
+    assert.equal(final.p.itemState[firstId].status, "done"); assert.deepEqual(final.p.doneIds, [firstId]);
+    assert.equal(final.p.processingCoverage.pending.length, 0); assert.equal(final.status.account.wallet.spent, calls * 20);
+    assert.equal(final.p.readingCoverage[0].pagination.totalPages, 19);
+    assert.equal(calls, 4); assert.equal(final.p.result.items.length, 3);
+    console.log(JSON.stringify({ synthetic: true, realProviderCalls: 0, electronSourceUI: true, partialRemaining: true,
+      readOnlyPreview: true, acceptedEditsPreserved: true, prefixNotRepublished: true, calls }));
+    break scenario;
+  }
   if (readFailure) {
     await waitForPageState(
       page,

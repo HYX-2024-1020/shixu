@@ -59,6 +59,7 @@ export function createReadingRoutes({
   authorize,
   enabled = () => true,
   registration = false,
+  materialNoticeRequired = false,
   activeLimitMs = 1800000,
 }) {
   if (
@@ -152,7 +153,9 @@ export function createReadingRoutes({
       maintenanceOperation: e.maintenanceOperation(t.id),
       inputRevision: t.input_revision,
       calls: t.calls,
+      hasPreview: info.kind !== "chat" && t.state !== "purged" && !!e.db.prepare("SELECT 1 FROM reading_blocks WHERE task=? LIMIT 1").get(t.id),
       reusedBlocks: e.reuse.count(t.id),
+      remainingOf: e.remainders.info(t)?.parent || null,
       activeMs: t.active_ms,
       reason: displayReason,
       rootTaskId: root.id,
@@ -171,6 +174,8 @@ export function createReadingRoutes({
           ? []
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
+              ...(t.state === "partial" && !e.remainders.child(t.id) && !root.reason &&
+                  !wallet.pausedReason && root.activeMs < e.executionLimit(t.id) ? ["remaining"] : []),
               ...(recoverable.includes(t.state) &&
               t.reason!=="ASSOCIATION_INPUT_CHANGED" &&
               (t.reason !== "EXECUTION_LIMIT" || auditedTimeAvailable) &&
@@ -262,8 +267,11 @@ export function createReadingRoutes({
         authRequired: true,
         timezone: "Asia/Shanghai",
         serverTime: new Date().toISOString(),
+        materialUseNotice: materialNoticeRequired ? { version: 1,
+          text: "连接账号后资料同步至拾序服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。云端原件通常保存30天，到期后7天待清理，可下载、续期或删除；临时整理不长期保存原件，清理后继续需补传。云端删除不删除已下载的本机副本。备份恢复仍有独立验收，尚未开放；后续备份副本最长保留7天，删除不等于立即从已有备份消失。" } : null,
         features: {
           readingTasks: true,
+          remainingTasks: true,
           readingEnabled: enabled(),
           formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","apng","jpg","jpeg","gif","webp"] : [])],
           imageTiles:reader.imageWindows===true && provider.imageInput===true,
@@ -527,15 +535,33 @@ export function createReadingRoutes({
         return view(e, task);
       }
       const match =
-        /^\/api\/v4\/tasks\/([\w-]{1,90})(?:\/(stop|continue|purge|accept-partial))?$/.exec(
+        /^\/api\/v4\/tasks\/([\w-]{1,90})(?:\/(stop|continue|purge|accept-partial|remaining|preview))?$/.exec(
           url.pathname,
         );
       if (!match) fail(404, "NOT_FOUND");
       const task = e.get(match[1]);
       if (!task) fail(404, "TASK_NOT_FOUND");
+      if (method === "GET" && match[2] === "preview") {
+        const offset = url.searchParams.get("offset") || "0";
+        if (!/^\d+$/.test(offset)) fail(400, "INVALID_PREVIEW_OFFSET");
+        return e.preview(task.id, Number(offset));
+      }
       if (method === "GET" && !match[2]) return view(e, task);
       if (method !== "POST" || !match[2]) fail(404, "NOT_FOUND");
       if (value.contractVersion !== 1) fail(426, "CLIENT_UPGRADE_REQUIRED");
+      if (match[2] === "remaining") {
+        if (!enabled()) fail(503, "AI_DISABLED");
+        const wallet = ledger.wallet(account), root = e.roots.stats(task.id);
+        if (wallet.pausedReason) fail(503, wallet.pausedReason);
+        if (root.reason) fail(409, root.reason);
+        if (root.activeMs >= e.executionLimit(task.id)) fail(409, "EXECUTION_LIMIT");
+        const child = e.enqueue({ id: value.operationId, packetId: task.packet, deviceId: device,
+          expectedCostOperation: value.expectedCostOperation ?? null, remainingOf: task.id,
+          remainingReview: { expectedGeneration: value.expectedGeneration, expectedRevision: value.expectedRevision,
+            expectedMaintenanceOperation: value.expectedMaintenanceOperation ?? null } });
+        if (child.state === "queued") schedule(e, child.id);
+        return view(e, child);
+      }
       if (match[2] === "continue" && !enabled()) fail(503, "AI_DISABLED");
       const response = e.action(
         task.id,

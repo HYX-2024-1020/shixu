@@ -90,6 +90,29 @@ function mergeData(before, patch, id, maxBytes = 800000) {
   return next;
 }
 
+function patchResult(before, patch) {
+  const invalid = () => { throw new SyncError(422, "INVALID_RESULT_PATCH", "事项修改无效，请先同步最新资料"); };
+  if (!before || !Array.isArray(before.items) || !patch ||
+      Object.keys(patch).sort().join(",") !== "fields,items" ||
+      !patch.fields || typeof patch.fields !== "object" || Array.isArray(patch.fields) ||
+      Object.keys(patch.fields).some(key => !["summary", "warnings"].includes(key)) ||
+      !Array.isArray(patch.items) || patch.items.length > before.items.length) invalid();
+  assertJSON(patch);
+  if (Buffer.byteLength(JSON.stringify(patch)) > 800000)
+    throw new SyncError(413, "TOO_LARGE", "本次事项修改超过限制，请分次保存");
+  if (("summary" in patch.fields && typeof patch.fields.summary !== "string") ||
+      ("warnings" in patch.fields && (!Array.isArray(patch.fields.warnings) || patch.fields.warnings.some(s => typeof s !== "string")))) invalid();
+  const items = [...before.items], changed = new Set();
+  for (const edit of patch.items) {
+    if (!edit || Object.keys(edit).sort().join(",") !== "index,value" ||
+        !Number.isSafeInteger(edit.index) || edit.index < 0 || edit.index >= items.length ||
+        changed.has(edit.index) || !edit.value || typeof edit.value !== "object" || Array.isArray(edit.value)) invalid();
+    changed.add(edit.index);
+    items[edit.index] = edit.value;
+  }
+  return { ...before, ...patch.fields, items };
+}
+
 export class SyncStore {
   constructor(path) {
     if (path !== ":memory:")
@@ -224,7 +247,10 @@ export class SyncStore {
       });
     if (!operation || typeof operation !== "object" || Array.isArray(operation))
       throw new SyncError(400, "INVALID_OPERATION", "同步操作无效");
-    const { opId, id, baseVersion, type, data } = operation;
+    const { opId, id, baseVersion, type, resultPatch } = operation;
+    let { data } = operation;
+    if (resultPatch !== undefined && (type !== "put" || !data || typeof data !== "object" || Array.isArray(data) || "result" in data))
+      throw new SyncError(422, "INVALID_RESULT_PATCH", "分项修改不能同时替换完整结果");
     if (
       !isId(opId) ||
       !isId(id) ||
@@ -257,6 +283,7 @@ export class SyncStore {
           baseVersion,
           type,
           ...(data === undefined ? {} : { data }),
+          ...(resultPatch === undefined ? {} : { resultPatch }),
         }),
       ),
     );
@@ -312,6 +339,7 @@ export class SyncStore {
         fail("NOT_DELETED", "请先移入最近删除", { current });
       if (type === "restore" && !current.deletedAt)
         fail("NOT_DELETED", "投递当前不在最近删除中", { current });
+      if (resultPatch !== undefined) data = { ...data, result: patchResult(current?.data?.result, resultPatch) };
       const version = this.sequence + 1;
       const nextData =
         type === "put"

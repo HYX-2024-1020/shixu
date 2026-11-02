@@ -40,6 +40,31 @@ function merge(before, patch, id) {
   return next;
 }
 
+// Keep the durable operation stable across retries. Sending a whole long AI
+// result to edit one card exceeds the ordinary request limit.
+function resultPatch(before, after) {
+  if (!before || !after || !Array.isArray(before.items) || !Array.isArray(after.items) ||
+      before.items.length !== after.items.length) return null;
+  const fields = {}, items = [];
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    if (key === "items" || JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+    if (!["summary", "warnings"].includes(key) || !(key in after)) return null;
+    fields[key] = after[key];
+  }
+  after.items.forEach((value, index) => {
+    if (JSON.stringify(value) !== JSON.stringify(before.items[index])) items.push({ index, value });
+  });
+  return { fields, items };
+}
+function utf8Bytes(text) {
+  let size = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    size += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return size;
+}
+
 // No wx or Node dependency: the same queue can later serve the desktop client.
 // write() must persist synchronously; a failed write never advances in-memory state.
 function createSyncClient({
@@ -122,6 +147,13 @@ function createSyncClient({
             JSON.stringify(before.data[key])
           )
             delete operation.data[key];
+      if (operation.data.result && utf8Bytes(JSON.stringify(operation.data.result)) > 800000) {
+        const compact = resultPatch(before?.data?.result, operation.data.result);
+        if (compact && JSON.stringify(compact).length < JSON.stringify(operation.data.result).length) {
+          operation.resultPatch = compact;
+          delete operation.data.result;
+        }
+      }
     }
     const local = {
       id,
@@ -211,6 +243,8 @@ function createSyncClient({
       if (entry.dependsOn)
         throw issue("QUEUE_DEPENDENCY", "同步队列顺序异常，本机内容已保留");
       const op = entry.operation;
+      if (op.resultPatch && !status.capabilities?.resultItemPatches)
+        throw issue("CLIENT_UPGRADE_REQUIRED", "服务尚不支持长结果分项编辑，修改已保留，请升级服务后同步");
       let result;
       try {
         result = await request("POST", `${api}/operations`, {

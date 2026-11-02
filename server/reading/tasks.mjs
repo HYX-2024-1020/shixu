@@ -21,6 +21,8 @@ import { ReadingChat } from './chat.mjs';
 import { ReadingVisualReview } from "./visual-review.mjs";
 import { ReadingMerge, MERGE_VERSION } from './merge.mjs';
 import { isImageName } from './image.mjs';
+import { ReadingRemainders } from './remainders.mjs';
+import { sourceLocation } from '../../shared/reading-view.mjs';
 
 const active = ["queued", "running", "applying"];
 const occupies = [...active, "paused", "interrupted", "error", "conflict"];
@@ -31,6 +33,8 @@ const error = (code) =>
     code,
     code === "ASSOCIATION_INPUT_CHANGED"
       ? "历史事项已变化，已付费进度保留；可收下本次结果或重新整理"
+      : code === "REMAINDER_REQUIRED"
+      ? "这次投递已收下部分事项，请选择完成剩余材料；如需重新整理全部，请另建投递以保留已收下事项"
       : code === "ACTIVE_TIME_RECONCILIATION"
       ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
       : code === "CHECKPOINT_NO_PROGRESS"
@@ -200,6 +204,7 @@ export class ReadingTasks {
     this.merge = new ReadingMerge(this);
     this.association = new ReadingAssociation(this);
     this.roots = new ReadingRoots(store, ledger, account);
+    this.remainders = new ReadingRemainders(this);
     this.db
       .prepare(
         "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('running','applying')",
@@ -277,12 +282,16 @@ export class ReadingTasks {
   revision(task) {
     return this.chat.revision(task.id,inputRevision(this.store,task.packet));
   }
-  enqueue({ id, packetId, deviceId, expectedCostOperation = null, chat = null }) {
+  enqueue({ id, packetId, deviceId, expectedCostOperation = null, chat = null, remainingOf = null, remainingReview = null }) {
     if (this.finalSnapshots) throw error("SERVICE_CLOSING");
     this.authorize(deviceId);
     if (![id, packetId, deviceId].every(validId)) throw error("INVALID_TASK");
     return this.transaction(() => {
       const prior = this.get(id);
+      if (prior && (this.remainders.info(prior)?.parent || null) !== remainingOf) throw error("IDEMPOTENCY_CONFLICT");
+      if (prior && remainingOf && ["expectedGeneration", "expectedRevision", "expectedMaintenanceOperation"].some(key =>
+        this.remainders.info(prior).review[key] !== remainingReview?.[key])) throw error("IDEMPOTENCY_CONFLICT");
+      if (remainingOf !== null && (!validId(remainingOf) || chat)) throw error("INVALID_REMAINDER");
       if (prior && (chat || this.chat.isChat(id))) {
         if(prior.packet!==packetId || prior.device!==deviceId || !this.chat.sameRequest(id,packetId,deviceId,chat,expectedCostOperation))
           throw error('IDEMPOTENCY_CONFLICT');
@@ -302,6 +311,9 @@ export class ReadingTasks {
         return prior;
       }
       if (expectedCostOperation !== this.ledger.recoveryOperation(this.account))throw error("STALE_COST_REVIEW");
+      const remainder = remainingOf ? this.remainders.prepare(remainingOf, packetId, revision, remainingReview) : null;
+      if (!chat && !remainingOf && this.store.record(packetId).data.processingCoverage?.partial)
+        throw error("REMAINDER_REQUIRED");
       if(this.ledger.legacy.pending(this.account))throw error("RECONCILIATION_REQUIRED");
       if (this.store.files.unlinked(packetId))
         throw error("ATTACHMENT_UNLINKED");
@@ -340,6 +352,7 @@ export class ReadingTasks {
       this.ledger.legacy.approve(this.account,id,1);
       if(prepared)this.chat.register(this.get(id),prepared);
       this.roots.attach(this.get(id));
+      if (remainder) this.remainders.register(this.get(id), remainingOf, remainder);
       return this.get(id);
     });
   }
@@ -606,6 +619,34 @@ export class ReadingTasks {
     await this.step(id);
     return this.get(id);
   }
+  preview(id, offset = 0) {
+    const task = this.get(id);
+    if (!task || task.state === "purged" || this.chat.isChat(id)) throw error("TASK_NOT_FOUND");
+    if (!this.store.record(task.packet) || this.store.record(task.packet).purged) throw error("INPUT_DELETED");
+    if (!Number.isSafeInteger(offset) || offset < 0) throw error("INVALID_PREVIEW_OFFSET");
+    this.windows.safety.assertRoot(id);
+    const items = [];
+    const coverage = JSON.parse(task.coverage);
+    let seen = 0, bytes = 0, nextOffset = null;
+    blocks: for (const block of this.db.prepare("SELECT * FROM reading_blocks WHERE task=? ORDER BY rowid").iterate(id)) {
+      const effective = this.visual.effective(task, block, true);
+      if (!effective) continue;
+      for (const item of effective.result.items) {
+        if (seen < offset) { seen++; continue; }
+        const entry = { ...item, evidence: (item.evidence || []).map(evidence => ({ ...evidence,
+          name: sourceLocation(coverage, evidence.sourceId) || evidence.sourceId })) };
+        const size = Buffer.byteLength(JSON.stringify(entry));
+        if (items.length >= 8 || (items.length && bytes + size > 200000)) { nextOffset = seen; break blocks; }
+        if (size > 200000) throw error("INVALID_MODEL_OUTPUT");
+        items.push({ ...entry, previewKey: `${id}_${seen++}` }); bytes += size;
+      }
+    }
+    return { taskId: id, generation: task.generation, items, nextOffset,
+      published: ["done", "partial"].includes(task.state), readOnly: true };
+  }
+  readingFingerprint(task, ranges) {
+    return sha256(JSON.stringify([task.input_revision, versions, this.modelVersion, ranges]));
+  }
   publish(task, coverage, partial = false, afterPublication) {
     const id = task.id;
     this.windows.safety.assertRoot(id);
@@ -657,7 +698,7 @@ export class ReadingTasks {
         id: task.packet,
         type: "put",
         baseVersion: task.base_version,
-        data: isChat ? this.chat.publication(task) : {
+        data: isChat ? this.chat.publication(task) : this.remainders.append(task, {
           result,
           status: "ready",
           readingCoverage: coverage,
@@ -675,7 +716,7 @@ export class ReadingTasks {
           } : {association:{links:[]},historyAssociation:null}),
           sources: [],
           updatedAt: new Date().toISOString(),
-        },
+        }),
       },
       this.store.epoch,
       {
@@ -1004,6 +1045,7 @@ export class ReadingTasks {
         throw Error("NO_READABLE_MATERIAL");
       }
       const batches = [...modelBatches(readable)];
+      const excluded = new Set(this.remainders.info(task)?.excluded || []);
       for (const batch of batches) {
         if (!this.current(task)) return this.get(id);
         if (
@@ -1020,6 +1062,7 @@ export class ReadingTasks {
             batch.map((s) => s.range),
           ]),
         );
+        if (excluded.has(fingerprint)) continue;
         if(!isChat)this.visual.bind(task,batch,fingerprint);
         const existing = this.db
           .prepare(

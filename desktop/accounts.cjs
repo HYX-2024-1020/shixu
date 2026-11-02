@@ -44,6 +44,8 @@ class AccountWorkspace extends CloudWorkspace {
       path.join(this.root, "account.enc"),
       await this.seal(JSON.stringify(next)),
     );
+    if (`${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}` !==
+        `${next.active}#${next.devices[next.active]?.userId || ""}`) this.taskPreview = null;
     this.config = next;
     this.lastError = "";
   }
@@ -193,6 +195,8 @@ class AccountWorkspace extends CloudWorkspace {
       );
       const jobs = this.readJobs();
       for (const task of remote.tasks) {
+        if (this.taskPreview?.taskId === task.id) this.taskPreview = task.state === "purged" ? null
+          : { ...this.taskPreview, published: ["done", "partial"].includes(task.state) };
         const old = jobs.find((j) => j.id === task.id);
         if (old) Object.assign(old, task);
         else
@@ -206,9 +210,10 @@ class AccountWorkspace extends CloudWorkspace {
     for (const job of this.readJobs()) {
       if (job.pendingAction) {
         const { action, ...request } = job.pendingAction;
+        if (["continue", "remaining"].includes(action)) this.requireMaterialConsent();
         let task;
         try {
-          if (["continue", "accept-partial"].includes(action))
+          if (["continue", "accept-partial", "remaining"].includes(action))
             await this.reuploadTemporary(job.packetId || job.request.packetId);
           task = await this.request(
             this.config.active,
@@ -227,6 +232,14 @@ class AccountWorkspace extends CloudWorkspace {
             );
           throw error;
         }
+        if (action === "remaining") {
+          const latest = this.readJobs().map(j => j.id === job.id
+            ? { ...j, pendingAction: null, actions: j.actions?.filter(a => a !== "remaining") } : j);
+          if (!latest.some(j => j.id === task.id)) latest.push({ ...task, request: { packetId: task.packetId, kind: "organize" } });
+          this.writeJobs(latest);
+          continue;
+        }
+        if (action === "purge" && this.taskPreview?.taskId === job.id) this.taskPreview = null;
         this.writeJobs(
           this.readJobs().map((j) =>
             j.id === job.id ? { ...j, ...task, pendingAction: null } : j,
@@ -248,6 +261,7 @@ class AccountWorkspace extends CloudWorkspace {
       )
         continue;
       let result;
+      if (job.state === "submitting" && job.protocol === 4) this.requireMaterialConsent();
       try {
         result = await this.request(
           this.config.active,
@@ -304,6 +318,9 @@ class AccountWorkspace extends CloudWorkspace {
         ? this.authorization || "saved"
         : "inactive",
       account: this.accountState,
+      materialUseNotice: this.accountState?.reading?.materialUseNotice || null,
+      materialConsentAccepted: this.materialConsentAccepted(),
+      taskPreview: this.taskPreview || null,
       jobs: this.readJobs().map(({ request, ...job }) => job),
       capabilities: this.publicCapabilities,
       devices: this.deviceList || [],
@@ -316,6 +333,7 @@ class AccountWorkspace extends CloudWorkspace {
   async createAI(value) {
     if (!this.config.active) throw Error("请先激活；本地记录仍可使用");
     await this.sync();
+    this.requireMaterialConsent();
     const { client } = this.space();
     const row = client.records().find((r) => r.id === value.packetId);
     if (!row || row.deletedAt || row.purged || row.pending || row.conflict)
@@ -531,7 +549,28 @@ class AccountWorkspace extends CloudWorkspace {
       };
     });
   }
+  materialConsentKey() {
+    return `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}`;
+  }
+  materialConsentAccepted() {
+    const notice = this.accountState?.reading?.materialUseNotice;
+    return !notice || this.config.materialConsents?.[this.materialConsentKey()] === notice.version;
+  }
+  requireMaterialConsent() {
+    if (!this.materialConsentAccepted()) throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
+  }
   action(action, value) {
+    if (action === "taskPreview") return this.serial(async () => {
+      this.taskPreview = await this.request(this.config.active, "GET", `/api/v4/tasks/${encodeURIComponent(value.id)}/preview?offset=${value.offset || 0}`);
+      return this.status();
+    });
+    if (action === "materialConsent") return this.serial(async () => {
+      const notice = this.accountState?.reading?.materialUseNotice;
+      if (!this.config.active || !notice || typeof value?.accepted !== "boolean") throw Error("请先连接账号并刷新资料说明");
+      await this.configure({ ...this.config, materialConsents: { ...this.config.materialConsents,
+        [this.materialConsentKey()]: value.accepted ? notice.version : 0 } });
+      return this.status();
+    });
     if (action === "moreOriginals")
       return this.serial(async () => {
         if (this.originalStorage?.hasMore) {
@@ -658,6 +697,7 @@ class AccountWorkspace extends CloudWorkspace {
           !task.actions?.includes(value.action)
         )
           throw Error("任务状态已变化，请刷新");
+        if (["continue", "remaining"].includes(value.action)) this.requireMaterialConsent();
         if (!task.pendingAction)
           task.pendingAction = {
             action: value.action,
@@ -666,6 +706,7 @@ class AccountWorkspace extends CloudWorkspace {
             expectedGeneration: task.generation,
             expectedRevision: task.inputRevision,
             expectedMaintenanceOperation: task.maintenanceOperation || null,
+            ...(value.action === "remaining" ? { expectedCostOperation: this.accountState?.wallet?.costAuditOperation || null } : {}),
           };
         this.writeJobs(jobs); // Persist intent before network; lost responses reuse the same operation.
         await this.pollJobs();

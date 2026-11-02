@@ -7,12 +7,14 @@ import { PDF_RESOURCE_CATALOG } from "../server/reading/pdf-resource-catalog.mjs
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
+  "server/reading-runtime.mjs", "server/reading/deepseek.mjs", "server/reading/broker-service.mjs", "server/reading/linux-broker.mjs", "server/reading/worker.mjs",
+  "shared/reading-view.mjs", "shared/bucket-engine.mjs", "shared/deadline-date.mjs", "shared/deadline-time.mjs", "shared/deadlines.mjs", "shared/usage.mjs",
   "server/data-control.mjs", "server/data-migration.mjs", "server/data-versions.mjs", "server/database-schema.mjs", "server/database-schemas.mjs", "server/sync-server.mjs", "server/sync-store.mjs",
   "server/sync-jobs.mjs", "server/generated/ai-core.mjs",
   "server/sync-files.mjs",
   "server/originals.mjs",
   "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
-  "server/reading/chat.mjs", "server/reading/association.mjs", "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs", "server/reading/image.mjs", "server/reading/jpeg.mjs", "server/reading/jpeg-reader.cjs", "server/reading/jpeg-reader.LICENSE",
+  "server/reading/remainders.mjs", "server/reading/chat.mjs", "server/reading/association.mjs", "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs", "server/reading/image.mjs", "server/reading/jpeg.mjs", "server/reading/jpeg-reader.cjs", "server/reading/jpeg-reader.LICENSE",
   "server/reading/legacy-jobs.mjs", "server/reading/legacy-ledger.mjs", "server/reading/ledger.mjs", "server/reading/scheduler.mjs", "server/reading/roots.mjs",
   "server/accounts-v4.mjs",
   "server/reading/office.mjs", "server/reading/office-window.mjs", "server/reading/office-images.mjs",
@@ -63,7 +65,8 @@ export async function buildRelease(output) {
     releaseId, createdAt: new Date().toISOString(), sourceRevision: revision,
     sourceFingerprint: fingerprint, source: "working-tree-snapshot", nodeMajor: 24,
     application: "shixu-sync", protocolVersion: 2, schemaVersion: 1,
-    supportedProtocols: [2, 3], accountEntry: "server/sync-multi-user.mjs",
+    supportedProtocols: [2, 3, 4], accountEntry: "server/sync-multi-user.mjs",
+    readingEntry: "server/reading-runtime.mjs", readingOptIn: true,
     stage: "private-text-sync", files:releaseFiles,
   }, null, 2) + "\n";
   await writeFile(join(destination, "release.json"), manifest, { flag: "wx" });

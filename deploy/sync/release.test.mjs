@@ -34,6 +34,16 @@ test("account service and protected CLI run from the self-contained release", as
     const current = join(directory, "current");
     await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
     const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
+    const { createReadingRuntime } = await import(pathToFileURL(join(release, "server/reading-runtime.mjs")));
+    const releasedRuntime = createReadingRuntime({ directory: join(directory, "runtime-data"), ledgerPath: join(directory, "runtime-billing", "ledger.sqlite"),
+      brokerSocket: "/run/shixu-release/reader.sock", enabled: false, pdfVisual: true,
+      tariff: { id: "deepseek-flash-1017-20261028-peak", verifiedAt: 1, validUntil: 2 } }, { secret: "synthetic-release-runtime-secret-32-chars" });
+    try {
+      const address = await releasedRuntime.listen(0);
+      const cap = await fetch(`http://127.0.0.1:${address.port}/api/v4/capabilities`).then(r => r.json());
+      assert.equal(cap.features.remainingTasks, true); assert.equal(cap.features.readingEnabled, false);
+      assert.equal(cap.materialUseNotice.version, 1);
+    } finally { await releasedRuntime.close(); }
     const {SyncStore}=await import(pathToFileURL(join(release,'server/sync-store.mjs')));
     const {ReadingLedger}=await import(pathToFileURL(join(release,'server/reading/ledger.mjs')));
     const {ReadingTasks}=await import(pathToFileURL(join(release,'server/reading/tasks.mjs')));
@@ -275,9 +285,9 @@ test("release starts independently; two devices, restart, WAL backup and restore
       const [hash, file] = line.split("  ");
       assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
     }
-    assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "data-control.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-annotations.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-resource-catalog.mjs", "pdf-resources.mjs", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "provider-receipts.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
+    assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server", "shared"]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["accounts-v4.mjs", "data-control.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "reading-runtime.mjs", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs"]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "broker-service.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "deepseek.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "linux-broker.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-annotations.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-resource-catalog.mjs", "pdf-resources.mjs", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "provider-receipts.mjs", "remainders.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "worker.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
     const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";

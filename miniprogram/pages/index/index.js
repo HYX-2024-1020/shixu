@@ -71,6 +71,9 @@ function dateInfo() {
 Page({
   ...createTouchOrder(wx),
   data: {
+    materialUseNotice: null,
+    materialConsentAccepted: false,
+    taskPreview: null,
     tab: "capture",
     dragId: "",
     dragView: null,
@@ -287,7 +290,10 @@ Page({
       connection.protocolVersion === 3
         ? accountTransport(connection, wx, (account) => {
             this._reading = account.reading || null;
+            const materialUseNotice = account.reading?.materialUseNotice || null;
             this.setData({
+              materialUseNotice,
+              materialConsentAccepted: !materialUseNotice || wx.getStorageSync("material-use:" + spaceKey(connection)) === materialUseNotice.version,
               passwordAccounts: !!account.authentication,
               accountClaimed: !!account.authentication?.claimed,
               accountUsername:
@@ -331,6 +337,9 @@ Page({
       serverUrl: base,
       localMode: false,
       jobs: this._jobViews(this._jobs),
+      taskPreview: null,
+      materialUseNotice: null,
+      materialConsentAccepted: false,
     });
     this._refresh();
   },
@@ -2136,6 +2145,7 @@ Page({
         output,
         actions,
         calls,
+        hasPreview,
         reusedBlocks,
         phase,
         completedMergeBatches,
@@ -2149,6 +2159,7 @@ Page({
         state,
         error,
         hasOutput: !!output,
+        hasPreview: !!hasPreview,
         calls: calls || 0,
         completedVisualBatches,
         reuseLabel: reuseView(reusedBlocks),
@@ -2160,6 +2171,7 @@ Page({
         canContinue: actions?.includes("continue") || false,
         canPurge: actions?.includes("purge") || false,
         canAcceptPartial: actions?.includes("accept-partial") || false,
+        canCompleteRemaining: actions?.includes("remaining") || false,
       }),
     );
   },
@@ -2177,6 +2189,8 @@ Page({
         const remote = await this._transport("GET", "/api/v4/tasks");
         const jobs = this._jobs.slice();
         for (const task of remote.tasks) {
+          if (this.data.taskPreview?.taskId === task.id) this.setData({ taskPreview: task.state === "purged" ? null
+            : { ...this.data.taskPreview, published: ["done", "partial"].includes(task.state) } });
           const old = jobs.find((j) => j.id === task.id);
           if (old) Object.assign(old, task);
           else
@@ -2190,9 +2204,10 @@ Page({
       for (const saved of this._jobs.slice()) {
         if (saved.pendingAction) {
           const { action, ...request } = saved.pendingAction;
+          if (["continue", "remaining"].includes(action)) this._requireMaterialConsent();
           let task;
           try {
-            if (["continue", "accept-partial"].includes(action))
+            if (["continue", "accept-partial", "remaining"].includes(action))
               await this._reuploadTemporary(
                 saved.packetId || saved.request.packetId,
               );
@@ -2212,6 +2227,14 @@ Page({
               );
             throw error;
           }
+          if (action === "remaining") {
+            const latest = this._jobs.map(j => j.id === saved.id
+              ? { ...j, pendingAction: null, actions: j.actions?.filter(a => a !== "remaining") } : j);
+            if (!latest.some(j => j.id === task.id)) latest.push({ ...task, request: { packetId: task.packetId, kind: "organize" } });
+            this._saveJobs(latest);
+            continue;
+          }
+          if (action === "purge" && this.data.taskPreview?.taskId === saved.id) this.setData({ taskPreview: null });
           this._saveJobs(
             this._jobs.map((j) =>
               j.id === saved.id ? { ...j, ...task, pendingAction: null } : j,
@@ -2230,6 +2253,7 @@ Page({
           continue;
         let job;
         try {
+          if (saved.state === "submitting" && saved.protocol === 4) this._requireMaterialConsent();
           if (saved.state === "submitting" && saved.protocol === 4)
             await this._reuploadTemporary(saved.request.packetId);
           job =
@@ -2291,6 +2315,7 @@ Page({
         this.openAiSettings();
         throw new Error("服务器尚未启用此 AI 能力，原文和事项已保留");
       }
+      this._requireMaterialConsent();
       const record = this._record(packetId);
       if (!record || record.deletedAt || record.conflict)
         throw new Error("请先恢复投递并解决同步冲突");
@@ -2345,6 +2370,31 @@ Page({
   organizeRecord(event) {
     return this._startJob("organize", event.currentTarget.dataset.id);
   },
+  acceptMaterialUse() {
+    const notice = this._reading?.materialUseNotice;
+    if (!notice || !this._connection) return;
+    try {
+      wx.setStorageSync("material-use:" + spaceKey(this._connection), notice.version);
+      this.setData({ materialConsentAccepted: true, error: "" });
+    } catch (error) { this._error(error); }
+  },
+  async taskPreview(event) {
+    const { id, offset } = event.currentTarget.dataset;
+    if (!this._transport || this.data.jobBusy) return;
+    this.setData({ jobBusy: true });
+    const space = this._space();
+    try {
+      const preview = await this._transport("GET", `/api/v4/tasks/${encodeURIComponent(id)}/preview?offset=${offset || 0}`);
+      if (space !== this._space()) return;
+      this.setData({ taskPreview: preview, error: "" });
+    } catch (error) { this._error(error); }
+    finally { this.setData({ jobBusy: false }); }
+  },
+  _requireMaterialConsent() {
+    const notice = this._reading?.materialUseNotice;
+    if (notice && wx.getStorageSync("material-use:" + spaceKey(this._connection)) !== notice.version)
+      throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
+  },
   async taskAction(event) {
     const { id, action } = event.currentTarget.dataset;
     const job = (this._jobs || []).find((j) => j.id === id);
@@ -2362,7 +2412,8 @@ Page({
     }
     this.setData({ jobBusy: true });
     try {
-      if (["continue", "accept-partial"].includes(action))
+      if (["continue", "remaining"].includes(action)) this._requireMaterialConsent();
+      if (["continue", "accept-partial", "remaining"].includes(action))
         await this._reuploadTemporary(job.packetId || job.request.packetId);
       if (!job.pendingAction)
         job.pendingAction = {
@@ -2372,6 +2423,7 @@ Page({
           expectedGeneration: job.generation,
           expectedRevision: job.inputRevision,
           expectedMaintenanceOperation: job.maintenanceOperation || null,
+          ...(action === "remaining" ? { expectedCostOperation: (await this._transport("GET", "/api/v4/wallet"))?.costAuditOperation || null } : {}),
         };
       this._saveJobs(this._jobs.map((j) => (j.id === id ? job : j)));
       await this._pollJobs();

@@ -32,6 +32,7 @@
     "sync:start": "node --env-file-if-exists=.env.sync server/sync-server.mjs",
     "test:sync": "node --test server/sync.test.mjs server/sync-files.test.mjs server/sync-accounts.test.mjs server/sync-provider.test.mjs miniprogram/tests/*.test.cjs",
     "sync:accounts": "node --env-file-if-exists=.env.sync server/sync-multi-user.mjs",
+    "sync:reading": "node --env-file-if-exists=.env.sync server/reading-runtime.mjs",
     "sync:admin": "node --env-file-if-exists=.env.sync server/sync-admin.mjs",
     "sync:configure": "node scripts/configure-sync-secrets.mjs",
     "test:sync:release": "node --test deploy/sync/release.test.mjs deploy/sync/configure-secrets.test.mjs deploy/sync/accounts-deployment.test.mjs",

@@ -104,6 +104,7 @@ export default function AccountConnection({
       </header>
       <section className="connection-data">
         <h3>账号激活</h3>
+        <p>连接后资料同步至服务器；选择 AI 整理或事项对话时，相关材料会发送至 DeepSeek。</p>
         <p>
           {state?.activation === "invalid"
             ? state?.capabilities?.features.registration
@@ -256,6 +257,14 @@ export default function AccountConnection({
           </p>
         )}
       </section>
+      {!!state?.materialUseNotice && (
+        <section className="connection-data">
+          <h3>资料用途与保存期限</h3>
+          <p>{state.materialUseNotice.text}</p>
+          <label><input type="checkbox" checked={!!state.materialConsentAccepted} disabled={busy}
+            onChange={e => void action("materialConsent", { accepted: e.target.checked })} />我已了解资料用途和保存期限</label>
+        </section>
+      )}
       {!!state?.account?.authentication?.claimed && (
         <section className="connection-data">
           <h3>设备与密码</h3>
@@ -444,10 +453,10 @@ export default function AccountConnection({
         <p>
           密钥和模型由服务端管理。使用 AI
           时，相关文字及安全读取的图像区域会发送给模型服务商。
-          服务端启用新版读取后支持 TXT、CSV、DOCX、XLSX、PDF 文字层与 ZIP、明确编码的非solid RAR4、RAR5、7z
+          服务端启用新版读取后支持 TXT、CSV、DOCX、XLSX、PDF 文字层与 ZIP、明确编码的RAR4/RAR5、7z（含已实现的solid共享块）
           内支持的材料，保留包内路径。启用 Office 图像能力后，DOCX/XLSX 中实际引用的图片原图按区域读取，保留段落或工作表/单元格锚点；裁剪、变换、形状、图表、嵌入对象和页面布局仍列为未读。图像事项另经依据核对并共用累计费用，XLSX
-          公式仅用已有缓存值，不重新计算。启用图像能力时支持JPEG/JPG（含EXIF方向校正）和静态PNG（8/16位、1/2/4位灰度或调色板及Adam7交错；16位规范化为8位模型图像），按区域送模型并保留坐标；识别文字与日期需对照原图核对。GIF支持按帧合成后逐区域读取并显示帧序与时间，循环只展开一遍，纯文本/交互扩展及非方形像素尚未支持。WebP支持无损/有损及逐帧动画（严格编码终态，ICC/EXIF等元数据尚未支持）。服务端另行启用页面视觉能力后，PDF含扫描页按页和区域读取并保留页码、108dpi坐标与接续进度；缺少必要字体/资源、渲染告警及批注/表单外观明确未读，不把文字层当作视觉已读。其他图片及嵌套归档尚未读取。
-          加密、多卷、solid、RAR4编码不明的名称及部分旧特性暂不支持。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
+          公式仅用已有缓存值，不重新计算。启用图像能力时支持JPEG/JPG（含EXIF方向校正）和静态PNG（8/16位、1/2/4位灰度或调色板及Adam7交错；16位规范化为8位模型图像），按区域送模型并保留坐标；识别文字与日期需对照原图核对。GIF支持按帧合成后逐区域读取并显示帧序与时间，循环只展开一遍，纯文本/交互扩展及非方形像素尚未支持。WebP支持无损/有损及逐帧动画（严格编码终态，ICC/EXIF等元数据尚未支持）。服务端另行启用页面视觉能力后，PDF含扫描页按页和区域读取并保留页码、108dpi坐标与接续进度；支持的批注/表单保存值与外观也保留来源；缺少必要字体/资源、渲染告警及未支持外观仍明确未读，不把文字层当作视觉已读。其他图片及嵌套归档尚未读取。
+          加密、多卷、RAR4编码不明的名称及部分旧特性暂不支持。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
         </p>
       </section>
       {!!state?.account?.reading && (
@@ -486,6 +495,7 @@ export default function AccountConnection({
                 )}
                 {task.error}
               </p>
+              {task.hasPreview && <button disabled={busy} onClick={() => void action("taskPreview", { id: task.id })}>查看已完成内容</button>}
               {task.actions
                 ?.filter((a) => a !== "purge")
                 .map((a) => (
@@ -500,6 +510,8 @@ export default function AccountConnection({
                       ? "停止"
                       : a === "accept-partial"
                         ? "收下有效部分"
+                        : a === "remaining"
+                          ? "完成剩余材料"
                         : "继续"}
                   </button>
                 ))}
@@ -525,6 +537,20 @@ export default function AccountConnection({
           ))}
         </section>
       )}
+      {state?.taskPreview && <section className="connection-data">
+        <h3>已完成内容（只读）</h3>
+        <p>{state.taskPreview.published ? "对应任务的原始整理结果；卡片中的人工修改另行保留。" : "尚未保存到世界或 DDL；可在核对后收下有效部分。"}</p>
+        {state.taskPreview.items.map(item => <div key={item.previewKey}><strong>{item.title}</strong><p>{item.summary}</p>
+          {item.due && <p>截止：{item.due.date} {item.due.time}</p>}
+          <details><summary>依据与细节</summary>
+            {item.facts?.map((text, i) => <p key={`f${i}`}>{text}</p>)}
+            {item.nextSteps?.map((text, i) => <p key={`s${i}`}>下一步：{text}</p>)}
+            {item.uncertainties?.map((text, i) => <p key={`u${i}`}>待核对：{text}</p>)}
+            {item.evidence?.map((evidence, i) => <p key={`e${i}`}>{evidence.name}：{evidence.quote || "已保留来源定位"}</p>)}
+          </details></div>)}
+        {!state.taskPreview.items.length && <p>暂无已通过依据核对的可预览内容。</p>}
+        {state.taskPreview.nextOffset !== null && <button disabled={busy} onClick={() => void action("taskPreview", { id: state.taskPreview!.taskId, offset: state.taskPreview!.nextOffset })}>下一页预览</button>}
+      </section>}
       <section className="connection-data">
         <h3>本机备份</h3>
         <button

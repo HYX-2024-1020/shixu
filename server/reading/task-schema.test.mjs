@@ -8,6 +8,7 @@ import {
   TENANT_SYNC_SCHEMA,
   ACCOUNTS_CORE_SCHEMA,
   LEDGER_CORE_SCHEMA,
+  READING_TASKS_SCHEMA,
 } from "../database-schemas.mjs";
 import { applyReadingMigrations } from "./schema.mjs";
 import test from "node:test";
@@ -116,6 +117,21 @@ test("protected reading components advance both version histories once and roll 
     /READING_SCHEMA_MISMATCH/,
   );
   assert.equal(f.ledger.wallet("synthetic").spent, 0);
+});
+
+test("the immediately previous tenant, task and ledger writers cannot run partial successors", t => {
+  const f = mergeFixture(t, { sourceText: "合成" });
+  for (const [owner, component, migrations, sql, options] of [
+    [f.store, "tenant-sync", TENANT_SYNC_SCHEMA, "UPDATE sync_meta SET value=value", {}],
+    [f.store, "tenant-reading", READING_TASKS_SCHEMA, "INSERT INTO reading_tasks(id,packet,device,input_revision,base_version,state) VALUES('old','packet','old','old',0,'queued')", { compatibleObjects: ["CREATE INDEX reading_tasks_packet ON reading_tasks(packet)"] }],
+    [f.ledger, "ledger-core", LEDGER_CORE_SCHEMA, "UPDATE reading_controls SET paused=paused", { compatibleObjects: ["CREATE INDEX reading_calls_account_task ON reading_calls(account,task)"] }],
+  ]) {
+    const old = new DatabaseSync(owner.db.location());
+    try {
+      assert.throws(() => ensureDatabaseSchema(old, component, migrations.slice(0, -1), options), /DATABASE_SCHEMA_MISMATCH/);
+      assert.throws(() => old.exec(sql), /INCOMPATIBLE_SCHEMA_WRITER/);
+    } finally { old.close(); }
+  }
 });
 
 test("all initialized tenant and independent-ledger tables have verified writer guards", (t) => {

@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 
+const hiddenExec = (file, args, options) => execFileSync(file, args, { ...options, windowsHide: true });
 const root = fileURLToPath(new URL("../", import.meta.url));
 const directory = process.env.WECHAT_COMPILER_DIR;
 if (!directory)
@@ -18,28 +19,28 @@ const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
     ? resolve(process.env.WECHAT_PROJECT_DIR)
     : join(root, "miniprogram");
 const exe = process.platform === "win32" ? ".exe" : "";
-execFileSync(
+hiddenExec(
   join(directory, "wcc" + exe),
   ["-o", join(temporary, "fox-player.js"), "assets/fox/player.wxml"],
   { cwd: mini, stdio: "pipe" },
 );
-execFileSync(
+hiddenExec(
   join(directory, "wcsc" + exe),
   ["-o", join(temporary, "fox-player.css"), "assets/fox/player.wxss"],
   { cwd: mini, stdio: "pipe" },
 );
 
-execFileSync(
+hiddenExec(
   join(directory, "wcc" + exe),
   ["-o", join(temporary, "fox-resource.js"), "assets/fox/entry.wxml"],
   { cwd: mini, stdio: "pipe" },
 );
-execFileSync(
+hiddenExec(
   join(directory, "wcsc" + exe),
   ["-o", join(temporary, "fox-resource.css"), "assets/fox/entry.wxss"],
   { cwd: mini, stdio: "pipe" },
 );
-execFileSync(
+hiddenExec(
   join(directory, "wcc" + exe),
   [
     "-o",
@@ -56,7 +57,7 @@ for (const [name, rootStyle] of [
   ["page", "pages/index/index.wxss"],
 ]) {
   const output = join(temporary, `${name}.css`);
-  execFileSync(join(directory, "wcsc" + exe), ["-o", output, rootStyle], {
+  hiddenExec(join(directory, "wcsc" + exe), ["-o", output, rootStyle], {
     cwd: mini,
     stdio: "pipe",
   });

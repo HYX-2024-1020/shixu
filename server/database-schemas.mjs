@@ -22,6 +22,7 @@ export const TENANT_SYNC_SCHEMA = [
   },
   { version: 2, sql: "" },
   { version: 3, sql: "" },
+  { version: 4, sql: "" },
 ];
 export const TENANT_ATTACHMENTS_SCHEMA = [
   {
@@ -106,6 +107,7 @@ export const LEDGER_CORE_SCHEMA = [
   },
   { version: 3, sql: "" },
   { version: 4, sql: "" },
+  { version: 5, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {
@@ -205,6 +207,7 @@ export const READING_TASKS_SCHEMA = [
     version: 2,
     sql: "CREATE INDEX IF NOT EXISTS reading_tasks_packet ON reading_tasks(packet);",
   },
+  { version: 3, sql: "" },
 ];
 
 export const READING_ROOTS_SCHEMA = [
@@ -360,6 +363,15 @@ export const LEDGER_MERGE_SCHEMA = [
       CREATE TRIGGER IF NOT EXISTS reading_merge_proofs_no_delete BEFORE DELETE ON reading_merge_proofs BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_PROOF'); END;`,
   },
 ];
+
+export const READING_REMAINDERS_SCHEMA = [{ version: 1, sql: `
+CREATE TABLE reading_remainders(task TEXT PRIMARY KEY,parent TEXT UNIQUE NOT NULL,context TEXT NOT NULL);
+` }];
+export const LEDGER_REMAINDERS_SCHEMA = [{ version: 1, sql: `
+CREATE TABLE reading_remaining_intents(account TEXT NOT NULL,task TEXT NOT NULL,parent TEXT NOT NULL,context_hash TEXT NOT NULL,PRIMARY KEY(account,task),UNIQUE(account,parent));
+CREATE TRIGGER reading_remaining_intents_no_update BEFORE UPDATE ON reading_remaining_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_REMAINDER');END;
+CREATE TRIGGER reading_remaining_intents_no_delete BEFORE DELETE ON reading_remaining_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_REMAINDER');END;
+` }];
 
 export const READING_REGISTRY_SCHEMA = [
   {

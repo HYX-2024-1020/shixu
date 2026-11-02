@@ -143,6 +143,18 @@ function createAccountService({
     throw Error("AUTH_V4_REQUIRED");
   }
   const originalPool = originalMemoryPool();
+  if (reading?.requireReconciledAccounts) {
+    const hasGrantIntents = !!registry.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_grant_intents'").get();
+    for (const row of registry.db.prepare(`SELECT id FROM accounts WHERE
+      EXISTS(SELECT 1 FROM bindings WHERE user_id=accounts.id) OR
+      EXISTS(SELECT 1 FROM ai_usage WHERE user_id=accounts.id)`).all()) {
+      const oldUsage = registry.db.prepare("SELECT 1 FROM ai_usage WHERE user_id=? LIMIT 1").get(row.id);
+      const imported = reading.ledger.db.prepare("SELECT 1 FROM reading_legacy_accounts WHERE account=?").get(row.id);
+      const wallet = reading.ledger.db.prepare("SELECT 1 FROM reading_wallets WHERE account=?").get(row.id);
+      const newRegistration = hasGrantIntents && registry.db.prepare("SELECT 1 FROM account_grant_intents WHERE account=?").get(row.id);
+      if ((oldUsage && !imported) || (!wallet && !newRegistration)) throw Error("LEGACY_RECONCILIATION_REQUIRED");
+    }
+  }
   const credentials = reading?.credentials ? new AccountsV4(registry) : null;
   if(credentials)startupCleanup.push(()=>credentials.close());
   if (credentials)
@@ -456,6 +468,7 @@ function createAccountService({
               ? reading.enabled === true && !registry.aiPaused()
               : !!ai?.organize && limits.enabled && !registry.aiPaused(),
             readingTasks: !!readingRoutes,
+            resultItemPatches: !!readingRoutes,
             itemChat: readingRoutes ? typeof reading.provider.chat==='function' && reading.enabled===true && !registry.aiPaused() : !!ai?.chat && limits.enabled && !registry.aiPaused(),
           },
         });

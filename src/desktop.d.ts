@@ -11,6 +11,11 @@ interface Window {
       error: string;
       originalNotice?: string;
       localSaveNotice?: string;
+      materialUseNotice?: { version: number; text: string } | null;
+      materialConsentAccepted?: boolean;
+      taskPreview?: { taskId: string; readOnly: boolean; published: boolean; nextOffset: number | null;
+        items: { previewKey: string; title: string; summary: string; facts?: string[]; nextSteps?: string[]; uncertainties?: string[];
+          due?: { date: string; time: string } | null; evidence?: { name: string; quote: string }[] }[] } | null;
       originalStorage?: {
         hasMore: boolean;
         nextCursor: number | null;
@@ -66,6 +71,7 @@ interface Window {
         rootActiveMs?: number;
         rootActiveSeconds?: number;
         actions?: string[];
+        hasPreview?: boolean;
       }[];
       account?: {
         activation: string;

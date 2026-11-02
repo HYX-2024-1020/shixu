@@ -57,6 +57,8 @@ export async function runClientLoop({
   legacyLedger=false,
   legacyJobs=false,
   shadowVersion=false,
+  partialRemainder=false,
+  materialNoticeRequired=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -83,6 +85,7 @@ export async function runClientLoop({
   const auditText=[];
   const costEvidence=new Map();
   const reading = {
+    materialNoticeRequired,
     ...(auditCheckpoint ? {
       maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-root-checkpoint",
       maintenanceVerifyCheckpoint:({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,
@@ -133,11 +136,12 @@ export async function runClientLoop({
     modelVersion: "synthetic/1",
     provider: async (sources) => {
       calls++;
+      if (partialRemainder && calls === 2) return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { invalid: true } };
       if(costAudit && calls===2)throw Error("synthetic provider response lost");
       if (auditAfterReadLimit || auditUnknownTime || costAudit) auditText.push(...sources.map(s=>s.text));
       if (calls === 1) {
         enter();
-        if (!auditAfterReadLimit && !auditUnknownTime && !costAudit) await held;
+        if (!auditAfterReadLimit && !auditUnknownTime && !costAudit && !partialRemainder) await held;
       }
       tailSeen ||= sources.some((s) => (original?.tailText && s.text.includes(original.tailText)) || (original?.tailSourceSuffix && s.id.endsWith(original.tailSourceSuffix)) || s.text.includes("尾部唯一标记") || (s.image && original?.expectedImageTiles && s.id.endsWith("_i"+original.expectedImageTiles)));
       return {
@@ -433,6 +437,19 @@ export async function runClientLoop({
       const row = cloud.status().originalStorage.originals[0];
       await cloud.action("deleteOriginal", { ...row, stopTask: true });
     }
+    if (materialNoticeRequired) {
+      await page.sync(); await cloud.action("sync");
+      await assert.rejects(cloud.action("ai", { kind: "organize", packetId: "packet" }), /确认资料用途/);
+      await page._startJob("organize", "packet");
+      assert.match(page.data.error, /确认资料用途/);
+      assert.equal(calls, 0); assert.equal(parserRuns, 0);
+      assert.equal(cloud.readJobs().length, 0); assert.equal(page._jobs.length, 0);
+      await cloud.action("materialConsent", { accepted: true });
+      page.acceptMaterialUse();
+      await cloud.init();
+      assert.equal(cloud.status().materialConsentAccepted, true);
+      assert.equal(page.data.materialConsentAccepted, true);
+    }
     let initial;
     if (startByMini) {
       await page.sync();
@@ -444,6 +461,73 @@ export async function runClientLoop({
         kind: "organize",
         packetId: "packet",
       });
+    if (partialRemainder) {
+      while (service.readingRoutes.snapshot().accounts) await tick();
+      await page.sync(); await cloud.action("sync");
+      const failed = cloud.readJobs().find(j => j.id === initial.job);
+      assert.equal(failed.completedBlocks, 1); assert.equal(calls, 2);
+      assert.equal(page.data.jobs.find(j => j.id === initial.job).hasPreview, true);
+      const beforePreview = ledger.wallet(account).spent;
+      const preview = await cloud.action("taskPreview", { id: initial.job });
+      await page.taskPreview({ currentTarget: { dataset: { id: initial.job } } });
+      assert.equal(preview.taskPreview.readOnly, true);
+      assert.equal(preview.taskPreview.published, false);
+      assert.deepEqual(preview.taskPreview.items, JSON.parse(JSON.stringify(page.data.taskPreview.items)));
+      assert.equal((await cloud.packets()).find(p => p.id === "packet").result, null);
+      assert.equal(calls, 2); assert.equal(ledger.wallet(account).spent, beforePreview);
+      await page.taskAction({ currentTarget: { dataset: { id: initial.job, action: "accept-partial" } } });
+      assert.equal(page.data.error, "");
+      await cloud.action("sync"); await page.sync();
+      const accepted = structuredClone((await cloud.packets()).find(p => p.id === "packet"));
+      const firstId = accepted.itemIds[0];
+      accepted.result.items[0].title = "已人工核对的首项";
+      page._client.put("packet", { result: accepted.result, itemState: { [firstId]: { starred: true, order: 7, status: "done" } }, doneIds: [firstId] });
+      await page.sync(); await cloud.action("sync");
+      // Persisted intent must survive losing the successful creation response.
+      let lost = false;
+      if (startByMini) {
+        const transport = page._transport.bind(page);
+        page._transport = async (method, path, ...args) => {
+          const response = await transport(method, path, ...args);
+          if (!lost && method === "POST" && path.endsWith("/remaining")) { lost = true; throw Error("synthetic lost remainder response"); }
+          return response;
+        };
+        await page.taskAction({ currentTarget: { dataset: { id: initial.job, action: "remaining" } } });
+        assert.match(page.data.error, /lost remainder/);
+        await page.sync();
+      } else {
+        const transport = cloud.request.bind(cloud);
+        cloud.request = async (base, method, path, ...args) => {
+          const response = await transport(base, method, path, ...args);
+          if (!lost && method === "POST" && path.endsWith("/remaining")) { lost = true; throw Error("synthetic lost remainder response"); }
+          return response;
+        };
+        await assert.rejects(cloud.action("taskAction", { id: initial.job, action: "remaining" }), /lost remainder/);
+        await cloud.action("sync");
+      }
+      while (service.readingRoutes.snapshot().accounts) await tick();
+      await page.sync(); await cloud.action("sync");
+      assert.equal(page.data.error, "");
+      const child = cloud.readJobs().find(j => j.remainingOf === initial.job);
+      assert.equal(child.state, "done");
+      assert.equal(cloud.readJobs().filter(j => j.remainingOf === initial.job).length, 1);
+      const win = (await cloud.packets()).find(p => p.id === "packet"), mini = page._record("packet").data;
+      assert.deepEqual(win.result, JSON.parse(JSON.stringify(mini.result)));
+      assert.equal(win.result.items[0].title, "已人工核对的首项");
+      assert.equal(win.itemIds[0], firstId); assert.equal(win.itemState[firstId].status, "done");
+      assert.deepEqual(win.doneIds, [firstId]); assert.equal(win.itemState[firstId].order, 7);
+      assert.equal(win.result.items.length, child.completedBlocks + 1);
+      assert.equal(calls, win.result.items.length + 1, "only the invalid paid block is retried; accepted prefix is not paid twice");
+      assert.equal(child.rootCalls, calls); assert.equal(ledger.wallet(account).spent, calls * 20);
+      assert.equal(win.processingCoverage.pending.length, 0); assert.equal(win.processingCoverage.partial, false);
+      assert.equal(win.readingCoverage[0].pagination.totalPages, original.expectedPdfPages);
+      const storage = await cloud.request(cloud.config.active, "GET", "/api/v4/storage");
+      assert.equal(storage.usedBytes, 0); assert.equal(storage.originals[0].available, false);
+      assert.ok(tailSeen);
+      return { synthetic: true, realProviderCalls: 0, partialRemainder: true, resultsEqual: true, preservedManualEdits: true,
+        prefixNotRepublished: true, lostResponseReplayed: true, rootCalls: child.rootCalls, spentMicros: ledger.wallet(account).spent,
+        pdfPages: original.expectedPdfPages, temporaryOriginalNotRevived: true };
+    }
     if(costAudit) {
       while(service.readingRoutes.snapshot().accounts)await tick();
       await cloud.action("sync");await page.sync();

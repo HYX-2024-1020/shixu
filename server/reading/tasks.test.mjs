@@ -368,6 +368,115 @@ async function finish(tasks) {
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
 
+test("partial successors append only unaccepted blocks, retain user edits/IDs and share root fees across restart", async t => {
+  const f = fixture(t, { text: "课程通知完整材料😀。\n".repeat(18000) + "尾部唯一标记" });
+  f.enqueue();
+  await f.tasks.run("task");
+  assert.equal(f.calls(), 1);
+  // A host resource pause between scheduler steps, before user accepts output.
+  f.store.db.prepare("UPDATE reading_tasks SET state='paused',reason='RESOURCE' WHERE id='task'").run();
+  f.action("accept-partial", "accept-prefix");
+  const accepted = structuredClone(f.store.record("packet").data);
+  assert.equal(f.tasks.get("task").state, "partial");
+  const firstId = accepted.itemIds[0];
+  accepted.result.items[0].title = "我已核对的课程任务";
+  f.put({ result: accepted.result, itemState: { [firstId]: { starred: true, order: 9, status: "done" } }, doneIds: [firstId] });
+  const parent = f.tasks.get("task");
+  const request = { id: "remaining", packetId: "packet", deviceId: f.wechat.deviceId, remainingOf: parent.id,
+    remainingReview: { expectedGeneration: parent.generation, expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id) } };
+  f.tasks.enqueue(request);
+  f.tasks.enqueue(request); // Lost creation acknowledgement replays the same task.
+  assert.throws(() => f.tasks.enqueue({ ...request, id: "double-click" }), e => e.code === "REMAINDER_EXISTS");
+  f.tasks.close();
+  const restarted = new ReadingTasks(f.taskArgs);
+  try {
+    const interrupted = restarted.get("remaining");
+    restarted.action("remaining", { operationId: "explicit-after-restart", expectedGeneration: interrupted.generation,
+      expectedRevision: interrupted.input_revision, expectedMaintenanceOperation: restarted.maintenanceOperation("remaining") }, "continue");
+    for (let i = 0; i < 15 && restarted.get("remaining").state === "queued"; i++) await restarted.run("remaining");
+    assert.equal(restarted.get("remaining").state, "done");
+    const final = f.store.record("packet").data;
+    const count = restarted.db.prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task IN ('task','remaining')").get().n;
+    assert.equal(final.result.items.length, count);
+    assert.equal(f.calls(), count, "accepted prefix must not be sent to the model again");
+    assert.equal(final.result.items[0].title, "我已核对的课程任务");
+    assert.equal(final.itemIds[0], firstId);
+    assert.equal(new Set(final.itemIds).size, final.itemIds.length);
+    assert.equal(final.itemState[firstId].status, "done");
+    assert.deepEqual(final.doneIds, [firstId]);
+    assert.ok(final.processingCoverage.processed.length > accepted.processingCoverage.processed.length);
+    assert.equal(final.processingCoverage.pending.length, 0);
+    assert.equal(final.processingCoverage.partial, false);
+    assert.equal(restarted.roots.stats("remaining").calls, f.calls());
+    assert.equal(f.ledger.wallet("synthetic").spent, f.calls() * 20);
+    assert.equal(restarted.get("task").state, "partial");
+  } finally { restarted.close(); }
+});
+
+test("remaining work binds the reviewed parent and independent metadata; changed input or forged exclusions cannot consume", async t => {
+  const f = fixture(t, { text: "真实合成通知。".repeat(20000) });
+  f.enqueue(); await f.tasks.run("task");
+  f.store.db.prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'").run();
+  f.action("accept-partial", "accept");
+  const parent = f.tasks.get("task"), review = { expectedGeneration: parent.generation,
+    expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id) };
+  const request = { id: "remaining", packetId: "packet", deviceId: f.windows.deviceId, remainingOf: "task", remainingReview: review };
+  assert.throws(() => f.tasks.enqueue({ ...request, remainingReview: { ...review, expectedGeneration: 999 } }), e => e.code === "STALE_TASK");
+  f.tasks.modelVersion = "changed-model";
+  assert.throws(() => f.tasks.enqueue(request), e => e.code === "REMAINDER_CONTEXT_CHANGED");
+  f.tasks.modelVersion = f.taskArgs.modelVersion;
+  f.put({ text: "改变了输入" });
+  assert.throws(() => f.tasks.enqueue(request), e => e.code === "INVALID_REMAINDER");
+  assert.throws(() => f.tasks.enqueue({ id: "overwrite-accepted", packetId: "packet", deviceId: f.windows.deviceId }), e => e.code === "REMAINDER_REQUIRED");
+  f.put({ text: "" });
+  f.tasks.enqueue(request);
+  f.store.db.prepare("UPDATE reading_remainders SET context='{}' WHERE task='remaining'").run();
+  assert.throws(() => f.tasks.remainders.info("remaining"), e => e.code === "SAFETY_RECONCILIATION");
+  assert.equal(f.calls(), 1);
+  assert.throws(() => f.ledger.db.exec("DELETE FROM reading_remaining_intents"), /IMMUTABLE_REMAINDER/);
+});
+
+test("paid preview is bounded, read-only and never publishes or charges", async t => {
+  const f = fixture(t, { provider: async sources => ({ usage: { prompt_tokens: 10, completion_tokens: 10 },
+    result: { ...result(sources), items: Array.from({ length: 25 }, (_, i) => ({ ...result(sources).items[0], title: `课程事项${i}` })) } }) });
+  f.enqueue(); await f.tasks.run("task");
+  const sequence = f.ledger.sequence("synthetic"), previews = [];
+  let offset = 0;
+  do {
+    const preview = f.tasks.preview("task", offset);
+    assert.ok(Buffer.byteLength(JSON.stringify(preview)) < 210000);
+    assert.equal(preview.readOnly, true); assert.equal(preview.published, false);
+    assert.ok(preview.items.length <= 8);
+    previews.push(...preview.items); offset = preview.nextOffset;
+  } while (offset !== null);
+  assert.equal(previews.length, 25);
+  assert.equal(new Set(previews.map(p => p.previewKey)).size, 25);
+  assert.equal(f.store.record("packet").data.result, null);
+  assert.equal(f.ledger.sequence("synthetic"), sequence); assert.equal(f.calls(), 1);
+  assert.throws(() => f.tasks.preview("task", -1), e => e.code === "INVALID_PREVIEW_OFFSET");
+});
+
+test("remaining publications retain the attachment citation cap without changing accepted text or paid proofs", async t => {
+  const f = fixture(t, { text: "学习通知完整材料。".repeat(18000), provider: async sources => ({ usage: { prompt_tokens: 10, completion_tokens: 10 },
+    result: { summary: "合成", warnings: [], items: Array.from({ length: 10 }, (_, i) => ({ ...result(sources).items[0], title: `事项${i}`,
+      evidence: [{ sourceId: sources[0].id, quote: sources[0].text.slice(0, 500) }] })) } }) });
+  f.enqueue(); await f.tasks.run("task");
+  f.store.db.prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'").run();
+  f.action("accept-partial", "accepted");
+  const original = structuredClone(f.store.record("packet").data.result.items);
+  const parent = f.tasks.get("task");
+  f.tasks.enqueue({ id: "remaining", packetId: "packet", deviceId: f.windows.deviceId, remainingOf: "task",
+    remainingReview: { expectedGeneration: parent.generation, expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation("task") } });
+  for (let i = 0; i < 12 && f.tasks.get("remaining").state === "queued"; i++) await f.tasks.run("remaining");
+  assert.equal(f.tasks.get("remaining").state, "done");
+  const items = f.store.record("packet").data.result.items;
+  assert.deepEqual(items.slice(0, original.length), original);
+  assert.ok(items.length > original.length);
+  assert.equal(items.flatMap(item => item.evidence).reduce((sum, evidence) => sum + evidence.quote.length, 0), 2000);
+  for (const block of f.store.db.prepare("SELECT * FROM reading_blocks WHERE task='remaining'").all())
+    assert.equal(f.tasks.reuse.proof("remaining", block.fingerprint).result_hash, sha256(block.result));
+});
+
 test("editing packet text revalidates and reuses unchanged paid ZIP blocks across revisions", async (t) => {
   const sample = archiveSample({ long: true });
   let parses = 0;
