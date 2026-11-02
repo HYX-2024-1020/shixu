@@ -9,6 +9,8 @@
 
 ## 参与开发
 
+- [固定开发位置、任务基线检查与保留旧修复](project-continuity/local-workspace.md)
+
 - [当前成果与接续入口](current-baseline.md) · [成果复用与推进约束](project-continuity/README.md) · [2026-11-02本地/远端盘点](project-continuity/inventory-20261102.md)
 - [重要方案 #70（固定da28c1f，未合并）](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/docs/server-client-plan-2026-10-28.md) · [B/C/D成果 #74（固定165487a，未合并、暂停）](https://github.com/HYX-2024-1020/shixu/blob/165487a4ffe2fb80dd158fd6fe8e109282145a69/docs/bcd/README.md)
 - [阶段 A：契约、结构、资源上限与合成迁移演练](stage-a/README.md)（依赖规划 PR #70，未启用运行功能）

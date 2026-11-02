@@ -6,6 +6,8 @@
 
 ## 接续阅读顺序
 
+本机日常开发固定在shixu-governance/，其他旧checkout只供参考；先读[固定位置与保留旧修复](project-continuity/local-workspace.md)。单一工作路径仍按任务建立独立分支，不在main开发，不从旧目录构建或送达。
+
 1. [AGENTS](../AGENTS.md)与[贡献流程](../CONTRIBUTING.md)：保护未提交内容、分支、验证、PR与双端规则。
 2. 本页及[成果复用与推进约束](project-continuity/README.md)：方向、模块、依赖及停止条件。
 3. [本地与远端盘点快照](project-continuity/inventory-20261102.md)：worktree、全部本地分支、PR和开放Issue。
