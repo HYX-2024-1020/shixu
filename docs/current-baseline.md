@@ -32,7 +32,7 @@
 - #70与#74未合并。方案在[da28c1f固定文件](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/docs/server-client-plan-2026-10-28.md)；B/C/D证据在[165487a入口](https://github.com/HYX-2024-1020/shixu/blob/165487a4ffe2fb80dd158fd6fe8e109282145a69/docs/bcd/README.md)。main没有这些文件时使用固定链接。
 - #74头提交的[Verify 41332437883](https://github.com/HYX-2024-1020/shixu/actions/runs/41332437883)失败：Windows的 `--audit-time --pdf-windows --temporary` 专项失败，其后专项跳过，Required checks失败；Core、Browser、policy、Secret scan成功。此前一次运行取消。未诊断根因，不称偶发，不以旧头绿灯代替，不在整理任务里重跑。
 - #47手机交互、#51倒计时仍开放并与main有冲突；[#56](https://github.com/HYX-2024-1020/shixu/pull/56)/[#58](https://github.com/HYX-2024-1020/shixu/pull/58)已吸收部分能力。恢复前核对最终文件及残差，不重复整支合并，不据此关闭未完成验收。
-- 本地shixu/落后主线29个提交，保留44个未提交/未跟踪文件；shixu-baseline/保留19个。禁止pull覆盖、reset、clean、自动stash或夹带进新任务。其他旧worktree也不能凭名字认作最新版本。
+- 此前保护的shixu/44份、shixu-baseline/19份改动已按用户授权[逐份核对并归档](project-continuity/local-remnants-20261102.md)：26份与主线相同、29份历史原版、8份本地变体保留；两个旧checkout已干净，原HEAD/分支未变，仍只供参考，不能按目录名认作最新版本。归档可恢复，不夹带进新任务。
 - 用户反馈手机世界折叠/密度和操作不顺手、AI分组/命名不足、应急网页适配与动效问题。源码已有功能不推翻实际反馈，需定位实际入口与版本。
 
 ## 下一轮怎样继续
