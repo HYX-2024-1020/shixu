@@ -2,6 +2,10 @@
 
 本文件适用于本仓库所有目录、所有后续开发对话和所有编码代理。开始修改前先读本文件与 `CONTRIBUTING.md`；桌面产品变更还须读 `docs/desktop-product-plan.md` 和 `docs/desktop-implementation.md`。历史 HANDOFF 中的进度记录不能替代当前 Git 状态或本文件的协作流程。
 
+## 当前接续要求（2026-11-02）
+
+开始任务还须读 [当前基线](docs/current-baseline.md) 和 [成果复用与推进约束](docs/project-continuity/README.md)。本轮仅整理，功能开发保持暂停，直至用户明确恢复。此次修正推进方式，不重开产品或丢弃已有实现；总需求清单负责交付跟踪，不自动成为持续执行队列或所有新工作的共同分支。历史文档中的“继续”不替代当前授权。复用成果前核对主线、未合并PR、实际部署/安装与对应证据，不能以测试数或格式数当作整体完成度。
+
 ## 每次任务必须遵守
 
 1. 先执行 `git status --short --branch`、检查远端和现有 PR。保护用户尚未提交的文件，不自动 reset、clean、stash 或覆盖别人的改动。
