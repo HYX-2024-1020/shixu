@@ -92,6 +92,7 @@ test(
       },
       reading: {
         credentials: true,
+        accountSafety: true,
         enabled: false,
         ledger,
         reader: async (file) => readMaterial(file),
@@ -292,6 +293,17 @@ test(
         5,
         "network throttle runs before WeChat exchange",
       );
+      const safe = service.registry.safety;
+      clock += 61000;
+      m.page.setData({ accountUsername: value.username, accountPassword: "new-synthetic-password" });
+      await m.page.credentialAction({ currentTarget: { dataset: { action: "login" } } });
+      assert.equal(m.page.data.error, "");
+      safe.decide = () => { throw Error("synthetic-independent-storage-failure"); };
+      await assert.rejects(fourth.action("revokeDevice", {
+        id: fourth.config.devices[fourth.config.active].deviceId,
+      }), e => e.status === 503 && e.code === "ACCOUNT_SAFETY_RECONCILIATION");
+      await assert.rejects(fourth.action("sync"), e => e.status === 503 && e.code === "ACCOUNT_SAFETY_RECONCILIATION");
+      await assert.rejects(m.page._transport("GET", "/api/v4/wallet"), e => e.status === 503 && e.code === "ACCOUNT_SAFETY_RECONCILIATION");
     } finally {
       for (const page of pages) page.onUnload?.();
       await new Promise((done) => service.server.close(done));

@@ -42,6 +42,14 @@ export function normalizeDatabaseSql(sql) {
 }
 const normalize = normalizeDatabaseSql;
 const writers = new WeakMap();
+const authorities = new WeakSet();
+// Synchronous cross-database coordinators may temporarily authorize guarded
+// writes. Ordinary connections and schema/version support never grant this.
+export function withDatabaseWriteAuthority(db, fn) {
+  if (authorities.has(db)) throw Error("NESTED_DATABASE_AUTHORITY");
+  authorities.add(db);
+  try { return fn(); } finally { authorities.delete(db); }
+}
 const REGISTRY_SQL = `CREATE TABLE service_schema_versions(component TEXT NOT NULL,version INTEGER NOT NULL,checksum TEXT NOT NULL,adopted INTEGER NOT NULL CHECK(adopted IN (0,1)),at INTEGER NOT NULL,PRIMARY KEY(component,version));
 CREATE TRIGGER service_schema_versions_no_update BEFORE UPDATE ON service_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;
 CREATE TRIGGER service_schema_versions_no_delete BEFORE DELETE ON service_schema_versions BEGIN SELECT RAISE(ABORT,'IMMUTABLE_SCHEMA_VERSION');END;`;
@@ -268,6 +276,7 @@ export function ensureDatabaseSchema(
   if (!supported) {
     supported = new Map();
     db.function("service_schema_writer", (name) => supported.get(name) || 0);
+    db.function("service_write_authority", () => authorities.has(db) ? 1 : 0);
     writers.set(db, supported);
   }
   const previousSupport = supported.get(component);

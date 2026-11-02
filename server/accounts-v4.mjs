@@ -66,7 +66,8 @@ function password(value) {
 
 // Opt-in account migration. Never called by the default v3 entry point.
 // All slot/credential changes and append-only security receipts share the
-// registry transaction. Independent safety-watermark replay remains an E gate.
+// registry transaction. Opt-in AccountSafety fences restored authority against
+// independent checkpoints; complete backup/event replay remains an E gate.
 export class AccountsV4 {
   constructor(registry, { now = Date.now } = {}) {
     this.registry = registry;
@@ -137,6 +138,7 @@ export class AccountsV4 {
     this.closed = true;
   }
   assertOpen() {
+    this.registry.safety?.assert();
     if (this.closed)
       throw new SyncError(503, "SERVICE_CLOSING", "服务正在关闭，请稍后重试");
   }

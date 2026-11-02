@@ -33,6 +33,8 @@ export const TENANT_ATTACHMENTS_SCHEMA = [
   },
   { version: 2, sql: "" },
 ];
+const safetyGuards = (tables) => tables.flatMap(table => ["INSERT", "UPDATE", "DELETE"].map(action =>
+  `CREATE TRIGGER safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`)).join("\n");
 export const ACCOUNTS_CORE_SCHEMA = [
   {
     version: 1,
@@ -52,6 +54,8 @@ export const ACCOUNTS_CORE_SCHEMA = [
   { version: 2, sql: "" },
   { version: 3, sql: "" },
   { version: 4, sql: "" },
+  { version: 5, sql: `CREATE TABLE account_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+${safetyGuards(["accounts", "bindings", "account_safety_checkpoint"])}` },
 ];
 export const ACCOUNTS_AUTH_SCHEMA = [
   {
@@ -68,7 +72,16 @@ export const ACCOUNTS_AUTH_SCHEMA = [
         CREATE TABLE IF NOT EXISTS account_grant_intents(account TEXT PRIMARY KEY REFERENCES accounts(id),operation TEXT UNIQUE NOT NULL);`,
   },
   { version: 2, sql: "" },
+  { version: 3, sql: `${safetyGuards(["account_credentials", "account_grant_intents", "account_v4_events"])}
+${["INSERT", "UPDATE OF binding,user_id,kind,slot", "DELETE"].map((action,i) =>
+  `CREATE TRIGGER safety_slots_${i} BEFORE ${action} ON account_device_slots WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`).join("\n")}` },
 ];
+export const LEDGER_ACCOUNT_SAFETY_SCHEMA = [{ version: 1, sql: `
+CREATE TABLE account_safety_intents(seq INTEGER PRIMARY KEY,token TEXT UNIQUE NOT NULL,previous TEXT NOT NULL,state_hash TEXT NOT NULL,at INTEGER NOT NULL);
+CREATE TABLE account_safety_decisions(token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),decision TEXT NOT NULL CHECK(decision IN ('committed','aborted')));
+${["account_safety_intents", "account_safety_decisions"].flatMap(table => ["UPDATE", "DELETE"].map(action =>
+  `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`)).join("\n")}
+` }];
 export const TENANT_ORIGINALS_SCHEMA = [
   {
     version: 1,
@@ -108,6 +121,7 @@ export const LEDGER_CORE_SCHEMA = [
   { version: 3, sql: "" },
   { version: 4, sql: "" },
   { version: 5, sql: "" },
+  { version: 6, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {

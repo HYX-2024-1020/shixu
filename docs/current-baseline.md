@@ -6,6 +6,8 @@
 
 ## 接续阅读顺序
 
+后续安全增量：[独立账号安全检查点](bcd/account-safety-verification.md)。受控入口拒绝旧账号库恢复旧密码/被撤销设备，处理两库提交中断；完整删除/到期重放仍未完成。用户已允许仅D原生验收打开IDE及切固定工程，但实际启动发现业务profile未隔离，尚未登录或通过原生验收，不再以“未授权GUI”描述当前阻塞。
+
 本机日常开发固定在shixu-governance/，其他旧checkout只供参考；先读[固定位置与保留旧修复](project-continuity/local-workspace.md)。单一工作路径仍按任务建立独立分支，不在main开发，不从旧目录构建或送达。
 
 1. [AGENTS](../AGENTS.md)与[贡献流程](../CONTRIBUTING.md)：保护未提交内容、分支、验证、PR与双端规则。

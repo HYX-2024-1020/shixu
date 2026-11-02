@@ -14,6 +14,7 @@ import { SyncError } from "./sync-store.mjs";
 import { createServerAI } from "./sync-provider.mjs";
 import { createReadingRoutes } from "./reading/routes.mjs";
 import { AccountsV4 } from "./accounts-v4.mjs";
+import { AccountSafety } from "./account-safety.mjs";
 import { OriginalStore, originalMemoryPool } from "./originals.mjs";
 import { acquireDataLease, resolveDataVersion } from "./data-versions.mjs";
 
@@ -157,6 +158,14 @@ function createAccountService({
   }
   const credentials = reading?.credentials ? new AccountsV4(registry) : null;
   if(credentials)startupCleanup.push(()=>credentials.close());
+  if (reading?.accountSafety) {
+    if (!credentials) throw Error("ACCOUNT_SAFETY_CREDENTIALS_REQUIRED");
+    new AccountSafety(registry, reading.ledger);
+  } else if (registry.db.prepare("SELECT 1 FROM account_safety_checkpoint").get() ||
+      (reading?.ledger.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_safety_intents'").get() &&
+       reading.ledger.db.prepare("SELECT 1 FROM account_safety_intents LIMIT 1").get())) {
+    throw Error("ACCOUNT_SAFETY_REQUIRED");
+  }
   if (credentials)
     for (const intent of registry.db
       .prepare("SELECT account FROM account_grant_intents")

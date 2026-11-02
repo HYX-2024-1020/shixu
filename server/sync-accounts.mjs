@@ -75,6 +75,7 @@ export class AccountRegistry {
     this.db.close();
   }
   transaction(fn) {
+    if (this.safety) return this.safety.transaction(fn);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
@@ -107,6 +108,7 @@ export class AccountRegistry {
     );
   }
   account(id) {
+    this.safety?.assert();
     const row = this.db
       .prepare("SELECT id,enabled,limits FROM accounts WHERE id=?")
       .get(id);
@@ -175,6 +177,7 @@ export class AccountRegistry {
     });
   }
   authenticate(token) {
+    this.safety?.assert();
     if (typeof token !== "string" || token.length > 150)
       reject(401, "UNAUTHORIZED", "请激活或恢复设备授权，本地资料仍保留");
     const id = token.slice(4).split(".")[0];
@@ -224,15 +227,17 @@ export class AccountRegistry {
     this.account(userId);
     if (!["windows", "wechat"].includes(kind))
       throw Error("kind must be windows or wechat");
-    this.db
+    return this.transaction(() => this.db
       .prepare("UPDATE bindings SET revoked=1 WHERE user_id=? AND kind=?")
-      .run(userId, kind);
+      .run(userId, kind));
   }
   enable(userId, enabled) {
-    const result = this.db
-      .prepare("UPDATE accounts SET enabled=? WHERE id=?")
-      .run(enabled ? 1 : 0, userId);
-    if (!result.changes) throw Error("Unknown account");
+    return this.transaction(() => {
+      const result = this.db
+        .prepare("UPDATE accounts SET enabled=? WHERE id=?")
+        .run(enabled ? 1 : 0, userId);
+      if (!result.changes) throw Error("Unknown account");
+    });
   }
   limits(userId, changes) {
     const account = this.account(userId);
@@ -244,9 +249,9 @@ export class AccountRegistry {
         value > 1024 * 1024 * 1024
       )
         throw Error("Invalid account limit");
-    this.db
+    return this.transaction(() => this.db
       .prepare("UPDATE accounts SET limits=? WHERE id=?")
-      .run(JSON.stringify({ ...account.limits, ...changes }), userId);
+      .run(JSON.stringify({ ...account.limits, ...changes }), userId));
   }
   usage(userId) {
     return this.db
