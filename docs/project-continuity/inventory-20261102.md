@@ -195,3 +195,5 @@ PR状态、原头提交和CI结论通过GitHub连接器读取；本地metadata�
 ## 本整理的本地验证
 
 文档链接与当前入口61份Markdown通过；PR/双端门禁测试8项通过；git diff --check通过。除复用的文档checkout外，其余18个worktree的分支、HEAD与完整Git状态一致，两个原脏工作区的63份文件SHA-256逐一复核不变；本地结果见preservation.json。没有运行产品功能/模型/UI测试，新PR的远端CI另核，不以此覆盖#74失败。
+
+本整理PR首轮全历史扫描发现两处已有误报：BCD历史构建清单的公开PDF.js SHA-256、合成迁移测试的SQL元数据键。核对脱敏报告及对应历史源码后，复用BCD分支已有的两个精确fingerprint到.gitleaksignore；没有目录/规则级豁免，不移植BCD产品代码。原因是CI扫描全部可达分支，而main原忽略表未包含这些历史误报。修正后本地Gitleaks全历史扫描通过；首轮失败记录保留，最终远端CI按新提交核对。此修正不处理#74的Windows时间审计失败。
