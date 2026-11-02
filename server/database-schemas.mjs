@@ -23,6 +23,10 @@ export const TENANT_SYNC_SCHEMA = [
   { version: 2, sql: "" },
   { version: 3, sql: "" },
   { version: 4, sql: "" },
+  { version: 5, sql: `${["INSERT", "UPDATE", "DELETE"].map(action =>
+    `CREATE TRIGGER tenant_safety_records_${action.toLowerCase()} BEFORE ${action} ON sync_records WHEN EXISTS(SELECT 1 FROM sync_meta WHERE key='tenant_safety') AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`).join('\n')}
+    ${["INSERT", "UPDATE", "DELETE"].map(action =>
+    `CREATE TRIGGER tenant_safety_meta_${action.toLowerCase()} BEFORE ${action} ON sync_meta WHEN ${action === 'INSERT' ? 'NEW' : 'OLD'}.key='tenant_safety' AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`).join('\n')}` },
 ];
 export const TENANT_ATTACHMENTS_SCHEMA = [
   {
@@ -93,7 +97,17 @@ export const TENANT_ORIGINALS_SCHEMA = [
       CREATE TABLE IF NOT EXISTS original_trash(packet TEXT PRIMARY KEY,cleanup INTEGER NOT NULL);`,
   },
   { version: 2, sql: "" },
+  { version: 3, sql: `CREATE TABLE original_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+${["original_files", "original_trash", "original_safety_checkpoint"].flatMap(table => ["INSERT", "UPDATE", "DELETE"].map(action =>
+  `CREATE TRIGGER tenant_safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM original_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`)).join('\n')}` },
 ];
+export const LEDGER_TENANT_SAFETY_SCHEMA = [{version: 1, sql: `
+CREATE TABLE tenant_safety_intents(seq INTEGER PRIMARY KEY,account TEXT NOT NULL,token TEXT UNIQUE NOT NULL,previous TEXT NOT NULL,base_token TEXT NOT NULL,base_hash TEXT NOT NULL,state_hash TEXT NOT NULL,state TEXT NOT NULL,at INTEGER NOT NULL);
+CREATE INDEX tenant_safety_account ON tenant_safety_intents(account,seq);
+CREATE TABLE tenant_safety_decisions(token TEXT PRIMARY KEY REFERENCES tenant_safety_intents(token),decision TEXT NOT NULL CHECK(decision IN ('committed','aborted')));
+${['tenant_safety_intents','tenant_safety_decisions'].flatMap(table => ['UPDATE','DELETE'].map(action =>
+  `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`)).join('\n')}
+`}];
 export const LEDGER_CORE_SCHEMA = [
   {
     version: 1,
@@ -122,6 +136,7 @@ export const LEDGER_CORE_SCHEMA = [
   { version: 4, sql: "" },
   { version: 5, sql: "" },
   { version: 6, sql: "" },
+  { version: 7, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {

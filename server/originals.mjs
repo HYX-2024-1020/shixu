@@ -1,5 +1,6 @@
 import { ensureDatabaseSchema } from './database-schema.mjs';
 import { TENANT_ORIGINALS_SCHEMA } from './database-schemas.mjs';
+import { TenantSafety } from './tenant-safety.mjs';
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
 
@@ -47,6 +48,7 @@ export class OriginalStore {
       now = Date.now,
       pool = originalMemoryPool(),
       stagingMs = 15 * 60000,
+      safety,
     } = {},
   ) {
     Object.assign(this, { store, db: store.db, quota, now, pool, stagingMs });
@@ -66,7 +68,7 @@ export class OriginalStore {
     this.db
       .prepare("INSERT OR IGNORE INTO sync_meta VALUES('originals_v4','1')")
       .run();
-    this.db
+    if (!this.db.prepare('SELECT 1 FROM original_safety_checkpoint').get()) this.db
       .exec(`INSERT OR IGNORE INTO original_files(packet,id,hash,name,type,size,mode,state)
       SELECT a.packet_id,a.id,a.hash,a.name,a.type,b.size,'retained','legacy_pending_notice' FROM sync_attachments a JOIN sync_blobs b ON a.hash=b.hash;`);
     const files = store.files;
@@ -173,6 +175,9 @@ export class OriginalStore {
       if (["restore", "purge"].includes(op.type))
         this.db.prepare("DELETE FROM original_trash WHERE packet=?").run(op.id);
     };
+    if (safety) new TenantSafety(store, safety.ledger, safety.account, safety);
+    else if (store.meta('tenant_safety') || this.db.prepare('SELECT 1 FROM original_safety_checkpoint').get())
+      throw Error('TENANT_SAFETY_REQUIRED');
     this.timer = setInterval(() => {
       try {
         this.sweep();
@@ -197,6 +202,7 @@ export class OriginalStore {
     return r;
   }
   transaction(fn) {
+    if (this.store.safety) return this.store.safety.transaction(fn);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const value = fn();
@@ -682,6 +688,11 @@ export class OriginalStore {
   }
   sweep() {
     if (this.db.isTransaction) return;
+    if (this.store.safety && !this.store.safety.active)
+      return this.store.safety.transaction(() => this.sweepLocked());
+    return this.sweepLocked();
+  }
+  sweepLocked() {
     const now = this.now();
     for (const [key, b] of this.buffers) if (b.until <= now) this.release(key);
     this.db
@@ -697,7 +708,7 @@ export class OriginalStore {
     for (const t of this.db
       .prepare("SELECT packet FROM original_trash WHERE cleanup<=?")
       .all(now))
-      this.transaction(() => {
+      (this.db.isTransaction ? fn => fn() : fn => this.transaction(fn))(() => {
         this.store.files.purge(t.packet);
         const version = this.store.sequence + 1;
         this.db
@@ -722,7 +733,8 @@ export class OriginalStore {
       } catch {
         continue;
       }
-      this.transaction(() => this.remove(f, "cleaned"));
+      if (this.db.isTransaction) this.remove(f, "cleaned");
+      else this.transaction(() => this.remove(f, "cleaned"));
     }
   }
   close() {

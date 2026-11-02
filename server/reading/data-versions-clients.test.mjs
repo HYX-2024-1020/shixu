@@ -17,6 +17,7 @@ for (const temporary of [false, true])
           directory,
           reader: readMaterial,
           shadowVersion: true,
+          tenantSafety: true,
           sourceByMini: true,
           verifyLifecycle: true,
           originalQuota: temporary ? 1 : 500 * 1024 * 1024,

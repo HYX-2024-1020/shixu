@@ -59,6 +59,7 @@ export async function runClientLoop({
   shadowVersion=false,
   partialRemainder=false,
   materialNoticeRequired=false,
+  tenantSafety=false,
 }) {
   let originalNow = Date.now();
   const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
@@ -86,6 +87,7 @@ export async function runClientLoop({
   const costEvidence=new Map();
   const reading = {
     materialNoticeRequired,
+    tenantSafety,
     ...(auditCheckpoint ? {
       maintenanceAuthorize:({actor,operation})=>actor==="synthetic-maintainer" && operation==="reconcile-root-checkpoint",
       maintenanceVerifyCheckpoint:({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,

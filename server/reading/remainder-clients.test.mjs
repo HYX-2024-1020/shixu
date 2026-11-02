@@ -10,7 +10,7 @@ import { pdfWindowSample } from "./pdf-fixtures.mjs";
 for (const startByMini of [false, true]) test(`${startByMini ? "mini" : "Windows"} explicitly completes remaining PDF pages without republishing edited accepted cards, including a lost response`, { timeout: 30000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-remainder-clients-"));
   try {
-    const report = await runClientLoop({ directory, sourceByMini: true, startByMini, partialRemainder: true,
+    const report = await runClientLoop({ directory, sourceByMini: true, startByMini, partialRemainder: true, tenantSafety: true,
       originalQuota: 1, original: pdfWindowSample(), reader: Object.assign(readMaterial, { pdfWindows: true }) });
     assert.equal(report.pdfPages, 19);
     assert.equal(report.rootCalls, 4);

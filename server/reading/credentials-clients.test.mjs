@@ -93,6 +93,7 @@ test(
       reading: {
         credentials: true,
         accountSafety: true,
+        tenantSafety: true,
         enabled: false,
         ledger,
         reader: async (file) => readMaterial(file),

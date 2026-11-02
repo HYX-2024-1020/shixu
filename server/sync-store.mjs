@@ -194,6 +194,7 @@ export class SyncStore {
     this.db.prepare("UPDATE sync_devices SET revoked=1 WHERE id=?").run(id);
   }
   record(id) {
+    this.safety?.assert();
     const row = this.db
       .prepare("SELECT * FROM sync_records WHERE id=?")
       .get(id);
@@ -208,6 +209,7 @@ export class SyncStore {
       : null;
   }
   pull({ cursor = 0, epoch, limit = 100 } = {}) {
+    this.safety?.assert();
     if (
       !Number.isSafeInteger(cursor) ||
       cursor < 0 ||
@@ -241,6 +243,8 @@ export class SyncStore {
     };
   }
   apply(deviceId, operation, epoch, internal = {}) {
+    if (this.safety && !this.safety.active)
+      return this.safety.transaction(() => this.apply(deviceId, operation, epoch, internal));
     if (epoch !== this.epoch)
       fail("RESET_REQUIRED", "服务器资料版本已变化，请先核对本地资料", {
         epoch: this.epoch,
@@ -287,7 +291,8 @@ export class SyncStore {
         }),
       ),
     );
-    this.db.exec("BEGIN IMMEDIATE");
+    const coordinated = this.safety?.active;
+    if (!coordinated) this.db.exec("BEGIN IMMEDIATE");
     try {
       const saved = this.db
         .prepare("SELECT * FROM sync_operations WHERE device_id=? AND op_id=?")
@@ -301,7 +306,7 @@ export class SyncStore {
           record: this.record(saved.record_id),
           replayed: true,
         };
-        this.db.exec("COMMIT");
+        if (!coordinated) this.db.exec("COMMIT");
         return response;
       }
       const current = this.record(id);
@@ -405,10 +410,10 @@ export class SyncStore {
       };
       internal.beforeCommit?.(response);
       this.afterOperation?.(operation, response);
-      this.db.exec("COMMIT");
+      if (!coordinated) this.db.exec("COMMIT");
       return response;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      if (!coordinated) this.db.exec("ROLLBACK");
       throw error;
     }
   }

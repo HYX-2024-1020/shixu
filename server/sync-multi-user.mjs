@@ -217,7 +217,15 @@ function createAccountService({
     } else running--;
   }
   function tenant(userId) {
-    if (tenants.has(userId)) return tenants.get(userId);
+    if (tenants.has(userId)) {
+      const service = tenants.get(userId);
+      service.store.safety?.assert();
+      return service;
+    }
+    if (reading && !reading.tenantSafety &&
+        reading.ledger.db.prepare("SELECT 1 FROM sqlite_master WHERE name='tenant_safety_intents'").get() &&
+        reading.ledger.db.prepare('SELECT 1 FROM tenant_safety_intents WHERE account=? LIMIT 1').get(userId))
+      throw Error('TENANT_SAFETY_REQUIRED');
     // IDs originate exclusively from our registry, never from a URL/body.
     if (!/^[a-f0-9-]{36}$/.test(userId))
       throw Error("Invalid internal account ID");
@@ -312,6 +320,7 @@ function createAccountService({
       new OriginalStore(service.store, {
         pool: originalPool,
         ...reading.originals,
+        ...(reading.tenantSafety ? { safety: { ledger: reading.ledger, account: userId } } : {}),
       });
     readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);

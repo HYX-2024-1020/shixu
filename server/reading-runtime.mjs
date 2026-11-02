@@ -57,7 +57,7 @@ export function createReadingRuntime(config, { secret, apiKey, wechat = null, fe
     ledger.freezePrice(frozen);
     service = createMultiUserService({
       directory, secret, ...(config.origin ? { origin: config.origin } : {}), wechat,
-      reading: { enabled: config.enabled, credentials: true, accountSafety: true, materialNoticeRequired: true, requireReconciledAccounts: true, ledger, reader, provider,
+      reading: { enabled: config.enabled, credentials: true, accountSafety: true, tenantSafety: true, materialNoticeRequired: true, requireReconciledAccounts: true, ledger, reader, provider,
         priceId: price.id, modelVersion: price.model },
     });
   } catch (error) { ledger.close(); throw error; }

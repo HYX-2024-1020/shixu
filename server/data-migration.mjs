@@ -68,7 +68,7 @@ export function createRuntimeMigrator({
     try {
       createAttachmentStore(store);
       jobs = createJobQueue(store, null, {}, { archiveLegacy: true });
-      new OriginalStore(store);
+      new OriginalStore(store, store.meta('tenant_safety') ? { safety: { ledger, account } } : {});
       tasks = new ReadingTasks({
         store,
         account,
