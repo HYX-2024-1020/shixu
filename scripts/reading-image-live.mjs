@@ -8,13 +8,15 @@ const root = fileURLToPath(new URL("../", import.meta.url)),
   require = createRequire(import.meta.url);
 const probe = await mkdtemp(join(tmpdir(), "shixu-image-live-"));
 const dry = process.argv.includes("--dry-run");
+const prepareOnly = process.argv.includes("--prepare-only");
 const existing =
   process.env.SHIXU_LIVE_PROFILE || join(process.env.APPDATA, "ShixuDesktop");
 try {
-  await copyFile(join(existing, "Local State"), join(probe, "Local State"));
+  if (!dry && !prepareOnly)
+    await copyFile(join(existing, "Local State"), join(probe, "Local State"));
   const env = { ...process.env, SHIXU_IMAGE_PROBE_DIR: probe };
   delete env.ELECTRON_RUN_AS_NODE;
-  if (!dry) {
+  if (!dry && !prepareOnly) {
     const output = resolve(root, "../outputs");
     await mkdir(output, { recursive: true });
     const ledgerDirectory = await mkdtemp(join(output, "shixu-image-ledger-"));
@@ -38,7 +40,7 @@ try {
         ...(process.argv.includes("--chat") ? ["--chat"] : []),
         ...(process.argv.includes("--association") ? ["--association"] : []),
         ...(process.argv.includes("--merge") ? ["--merge"] : []),
-        ...(process.argv.includes("--prepare-only") ? ["--prepare-only"] : []),
+        ...(prepareOnly ? ["--prepare-only"] : []),
       ],
       { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
     );

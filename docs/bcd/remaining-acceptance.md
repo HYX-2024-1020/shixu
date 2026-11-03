@@ -13,9 +13,13 @@
 
 当前视觉投影回归使用两份归档扫描 PDF 模型响应及核对决定，按原覆盖来源重放。检查任务分类与行动标题、截止日期和时间、PDF 格式、文件名、算法和复杂度要求、引文来源，以及旧页尾臆断是否移入待确认。运行 `node --test server/reading/quality-evidence.test.mjs`。此回放覆盖当前核对投影，当前版本重新识别和调用模型仍待验收。
 
+下一次真实批次只使用上表四组固定合成材料。原件准备和真实调用分开，`scripts/reading-image-live.mjs --prepare-only` 可在临时 profile 中准备扫描 PDF 和夹图 DOCX。发布后逐项检查分类、行动标题、事实、截止日期和时刻、原文定位，并记录错项及未读内容。通知合并及历史关联需要真实上游识别，现有只调用末段的历史探针仅用于对照。
+
+拟议批次上限为 16 次真实请求，单次预留上限 100,000 输入和 4,000 输出 token。按已核查的 Flash 峰时未命中价估算，最高预留人民币 3.712 元，可向上取整为 4 元的授权上限。执行前须在隔离运行器对整个批次实施预留总额和次数门禁，任何一步会超限或出现 unknown 都停止发送。测试凭据由运行环境注入，授权前只运行零调用准备。价格以实际测试当天官方报价核对。[DeepSeek 官方价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)
+
 | 项 | 当前门禁及剩余证据 |
 | --- | --- |
 | C7 安全重试 | [DeepSeek 错误码](https://api-docs.deepseek.com/quick_start/error_codes/)与[并发限制](https://api-docs.deepseek.com/quick_start/rate_limit/)说明 429 的限流含义。此次核对未找到能证明同一已发请求未计费的保证。读取服务继续将无可信 usage 的已发请求归入 unknown，自动重发需要可核对的未执行或未计费证据。 |
-| C8 最终账单与时间证据 | [官方帮助](https://api-docs.deepseek.com/faq/)列出发票和 API Key 用量入口。现有请求/响应收据已可绑定本地调用。仍需能关联同一请求的真实最终计费证据，以及受信宿主的逐步骤终止和活跃时间记录。 |
+| C8 最终账单与时间证据 | 现有请求/响应收据已可绑定本地调用。正常结束的本地执行器已在独立账本留下按步骤关联的结束回执和计入时长。仍需异常中断的受信宿主证据，以及能关联同一请求的真实最终计费证据。[计时验证](timing-verification.md) · [DeepSeek 官方帮助](https://api-docs.deepseek.com/faq/) |
 | D5 恢复 | 已有独立账号/租户检查点、删除与到期的安全重放、宿主账本水位和[首次接入已核对的旧库](tenant-safety-verification.md#首次接入已核对的旧库)的合成验证。账号和租户共同回退时，可重放已留证的 v4 设备撤销及租户永久删除。[联合演练](tenant-safety-verification.md#跨库联合恢复演练)记录了改密等缺证据变更和真实迁移的边界。 |
 | D6 原生双端 | Windows CI 与微信 Page/Node 签名 HTTP 已有证据。微信 develop 联验仍需隔离测试会话和身份，已有隔离失败详见[验收记录](acceptance-20261102.md)。 |
