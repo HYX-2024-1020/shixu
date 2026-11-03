@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createReadingRuntime } from "../reading-runtime.mjs";
@@ -123,12 +123,47 @@ test("reviewed account and tenant baselines support joint recovery against the l
     assert.throws(() => runtime.service.registry.authenticate(binding.token), /撤销|失效/);
     assert.deepEqual(runtime.ledger.wallet(invitation.userId), finalWallet);
     assert.equal(runtime.ledger.call("uncertain").state, "unknown");
+    const [newInvite] = runtime.service.registry.generate(1);
+    const { binding: newBinding } = await runtime.service.credentials.register({
+      username: "快照后学生", password: "synthetic-later-password",
+      invite: newInvite.invite, operationId: "later-registration",
+    }, { kind: "wechat", identity: "e".repeat(64), publicKey: null, name: "合成微信" }, "synthetic");
+    const newWallet = runtime.ledger.grantInitial(newBinding.user_id);
+    const accountRequest = async () => {
+      const { port } = await runtime.listen(0);
+      return fetch(`http://127.0.0.1:${port}/api/v3/account`, {
+        headers: { authorization: `Bearer ${newBinding.token}` },
+      });
+    };
+    const available = await accountRequest();
+    assert.equal(available.status, 200);
+    await available.json();
     await runtime.close();
     const recoveredTenant = new SyncStore(tenantPath);
     try {
       assert.equal(recoveredTenant.record("packet").purged, true);
       assert.equal(recoveredTenant.record("packet").data, null);
     } finally { recoveredTenant.close(); }
+
+    const newTenant = join(config.directory, "users", newBinding.user_id, "workspace.sqlite");
+    const savedTenant = join(directory, "later-tenant.sqlite");
+    renameSync(newTenant, savedTenant);
+    runtime = createReadingRuntime({
+      ...config, trustedAuthorityFloor: readingAuthorityFloor(config.ledgerPath),
+    }, options);
+    assert.equal(runtime.service.registry.authenticate(newBinding.token).user_id, newBinding.user_id);
+    assert.deepEqual(runtime.ledger.wallet(newBinding.user_id), newWallet);
+    const missing = await accountRequest();
+    assert.equal(missing.status, 503);
+    assert.equal((await missing.json()).code, "TENANT_RESTORE_REQUIRED");
+    assert.equal(existsSync(newTenant), false);
+    await runtime.close();
+    renameSync(savedTenant, newTenant);
+    runtime = createReadingRuntime(config, options);
+    const restored = await accountRequest();
+    assert.equal(restored.status, 200);
+    await restored.json();
+    assert.deepEqual(runtime.ledger.wallet(newBinding.user_id), newWallet);
   } finally {
     await runtime?.close();
     rmSync(directory, { recursive: true, force: true });

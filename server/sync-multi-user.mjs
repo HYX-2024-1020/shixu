@@ -230,6 +230,17 @@ function createAccountService({
     if (!/^[a-f0-9-]{36}$/.test(userId))
       throw Error("Invalid internal account ID");
     const account = registry.account(userId);
+    const database = join(directory, "users", userId, "workspace.sqlite");
+    if (reading?.tenantSafety && !existsSync(database)) {
+      const ledger = reading.ledger.db;
+      const hasHistory = ledger.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tenant_safety_intents'",
+      ).get() && ledger.prepare(
+        "SELECT 1 FROM tenant_safety_intents WHERE account=? LIMIT 1",
+      ).get(userId);
+      if (hasHistory)
+        throw new SyncError(503, "TENANT_RESTORE_REQUIRED", "账号仍保留，资料库缺失，请联系维护者恢复");
+    }
     const wrap =
       (fn) =>
       async (...args) => {
@@ -248,7 +259,7 @@ function createAccountService({
       };
     const service = createSyncService({
       originalsV4: !!readingRoutes,
-      database: join(directory, "users", userId, "workspace.sqlite"),
+      database,
       password: randomBytes(32).toString("base64url"),
       origin,
       ai:
