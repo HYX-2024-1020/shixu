@@ -91,6 +91,13 @@ CREATE TABLE account_safety_revocations(token TEXT PRIMARY KEY REFERENCES accoun
   at INTEGER NOT NULL);
 ${["UPDATE", "DELETE"].map(action =>
   `CREATE TRIGGER account_safety_revocations_no_${action.toLowerCase()} BEFORE ${action} ON account_safety_revocations BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`).join("\n")}
+` }, { version: 3, sql: `
+CREATE TABLE account_safety_restrictions(
+  token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),
+  account TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('disable','revoke-windows','revoke-wechat'))
+);
+CREATE TRIGGER account_safety_restrictions_no_update BEFORE UPDATE ON account_safety_restrictions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
+CREATE TRIGGER account_safety_restrictions_no_delete BEFORE DELETE ON account_safety_restrictions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 ` }];
 export const TENANT_ORIGINALS_SCHEMA = [
   {

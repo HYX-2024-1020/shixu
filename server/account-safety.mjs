@@ -149,11 +149,11 @@ export class AccountSafety {
       }, true);
     } else {
       const latest = this.head();
-      if (local !== latest.token) this.replayRevocations(rows, local, hash, latest.token);
+      if (local !== latest.token) this.replayRestrictions(rows, local, hash, latest.token);
       this.assert();
     }
   }
-  replayRevocations(rows, local, hash, latest) {
+  replayRestrictions(rows, local, hash, latest) {
     const committed = rows.filter(row => row.decision === "committed");
     const ancestor = committed.findIndex(row => row.token === local && row.state_hash === hash);
     if (ancestor < 0 || committed.at(-1)?.token !== latest) denied();
@@ -164,7 +164,11 @@ export class AccountSafety {
             this.head()?.token !== latest) denied();
         for (const checkpoint of committed.slice(ancestor + 1)) {
           const row = this.ledger.db.prepare("SELECT * FROM account_safety_revocations WHERE token=?").get(checkpoint.token);
-          if (!row) denied();
+          if (!row) {
+            this.applyRestriction(checkpoint.token);
+            if (this.hash() !== checkpoint.state_hash) denied();
+            continue;
+          }
           const binding = this.db.prepare("UPDATE bindings SET revoked=1 WHERE id=? AND user_id=?")
             .run(row.binding, row.account);
           if (binding.changes !== 1) denied();
@@ -186,6 +190,18 @@ export class AccountSafety {
       }
     });
   }
+  applyRestriction(token) {
+    const restriction = this.ledger.db.prepare(
+      "SELECT account,kind FROM account_safety_restrictions WHERE token=?",
+    ).get(token);
+    if (!restriction) denied();
+    if (restriction.kind === "disable") {
+      this.db.prepare("UPDATE accounts SET enabled=0 WHERE id=?").run(restriction.account);
+    } else {
+      this.db.prepare("UPDATE bindings SET revoked=1 WHERE user_id=? AND kind=?")
+        .run(restriction.account, restriction.kind.slice("revoke-".length));
+    }
+  }
   assert() {
     if (this.active) return;
     const head = this.head();
@@ -198,7 +214,7 @@ export class AccountSafety {
     )
       denied();
   }
-  transaction(fn, initial = false) {
+  transaction(fn, initial = false, restriction) {
     if (!initial) this.assert();
     if (this.active || this.db.isTransaction) denied();
     const previous = this.local();
@@ -230,6 +246,9 @@ export class AccountSafety {
             if (event?.binding && receipt?.response === '{"ok":true}')
               this.ledger.db.prepare("INSERT INTO account_safety_revocations VALUES(?,?,?,?,?,?)")
                 .run(token, event.seq, event.operation, event.account, event.binding, event.at);
+            else if (restriction)
+              this.ledger.db.prepare("INSERT INTO account_safety_restrictions VALUES(?,?,?)")
+                .run(token, restriction.account, restriction.kind);
             this.ledger.event("account-safety-prepare:" + token, "account-safety-prepare", "system:account-safety", null, 0);
           });
           this.fault("prepared");

@@ -143,6 +143,29 @@ test("a confirmed revoke replays onto a verified account ancestor and retains it
   assert.deepEqual(f.ledger.wallet(binding.user_id), wallet);
 });
 
+test("an older registry can replay platform-wide revocation and account disable together", async (t) => {
+  const f = fixture(t);
+  const binding = await register(f);
+  const older = join(f.root, "before-restrictions.sqlite");
+  await backup(f.registry.db, older);
+  f.registry.revoke(binding.user_id, "windows");
+  f.registry.enable(binding.user_id, false);
+  const latest = f.safety.local();
+  f.close();
+  copyFileSync(older, join(f.root, "data", "accounts.sqlite"));
+  f.open();
+  assert.equal(f.safety.local(), latest);
+  assert.equal(f.registry.db.prepare("SELECT enabled FROM accounts WHERE id=?").get(binding.user_id).enabled, 0);
+  assert.equal(f.registry.db.prepare("SELECT revoked FROM bindings WHERE id=?").get(binding.id).revoked, 1);
+  assert.throws(() => f.registry.authenticate(binding.token), /撤销|失效|停用/);
+  f.registry.enable(binding.user_id, true);
+  const enabled = f.safety.local();
+  f.close();
+  copyFileSync(older, join(f.root, "data", "accounts.sqlite"));
+  assert.throws(() => f.open(), /账号安全记录不一致/);
+  assert.notEqual(latest, enabled);
+});
+
 test("normal failed operations roll back without poisoning service; unchanged replay and last-seen telemetry do not append safety intents", async (t) => {
   const f = fixture(t),
     binding = await register(f);

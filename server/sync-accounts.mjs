@@ -74,8 +74,8 @@ export class AccountRegistry {
   close() {
     this.db.close();
   }
-  transaction(fn) {
-    if (this.safety) return this.safety.transaction(fn);
+  transaction(fn, restriction) {
+    if (this.safety) return this.safety.transaction(fn, false, restriction);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
@@ -229,7 +229,7 @@ export class AccountRegistry {
       throw Error("kind must be windows or wechat");
     return this.transaction(() => this.db
       .prepare("UPDATE bindings SET revoked=1 WHERE user_id=? AND kind=?")
-      .run(userId, kind));
+      .run(userId, kind), { account: userId, kind: "revoke-" + kind });
   }
   enable(userId, enabled) {
     return this.transaction(() => {
@@ -237,7 +237,7 @@ export class AccountRegistry {
         .prepare("UPDATE accounts SET enabled=? WHERE id=?")
         .run(enabled ? 1 : 0, userId);
       if (!result.changes) throw Error("Unknown account");
-    });
+    }, enabled ? undefined : { account: userId, kind: "disable" });
   }
   limits(userId, changes) {
     const account = this.account(userId);
