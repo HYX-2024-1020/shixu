@@ -18,7 +18,7 @@ const beijingHour = (time) => new Date(time + 8 * 3600000).getUTCHours();
 const isPeakHour = (hour) => (hour >= 9 && hour < 12) || (hour >= 14 && hour < 18);
 const startPeakHour = isPeakHour(beijingHour(now));
 if (period === "peak" && !startPeakHour) throw Error("B6_VERIFIED_PERIOD_CHANGED");
-const price = deepseekPriceSnapshots(now)[period === "peak" ? 0 : 1];
+let price = deepseekPriceSnapshots(now)[period === "peak" ? 0 : 1];
 const prepareOnly = config === "--prepare-only";
 const docxRetest = process.argv[4] === "--docx-retest";
 const key = prepareOnly ? "synthetic-prepare-only" :
@@ -98,6 +98,14 @@ function seedHistory(put) {
   }
 }
 try {
+  if (docxRetest) {
+    const prior = ledger.db.prepare("SELECT body FROM reading_prices WHERE id=?").get(price.id);
+    if (!prior) throw Error("B6_INITIAL_TARIFF_REQUIRED");
+    const frozen = JSON.parse(prior.body);
+    if (Object.keys(price).some(key => key !== "verifiedAt" && price[key] !== frozen[key]))
+      throw Error("B6_INITIAL_TARIFF_CHANGED");
+    price = frozen;
+  }
   ledger.freezePrice(price);
   for (const { id, files } of docxRetest ? [{ ...cases[1], id: "docx-retest" }] : cases) {
     if (prepareOnly) {
