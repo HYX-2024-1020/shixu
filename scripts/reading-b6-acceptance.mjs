@@ -20,12 +20,22 @@ const startPeakHour = isPeakHour(beijingHour(now));
 if (period === "peak" && !startPeakHour) throw Error("B6_VERIFIED_PERIOD_CHANGED");
 const price = deepseekPriceSnapshots(now)[period === "peak" ? 0 : 1];
 const prepareOnly = config === "--prepare-only";
+const docxRetest = process.argv[4] === "--docx-retest";
 const key = prepareOnly ? "synthetic-prepare-only" :
   /^DEEPSEEK_API_KEY=([A-Za-z0-9_-]{16,256})\r?$/m.exec(readFileSync(config, "utf8"))?.[1];
 if (!key) throw Error("B6_TEST_KEY_UNAVAILABLE");
-if (!prepareOnly) closeSync(openSync(join(directory, "paid-batch-started"), "wx", 0o600));
+if (docxRetest) {
+  if (prepareOnly) throw Error("B6_INITIAL_BATCH_REQUIRED");
+  closeSync(openSync(join(directory, "paid-batch-started"), "r"));
+}
+if (!prepareOnly) closeSync(openSync(join(directory, docxRetest ? "docx-retest-started" : "paid-batch-started"), "wx", 0o600));
 const ledger = new ReadingLedger(prepareOnly ? ":memory:" : join(directory, "billing.sqlite"));
-let sends = 0;
+let sends = docxRetest ? ledger.db.prepare("SELECT COUNT(*) AS n FROM reading_calls").get().n : 0;
+if (docxRetest && (sends < 1 || sends >= 16 ||
+    ledger.db.prepare("SELECT 1 FROM reading_calls WHERE state!='settled' LIMIT 1").get())) {
+  ledger.close();
+  throw Error("B6_INITIAL_BATCH_UNRESOLVED");
+}
 const provider = createDeepSeekReadingProvider({
   apiKey: key, priceAt: () => price.id,
   fetcher: (...args) => {
@@ -89,7 +99,7 @@ function seedHistory(put) {
 }
 try {
   ledger.freezePrice(price);
-  for (const { id, files } of cases) {
+  for (const { id, files } of docxRetest ? [{ ...cases[1], id: "docx-retest" }] : cases) {
     if (prepareOnly) {
       for (const { name, body } of files) {
         const hash = sha256(body);

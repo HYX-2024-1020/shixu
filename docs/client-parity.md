@@ -2,6 +2,8 @@
 
 Windows 和微信共用的读取执行器在正常结束时将该步骤计入的活跃毫秒与终止回执一并写入独立账本。异常中断仍由现有时间核对门禁处理。[计时验证](bcd/timing-verification.md)。
 
+两端共用图像核对提示。夹图文档的页尾核对标记即使和正确命名规则写在同一行动建议里，也应整条转入待核对。真实样本的首次失败和后续验收分别记录。[剩余验收](bcd/remaining-acceptance.md)。
+
 受控v4入口在独立账本保留账号权威检查点，旧账号库不能恢复已撤销设备或旧密码；两库中断按检查点核对，无法核对时两端认证/同步均返回维护原因，本地资料保留。既有Windows AccountWorkspace及Page/Node wx账号联合测试启用此保护后通过注册丢回执、槽位替换、同微信重装、改密全撤销及重新登录。已留存租户安全历史但资料库文件缺失时，两端共用的服务返回 `TENANT_RESTORE_REQUIRED`，保留账号和额度。见[独立账号安全验证](bcd/account-safety-verification.md)和[租户恢复验证](bcd/tenant-safety-verification.md)。
 
 ## 2026-11-02 B/C/D主流程收尾（#73，原生验收仍单列）
