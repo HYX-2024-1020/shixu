@@ -143,6 +143,52 @@ test("a confirmed revoke replays onto a verified account ancestor and retains it
   assert.deepEqual(f.ledger.wallet(binding.user_id), wallet);
 });
 
+test("recovering with the current protected registry preserves password changes and post-snapshot registration", async (t) => {
+  const f = fixture(t);
+  const first = await register(f);
+  const older = join(f.root, "old-accounts.sqlite");
+  const current = join(f.root, "current-accounts.sqlite");
+  const accounts = join(f.root, "data", "accounts.sqlite");
+  await backup(f.registry.db, older);
+  await f.auth.changePassword(first.user_id, {
+    oldPassword: "synthetic-password-1",
+    newPassword: "synthetic-password-2",
+    operationId: "password-after-snapshot",
+    revokeAll: true,
+  }, first.id, "synthetic-ip");
+  const [invite] = f.registry.generate(1);
+  const registration = {
+    username: "新增学生",
+    password: "synthetic-password-new",
+    invite: invite.invite,
+    operationId: "register-after-snapshot",
+  };
+  const second = await f.auth.register(registration, identity(2), "synthetic-ip");
+  const wallet = f.ledger.grantInitial(second.binding.user_id);
+  const checkpoint = f.safety.local();
+  await backup(f.registry.db, current);
+
+  f.close();
+  copyFileSync(older, accounts);
+  assert.throws(() => f.open(), /账号安全记录不一致/);
+  f.close();
+  copyFileSync(current, accounts);
+  f.open();
+
+  assert.equal(f.safety.local(), checkpoint);
+  assert.throws(() => f.registry.authenticate(first.token), /撤销|失效/);
+  await assert.rejects(f.auth.login({
+    username: "合成学生", password: "synthetic-password-1", operationId: "old-login",
+  }, identity(3), "synthetic-ip"));
+  const login = await f.auth.login({
+    username: "合成学生", password: "synthetic-password-2", operationId: "current-login",
+  }, identity(3), "synthetic-ip");
+  assert.equal(login.binding.user_id, first.user_id);
+  assert.deepEqual(await f.auth.register(registration, identity(2), "synthetic-ip"), second);
+  assert.equal(f.registry.authenticate(second.binding.token).user_id, second.binding.user_id);
+  assert.deepEqual(f.ledger.grantInitial(second.binding.user_id), wallet);
+});
+
 test("an older registry can replay platform-wide revocation and account disable together", async (t) => {
   const f = fixture(t);
   const binding = await register(f);
