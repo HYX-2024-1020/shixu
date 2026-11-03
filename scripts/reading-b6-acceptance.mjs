@@ -21,6 +21,9 @@ if (period === "peak" && !startPeakHour) throw Error("B6_VERIFIED_PERIOD_CHANGED
 let price = deepseekPriceSnapshots(now)[period === "peak" ? 0 : 1];
 const prepareOnly = config === "--prepare-only";
 const docxRetest = process.argv[4] === "--docx-retest";
+const finalPair = process.argv[4] === "--final-pair";
+const sendLimit = finalPair ? 6 : 16;
+const reserveLimit = finalPair ? 2_000_000 : 4_000_000;
 const key = prepareOnly ? "synthetic-prepare-only" :
   /^DEEPSEEK_API_KEY=([A-Za-z0-9_-]{16,256})\r?$/m.exec(readFileSync(config, "utf8"))?.[1];
 if (!key) throw Error("B6_TEST_KEY_UNAVAILABLE");
@@ -42,12 +45,12 @@ const provider = createDeepSeekReadingProvider({
     if (prepareOnly) throw Error("B6_PREPARE_NO_NETWORK");
     const current = Date.now();
     if (beijingDay(current) !== beijingDay(now) ||
-        isPeakHour(beijingHour(current)) !== startPeakHour || sends >= 16)
+        isPeakHour(beijingHour(current)) !== startPeakHour || sends >= sendLimit)
       throw Error("B6_SEND_LIMIT");
     const totals = ledger.db.prepare(
       "SELECT COALESCE(SUM(reserved),0) AS reserved FROM reading_calls",
     ).get();
-    if (totals.reserved > 4_000_000) throw Error("B6_RESERVATION_LIMIT");
+    if (totals.reserved > reserveLimit) throw Error("B6_RESERVATION_LIMIT");
     sends++;
     return fetch(...args);
   },
@@ -107,7 +110,9 @@ try {
     price = frozen;
   }
   ledger.freezePrice(price);
-  for (const { id, files } of docxRetest ? [{ ...cases[1], id: "docx-retest" }] : cases) {
+  const selected = docxRetest ? [{ ...cases[1], id: "docx-retest" }]
+    : finalPair ? cases.filter(({ id }) => id === "pdf" || id === "notice") : cases;
+  for (const { id, files } of selected) {
     if (prepareOnly) {
       for (const { name, body } of files) {
         const hash = sha256(body);
@@ -152,7 +157,7 @@ try {
         coverage: result.readingCoverage, calls: calls.map(call => ({ ...call, receipt: ledger.receipts.review(call.id) })),
       }, null, 2));
       console.log(JSON.stringify({ id, state: task.state, reason: task.reason, sends, spent: ledger.wallet(id).spent }));
-      if (calls.some(c => ["sent", "unknown"].includes(c.state)) || sends >= 16) break;
+      if (calls.some(c => ["sent", "unknown"].includes(c.state)) || sends >= sendLimit) break;
     } finally {
       tasks?.close();
       store.close();

@@ -25,20 +25,28 @@ test("a killed process leaves an independent execution fence even without any su
     const path = join(directory, "ledger.sqlite");
     const script = `import {ReadingLedger} from ${JSON.stringify(new URL("./ledger.mjs", import.meta.url).href)};
       import {ReadingRootSafety} from ${JSON.stringify(new URL("./root-safety.mjs", import.meta.url).href)};
+      import {processIdentity} from ${JSON.stringify(new URL("../data-control.mjs", import.meta.url).href)};
       const ledger=new ReadingLedger(${JSON.stringify(path)});
-      const guard=new ReadingRootSafety(ledger,"a"); guard.bind("p","t","t");guard.begin("t","t",1);
-      process.stdout.write("fence committed");process.kill(process.pid,"SIGKILL");`;
+      const guard=new ReadingRootSafety(ledger,"a",processIdentity()); guard.bind("p","t","t");
+      const step=guard.begin("t","t",1);
+      if(guard.reviewExecutor(step).terminated!==false)process.exit(2);
+      process.stdout.write(step);process.kill(process.pid,"SIGKILL");`;
     const killed = spawnSync(
       process.execPath,
       ["--input-type=module", "-e", script],
-      { encoding: "utf8", timeout: 5000, maxBuffer: 4096 },
+      { encoding: "utf8", timeout: 10000, maxBuffer: 4096 },
     );
     assert.equal(killed.error, undefined);
-    assert.match(killed.stdout, /fence committed/);
+    assert.match(killed.stdout, /^[a-f0-9-]{36}$/);
     assert.notEqual(killed.status, 0);
     const ledger = new ReadingLedger(path);
     try {
       const guard = new ReadingRootSafety(ledger, "a");
+      const reviewed = guard.reviewExecutor(killed.stdout);
+      assert.equal(reviewed.terminated, true);
+      assert.equal(reviewed.task, "t");
+      assert.equal(reviewed.generation, 1);
+      assert.throws(() => new ReadingRootSafety(ledger, "other").reviewExecutor(killed.stdout), /HOST_EVIDENCE_REQUIRED/);
       assert.equal(
         guard.observe("t", {
           ...snapshot,

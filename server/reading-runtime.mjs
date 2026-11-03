@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { createMultiUserService, wechatCodeExchange } from "./sync-multi-user.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
 import { readingAuthorityFloor } from "./data-versions.mjs";
+import { processIdentity } from "./data-control.mjs";
 import { createBrokerClient } from "./reading/broker-service.mjs";
 import { createDeepSeekReadingProvider, deepseekPriceSnapshots } from "./reading/deepseek.mjs";
 
@@ -75,6 +76,7 @@ export function createReadingRuntime(config, { secret, apiKey, wechat = null, fe
     service = createMultiUserService({
       directory, secret, ...(config.origin ? { origin: config.origin } : {}), wechat,
       reading: { enabled: config.enabled, credentials: true, accountSafety: true, tenantSafety: true, materialNoticeRequired: true, requireReconciledAccounts: true, ledger, reader, provider,
+        executorIdentity: config.enabled ? processIdentity() : undefined,
         trustedAccountBaseline: config.trustedAccountBaseline,
         trustedTenantBaselines: config.trustedTenantBaselines,
         priceId: price.id, modelVersion: price.model },

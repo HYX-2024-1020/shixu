@@ -168,6 +168,7 @@ export class ReadingTasks {
     maxPromptTokens = 120000,
     maxOutputTokens = 4000,
     activeLimitMs = 1800000,
+    executorIdentity,
   }) {
     if (
       !account ||
@@ -203,7 +204,7 @@ export class ReadingTasks {
     this.visual = new ReadingVisualReview(this);
     this.merge = new ReadingMerge(this);
     this.association = new ReadingAssociation(this);
-    this.roots = new ReadingRoots(store, ledger, account);
+    this.roots = new ReadingRoots(store, ledger, account, executorIdentity);
     this.remainders = new ReadingRemainders(this);
     this.db
       .prepare(

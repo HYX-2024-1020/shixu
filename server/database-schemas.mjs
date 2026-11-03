@@ -307,6 +307,16 @@ CREATE TRIGGER IF NOT EXISTS reading_safe_limit_audits_delete BEFORE DELETE ON r
       CREATE TRIGGER reading_safe_step_times_delete BEFORE DELETE ON reading_safe_step_times
         BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
   },
+  {
+    version: 3,
+    sql: `CREATE TABLE reading_safe_step_executors(
+      step TEXT PRIMARY KEY REFERENCES reading_safe_steps(id),
+      identity TEXT NOT NULL);
+      CREATE TRIGGER reading_safe_step_executors_update BEFORE UPDATE ON reading_safe_step_executors
+        BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+      CREATE TRIGGER reading_safe_step_executors_delete BEFORE DELETE ON reading_safe_step_executors
+        BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
+  },
 ];
 
 export const LEDGER_PAID_PROOFS_SCHEMA = [

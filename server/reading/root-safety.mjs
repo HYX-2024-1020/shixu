@@ -1,16 +1,21 @@
 import {ensureDatabaseSchema}from '../database-schema.mjs';
 import {LEDGER_ROOT_SAFETY_SCHEMA}from '../database-schemas.mjs';
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { terminatedIdentity } from "../data-control.mjs";
+
+const executorDigest = (account, root, task, generation, identity) =>
+  createHash("sha256").update(JSON.stringify([account, root, task, generation, identity])).digest("hex");
 
 // Independent ledger-side metadata. Never contains input, evidence or results.
 export class ReadingRootSafety {
-  constructor(ledger, account) {
+  constructor(ledger, account, executorIdentity) {
     this.ledger = ledger;
     this.db = ledger.db;
     this.account = account;
     this.now = ledger.now;
     this.transaction = ledger.transaction.bind(ledger);
     this.owned = new Set();
+    this.executor = executorIdentity && JSON.stringify(executorIdentity);
     ensureDatabaseSchema(this.db,'ledger-root',LEDGER_ROOT_SAFETY_SCHEMA,{now:this.now});
   }
   bind(packet, task, proposedRoot) {
@@ -77,10 +82,30 @@ export class ReadingRootSafety {
       this.db
         .prepare("INSERT INTO reading_safe_steps VALUES(?,?,?,?,?,?)")
         .run(step, this.account, root, task, generation, this.now());
-      this.ledger.event("reading-step-start:" + step, "reading-step-start", "system:reading-root", null, 0);
+      const event = "reading-step-start:" + step;
+      if (this.executor) {
+        this.db.prepare("INSERT INTO reading_safe_step_executors VALUES(?,?)").run(step, this.executor);
+        const digest = executorDigest(this.account, root, task, generation, this.executor);
+        this.ledger.event(event + ":" + digest, "reading-step-start", "system:reading-root", null, 0);
+      } else {
+        this.ledger.event(event, "reading-step-start", "system:reading-root", null, 0);
+      }
     });
     this.owned.add(step);
     return step;
+  }
+  reviewExecutor(step) {
+    const row = this.db.prepare(`
+      SELECT s.id,s.root,s.task,s.generation,e.identity
+      FROM reading_safe_steps s JOIN reading_safe_step_executors e ON e.step=s.id
+      WHERE s.account=? AND s.id=?
+    `).get(this.account, step);
+    if (!row) throw Error("HOST_EVIDENCE_REQUIRED");
+    const { identity, ...execution } = row;
+    const digest = executorDigest(this.account, row.root, row.task, row.generation, identity);
+    if (!this.db.prepare("SELECT 1 FROM reading_events WHERE operation=?")
+      .get(`reading-step-start:${step}:${digest}`)) throw Error("HOST_EVIDENCE_REQUIRED");
+    return { ...execution, ...terminatedIdentity(JSON.parse(identity)) };
   }
   finish(step, activeMs) {
     try {

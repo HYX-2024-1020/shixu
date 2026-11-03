@@ -55,6 +55,14 @@ export class ReadingTimeMaintenance {
     if (!task) throw Error("TASK_NOT_FOUND");
     const root = this.engine.roots.stats(id),
       snapshot = this.snapshot(id);
+    const steps = this.steps(root.id);
+    const executorTermination = steps.map(({ id: step }) => {
+      try {
+        return this.engine.roots.safety.reviewExecutor(step);
+      } catch {
+        return { id: step, terminated: null };
+      }
+    });
     return {
       taskId: id,
       rootTaskId: root.id,
@@ -67,7 +75,8 @@ export class ReadingTimeMaintenance {
       completed: root.completed,
       checkpointCalls: root.checkpointCalls,
       reason: root.reason,
-      steps: this.steps(root.id),
+      steps,
+      executorTermination,
       snapshot,
     };
   }

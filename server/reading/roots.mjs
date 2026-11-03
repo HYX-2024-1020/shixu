@@ -5,11 +5,11 @@ import { ReadingRootSafety } from "./root-safety.mjs";
 // Root safety metadata contains no input, extracted text or model result. A
 // packet's later task IDs/revisions share counters, including after purge.
 export class ReadingRoots {
-  constructor(store, ledger, account) {
+  constructor(store, ledger, account, executorIdentity) {
     this.db = store.db;
     this.ledger = ledger;
     this.account = account;
-    this.safety = new ReadingRootSafety(ledger, account);
+    this.safety = new ReadingRootSafety(ledger, account, executorIdentity);
     ensureDatabaseSchema(this.db,'tenant-roots',READING_ROOTS_SCHEMA);
     this.db.exec("BEGIN IMMEDIATE");
     try {

@@ -61,6 +61,7 @@ export function createReadingRoutes({
   registration = false,
   materialNoticeRequired = false,
   activeLimitMs = 1800000,
+  executorIdentity,
 }) {
   if (
     !ledger ||
@@ -96,6 +97,7 @@ export function createReadingRoutes({
           priceId,
           modelVersion,
           activeLimitMs,
+          executorIdentity,
           authorize: (device) => authorize(account, device),
         }),
       );
