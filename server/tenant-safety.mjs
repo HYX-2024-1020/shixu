@@ -285,6 +285,7 @@ export class TenantSafety {
                 JSON.stringify(state),
                 this.ledger.now(),
               );
+            this.ledger.event("tenant-safety-prepare:" + token, "tenant-safety-prepare", "system:tenant-safety", null, 0);
           });
           this.fault("prepared");
           this.db

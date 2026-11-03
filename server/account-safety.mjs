@@ -177,6 +177,7 @@ export class AccountSafety {
                 "INSERT INTO account_safety_intents(token,previous,state_hash,at) VALUES(?,?,?,?)",
               )
               .run(token, previous, hash, this.ledger.now());
+            this.ledger.event("account-safety-prepare:" + token, "account-safety-prepare", "system:account-safety", null, 0);
           });
           this.fault("prepared");
           this.db

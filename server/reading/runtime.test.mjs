@@ -20,7 +20,7 @@ test("externally retained authority blocks rolled-back billing and root historie
     const options = { secret: "synthetic-runtime-secret-more-than-32-chars", now: () => 1500 };
     mkdirSync(join(directory, "billing"));
     ledger = new ReadingLedger(config.ledgerPath);
-    new ReadingRootSafety(ledger, "synthetic");
+    const rootSafety = new ReadingRootSafety(ledger, "synthetic");
     const old = join(directory, "billing", "old.sqlite");
     const beforeTime = join(directory, "billing", "before-time.sqlite");
     await backup(ledger.db, old);
@@ -28,11 +28,16 @@ test("externally retained authority blocks rolled-back billing and root historie
     await backup(ledger.db, beforeTime);
     ledger.db.exec("INSERT INTO reading_safe_events(account,root,calls,active_ms,completed,checkpoint_calls,reason,at) VALUES('synthetic','root',1,100,0,0,'',1500)");
     const trustedAuthorityFloor = readingAuthorityFloor(config.ledgerPath);
+    const beforeStep = join(directory, "billing", "before-step.sqlite");
+    await backup(ledger.db, beforeStep);
+    rootSafety.begin("root", "task", 1);
+    const inFlightFloor = readingAuthorityFloor(config.ledgerPath);
     ledger.grantInitial("synthetic-later");
     ledger.close();
     ledger = undefined;
     for (const ledgerPath of [old, beforeTime])
       assert.throws(() => createReadingRuntime({ ...config, ledgerPath, trustedAuthorityFloor }, options), /DATA_VERSION_RECONCILIATION/);
+    assert.throws(() => createReadingRuntime({ ...config, ledgerPath: beforeStep, trustedAuthorityFloor: inFlightFloor }, options), /DATA_VERSION_RECONCILIATION/);
     assert.throws(() => createReadingRuntime({ ...config, trustedAuthorityFloor: trustedAuthorityFloor.slice(0, 1) }, options), /DATA_VERSION_RECONCILIATION/);
     const wrongHash = [{ ...trustedAuthorityFloor[0], prefixHash: "0".repeat(64) }, trustedAuthorityFloor[1]];
     assert.throws(() => createReadingRuntime({ ...config, trustedAuthorityFloor: wrongHash }, options), /DATA_VERSION_RECONCILIATION/);

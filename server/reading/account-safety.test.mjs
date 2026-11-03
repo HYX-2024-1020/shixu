@@ -308,6 +308,9 @@ for (const phase of ["prepared", "registry-committed"])
     );
     assert.equal(child.status, 23, child.stderr);
     f.open();
+    assert.ok(f.ledger.db.prepare(
+      "SELECT 1 FROM reading_events WHERE operation='account-safety-prepare:' || (SELECT token FROM account_safety_intents ORDER BY seq DESC LIMIT 1) AND amount=0",
+    ).get());
     assert.deepEqual(f.ledger.wallet(binding.user_id), wallet);
     const pending = f.safety.pending();
     assert.equal(pending.length, 0);

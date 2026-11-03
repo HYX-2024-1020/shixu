@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 // Independent ledger-side metadata. Never contains input, evidence or results.
 export class ReadingRootSafety {
   constructor(ledger, account) {
+    this.ledger = ledger;
     this.db = ledger.db;
     this.account = account;
     this.now = ledger.now;
@@ -72,17 +73,23 @@ export class ReadingRootSafety {
   }
   begin(root, task, generation) {
     const step = randomUUID();
-    this.db
-      .prepare("INSERT INTO reading_safe_steps VALUES(?,?,?,?,?,?)")
-      .run(step, this.account, root, task, generation, this.now());
+    this.transaction(() => {
+      this.db
+        .prepare("INSERT INTO reading_safe_steps VALUES(?,?,?,?,?,?)")
+        .run(step, this.account, root, task, generation, this.now());
+      this.ledger.event("reading-step-start:" + step, "reading-step-start", "system:reading-root", null, 0);
+    });
     this.owned.add(step);
     return step;
   }
   finish(step) {
     try {
-      this.db
-        .prepare("INSERT INTO reading_safe_drains VALUES(?,?)")
-        .run(step, this.now());
+      this.transaction(() => {
+        this.db
+          .prepare("INSERT INTO reading_safe_drains VALUES(?,?)")
+          .run(step, this.now());
+        this.ledger.event("reading-step-drain:" + step, "reading-step-drain", "system:reading-root", null, 0);
+      });
     } finally {
       this.owned.delete(step);
     }

@@ -478,6 +478,10 @@ for (const replay of [false, true])
       );
       if (replay) assert.equal(f.store.record("packet").purged, true);
       const rows = f.store.safety.rows();
+      for (const row of rows)
+        assert.ok(f.ledger.db.prepare(
+          "SELECT 1 FROM reading_events WHERE operation=? AND amount=0",
+        ).get("tenant-safety-prepare:" + row.token));
       assert.equal(
         rows.at(-1).decision,
         !replay && point === "prepared" ? "aborted" : "committed",
