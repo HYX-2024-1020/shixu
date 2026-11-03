@@ -97,11 +97,12 @@ test("independent watermarks retain root identity, latch rollback and reject edi
       "reading_safe_events",
       "reading_safe_steps",
       "reading_safe_drains",
+      "reading_safe_step_times",
     ]) {
       if (table === "reading_safe_steps") guard.begin("first", "first", 1);
       if (table === "reading_safe_drains") {
         const step = guard.begin("first", "first", 2);
-        guard.finish(step);
+        guard.finish(step, 17);
       }
       assert.throws(
         () => ledger.db.exec(`DELETE FROM ${table}`),
@@ -124,7 +125,14 @@ test("an unconfirmed execution survives loss of queued tenant state while confir
     guard.bind("p", "t", "t");
     const step = guard.begin("t", "t", 1);
     assert.equal(guard.observe("t", snapshot).reason, ""); // Still owned by this live executor.
-    guard.finish(step);
+    guard.finish(step, 27);
+    assert.deepEqual({ ...ledger.db.prepare(`
+      SELECT s.account,s.root,s.task,s.generation,t.active_ms
+      FROM reading_safe_steps s JOIN reading_safe_drains d ON d.step=s.id
+      JOIN reading_safe_step_times t ON t.step=d.step WHERE s.id=?
+    `).get(step) }, { account: "a", root: "t", task: "t", generation: 1, active_ms: 27 });
+    assert.ok(ledger.db.prepare("SELECT 1 FROM reading_events WHERE operation=?")
+      .get(`reading-step-drain:${step}:27`));
     const restarted = new ReadingRootSafety(ledger, "a");
     assert.equal(restarted.observe("t", snapshot).reason, "");
     restarted.begin("t", "t", 2);

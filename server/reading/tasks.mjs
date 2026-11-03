@@ -1316,17 +1316,15 @@ export class ReadingTasks {
           this.controllers.delete(id);
           this.clearMaterial(id);
         } else {
+          const activeMs = Math.max(0, Math.ceil(performance.now() - started - excludedMs));
           this.db
             .prepare("UPDATE reading_tasks SET active_ms=active_ms+? WHERE id=?")
-            .run(
-              Math.max(0, Math.ceil(performance.now() - started - excludedMs)),
-              id,
-            );
+            .run(activeMs, id);
           // Return queued only after the previous invocation fully drains. Stop and
           // resume generations never share one in-flight controller.
           // Check failed/invalid paid calls too, at call 24 itself.
           const checkpoint = this.roots.checkpoint(id);
-          if (safetyStep) this.roots.safety.finish(safetyStep);
+          if (safetyStep) this.roots.safety.finish(safetyStep, activeMs);
           if (checkpoint.reason && this.current(task))
             this.db
               .prepare(

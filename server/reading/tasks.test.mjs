@@ -895,6 +895,7 @@ test("a reader that outlives shutdown cannot publish and needs active-time recon
   restarted.close();
   release();
   await pending;
+  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_step_times").get().n, 0);
   assert.equal(f.calls(), 0);
   assert.equal(f.ledger.wallet("synthetic").spent, 0);
   assert.equal(f.store.record("packet").data.result, null);

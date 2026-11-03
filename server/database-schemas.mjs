@@ -297,6 +297,16 @@ CREATE TRIGGER IF NOT EXISTS reading_safe_drains_delete BEFORE DELETE ON reading
 CREATE TRIGGER IF NOT EXISTS reading_safe_limit_audits_update BEFORE UPDATE ON reading_safe_limit_audits BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
 CREATE TRIGGER IF NOT EXISTS reading_safe_limit_audits_delete BEFORE DELETE ON reading_safe_limit_audits BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
   },
+  {
+    version: 2,
+    sql: `CREATE TABLE reading_safe_step_times(
+      step TEXT PRIMARY KEY REFERENCES reading_safe_drains(step),
+      active_ms INTEGER NOT NULL CHECK(active_ms>=0));
+      CREATE TRIGGER reading_safe_step_times_update BEFORE UPDATE ON reading_safe_step_times
+        BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;
+      CREATE TRIGGER reading_safe_step_times_delete BEFORE DELETE ON reading_safe_step_times
+        BEGIN SELECT RAISE(ABORT,'SAFETY_APPEND_ONLY'); END;`,
+  },
 ];
 
 export const LEDGER_PAID_PROOFS_SCHEMA = [

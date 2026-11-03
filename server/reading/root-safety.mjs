@@ -82,13 +82,18 @@ export class ReadingRootSafety {
     this.owned.add(step);
     return step;
   }
-  finish(step) {
+  finish(step, activeMs) {
     try {
+      if (!this.owned.has(step) || !Number.isSafeInteger(activeMs) || activeMs < 0)
+        throw Error("INVALID_STEP_TIME");
       this.transaction(() => {
         this.db
           .prepare("INSERT INTO reading_safe_drains VALUES(?,?)")
           .run(step, this.now());
-        this.ledger.event("reading-step-drain:" + step, "reading-step-drain", "system:reading-root", null, 0);
+        this.db
+          .prepare("INSERT INTO reading_safe_step_times VALUES(?,?)")
+          .run(step, activeMs);
+        this.ledger.event(`reading-step-drain:${step}:${activeMs}`, "reading-step-drain", "system:reading-root", null, 0);
       });
     } finally {
       this.owned.delete(step);
