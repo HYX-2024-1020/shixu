@@ -3,6 +3,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createMultiUserService, wechatCodeExchange } from "./sync-multi-user.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
+import { readingAuthorityFloor } from "./data-versions.mjs";
 import { createBrokerClient } from "./reading/broker-service.mjs";
 import { createDeepSeekReadingProvider, deepseekPriceSnapshots } from "./reading/deepseek.mjs";
 
@@ -15,7 +16,7 @@ const invalid = () => { throw Error("READING_RUNTIME_CONFIGURATION_REQUIRED"); }
 // Explicit opt-in entry, separate from the unchanged v3 service. Importing this
 // module never reads credentials, opens a database or starts a network listener.
 export function createReadingRuntime(config, { secret, apiKey, wechat = null, fetcher = fetch, now = Date.now } = {}) {
-  if (!config || Object.keys(config).some(key => !["directory", "ledgerPath", "brokerSocket", "origin", "enabled", "pdfVisual", "tariff"].includes(key)) ||
+  if (!config || Object.keys(config).some(key => !["directory", "ledgerPath", "brokerSocket", "origin", "enabled", "pdfVisual", "tariff", "trustedAuthorityFloor"].includes(key)) ||
       ![config.directory, config.ledgerPath].every(path => typeof path === "string" && isAbsolute(path)) ||
       typeof config.enabled !== "boolean" || typeof config.pdfVisual !== "boolean" ||
       typeof secret !== "string" || secret.length < 32) invalid();
@@ -47,6 +48,10 @@ export function createReadingRuntime(config, { secret, apiKey, wechat = null, fe
       (existsSync(ledgerPath) && (lstatSync(ledgerPath).isSymbolicLink() || !lstatSync(ledgerPath).isFile() || lstatSync(ledgerPath).nlink !== 1))) invalid();
   const realData = realpathSync(directory), realLedgerParent = realpathSync(dirname(ledgerPath));
   if (inside(realData, realLedgerParent) || inside(realLedgerParent, realData)) invalid();
+  if (Object.hasOwn(config, "trustedAuthorityFloor")) {
+    if (!Array.isArray(config.trustedAuthorityFloor)) invalid();
+    readingAuthorityFloor(ledgerPath, config.trustedAuthorityFloor);
+  }
   const ledger = new ReadingLedger(ledgerPath, { now });
   let service;
   try {

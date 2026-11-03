@@ -321,6 +321,34 @@ function prefix(db, table, limit = Number.MAX_SAFE_INTEGER) {
   hash.update("]");
   return { sequence, prefixHash: hash.digest("hex") };
 }
+const readingAuthorityTables = ["reading_events", "reading_safe_events"];
+
+// The caller supplies evidence kept outside the restore set. Read both
+// prefixes from one SQLite snapshot without opening a writable ledger.
+export function readingAuthorityFloor(path, expected) {
+  regular(path);
+  const db = new DatabaseSync(path, { readOnly: true });
+  try {
+    db.exec("BEGIN");
+    if (expected !== undefined &&
+        (!Array.isArray(expected) || expected.length !== readingAuthorityTables.length))
+      fail();
+    return readingAuthorityTables.map((table, index) => {
+      const proof = expected?.[index];
+      if (expected !== undefined &&
+          (!proof || proof.table !== table || !Number.isSafeInteger(proof.sequence) ||
+            proof.sequence < 0 || typeof proof.prefixHash !== "string" ||
+            !/^[a-f0-9]{64}$/.test(proof.prefixHash)))
+        fail();
+      const actual = prefix(db, table, proof?.sequence);
+      if (proof && (actual.sequence !== proof.sequence || actual.prefixHash !== proof.prefixHash))
+        fail();
+      return { table, ...actual };
+    });
+  } finally {
+    db.close();
+  }
+}
 function authority(path, table) {
   regular(path);
   const db = new DatabaseSync(path, { readOnly: true });

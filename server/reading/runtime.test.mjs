@@ -1,11 +1,50 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createReadingRuntime } from "../reading-runtime.mjs";
 import { AccountRegistry } from "../sync-accounts.mjs";
 import { ReadingLedger } from "./ledger.mjs";
+import { ReadingRootSafety } from "./root-safety.mjs";
+import { readingAuthorityFloor } from "../data-versions.mjs";
+import { backup } from "node:sqlite";
+
+test("externally retained authority blocks rolled-back billing and root histories before account startup", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-floor-"));
+  let ledger, runtime;
+  try {
+    const config = { directory: join(directory, "data"), ledgerPath: join(directory, "billing", "ledger.sqlite"),
+      brokerSocket: "/run/shixu-test/reader.sock", enabled: false, pdfVisual: false,
+      tariff: { id: "deepseek-flash-1017-20261028-peak", verifiedAt: 1000, validUntil: 2000 } };
+    const options = { secret: "synthetic-runtime-secret-more-than-32-chars", now: () => 1500 };
+    mkdirSync(join(directory, "billing"));
+    ledger = new ReadingLedger(config.ledgerPath);
+    new ReadingRootSafety(ledger, "synthetic");
+    const old = join(directory, "billing", "old.sqlite");
+    const beforeTime = join(directory, "billing", "before-time.sqlite");
+    await backup(ledger.db, old);
+    ledger.grantInitial("synthetic");
+    await backup(ledger.db, beforeTime);
+    ledger.db.exec("INSERT INTO reading_safe_events(account,root,calls,active_ms,completed,checkpoint_calls,reason,at) VALUES('synthetic','root',1,100,0,0,'',1500)");
+    const trustedAuthorityFloor = readingAuthorityFloor(config.ledgerPath);
+    ledger.grantInitial("synthetic-later");
+    ledger.close();
+    ledger = undefined;
+    for (const ledgerPath of [old, beforeTime])
+      assert.throws(() => createReadingRuntime({ ...config, ledgerPath, trustedAuthorityFloor }, options), /DATA_VERSION_RECONCILIATION/);
+    assert.throws(() => createReadingRuntime({ ...config, trustedAuthorityFloor: trustedAuthorityFloor.slice(0, 1) }, options), /DATA_VERSION_RECONCILIATION/);
+    const wrongHash = [{ ...trustedAuthorityFloor[0], prefixHash: "0".repeat(64) }, trustedAuthorityFloor[1]];
+    assert.throws(() => createReadingRuntime({ ...config, trustedAuthorityFloor: wrongHash }, options), /DATA_VERSION_RECONCILIATION/);
+    assert.equal(existsSync(join(config.directory, "accounts.sqlite")), false);
+    runtime = createReadingRuntime({ ...config, trustedAuthorityFloor }, options);
+    assert.equal(runtime.ledger.wallet("synthetic-later").granted, 20000000);
+  } finally {
+    ledger?.close();
+    await runtime?.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("opt-in runtime exposes v4 accounts and all task capabilities without enabling AI, then closes and reopens its external ledger", async () => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-"));
