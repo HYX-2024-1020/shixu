@@ -11,6 +11,8 @@
 
 当前代码的历史关联、合并、视觉核对和供应商收据共 48 项通过，Office 文字窗、停止接续和隐藏工作表 5 项通过。本机缺固定原生 WebP 资源，Office JPEG/GIF/WebP 联合项在读取输出断言失败，完整含原生资源的回归由远端 CI 核对。B6 保持待验收，真实模型新增调用 0。
 
+当前视觉投影回归使用两份归档扫描 PDF 模型响应及核对决定，按原覆盖来源重放。检查任务分类与行动标题、截止日期和时间、PDF 格式、文件名、算法和复杂度要求、引文来源，以及旧页尾臆断是否移入待确认。运行 `node --test server/reading/quality-evidence.test.mjs`。此回放覆盖当前核对投影，当前版本重新识别和调用模型仍待验收。
+
 | 项 | 当前门禁及剩余证据 |
 | --- | --- |
 | C7 安全重试 | [DeepSeek 错误码](https://api-docs.deepseek.com/quick_start/error_codes/)与[并发限制](https://api-docs.deepseek.com/quick_start/rate_limit/)说明 429 的限流含义。此次核对未找到能证明同一已发请求未计费的保证。读取服务继续将无可信 usage 的已发请求归入 unknown，自动重发需要可核对的未执行或未计费证据。 |
