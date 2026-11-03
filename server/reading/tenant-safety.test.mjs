@@ -12,8 +12,29 @@ import { OriginalStore } from "../originals.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingRootSafety } from "./root-safety.mjs";
 import { ensureDatabaseSchema } from "../database-schema.mjs";
-import { TENANT_SYNC_SCHEMA } from "../database-schemas.mjs";
+import { READING_TASKS_SCHEMA, TENANT_SYNC_SCHEMA } from "../database-schemas.mjs";
 import { TenantSafety } from "../tenant-safety.mjs";
+
+test("replayed tenant snapshots interrupt restored queued work on surviving packets", async (t) => {
+  const f = fixture(t);
+  f.op("put", "removed");
+  f.op("put", "surviving");
+  ensureDatabaseSchema(f.store.db, "tenant-reading", READING_TASKS_SCHEMA, {
+    compatibleObjects: ["CREATE INDEX reading_tasks_packet ON reading_tasks(packet)"],
+  });
+  f.store.db.prepare(
+    "INSERT INTO reading_tasks(id,packet,device,input_revision,base_version,state) VALUES(?,?,?,?,?,'queued')",
+  ).run("task", "surviving", "device", "revision", f.store.record("surviving").version);
+  await f.snapshot();
+  f.op("delete", "removed");
+  f.op("purge", "removed");
+  f.restore();
+  const task = f.store.db.prepare("SELECT state,generation,reason FROM reading_tasks WHERE id='task'").get();
+  assert.equal(task.state, "interrupted");
+  assert.equal(task.generation, 2);
+  assert.equal(task.reason, "RESTARTED");
+  assert.equal(f.store.record("surviving").data.text, "synthetic");
+});
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "shixu-tenant-safety-"));

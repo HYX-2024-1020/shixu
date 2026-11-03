@@ -3,7 +3,7 @@ import {
   ensureDatabaseSchema,
   withDatabaseWriteAuthority,
 } from "./database-schema.mjs";
-import { LEDGER_TENANT_SAFETY_SCHEMA } from "./database-schemas.mjs";
+import { LEDGER_TENANT_SAFETY_SCHEMA, READING_TASKS_SCHEMA } from "./database-schemas.mjs";
 import { SyncError } from "./sync-store.mjs";
 
 const digest = (value) =>
@@ -179,6 +179,16 @@ export class TenantSafety {
           this.db
             .prepare("UPDATE sync_meta SET value=? WHERE key='epoch'")
             .run(randomUUID());
+          // Attach schedules queued jobs on ordinary restarts. After replay,
+          // restored requests need fresh user intent, even on surviving packets.
+          if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_tasks'").get()) {
+            ensureDatabaseSchema(this.db, "tenant-reading", READING_TASKS_SCHEMA, {
+              compatibleObjects: ["CREATE INDEX reading_tasks_packet ON reading_tasks(packet)"],
+            });
+            this.db.prepare(
+              "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('queued','running','applying')",
+            ).run();
+          }
         },
         { replay: true },
       );
