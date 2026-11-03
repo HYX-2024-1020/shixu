@@ -1283,6 +1283,7 @@ export class ReadingTasks {
               "VISUAL_REVIEW_REQUIRED",
               "VISUAL_REVIEW_NOT_READY",
               "VISUAL_REVIEW_CONTEXT_LIMIT",
+              "INVALID_VISUAL_REVIEW",
               "ASSOCIATION_CONTEXT_LIMIT",
               "ASSOCIATION_INPUT_CHANGED",
               "TASK_INFLIGHT_BUDGET",

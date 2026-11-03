@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, readdir, chmod } from "node:fs/promises";
+import { mkdir, readdir, chmod, readFile } from "node:fs/promises";
 import { resolve, join, basename } from "node:path";
 import { createLinuxReader } from "../server/reading/linux-broker.mjs";
 import { readMaterial, sha256 } from "../server/reading/material.mjs";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 
@@ -84,6 +84,7 @@ const processProbe = await reader(file("synthetic"), { probe: "process" });
 assert.equal(processProbe.processLimitDenied, true);
 report.probes.process = processProbe;
 assert.deepEqual(await readdir(staging), []);
+const crashStarted = performance.now();
 const crashed = spawn(
   process.execPath,
   [fileURLToPath(import.meta.url), base, "--crash-child"],
@@ -95,16 +96,42 @@ assert.ok(
   (await readdir(staging)).length > 0,
   "child created only its synthetic input",
 );
-await new Promise((r) => setTimeout(r, 300));
+const [crashInput] = await readdir(staging);
+const command = (args) => execFileSync("/usr/bin/systemctl", args, { encoding: "utf8" }).trim();
+const units = command(["list-units", "--plain", "--no-legend", "shixu-reader-*.service"]);
+const unit = units.split("\n").map((row) => row.split(/\s+/)[0]).find((name) =>
+  name && command(["show", name, "-p", "RuntimeDirectory", "--value"]) === basename(base) + "/" + crashInput,
+);
+assert.ok(unit, "identify the worker unit through the unique synthetic input");
+const cgroup = command(["show", unit, "-p", "ControlGroup", "--value"]);
+assert.equal(cgroup, "/system.slice/" + unit);
+const groupEvents = "/sys/fs/cgroup" + cgroup + "/cgroup.events";
+assert.match(await readFile(groupEvents, "utf8"), /^populated 1$/m);
 const exited = once(crashed, "exit");
 crashed.kill("SIGKILL");
-await exited;
-await new Promise((r) => setTimeout(r, 2500));
+assert.deepEqual(await exited, [null, "SIGKILL"]);
+const populated = async () => {
+  try {
+    return /^populated 1$/m.test(await readFile(groupEvents, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return false;
+  }
+};
+const aliveAfterBrokerExit = await populated();
+assert.equal(aliveAfterBrokerExit, true, "broker exit alone leaves the worker live");
+for (let n = 0; n < 100 && await populated(); n++)
+  await new Promise((r) => setTimeout(r, 30));
+assert.equal(await populated(), false, "systemd stopped the entire synthetic worker cgroup");
+const workerElapsedUpperBoundMs = Math.ceil(performance.now() - crashStarted);
+for (let n = 0; n < 30 && (await readdir(staging)).length; n++)
+  await new Promise((r) => setTimeout(r, 30));
 assert.deepEqual(
   await readdir(staging),
   [],
   "systemd removed input after broker crash without JS finally",
 );
 report.probes.brokerCrashCleanup = true;
+report.probes.brokerCrashWorker = { aliveAfterBrokerExit, cgroupEmpty: true, workerElapsedUpperBoundMs };
 report.stagingClean = true;
 console.log(JSON.stringify(report, null, 2));

@@ -256,7 +256,10 @@ test("unknown review cost cannot retry through continue, and invalid decisions s
         () => f.action("continue"),
         (e) => ["UNKNOWN_COST", "LEDGER_PAUSED"].includes(e.code),
       );
-    else assert.equal(f.ledger.wallet("synthetic").spent, 40);
+    else {
+      assert.equal(f.tasks.get("task").reason, "INVALID_VISUAL_REVIEW");
+      assert.equal(f.ledger.wallet("synthetic").spent, 40);
+    }
   }
 });
 test("exact revision reuse verifies both paid stages without new calls; changed capture date invalidates them", async (t) => {
