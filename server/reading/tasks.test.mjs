@@ -360,9 +360,9 @@ function fixture(
     calls: () => calls,
   };
 }
-async function finish(tasks) {
+async function finish(tasks, id = "task") {
   for (let i = 0; i < 12; i++) {
-    const task = await tasks.run("task");
+    const task = await tasks.run(id);
     if (task.state !== "queued") return task;
   }
   throw Error("UNEXPECTED_NO_PROGRESS");
@@ -548,6 +548,16 @@ test("unknown fees and root reconciliation cannot be bypassed by fully reusable 
     assert.equal((await f.tasks.run("next")).reason, mode === "unknown" ? "UNKNOWN_COST" : "ACTIVE_TIME_RECONCILIATION");
     assert.equal(f.tasks.reuse.count("next"), 0);
     assert.equal(f.calls(), 1);
+    if (mode === "unknown") {
+      f.store.apply(f.windows.deviceId, {
+        id: "other", opId: "separate-packet", type: "put", baseVersion: 0,
+        data: { text: "另一份合成材料", captureDate: "2026-10-28", status: "pending" },
+      }, f.store.epoch);
+      f.tasks.enqueue({ id: "other-task", packetId: "other", deviceId: f.wechat.deviceId });
+      assert.equal((await finish(f.tasks, "other-task")).state, "done");
+      assert.equal(f.calls(), 2);
+      assert.ok(f.ledger.wallet("synthetic").unknownRisk > 0);
+    }
   }
 });
 

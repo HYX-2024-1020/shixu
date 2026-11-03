@@ -98,7 +98,7 @@ test("independent ledger audit rejects refunded projections and accounts for unk
     ledger.sent("call");
     ledger.unknown("call");
     assert.ok(ledger.wallet("a").unknownRisk > 0);
-    assert.equal(ledger.wallet("a").pausedReason, "UNKNOWN_COST");
+    assert.equal(ledger.wallet("a").pausedReason, "");
     ledger.settle("call", { prompt_tokens: 100, completion_tokens: 10 });
     assert.equal(ledger.audit().valid, true);
     ledger.db.exec("UPDATE reading_wallets SET spent=0");

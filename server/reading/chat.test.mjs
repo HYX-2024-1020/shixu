@@ -251,7 +251,7 @@ test("invalid chat patches settle returned usage but cannot modify a second item
   );
 });
 
-test("unknown chat usage pauses the same wallet used by organizer and cannot be retried", async (t) => {
+test("unknown chat usage reserves wallet credit and cannot be retried", async (t) => {
   const f = fixture(t, {
     chatProvider: async () => {
       throw Error("response lost");
@@ -333,7 +333,7 @@ test("stop fences late chat output while settling its valid usage", async (t) =>
   assert.equal(f.tasks.roots.stats("chat1").calls, 1);
 });
 
-test("chat uses the organizer account slot and cannot spend an organizer unknown-cost reservation", async (t) => {
+test("chat shares the account slot and can continue with unrelated unknown costs reserved", async (t) => {
   const f = fixture(t);
   f.enqueue();
   assert.throws(
@@ -358,11 +358,10 @@ test("chat uses the organizer account slot and cannot spend an organizer unknown
   });
   f.ledger.sent("organizer-unknown");
   f.ledger.unknown("organizer-unknown");
-  assert.throws(
-    () => f.action("continue"),
-    (e) => e.code === "UNKNOWN_COST",
-  );
-  assert.equal(f.calls().chat, 0);
+  f.action("continue");
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.equal(f.calls().chat, 1);
+  assert.equal(f.ledger.call("organizer-unknown").state, "unknown");
 });
 
 test("changed saved context cannot publish a paid chat or trigger an automatic second call", async (t) => {

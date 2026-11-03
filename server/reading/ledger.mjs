@@ -263,13 +263,25 @@ export class ReadingLedger {
       reserved,
       unknownRisk,
       available: Math.max(0, w.granted - w.spent - reserved - unknownRisk),
-      pausedReason: this.legacy.pending(account) ? "RECONCILIATION_REQUIRED" : unknownRisk
-        ? "UNKNOWN_COST"
-        : paused
+      pausedReason: this.legacy.pending(account) ? "RECONCILIATION_REQUIRED" : paused
           ? "LEDGER_PAUSED"
           : "",
       lowBalance: w.granted - w.spent < 3000000,
     };
+  }
+  taskHasUnresolvedCost(account, task, includeSent = false) {
+    const hasRoots = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_safe_links'",
+    ).get();
+    const scope = hasRoots ? `(task=? OR task IN (
+      SELECT related.task FROM reading_safe_links requested
+      JOIN reading_safe_links related ON related.account=requested.account AND related.root=requested.root
+      WHERE requested.account=? AND requested.task=?
+    ))` : "task=?";
+    return !!this.db.prepare(
+      `SELECT 1 FROM reading_calls WHERE account=? AND
+       (state='unknown' OR (? AND state='sent')) AND ${scope} LIMIT 1`,
+    ).get(account, Number(includeSent), task, ...(hasRoots ? [account, task] : []));
   }
   reserve({
     callId,
@@ -313,14 +325,7 @@ export class ReadingLedger {
           .paused
       )
         throw Error("LEDGER_PAUSED");
-      if (
-        this.db
-          .prepare(
-            "SELECT 1 FROM reading_calls WHERE account=? AND state='unknown'",
-          )
-          .get(account)
-      )
-        throw Error("UNKNOWN_COST");
+      if (this.taskHasUnresolvedCost(account, task)) throw Error("UNKNOWN_COST");
       const reserve = estimatedCost(this.price(priceId), {
         prompt_tokens: maxPromptTokens,
         completion_tokens: maxOutputTokens,

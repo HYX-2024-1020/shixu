@@ -156,6 +156,15 @@ export function inputRevision(store, packetId) {
 // module. A production v4 router/migration must supply authoritative account,
 // device authorization and an independently reconciled ledger.
 export class ReadingTasks {
+  slotOccupied(except = "") {
+    const rows = this.db.prepare(
+      `SELECT id,state FROM reading_tasks WHERE id!=? AND state IN (${occupies.map(() => "?").join(",")})`,
+    ).all(except, ...occupies);
+    return rows.some(({ id, state }) =>
+      active.includes(state) || !this.ledger.taskHasUnresolvedCost(this.account, id),
+    );
+  }
+
   constructor({
     store,
     account,
@@ -331,14 +340,7 @@ export class ReadingTasks {
         20 * 1024 * 1024
       )
         throw error("UPLOAD_LIMIT");
-      if (
-        this.db
-          .prepare(
-            `SELECT 1 FROM reading_tasks WHERE state IN (${occupies.map(() => "?").join(",")})`,
-          )
-          .get(...occupies)
-      )
-        throw error("TASK_SLOT_FULL");
+      if (this.slotOccupied()) throw error("TASK_SLOT_FULL");
       this.db
         .prepare(
           "INSERT INTO reading_tasks(id,packet,device,input_revision,base_version,state) VALUES(?,?,?,?,?,'queued')",
@@ -467,26 +469,13 @@ export class ReadingTasks {
           !["cancelled", "paused", "interrupted", "error"].includes(task.state)
         )
           throw error("INVALID_TASK_TRANSITION");
-        if (
-          this.db
-            .prepare(
-              `SELECT 1 FROM reading_tasks WHERE id!=? AND state IN (${occupies.map(() => "?").join(",")})`,
-            )
-            .get(id, ...occupies)
-        )
-          throw error("TASK_SLOT_FULL");
+        if (this.slotOccupied(id)) throw error("TASK_SLOT_FULL");
         if (this.revision(task) !== task.input_revision)
           throw error("INPUT_CHANGED");
         this.ledger.audit(this.account);
         const wallet = this.ledger.wallet(this.account);
         if(wallet.pausedReason) throw error(wallet.pausedReason);
-        if (
-          this.ledger.db
-            .prepare(
-              "SELECT 1 FROM reading_calls WHERE account=? AND state IN ('sent','unknown')",
-            )
-            .get(this.account)
-        )
+        if (this.ledger.taskHasUnresolvedCost(this.account, id, true))
           throw error("UNKNOWN_COST");
         this.ledger.legacy.approve(this.account,id,task.generation+1);
         this.db
@@ -947,6 +936,7 @@ export class ReadingTasks {
       if (root.activeMs >= activeLimitMs) throw Error("EXECUTION_LIMIT");
       const wallet = this.ledger.wallet(this.account);
       if (wallet.pausedReason) throw Error(wallet.pausedReason);
+      if (this.ledger.taskHasUnresolvedCost(this.account, id)) throw Error("UNKNOWN_COST");
       safetyStep = this.roots.safety.begin(root.id,id,task.generation);
       if(!isChat&&this.association.active(id))return await this.association.step(task,{signal:controller.signal,execution,remainingMs:()=>activeLimitMs-root.activeMs-(performance.now()-started-excludedMs)});
       if (!isChat && this.merge.active(id)) return await this.merge.step(task, {

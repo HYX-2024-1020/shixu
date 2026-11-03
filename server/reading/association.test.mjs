@@ -188,7 +188,7 @@ test("more than 24 association calls advance the existing root checkpoint instea
     401,
   );
 });
-test("unknown association fees pause the shared wallet and a missing certified decision never sends another request", async (t) => {
+test("unknown association fees retain their shared wallet reservation and a missing certified decision never sends another request", async (t) => {
   for (const lost of [false, true]) {
     const f = mergeFixture(t, { sourceText: "算法报告A7319" });
     history(f);
@@ -205,7 +205,7 @@ test("unknown association fees pause the shared wallet and a missing certified d
     if (!lost) {
       const task = await finishMerge(f.tasks);
       assert.equal(task.reason, "UNKNOWN_COST");
-      assert.equal(f.ledger.wallet("synthetic").pausedReason, "UNKNOWN_COST");
+      assert.equal(f.ledger.wallet("synthetic").pausedReason, "");
       assert.equal(calls, 1);
     } else {
       while (

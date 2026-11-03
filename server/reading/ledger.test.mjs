@@ -131,6 +131,11 @@ test("missing usage cannot be settled at zero; unknown risk persists across days
   assert.equal(ledger.wallet("account").spent, 0);
   assert.equal(ledger.wallet("account").reserved, 0);
   assert.throws(() => ledger.reserve(request(2)), /UNKNOWN_COST/);
+  assert.equal(ledger.wallet("account").pausedReason, "");
+  assert.equal(ledger.wallet("account").unknownRisk, 1000000);
+  assert.equal(ledger.reserve(request(3, {
+    task: "unrelated", maxPromptTokens: 100000, maxOutputTokens: 0,
+  })).state, "reserved");
   now += 2000;
   ledger.grantInitial("other");
   assert.throws(

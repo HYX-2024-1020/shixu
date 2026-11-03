@@ -30,7 +30,7 @@ const shutdownMessages = {
   SAFETY_RECONCILIATION: "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留",
   STALE_COST_REVIEW: "费用核对状态已变化，请刷新后重新发起整理",
   COST_RECONCILIATION_AUDITED: "费用已核对，累计费用与进度保留；缺失结果继续整理可能再次计费",
-  UNKNOWN_COST: "调用费用待核对，请联系维护者；已完成进度保留",
+  UNKNOWN_COST: "这份材料的调用费用暂按预留估算，核对前不会重复发起；可继续整理其他材料",
   LEDGER_PAUSED: "费用账本待核对，AI已暂停；已完成进度保留",
   CHECKPOINT_AUDITED: "调用检查点已核对，累计调用、费用、时间与进度保留；请主动继续",
   ACTIVE_TIME_AUDITED: "活跃时间已核对并保守补计，累计费用与进度保留；请主动继续",
@@ -136,6 +136,7 @@ export function createReadingRoutes({
     const root={...savedRoot,reason:savedRoot.reason||info.chatSafetyReason||""};
     roots?.set(t.packet, root);
     const wallet=(()=>{try{return ledger.wallet(e.account);}catch{return {available:0,pausedReason:"RECONCILIATION_REQUIRED"};}})();
+    const taskCostUnresolved = ledger.taskHasUnresolvedCost(e.account, t.id);
     const auditedCostAvailable=recoverable.includes(t.state) && ["UNKNOWN_COST","SHUTDOWN_TIMEOUT",""].includes(t.reason) && e.auditedCostAvailable(t.id,root,wallet);
     const auditedTimeAvailable=t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
     const checkpointAudited=e.roots.safety.lastCheckpointAudit(root.id) && !t.reason && recoverable.includes(t.state);
@@ -177,12 +178,12 @@ export function createReadingRoutes({
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
               ...(t.state === "partial" && !e.remainders.child(t.id) && !root.reason &&
-                  !wallet.pausedReason && root.activeMs < e.executionLimit(t.id) ? ["remaining"] : []),
+                  !wallet.pausedReason && !taskCostUnresolved && root.activeMs < e.executionLimit(t.id) ? ["remaining"] : []),
               ...(recoverable.includes(t.state) &&
               t.reason!=="ASSOCIATION_INPUT_CHANGED" &&
               (t.reason !== "EXECUTION_LIMIT" || auditedTimeAvailable) &&
               root.activeMs < e.executionLimit(t.id) &&
-              !wallet.pausedReason &&
+              !wallet.pausedReason && !taskCostUnresolved &&
               ![
                 "ACTIVE_TIME_RECONCILIATION",
                 "CHECKPOINT_RECONCILIATION",

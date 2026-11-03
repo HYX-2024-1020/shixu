@@ -253,7 +253,10 @@ export function walletView(wallet) {
       : "AI已暂停，额度状态待核对";
   if (!Number.isFinite(wallet.spent) || !Number.isFinite(wallet.available))
     return "额度状态待核对";
-  return `累计已消费 ¥${(wallet.spent / 1000000).toFixed(4)} · 可用 ¥${(wallet.available / 1000000).toFixed(2)}（不按天重置）${wallet.lowBalance ? " · 余额不足¥3" : ""}`;
+  const estimated = wallet.unknownRisk > 0
+    ? ` · 待核对费用按估算占用 ¥${(wallet.unknownRisk / 1000000).toFixed(4)}`
+    : "";
+  return `累计已消费 ¥${(wallet.spent / 1000000).toFixed(4)} · 可用 ¥${(wallet.available / 1000000).toFixed(2)}（不按天重置）${estimated}${wallet.lowBalance ? " · 余额不足¥3" : ""}`;
 }
 export function reuseView(count) {
   return Number.isSafeInteger(count) && count > 0

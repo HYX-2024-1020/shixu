@@ -212,7 +212,7 @@ test("unknown merge fees share wallet gates and are never automatically retried"
   f.enqueue();
   await f.untilMerge();
   assert.equal((await f.tasks.run("task")).reason, "UNKNOWN_COST");
-  assert.equal(f.ledger.wallet("synthetic").pausedReason, "UNKNOWN_COST");
+  assert.equal(f.ledger.wallet("synthetic").pausedReason, "");
   assert.throws(() => f.action("continue"), /UNKNOWN_COST/);
   assert.deepEqual(f.calls(), { organize: 2, merge: 1 });
 });
