@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createReadingRuntime } from "../reading-runtime.mjs";
@@ -16,7 +16,7 @@ import { ReadingRootSafety } from "./root-safety.mjs";
 import { readingAuthorityFloor } from "../data-versions.mjs";
 import { backup } from "node:sqlite";
 
-test("controlled startup adopts populated account and tenant baselines only with reviewed projections and ledger floor", async () => {
+test("reviewed account and tenant baselines support joint recovery against the latest independent ledger", async () => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-baseline-"));
   const config = { directory: join(directory, "data"), ledgerPath: join(directory, "billing", "ledger.sqlite"),
     brokerSocket: "/run/shixu-test/reader.sock", enabled: false, pdfVisual: false,
@@ -25,10 +25,10 @@ test("controlled startup adopts populated account and tenant baselines only with
   let runtime;
   try {
     const registry = new AccountRegistry(config.directory, options.secret);
-    let invitation, trustedAccountBaseline;
+    let invitation, binding, trustedAccountBaseline;
     try {
       [invitation] = registry.generate(1);
-      registry.bind(invitation.invite, "wechat", "d".repeat(64));
+      binding = registry.bind(invitation.invite, "wechat", "d".repeat(64));
       new AccountsV4(registry).close();
       trustedAccountBaseline = accountBaselineHash(registry.db);
     } finally { registry.close(); }
@@ -65,6 +65,9 @@ test("controlled startup adopts populated account and tenant baselines only with
       /TENANT_SAFETY_BASELINE_REQUIRED/);
     const reviewed = { ...config, trustedAuthorityFloor, trustedAccountBaseline,
       trustedTenantBaselines: { [invitation.userId]: tenantHash } };
+    assert.throws(() => createReadingRuntime({
+      ...reviewed, trustedTenantBaselines: { [invitation.userId]: "0".repeat(64) },
+    }, options), /TENANT_SAFETY_BASELINE_REQUIRED/);
     runtime = createReadingRuntime(reviewed, options);
     const token = runtime.service.registry.safety.local();
     assert.ok(token);
@@ -77,6 +80,59 @@ test("controlled startup adopts populated account and tenant baselines only with
     } finally { reviewedStore.close(); }
     runtime = createReadingRuntime(config, options);
     assert.equal(runtime.service.registry.safety.local(), token);
+
+    const accountsPath = join(config.directory, "accounts.sqlite");
+    const oldAccounts = join(directory, "old-accounts.sqlite");
+    const newAccounts = join(directory, "current-accounts.sqlite");
+    await backup(runtime.service.registry.db, oldAccounts);
+    runtime.service.registry.revoke(invitation.userId, "wechat");
+    await backup(runtime.service.registry.db, newAccounts);
+    const request = callId => ({
+      callId, account: invitation.userId, task: "task", block: callId, generation: 1,
+      priceId: config.tariff.id, maxPromptTokens: 100, maxOutputTokens: 100,
+    });
+    runtime.ledger.reserve(request("paid"));
+    runtime.ledger.sent("paid");
+    runtime.ledger.settle("paid", { prompt_tokens: 10, completion_tokens: 2 });
+    runtime.ledger.reserve(request("uncertain"));
+    runtime.ledger.sent("uncertain");
+    runtime.ledger.unknown("uncertain");
+    const finalWallet = runtime.ledger.wallet(invitation.userId);
+    assert.ok(finalWallet.spent > 0);
+    await runtime.close();
+
+    const tenantPath = join(config.directory, "users", invitation.userId, "workspace.sqlite");
+    const oldTenant = join(directory, "old-tenant.sqlite");
+    const tenantLedger = new ReadingLedger(config.ledgerPath);
+    try {
+      const tenant = new SyncStore(tenantPath);
+      try {
+        createAttachmentStore(tenant);
+        const originals = new OriginalStore(tenant, { safety: { ledger: tenantLedger, account: invitation.userId } });
+        try {
+          await backup(tenant.db, oldTenant);
+          const device = tenant.db.prepare("SELECT id FROM sync_devices LIMIT 1").get().id;
+          for (const type of ["delete", "purge"])
+            tenant.apply(device, { id: "packet", opId: type, type, baseVersion: tenant.record("packet").version }, tenant.epoch);
+        } finally { originals.close(); }
+      } finally { tenant.close(); }
+    } finally { tenantLedger.close(); }
+
+    const recovery = { ...config, trustedAuthorityFloor: readingAuthorityFloor(config.ledgerPath) };
+    copyFileSync(oldTenant, tenantPath);
+    copyFileSync(oldAccounts, accountsPath);
+    assert.throws(() => createReadingRuntime(recovery, options), /账号安全记录不一致/);
+    copyFileSync(newAccounts, accountsPath);
+    runtime = createReadingRuntime(recovery, options);
+    assert.throws(() => runtime.service.registry.authenticate(binding.token), /撤销|失效/);
+    assert.deepEqual(runtime.ledger.wallet(invitation.userId), finalWallet);
+    assert.equal(runtime.ledger.call("uncertain").state, "unknown");
+    await runtime.close();
+    const recoveredTenant = new SyncStore(tenantPath);
+    try {
+      assert.equal(recoveredTenant.record("packet").purged, true);
+      assert.equal(recoveredTenant.record("packet").data, null);
+    } finally { recoveredTenant.close(); }
   } finally {
     await runtime?.close();
     rmSync(directory, { recursive: true, force: true });
