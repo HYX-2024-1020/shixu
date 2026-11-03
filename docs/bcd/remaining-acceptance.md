@@ -17,6 +17,8 @@
 
 拟议批次上限为 16 次真实请求，单次预留上限 100,000 输入和 4,000 输出 token。按已核查的 Flash 峰时未命中价估算，最高预留人民币 3.712 元，可向上取整为 4 元的授权上限。执行前须在隔离运行器对整个批次实施预留总额和次数门禁，任何一步会超限或出现 unknown 都停止发送。测试凭据由运行环境的 `SHIXU_READING_TEST_KEY` 注入，授权前只运行零调用准备。价格以实际测试当天官方报价核对。[DeepSeek 官方价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)
 
+ECS 隔离批次使用 `scripts/reading-b6-acceptance.mjs`。运行器在独立目录创建合成租户和共用预算账本，四组材料均走当前读取与发布。通知组以两份合成原件承载历史探针模拟的课程事实，历史关联组保留原固定通知及四条合成历史。先运行 `--prepare-only` 验证原件和解码，再在明确授权时指定服务器原有配置文件路径，进程只使用其中的 DeepSeek Key。付费目录只能启动一次。报告仅记录合成产物和可核对的请求收据。
+
 | 项 | 当前门禁及剩余证据 |
 | --- | --- |
 | C7 安全重试 | [DeepSeek 错误码](https://api-docs.deepseek.com/quick_start/error_codes/)与[并发限制](https://api-docs.deepseek.com/quick_start/rate_limit/)说明 429 的限流含义。此次核对未找到能证明同一已发请求未计费的保证。读取服务继续将无可信 usage 的已发请求归入 unknown，自动重发需要可核对的未执行或未计费证据。 |
