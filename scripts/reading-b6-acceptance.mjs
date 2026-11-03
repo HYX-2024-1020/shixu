@@ -22,8 +22,9 @@ let price = deepseekPriceSnapshots(now)[period === "peak" ? 0 : 1];
 const prepareOnly = config === "--prepare-only";
 const docxRetest = process.argv[4] === "--docx-retest";
 const finalPair = process.argv[4] === "--final-pair";
-const sendLimit = finalPair ? 6 : 16;
-const reserveLimit = finalPair ? 2_000_000 : 4_000_000;
+const confirmationPair = process.argv[4] === "--confirmation-pair";
+const sendLimit = finalPair ? 6 : confirmationPair ? 8 : 16;
+const reserveLimit = finalPair || confirmationPair ? 2_000_000 : 4_000_000;
 const key = prepareOnly ? "synthetic-prepare-only" :
   /^DEEPSEEK_API_KEY=([A-Za-z0-9_-]{16,256})\r?$/m.exec(readFileSync(config, "utf8"))?.[1];
 if (!key) throw Error("B6_TEST_KEY_UNAVAILABLE");
@@ -111,7 +112,8 @@ try {
   }
   ledger.freezePrice(price);
   const selected = docxRetest ? [{ ...cases[1], id: "docx-retest" }]
-    : finalPair ? cases.filter(({ id }) => id === "pdf" || id === "notice") : cases;
+    : finalPair ? cases.filter(({ id }) => id === "pdf" || id === "notice")
+    : confirmationPair ? cases.filter(({ id }) => id === "docx" || id === "history") : cases;
   for (const { id, files } of selected) {
     if (prepareOnly) {
       for (const { name, body } of files) {
