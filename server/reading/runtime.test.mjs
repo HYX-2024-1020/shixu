@@ -83,10 +83,8 @@ test("reviewed account and tenant baselines support joint recovery against the l
 
     const accountsPath = join(config.directory, "accounts.sqlite");
     const oldAccounts = join(directory, "old-accounts.sqlite");
-    const newAccounts = join(directory, "current-accounts.sqlite");
     await backup(runtime.service.registry.db, oldAccounts);
-    runtime.service.registry.revoke(invitation.userId, "wechat");
-    await backup(runtime.service.registry.db, newAccounts);
+    runtime.service.credentials.revoke(invitation.userId, binding.id, "confirmed-revoke");
     const request = callId => ({
       callId, account: invitation.userId, task: "task", block: callId, generation: 1,
       priceId: config.tariff.id, maxPromptTokens: 100, maxOutputTokens: 100,
@@ -121,8 +119,6 @@ test("reviewed account and tenant baselines support joint recovery against the l
     const recovery = { ...config, trustedAuthorityFloor: readingAuthorityFloor(config.ledgerPath) };
     copyFileSync(oldTenant, tenantPath);
     copyFileSync(oldAccounts, accountsPath);
-    assert.throws(() => createReadingRuntime(recovery, options), /账号安全记录不一致/);
-    copyFileSync(newAccounts, accountsPath);
     runtime = createReadingRuntime(recovery, options);
     assert.throws(() => runtime.service.registry.authenticate(binding.token), /撤销|失效/);
     assert.deepEqual(runtime.ledger.wallet(invitation.userId), finalWallet);

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   ensureDatabaseSchema,
   withDatabaseWriteAuthority,
@@ -37,9 +37,8 @@ export function accountBaselineHash(db) {
   return projectionHash(db, [...queries, "SELECT * FROM ai_usage ORDER BY user_id,job_id"]);
 }
 
-// The independent ledger retains only random tokens and hashes, never passwords,
-// password verifiers, device keys, names or authentication response bodies.
-// This fences unsafe restored registries; it does not perform E's backup replay.
+// The ledger stores checkpoint hashes and minimal revocation evidence. It
+// never stores passwords, verifiers, device keys or authentication responses.
 export class AccountSafety {
   constructor(registry, ledger, { fault = () => {}, baselineHash } = {}) {
     this.registry = registry;
@@ -148,7 +147,44 @@ export class AccountSafety {
             (typeof baselineHash !== "string" || accountBaselineHash(this.db) !== baselineHash))
           throw Error("ACCOUNT_SAFETY_BASELINE_REQUIRED");
       }, true);
-    } else this.assert();
+    } else {
+      const latest = this.head();
+      if (local !== latest.token) this.replayRevocations(rows, local, hash, latest.token);
+      this.assert();
+    }
+  }
+  replayRevocations(rows, local, hash, latest) {
+    const committed = rows.filter(row => row.decision === "committed");
+    const ancestor = committed.findIndex(row => row.token === local && row.state_hash === hash);
+    if (ancestor < 0 || committed.at(-1)?.token !== latest) denied();
+    withDatabaseWriteAuthority(this.db, () => {
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        if (this.local() !== local || this.hash() !== hash || this.pending().length ||
+            this.head()?.token !== latest) denied();
+        for (const checkpoint of committed.slice(ancestor + 1)) {
+          const row = this.ledger.db.prepare("SELECT * FROM account_safety_revocations WHERE token=?").get(checkpoint.token);
+          if (!row) denied();
+          const binding = this.db.prepare("UPDATE bindings SET revoked=1 WHERE id=? AND user_id=?")
+            .run(row.binding, row.account);
+          if (binding.changes !== 1) denied();
+          this.db.prepare("DELETE FROM account_device_slots WHERE binding=?").run(row.binding);
+          this.db.prepare("INSERT INTO account_v4_events VALUES(?,?,'revoke',?,?,?)")
+            .run(row.event_seq, row.operation, row.account, row.binding, row.at);
+          const fingerprint = createHmac("sha256", this.registry.secret)
+            .update(JSON.stringify(["revoke", row.account, row.binding]))
+            .digest("hex");
+          this.db.prepare("INSERT INTO account_v4_operations VALUES(?,?,?)")
+            .run(row.operation, fingerprint, '{"ok":true}');
+          if (this.hash() !== checkpoint.state_hash) denied();
+        }
+        this.db.prepare("UPDATE account_safety_checkpoint SET token=? WHERE id=1").run(latest);
+        this.db.exec("COMMIT");
+      } catch (error) {
+        if (this.db.isTransaction) this.db.exec("ROLLBACK");
+        throw error;
+      }
+    });
   }
   assert() {
     if (this.active) return;
@@ -171,10 +207,14 @@ export class AccountSafety {
     return withDatabaseWriteAuthority(this.db, () => {
       try {
         this.db.exec("BEGIN IMMEDIATE");
+        const beforeEvent = this.db.prepare("SELECT COALESCE(MAX(seq),0) AS seq FROM account_v4_events").get().seq;
         const value = fn();
         const hash = this.hash(),
           head = this.head();
         if (initial || hash !== head.state_hash) {
+          const events = this.db.prepare("SELECT * FROM account_v4_events WHERE seq>? ORDER BY seq LIMIT 2").all(beforeEvent);
+          const event = events.length === 1 && events[0].kind === "revoke" ? events[0] : null;
+          const receipt = event && this.db.prepare("SELECT response FROM account_v4_operations WHERE id=?").get(event.operation);
           token = randomUUID();
           this.ledger.transaction(() => {
             if (
@@ -187,6 +227,9 @@ export class AccountSafety {
                 "INSERT INTO account_safety_intents(token,previous,state_hash,at) VALUES(?,?,?,?)",
               )
               .run(token, previous, hash, this.ledger.now());
+            if (event?.binding && receipt?.response === '{"ok":true}')
+              this.ledger.db.prepare("INSERT INTO account_safety_revocations VALUES(?,?,?,?,?,?)")
+                .run(token, event.seq, event.operation, event.account, event.binding, event.at);
             this.ledger.event("account-safety-prepare:" + token, "account-safety-prepare", "system:account-safety", null, 0);
           });
           this.fault("prepared");

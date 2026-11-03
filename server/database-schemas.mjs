@@ -85,6 +85,12 @@ CREATE TABLE account_safety_intents(seq INTEGER PRIMARY KEY,token TEXT UNIQUE NO
 CREATE TABLE account_safety_decisions(token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),decision TEXT NOT NULL CHECK(decision IN ('committed','aborted')));
 ${["account_safety_intents", "account_safety_decisions"].flatMap(table => ["UPDATE", "DELETE"].map(action =>
   `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`)).join("\n")}
+` }, { version: 2, sql: `
+CREATE TABLE account_safety_revocations(token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),
+  event_seq INTEGER NOT NULL,operation TEXT NOT NULL,account TEXT NOT NULL,binding TEXT NOT NULL,
+  at INTEGER NOT NULL);
+${["UPDATE", "DELETE"].map(action =>
+  `CREATE TRIGGER account_safety_revocations_no_${action.toLowerCase()} BEFORE ${action} ON account_safety_revocations BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`).join("\n")}
 ` }];
 export const TENANT_ORIGINALS_SCHEMA = [
   {

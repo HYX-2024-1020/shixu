@@ -80,7 +80,6 @@ async function register(f) {
 test("independent checkpoint rejects an older registry after revoke or password change, preserving its current ledger", async (t) => {
   const f = fixture(t),
     binding = await register(f);
-  await backup(f.registry.db, join(f.root, "before-revoke.sqlite"));
   const second = (
     await f.auth.login(
       {
@@ -92,6 +91,7 @@ test("independent checkpoint rejects an older registry after revoke or password 
       "synthetic-ip",
     )
   ).binding;
+  await backup(f.registry.db, join(f.root, "before-revoke.sqlite"));
   f.auth.revoke(binding.user_id, second.id, "revoke-second");
   assert.throws(() => f.registry.authenticate(second.token), /撤销|失效/);
   await f.auth.changePassword(
@@ -113,6 +113,7 @@ test("independent checkpoint rejects an older registry after revoke or password 
     join(f.root, "data", "accounts.sqlite"),
   );
   assert.throws(() => f.open(), /账号安全记录不一致/);
+  assert.equal(f.registry.db.prepare("SELECT revoked FROM bindings WHERE id=?").get(second.id).revoked, 0);
   assert.equal(
     f.ledger.db
       .prepare(
@@ -121,6 +122,24 @@ test("independent checkpoint rejects an older registry after revoke or password 
       .get().token,
     token,
   );
+  assert.deepEqual(f.ledger.wallet(binding.user_id), wallet);
+});
+
+test("a confirmed revoke replays onto a verified account ancestor and retains its idempotency receipt", async (t) => {
+  const f = fixture(t);
+  const binding = await register(f);
+  const older = join(f.root, "before-revoke.sqlite");
+  await backup(f.registry.db, older);
+  f.auth.revoke(binding.user_id, binding.id, "confirmed-revoke");
+  const latest = f.safety.local();
+  const wallet = f.ledger.wallet(binding.user_id);
+  f.close();
+  copyFileSync(older, join(f.root, "data", "accounts.sqlite"));
+  f.open();
+  assert.equal(f.safety.local(), latest);
+  assert.throws(() => f.registry.authenticate(binding.token), /撤销|失效/);
+  assert.deepEqual(f.auth.revoke(binding.user_id, binding.id, "confirmed-revoke"), { ok: true });
+  assert.equal(f.safety.local(), latest);
   assert.deepEqual(f.ledger.wallet(binding.user_id), wallet);
 });
 
