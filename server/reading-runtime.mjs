@@ -16,10 +16,22 @@ const invalid = () => { throw Error("READING_RUNTIME_CONFIGURATION_REQUIRED"); }
 // Explicit opt-in entry, separate from the unchanged v3 service. Importing this
 // module never reads credentials, opens a database or starts a network listener.
 export function createReadingRuntime(config, { secret, apiKey, wechat = null, fetcher = fetch, now = Date.now } = {}) {
-  if (!config || Object.keys(config).some(key => !["directory", "ledgerPath", "brokerSocket", "origin", "enabled", "pdfVisual", "tariff", "trustedAuthorityFloor"].includes(key)) ||
+  if (!config || Object.keys(config).some(key => !["directory", "ledgerPath", "brokerSocket", "origin", "enabled", "pdfVisual", "tariff", "trustedAuthorityFloor", "trustedAccountBaseline", "trustedTenantBaselines"].includes(key)) ||
       ![config.directory, config.ledgerPath].every(path => typeof path === "string" && isAbsolute(path)) ||
       typeof config.enabled !== "boolean" || typeof config.pdfVisual !== "boolean" ||
       typeof secret !== "string" || secret.length < 32) invalid();
+  if (Object.hasOwn(config, "trustedAccountBaseline") &&
+      (typeof config.trustedAccountBaseline !== "string" || !/^[a-f0-9]{64}$/.test(config.trustedAccountBaseline) ||
+       !Array.isArray(config.trustedAuthorityFloor))) invalid();
+  if (Object.hasOwn(config, "trustedTenantBaselines")) {
+    const baselines = config.trustedTenantBaselines;
+    if (!baselines || typeof baselines !== "object" || Array.isArray(baselines) ||
+        !Array.isArray(config.trustedAuthorityFloor) ||
+        Object.entries(baselines).some(([account, hash]) =>
+          !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(account) ||
+          typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)))
+      invalid();
+  }
   const tariff = config.tariff;
   if (!tariff || Object.keys(tariff).sort().join(",") !== "id,validUntil,verifiedAt" ||
       !Number.isSafeInteger(tariff.verifiedAt) || !Number.isSafeInteger(tariff.validUntil) ||
@@ -63,6 +75,8 @@ export function createReadingRuntime(config, { secret, apiKey, wechat = null, fe
     service = createMultiUserService({
       directory, secret, ...(config.origin ? { origin: config.origin } : {}), wechat,
       reading: { enabled: config.enabled, credentials: true, accountSafety: true, tenantSafety: true, materialNoticeRequired: true, requireReconciledAccounts: true, ledger, reader, provider,
+        trustedAccountBaseline: config.trustedAccountBaseline,
+        trustedTenantBaselines: config.trustedTenantBaselines,
         priceId: price.id, modelVersion: price.model },
     });
   } catch (error) { ledger.close(); throw error; }

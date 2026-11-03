@@ -15,5 +15,5 @@
 | --- | --- |
 | C7 安全重试 | [DeepSeek 错误码](https://api-docs.deepseek.com/quick_start/error_codes/)与[并发限制](https://api-docs.deepseek.com/quick_start/rate_limit/)说明 429 的限流含义。此次核对未找到能证明同一已发请求未计费的保证。读取服务继续将无可信 usage 的已发请求归入 unknown，自动重发需要可核对的未执行或未计费证据。 |
 | C8 最终账单与时间证据 | [官方帮助](https://api-docs.deepseek.com/faq/)列出发票和 API Key 用量入口。现有请求/响应收据已可绑定本地调用。仍需能关联同一请求的真实最终计费证据，以及受信宿主的逐步骤终止和活跃时间记录。 |
-| D5 恢复 | 已有独立账号/租户检查点、删除与到期的安全重放，以及可选[宿主账本水位](tenant-safety-verification.md#宿主账本水位核对)。仍需受信旧基线导入及完整跨域恢复。 |
+| D5 恢复 | 已有独立账号/租户检查点、删除与到期的安全重放、宿主账本水位和[首次接入已核对的旧库](tenant-safety-verification.md#首次接入已核对的旧库)的合成验证。仍需真实旧库核对及完整跨域恢复。 |
 | D6 原生双端 | Windows CI 与微信 Page/Node 签名 HTTP 已有证据。微信 develop 联验仍需隔离测试会话和身份，已有隔离失败详见[验收记录](acceptance-20261102.md)。 |

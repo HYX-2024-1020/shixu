@@ -5,10 +5,83 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createReadingRuntime } from "../reading-runtime.mjs";
 import { AccountRegistry } from "../sync-accounts.mjs";
+import { AccountsV4 } from "../accounts-v4.mjs";
+import { accountBaselineHash } from "../account-safety.mjs";
+import { tenantBaselineHash } from "../tenant-safety.mjs";
+import { SyncStore } from "../sync-store.mjs";
+import { createAttachmentStore } from "../sync-files.mjs";
+import { OriginalStore } from "../originals.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingRootSafety } from "./root-safety.mjs";
 import { readingAuthorityFloor } from "../data-versions.mjs";
 import { backup } from "node:sqlite";
+
+test("controlled startup adopts populated account and tenant baselines only with reviewed projections and ledger floor", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-baseline-"));
+  const config = { directory: join(directory, "data"), ledgerPath: join(directory, "billing", "ledger.sqlite"),
+    brokerSocket: "/run/shixu-test/reader.sock", enabled: false, pdfVisual: false,
+    tariff: { id: "deepseek-flash-1017-20261028-peak", verifiedAt: 1000, validUntil: 2000 } };
+  const options = { secret: "synthetic-runtime-secret-more-than-32-chars", now: () => 1500 };
+  let runtime;
+  try {
+    const registry = new AccountRegistry(config.directory, options.secret);
+    let invitation, trustedAccountBaseline;
+    try {
+      [invitation] = registry.generate(1);
+      registry.bind(invitation.invite, "wechat", "d".repeat(64));
+      new AccountsV4(registry).close();
+      trustedAccountBaseline = accountBaselineHash(registry.db);
+    } finally { registry.close(); }
+    const store = new SyncStore(join(config.directory, "users", invitation.userId, "workspace.sqlite"));
+    let tenantHash, oldEpoch;
+    try {
+      createAttachmentStore(store);
+      const originals = new OriginalStore(store);
+      try {
+        const device = store.createDevice("synthetic").deviceId;
+        store.apply(device, {
+          id: "packet", opId: "baseline", type: "put", baseVersion: 0, data: { text: "synthetic" },
+        }, store.epoch);
+        tenantHash = tenantBaselineHash(store, invitation.userId);
+        oldEpoch = store.epoch;
+        assert.notEqual(tenantHash, tenantBaselineHash(store, "another-account"));
+      } finally { originals.close(); }
+    } finally { store.close(); }
+    mkdirSync(join(directory, "billing"));
+    const ledger = new ReadingLedger(config.ledgerPath);
+    let wallet, trustedAuthorityFloor;
+    try {
+      new ReadingRootSafety(ledger, invitation.userId);
+      ledger.grantInitial(invitation.userId);
+      wallet = ledger.wallet(invitation.userId);
+      trustedAuthorityFloor = readingAuthorityFloor(config.ledgerPath);
+    } finally { ledger.close(); }
+    assert.throws(() => createReadingRuntime(config, options), /ACCOUNT_SAFETY_BASELINE_REQUIRED/);
+    assert.throws(() => createReadingRuntime({ ...config, trustedAccountBaseline }, options), /CONFIGURATION_REQUIRED/);
+    assert.throws(() => createReadingRuntime({
+      ...config, trustedAuthorityFloor, trustedAccountBaseline: "0".repeat(64),
+    }, options), /ACCOUNT_SAFETY_BASELINE_REQUIRED/);
+    assert.throws(() => createReadingRuntime({ ...config, trustedAuthorityFloor, trustedAccountBaseline }, options),
+      /TENANT_SAFETY_BASELINE_REQUIRED/);
+    const reviewed = { ...config, trustedAuthorityFloor, trustedAccountBaseline,
+      trustedTenantBaselines: { [invitation.userId]: tenantHash } };
+    runtime = createReadingRuntime(reviewed, options);
+    const token = runtime.service.registry.safety.local();
+    assert.ok(token);
+    assert.deepEqual(runtime.ledger.wallet(invitation.userId), wallet);
+    await runtime.close();
+    const reviewedStore = new SyncStore(join(config.directory, "users", invitation.userId, "workspace.sqlite"));
+    try {
+      assert.notEqual(reviewedStore.epoch, oldEpoch);
+      assert.equal(reviewedStore.record("packet").data.text, "synthetic");
+    } finally { reviewedStore.close(); }
+    runtime = createReadingRuntime(config, options);
+    assert.equal(runtime.service.registry.safety.local(), token);
+  } finally {
+    await runtime?.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("externally retained authority blocks rolled-back billing and root histories before account startup", async () => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-floor-"));

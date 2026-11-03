@@ -160,7 +160,7 @@ function createAccountService({
   if(credentials)startupCleanup.push(()=>credentials.close());
   if (reading?.accountSafety) {
     if (!credentials) throw Error("ACCOUNT_SAFETY_CREDENTIALS_REQUIRED");
-    new AccountSafety(registry, reading.ledger);
+    new AccountSafety(registry, reading.ledger, { baselineHash: reading.trustedAccountBaseline });
   } else if (registry.db.prepare("SELECT 1 FROM account_safety_checkpoint").get() ||
       (reading?.ledger.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_safety_intents'").get() &&
        reading.ledger.db.prepare("SELECT 1 FROM account_safety_intents LIMIT 1").get())) {
@@ -320,7 +320,11 @@ function createAccountService({
       new OriginalStore(service.store, {
         pool: originalPool,
         ...reading.originals,
-        ...(reading.tenantSafety ? { safety: { ledger: reading.ledger, account: userId } } : {}),
+        ...(reading.tenantSafety ? { safety: {
+          ledger: reading.ledger,
+          account: userId,
+          baselineHash: reading.trustedTenantBaselines?.[userId],
+        } } : {}),
       });
     readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);

@@ -16,10 +16,31 @@ const denied = () => {
   );
 };
 
+function tenantState(store) {
+  return {
+    epoch: store.meta("epoch"),
+    records: store.db.prepare("SELECT id,deleted_at,purged FROM sync_records ORDER BY id").all(),
+    files: store.db.prepare(
+      "SELECT packet,id,hash,size,mode,state,expires,cleanup,version FROM original_files ORDER BY packet,id",
+    ).all(),
+    trash: store.db.prepare("SELECT packet,cleanup FROM original_trash ORDER BY packet").all(),
+  };
+}
+
+export function tenantBaselineHash(store, account) {
+  const hash = createHash("sha256");
+  hash.update(JSON.stringify(["tenant-baseline-v1", account, tenantState(store)]));
+  for (const row of store.db.prepare("SELECT id,version,data FROM sync_records ORDER BY id").iterate())
+    hash.update(JSON.stringify(row));
+  for (const row of store.db.prepare("SELECT * FROM sync_attachments ORDER BY packet_id,id").iterate())
+    hash.update(JSON.stringify(row));
+  return hash.digest("hex");
+}
+
 // Lifecycle metadata only: no names, text, blobs, results or credentials. This
 // uses the existing independent ledger and writer authority, not another store.
 export class TenantSafety {
-  constructor(store, ledger, account, { fault = () => {} } = {}) {
+  constructor(store, ledger, account, { fault = () => {}, baselineHash } = {}) {
     Object.assign(this, {
       store,
       db: store.db,
@@ -35,24 +56,11 @@ export class TenantSafety {
       "ledger-tenant-safety",
       LEDGER_TENANT_SAFETY_SCHEMA,
     );
-    this.recover();
+    this.recover(baselineHash);
     store.safety = this;
   }
   state() {
-    return {
-      epoch: this.store.meta("epoch"),
-      records: this.db
-        .prepare("SELECT id,deleted_at,purged FROM sync_records ORDER BY id")
-        .all(),
-      files: this.db
-        .prepare(
-          "SELECT packet,id,hash,size,mode,state,expires,cleanup,version FROM original_files ORDER BY packet,id",
-        )
-        .all(),
-      trash: this.db
-        .prepare("SELECT packet,cleanup FROM original_trash ORDER BY packet")
-        .all(),
-    };
+    return tenantState(this.store);
   }
   local() {
     const token =
@@ -95,7 +103,7 @@ export class TenantSafety {
       );
     });
   }
-  recover() {
+  recover(baselineHash) {
     const rows = this.rows();
     let previous = "",
       pending;
@@ -122,22 +130,24 @@ export class TenantSafety {
     }
     if (!head) {
       // Even an empty restored tenant cannot silently forget prior task roots.
-      if (
-        local ||
-        this.state().records.length ||
-        this.state().files.length ||
-        this.state().trash.length ||
-        (this.ledger.db
+      if (local) throw Error("TENANT_SAFETY_BASELINE_REQUIRED");
+      this.transaction(() => {
+        const state = this.state();
+        const existingRoot = this.ledger.db
           .prepare(
             "SELECT 1 FROM sqlite_master WHERE name='reading_safe_roots'",
           )
           .get() &&
           this.ledger.db
             .prepare("SELECT 1 FROM reading_safe_roots WHERE account=? LIMIT 1")
-            .get(this.account))
-      )
-        throw Error("TENANT_SAFETY_BASELINE_REQUIRED");
-      this.transaction(() => {}, { initial: true });
+            .get(this.account);
+        if (existingRoot ||
+            ((state.records.length || state.files.length || state.trash.length || baselineHash !== undefined) &&
+              (typeof baselineHash !== "string" || tenantBaselineHash(this.store, this.account) !== baselineHash)))
+          throw Error("TENANT_SAFETY_BASELINE_REQUIRED");
+        if (baselineHash !== undefined) this.fenceRestoredWork();
+      }, { initial: true });
+      this.store.epoch = this.store.meta("epoch");
     } else if (head.token === local && head.state_hash === hash) this.assert();
     else {
       const ancestor = rows.find(
@@ -175,25 +185,23 @@ export class TenantSafety {
             this.db
               .prepare("INSERT INTO original_trash VALUES(?,?)")
               .run(t.packet, t.cleanup);
-          // A restored cursor/operation cache must not accept old offline writes.
-          this.db
-            .prepare("UPDATE sync_meta SET value=? WHERE key='epoch'")
-            .run(randomUUID());
-          // Attach schedules queued jobs on ordinary restarts. After replay,
-          // restored requests need fresh user intent, even on surviving packets.
-          if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_tasks'").get()) {
-            ensureDatabaseSchema(this.db, "tenant-reading", READING_TASKS_SCHEMA, {
-              compatibleObjects: ["CREATE INDEX reading_tasks_packet ON reading_tasks(packet)"],
-            });
-            this.db.prepare(
-              "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('queued','running','applying')",
-            ).run();
-          }
+          this.fenceRestoredWork();
         },
         { replay: true },
       );
       this.store.epoch = this.store.meta("epoch");
     }
+  }
+  fenceRestoredWork() {
+    // Reject old offline writes and require fresh intent for restored requests.
+    this.db.prepare("UPDATE sync_meta SET value=? WHERE key='epoch'").run(randomUUID());
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_tasks'").get()) return;
+    ensureDatabaseSchema(this.db, "tenant-reading", READING_TASKS_SCHEMA, {
+      compatibleObjects: ["CREATE INDEX reading_tasks_packet ON reading_tasks(packet)"],
+    });
+    this.db.prepare(
+      "UPDATE reading_tasks SET state='interrupted',generation=generation+1,reason='RESTARTED' WHERE state IN ('queued','running','applying')",
+    ).run();
   }
   checkReplay(before, target) {
     if (

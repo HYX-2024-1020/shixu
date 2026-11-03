@@ -22,11 +22,26 @@ const queries = [
   "SELECT * FROM account_v4_events ORDER BY seq",
 ];
 
+function projectionHash(db, projections) {
+  const hash = createHash("sha256");
+  for (const query of projections) {
+    hash.update(query);
+    for (const row of db.prepare(query).iterate())
+      hash.update(JSON.stringify(row));
+  }
+  return hash.digest("hex");
+}
+
+// Used on an independently reviewed, stopped registry with the current schema.
+export function accountBaselineHash(db) {
+  return projectionHash(db, [...queries, "SELECT * FROM ai_usage ORDER BY user_id,job_id"]);
+}
+
 // The independent ledger retains only random tokens and hashes, never passwords,
 // password verifiers, device keys, names or authentication response bodies.
 // This fences unsafe restored registries; it does not perform E's backup replay.
 export class AccountSafety {
-  constructor(registry, ledger, { fault = () => {} } = {}) {
+  constructor(registry, ledger, { fault = () => {}, baselineHash } = {}) {
     this.registry = registry;
     this.db = registry.db;
     this.ledger = ledger;
@@ -39,17 +54,11 @@ export class AccountSafety {
       "ledger-account-safety",
       LEDGER_ACCOUNT_SAFETY_SCHEMA,
     );
-    this.recover();
+    this.recover(baselineHash);
     registry.safety = this;
   }
   hash() {
-    const hash = createHash("sha256");
-    for (const query of queries) {
-      hash.update(query);
-      for (const row of this.db.prepare(query).iterate())
-        hash.update(JSON.stringify(row));
-    }
-    return hash.digest("hex");
+    return projectionHash(this.db, queries);
   }
   local() {
     return (
@@ -92,7 +101,7 @@ export class AccountSafety {
       );
     });
   }
-  recover() {
+  recover(baselineHash) {
     const local = this.local(),
       hash = this.hash();
     let previous = "";
@@ -128,16 +137,17 @@ export class AccountSafety {
       else denied();
     }
     if (!this.head()) {
-      if (
-        local ||
-        this.db
+      if (local) throw Error("ACCOUNT_SAFETY_BASELINE_REQUIRED");
+      this.transaction(() => {
+        const populated = this.db
           .prepare(
             "SELECT 1 FROM bindings UNION SELECT 1 FROM account_credentials UNION SELECT 1 FROM ai_usage LIMIT 1",
           )
-          .get()
-      )
-        throw Error("ACCOUNT_SAFETY_BASELINE_REQUIRED");
-      this.transaction(() => {}, true);
+          .get();
+        if ((populated || baselineHash !== undefined) &&
+            (typeof baselineHash !== "string" || accountBaselineHash(this.db) !== baselineHash))
+          throw Error("ACCOUNT_SAFETY_BASELINE_REQUIRED");
+      }, true);
     } else this.assert();
   }
   assert() {
