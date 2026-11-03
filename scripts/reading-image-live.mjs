@@ -12,7 +12,7 @@ const prepareOnly = process.argv.includes("--prepare-only");
 const existing =
   process.env.SHIXU_LIVE_PROFILE || join(process.env.APPDATA, "ShixuDesktop");
 try {
-  if (!dry && !prepareOnly)
+  if (!dry && !prepareOnly && !process.env.SHIXU_READING_TEST_KEY)
     await copyFile(join(existing, "Local State"), join(probe, "Local State"));
   const env = { ...process.env, SHIXU_IMAGE_PROBE_DIR: probe };
   delete env.ELECTRON_RUN_AS_NODE;

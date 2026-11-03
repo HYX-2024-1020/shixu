@@ -35,7 +35,7 @@ export function docxBytes(content, parts = {}, { level = 0 } = {}) {
           typeof text === "string" ? strToU8(text) : text,
         ]),
       ),
-      { level },
+      { level, mtime: new Date(2026, 9, 31) },
     ),
   );
 }

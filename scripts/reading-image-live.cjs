@@ -25,6 +25,10 @@ if (
 const existing =
   process.env.SHIXU_LIVE_PROFILE ||
   path.join(process.env.APPDATA, "ShixuDesktop");
+const getKey = async () => process.env.SHIXU_READING_TEST_KEY ||
+  (await safeStorage.decryptStringAsync(
+    readFileSync(path.join(existing, "api-key.enc")),
+  )).result;
 let bootstrapError;
 let phase = "bootstrap";
 try {
@@ -58,9 +62,7 @@ app
         const runner = await load(association?"scripts/reading-association-live.mjs":merge ? "scripts/reading-merge-live.mjs" : "scripts/reading-chat-live.mjs");
         await (association?runner.runAssociationLive:merge ? runner.runMergeLive : runner.runChatLive)({
           probe,
-          getKey: async () => (await safeStorage.decryptStringAsync(
-            readFileSync(path.join(existing, "api-key.enc")),
-          )).result,
+          getKey,
           prepareOnly: process.argv.includes("--prepare-only"),
         });
         return;
@@ -202,11 +204,7 @@ app
         );
         return;
       }
-      const key = (
-        await safeStorage.decryptStringAsync(
-          readFileSync(path.join(existing, "api-key.enc")),
-        )
-      ).result;
+      const key = await getKey();
       phase = "provider";
       let providerCalls = 0;
       const modelResponses=[];
