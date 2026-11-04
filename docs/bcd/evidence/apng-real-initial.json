@@ -1,0 +1,563 @@
+{
+  "kind": "synthetic-real-apng-development",
+  "testedAt": "2026-10-31T18:20:42.757Z",
+  "realProviderCalls": 6,
+  "simulatedUpstreamCalls": 0,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793470833164,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "bb808377029e7fff5501dcb6661b056bdcaa7d2b973899e54bacb3222221fd9f",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "allFrames": true,
+    "secondFrameFact": true,
+    "combined": false,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 9519.2191,
+  "spentMicros": 10738,
+  "ledgerSpentIncludingSimulatedMicros": 10738,
+  "calls": [
+    {
+      "id": "643a728b-6b40-4f14-8751-d64eacbff262",
+      "block": "aad7956aa76ddeb6bfd9466855da57ef62fc636d63ad21d640ad7d230f96453a",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26090,
+      "actual": 2471,
+      "usage": "{\"prompt_tokens\":1569,\"completion_tokens\":445,\"prompt_cache_hit_tokens\":896}",
+      "simulated": false
+    },
+    {
+      "id": "5546cfd7-2a73-4b81-a3a0-dbed35282ebf",
+      "block": "6e7892892b41feb9c142aae119cde80cc804ca9ad9fcd39b02d6ea0f8ed06df1",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 25016,
+      "actual": 2428,
+      "usage": "{\"prompt_tokens\":1337,\"completion_tokens\":304,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    },
+    {
+      "id": "2fe707bf-f6b1-43a7-a482-c54a18103366",
+      "block": "c95ebb97ddb7d8e184f16233777422c677b7890a0a089cb01023a6b44a7fa566",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22690,
+      "actual": 718,
+      "usage": "{\"prompt_tokens\":723,\"completion_tokens\":30,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    },
+    {
+      "id": "14e9bcd5-8ab7-491e-8e75-8e40fa7fbbb6",
+      "block": "949931fd3fc138c2a7edbf33045aa1d48a287ab911554c104dcb8ac53e281718",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26093,
+      "actual": 2208,
+      "usage": "{\"prompt_tokens\":1570,\"completion_tokens\":379,\"prompt_cache_hit_tokens\":896}",
+      "simulated": false
+    },
+    {
+      "id": "8b2f137c-8afb-4795-89d7-1622f0cf3013",
+      "block": "0001f1f35918e829f47f182164055a92206975a8d47d702d47ed09faa83471fc",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 24157,
+      "actual": 1834,
+      "usage": "{\"prompt_tokens\":1111,\"completion_tokens\":212,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    },
+    {
+      "id": "4c47eef8-71a9-4449-9e5a-ab78ded25edb",
+      "block": "174eeda45d22395b7d2983602b12c79991700dd5f5c03eb60729dc61361b8c2c",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22856,
+      "actual": 1079,
+      "usage": "{\"prompt_tokens\":1124,\"completion_tokens\":20,\"prompt_cache_hit_tokens\":128}",
+      "simulated": false
+    }
+  ],
+  "realUnknownCalls": 0,
+  "modelResponses": [
+    {
+      "summary": "收下一条“图像开发验证”的合成通知，提取出图像实验报告的提交与格式要求。",
+      "items": [
+        {
+          "kind": "task",
+          "title": "提交图像实验报告",
+          "summary": "按通知要求完成图像实验报告，PDF格式、以“学号_姓名”命名，说明算法思路与时间复杂度，并在尾部保留任务编号7319。",
+          "facts": [
+            "任务来源标题为“图像开发验证：合成通知”。",
+            "需提交图像实验报告，任务编号 7319。",
+            "截止时间：2026年10月30日18:00。",
+            "格式：PDF，命名：学号_姓名。",
+            "要求：说明算法思路与时间复杂度。",
+            "尾部核对：7319，禁止遗漏此编号。"
+          ],
+          "nextSteps": [
+            "先按“学号_姓名.pdf”建立报告文件，再补齐算法思路与时间复杂度说明。",
+            "提交前对照通知逐项检查：PDF格式、文件名、内容要求及尾部7319编号。"
+          ],
+          "uncertainties": [
+            "通知未给出具体提交渠道或平台。",
+            "通知未说明报告是否需要包含其他固定章节或模板。"
+          ],
+          "due": {
+            "date": "2026-10-30",
+            "time": "18:00",
+            "anchor": "2026年10月30日18:00",
+            "sourceId": "image_6105d6cc76af_i1"
+          },
+          "evidence": [
+            {
+              "sourceId": "image_6105d6cc76af_i1",
+              "quote": "请提交图像实验报告，任务编号 7319。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i1",
+              "quote": "截止：2026年10月30日18:00。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i1",
+              "quote": "格式：PDF，命名：学号_姓名。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i1",
+              "quote": "要求：说明算法思路与时间复杂度。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i1",
+              "quote": "尾部核对：7319，禁止遗漏此编号。"
+            }
+          ]
+        }
+      ],
+      "warnings": [
+        "该通知来自图片识别结果，仅覆盖所提供的图像块。"
+      ]
+    },
+    {
+      "summary": "收到一帧作业提交要求的图片，核心是在提交报告编号7319时另附UTF-8编码的源代码，并提到尾部补充核对7319；未给出提交期限或课程信息。",
+      "items": [
+        {
+          "kind": "task",
+          "title": "提交报告7319并附UTF-8源码",
+          "summary": "提交报告编号7319时需另附源代码，源代码须为UTF-8编码。",
+          "facts": [
+            "提交报告编号7319时，另附源代码。",
+            "源代码须为UTF-8编码。",
+            "图片中写有“尾部补充核对：7319。”"
+          ],
+          "nextSteps": [
+            "建议在提交前确认报告编号为7319，并检查源码文件以UTF-8保存",
+            "建议核对是否已按“尾部补充核对：7319”做好标记"
+          ],
+          "uncertainties": [
+            "未给出提交截止时间",
+            "未说明提交平台或提交方式",
+            "未说明“尾部补充核对：7319”具体指报告末尾还是源码末尾",
+            "未说明所属课程或项目"
+          ],
+          "due": null,
+          "evidence": [
+            {
+              "sourceId": "image_6105d6cc76af_i2",
+              "quote": "提交报告编号7319时，另附源代码。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i2",
+              "quote": "源代码须为UTF-8编码。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_i2",
+              "quote": "尾部补充核对：7319。"
+            }
+          ],
+          "group": "",
+          "importance": 1,
+          "importanceReason": "属于具体提交要求，但缺少截止时间、课程和后果信息，按普通重要度处理"
+        }
+      ],
+      "warnings": [
+        "图片仅对应第2/2帧的局部像素范围，未读取循环动画其他帧；图片中“尾部补充核对：7319”的具体含义不明确，未据此推断额外提交动作"
+      ]
+    }
+  ],
+  "visualReviews": [
+    {
+      "fingerprint": "6e7892892b41feb9c142aae119cde80cc804ca9ad9fcd39b02d6ea0f8ed06df1",
+      "upstream": "aad7956aa76ddeb6bfd9466855da57ef62fc636d63ad21d640ad7d230f96453a",
+      "call_id": "5546cfd7-2a73-4b81-a3a0-dbed35282ebf",
+      "result": {
+        "claims": [
+          {
+            "id": "summary",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_title",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_summary",
+            "status": "unsupported",
+            "reason": "图中无要求在尾部保留编号"
+          },
+          {
+            "id": "i0_facts_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_2",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_3",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_4",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_5",
+            "status": "unsupported",
+            "reason": "页尾核对仅为标记，非禁止遗漏要求"
+          },
+          {
+            "id": "i0_nextSteps_0",
+            "status": "suggestion",
+            "reason": "合理可选建议，原文未要求拟制步骤"
+          },
+          {
+            "id": "i0_nextSteps_1",
+            "status": "unsupported",
+            "reason": "把页尾标记变成尾部编号检查要求"
+          },
+          {
+            "id": "i0_due",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_2",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_3",
+            "status": "supported",
+            "reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "fingerprint": "c95ebb97ddb7d8e184f16233777422c677b7890a0a089cb01023a6b44a7fa566",
+      "upstream": "aad7956aa76ddeb6bfd9466855da57ef62fc636d63ad21d640ad7d230f96453a",
+      "call_id": "2fe707bf-f6b1-43a7-a482-c54a18103366",
+      "result": {
+        "claims": [
+          {
+            "id": "i0_quote_4",
+            "status": "supported",
+            "reason": "图像页尾逐字包含该句"
+          }
+        ]
+      }
+    },
+    {
+      "fingerprint": "0001f1f35918e829f47f182164055a92206975a8d47d702d47ed09faa83471fc",
+      "upstream": "949931fd3fc138c2a7edbf33045aa1d48a287ab911554c104dcb8ac53e281718",
+      "call_id": "8b2f137c-8afb-4795-89d7-1622f0cf3013",
+      "result": {
+        "claims": [
+          {
+            "id": "summary",
+            "status": "uncertain",
+            "reason": "图像未见提交期限或课程信息；尾部核对仅为标记"
+          },
+          {
+            "id": "i0_title",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_summary",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_facts_2",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_nextSteps_0",
+            "status": "suggestion",
+            "reason": "合理可选建议，非原文要求"
+          },
+          {
+            "id": "i0_nextSteps_1",
+            "status": "unsupported",
+            "reason": "页尾核对标记非提交标记要求"
+          },
+          {
+            "id": "i0_quote_0",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_1",
+            "status": "supported",
+            "reason": ""
+          },
+          {
+            "id": "i0_quote_2",
+            "status": "supported",
+            "reason": ""
+          }
+        ]
+      }
+    }
+  ],
+  "result": {
+    "summary": "收下一条“图像开发验证”的合成通知，提取出图像实验报告的提交与格式要求。\n图像事项中有内容尚待核对",
+    "warnings": [
+      "该通知来自图片识别结果，仅覆盖所提供的图像块。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系",
+      "图像依据核对：3处内容缺少明确依据，已转为待确认",
+      "图片仅对应第2/2帧的局部像素范围，未读取循环动画其他帧；图片中“尾部补充核对：7319”的具体含义不明确，未据此推断额外提交动作",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系",
+      "图像摘要待核对：收到一帧作业提交要求的图片，核心是在提交报告编号7319时另附UTF-8编码的源代码，并提到尾部补充核对7319；未给出提交期限或课程信息。（图像未见提交期限或课程信息；尾部核对仅为标记）",
+      "图像依据核对：2处内容缺少明确依据，已转为待确认"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告",
+        "summary": "",
+        "facts": [
+          "任务来源标题为“图像开发验证：合成通知”。",
+          "需提交图像实验报告，任务编号 7319。",
+          "截止时间：2026年10月30日18:00。",
+          "格式：PDF，命名：学号_姓名。",
+          "要求：说明算法思路与时间复杂度。"
+        ],
+        "nextSteps": [
+          "先按“学号_姓名.pdf”建立报告文件，再补齐算法思路与时间复杂度说明。"
+        ],
+        "uncertainties": [
+          "通知未给出具体提交渠道或平台。",
+          "通知未说明报告是否需要包含其他固定章节或模板。",
+          "图像依据待核对（不作为原文要求）：按通知要求完成图像实验报告，PDF格式、以“学号_姓名”命名，说明算法思路与时间复杂度，并在尾部保留任务编号7319。（图中无要求在尾部保留编号）",
+          "图像依据待核对（不作为原文要求）：尾部核对：7319，禁止遗漏此编号。（页尾核对仅为标记，非禁止遗漏要求）",
+          "图像依据待核对（不作为原文要求）：提交前对照通知逐项检查：PDF格式、文件名、内容要求及尾部7319编号。（把页尾标记变成尾部编号检查要求）"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号 7319。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年10月30日18:00。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：7319，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-10-30",
+          "time": "18:00",
+          "anchor": "2026年10月30日18:00",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "task",
+        "title": "提交报告7319并附UTF-8源码",
+        "summary": "提交报告编号7319时需另附源代码，源代码须为UTF-8编码。",
+        "facts": [
+          "提交报告编号7319时，另附源代码。",
+          "源代码须为UTF-8编码。",
+          "图片中写有“尾部补充核对：7319。”"
+        ],
+        "nextSteps": [
+          "建议在提交前确认报告编号为7319，并检查源码文件以UTF-8保存"
+        ],
+        "uncertainties": [
+          "未给出提交截止时间",
+          "未说明提交平台或提交方式",
+          "未说明“尾部补充核对：7319”具体指报告末尾还是源码末尾",
+          "未说明所属课程或项目",
+          "图像依据待核对（不作为原文要求）：建议核对是否已按“尾部补充核对：7319”做好标记（页尾核对标记非提交标记要求）"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "提交报告编号7319时，另附源代码。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "源代码须为UTF-8编码。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i2",
+            "quote": "尾部补充核对：7319。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i2"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "属于具体提交要求，但缺少截止时间、课程和后果信息，按普通重要度处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成动画通知.apng",
+      "contentHash": "bb808377029e7fff5501dcb6661b056bdcaa7d2b973899e54bacb3222221fd9f",
+      "readerVersion": "apng-composited-tiles/1",
+      "normalizationVersion": "apng-composited-white-png-tiles/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成动画通知.apng",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frameRole": "animation",
+          "frameDelayNum": 1,
+          "frameDelayDen": 1,
+          "frame": 1,
+          "totalFrames": 2,
+          "frameStartMs": 0,
+          "frameDurationMs": 1000,
+          "start": 0,
+          "end": 1,
+          "imageHash": "b9b75b57d5b3f840afec717b51842bb2cbbee3ee1f19a04d8590ef261722ba0c"
+        },
+        {
+          "sourceId": "image_6105d6cc76af_i2",
+          "name": "合成动画通知.apng",
+          "kind": "image",
+          "tile": 2,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frameRole": "animation",
+          "frameDelayNum": 1,
+          "frameDelayDen": 1,
+          "frame": 2,
+          "totalFrames": 2,
+          "frameStartMs": 1000,
+          "frameDurationMs": 1000,
+          "start": 1,
+          "end": 2,
+          "imageHash": "892457f8885ca90f06cbdef0dd04c6b28b4c086fcfe8e292beea1db976a79bff"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "imagePagination": {
+        "startTile": 2,
+        "nextTile": null,
+        "totalTiles": 2,
+        "width": 900,
+        "height": 600,
+        "frameRole": "animation",
+        "frameDelayNum": 1,
+        "frameDelayDen": 1,
+        "frame": 2,
+        "totalFrames": 2,
+        "frameStartMs": 1000,
+        "frameDurationMs": 1000
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

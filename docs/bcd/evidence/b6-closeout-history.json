@@ -1,0 +1,133 @@
+{
+  "id": "history",
+  "state": "done",
+  "reason": "",
+  "inputHashes": [
+    "6a775a77e42abd5b1d7c01b44cde4c0e3c9436c9b7c4e0b3b041730ae3aec03a"
+  ],
+  "result": {
+    "summary": "这次收下的是算法课实验A7319的提交要求，核心信息是提交PDF报告和UTF-8源代码，截止2026年11月03日16:45。",
+    "warnings": [],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交实验A7319的PDF报告与源代码",
+        "summary": "算法课实验A7319需提交PDF报告，并另附UTF-8编码的源代码，截止2026-11-03 16:45。",
+        "facts": [
+          "算法课实验A7319",
+          "提交PDF报告",
+          "另附UTF-8源代码",
+          "截止2026-11-03 16:45"
+        ],
+        "nextSteps": [
+          "先按要求确认报告内容完整，再检查源代码文件编码为UTF-8"
+        ],
+        "uncertainties": [
+          "PDF报告的具体内容与页数要求原文未说明",
+          "源代码的文件命名与打包方式原文未说明"
+        ],
+        "evidence": [
+          {
+            "sourceId": "file0_56f3fd843f7a_0_m0",
+            "quote": "算法课实验A7319，提交PDF报告并另附UTF-8源代码。截止2026-11-03 16:45。"
+          }
+        ],
+        "sourceIds": [
+          "file0_56f3fd843f7a_0_m0"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "截止2026-11-03 16:45",
+          "sourceId": "file0_56f3fd843f7a_0_m0",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "association": {
+    "links": [
+      {
+        "id": "task_history_4a8225cdd7d94fd03355",
+        "from": "packet#task_item_0",
+        "target": "old0#old-item",
+        "relation": "same",
+        "title": "提交算法实验A7319报告与源代码",
+        "confidence": 0.97,
+        "contextRefs": [
+          "packet#task_item_0",
+          "old0#old-item"
+        ]
+      }
+    ]
+  },
+  "historyAssociation": {
+    "version": "saved-history-association/1",
+    "complete": true,
+    "candidates": 3
+  },
+  "coverage": [
+    {
+      "attachmentId": "file0",
+      "name": "算法课通知.txt",
+      "contentHash": "6a775a77e42abd5b1d7c01b44cde4c0e3c9436c9b7c4e0b3b041730ae3aec03a",
+      "readerVersion": "text-csv/2;docx/1;xlsx/1;pdf-text/5;pdf-visual/3;pdf-resources/1;pdf-annotations/1;archive/13;visual-review/1;office-assets/1;window-state/1;apng/1",
+      "normalizationVersion": "unicode-lf/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "file0_56f3fd843f7a_0_m0",
+          "name": "算法课通知.txt",
+          "start": 0,
+          "end": 49,
+          "kind": "text",
+          "part": 0
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "readRetries": 0
+    }
+  ],
+  "calls": [
+    {
+      "id": "27c0b5a0-2fba-4962-94e8-e245ef8a6bca",
+      "state": "settled",
+      "reserved": 23703,
+      "actual": 1368,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "294cb47e81d1d82762a822eb78b6fe69cd2ce628c500833fbd7b18ead7ce0b32",
+        "responseIdHash": "1f31410f1346faf10f2ebf2c015982b08bb1e4963d0c9e2b32ed6a040666bea7",
+        "model": "deepseek-flash",
+        "created": 1793728215,
+        "httpStatus": 200,
+        "responseHash": "0c1f1da7e53e6df43ac9c4617dd8a28964175df0d1fe3256d84e17e8568b442b",
+        "usageHash": "b6a3e54c30fb972248006b9cb760c0ef7db2a20bde4cdc41f75f345fa06725af",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "a9af74d9-d66d-48f2-8871-3d2566f76ddf",
+      "state": "settled",
+      "reserved": 22755,
+      "actual": 1475,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "3ec366ec5ca69f1ad9233585620ddd7b9fe42909bb3d9d1b5fbeb83b8758e562",
+        "responseIdHash": "0c284050e0033a99e225516570473cea2bba22037d3551db982af78d5abd0161",
+        "model": "deepseek-flash",
+        "created": 1793728217,
+        "httpStatus": 200,
+        "responseHash": "c4e43851b0a69e55b1902cd53784bfe471cf32a6c4d864c1b7faee55b2a29ad1",
+        "usageHash": "ece93c529613e8066d67fb7e6caaf3a50817467852a6b5c9d0b116e07320b10c",
+        "finalBillingEvidence": false
+      }
+    }
+  ]
+}

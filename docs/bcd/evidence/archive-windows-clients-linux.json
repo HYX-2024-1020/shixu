@@ -1,0 +1,1470 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "cursorPathInjectionDenied": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 8,
+      "bytes": 9533,
+      "parserRuns": 16,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 160,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 6,
+        "newCalls": 1,
+        "rootCalls": 8,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "format": "zip",
+      "originalHash": "8a6b5f72549cf34a1ebbdccc7c885b85fe7c73cfc62f5d9ec96edd9bc40569fd",
+      "expectedTextHash": "649a4359ee402f20d694c90630d12ca31af1b1aea773388890baa68d6f4dd6cd",
+      "wholeTextOrderTailAndCoverageChecked": true,
+      "archivePdfProgressChecked": true,
+      "windows": [
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        }
+      ],
+      "elapsedMs": 7540.965337
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 8,
+      "bytes": 9196,
+      "parserRuns": 16,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 160,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 6,
+        "newCalls": 1,
+        "rootCalls": 8,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "format": "rar",
+      "originalHash": "27ec2250e9659efc1b8e9ac4698e8f784f1624aa67ffd8498288c1bc7374f0ff",
+      "expectedTextHash": "649a4359ee402f20d694c90630d12ca31af1b1aea773388890baa68d6f4dd6cd",
+      "wholeTextOrderTailAndCoverageChecked": true,
+      "archivePdfProgressChecked": true,
+      "windows": [
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        }
+      ],
+      "elapsedMs": 8542.256862
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 8,
+      "bytes": 9207,
+      "parserRuns": 16,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 160,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 6,
+        "newCalls": 1,
+        "rootCalls": 8,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "format": "7z",
+      "originalHash": "21ff323ca3880449eb1cf99971ca03ec797aa8b8a37b8e6e0a84b6ae9d93e491",
+      "expectedTextHash": "649a4359ee402f20d694c90630d12ca31af1b1aea773388890baa68d6f4dd6cd",
+      "wholeTextOrderTailAndCoverageChecked": true,
+      "archivePdfProgressChecked": true,
+      "windows": [
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 0,
+            "page": 1,
+            "offset": 0,
+            "base": 0,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 0,
+              "page": 1,
+              "offset": 0,
+              "base": 0,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "01前件.txt"
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 1,
+            "offset": 6,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 1,
+              "offset": 6,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": 9,
+              "totalPages": 19,
+              "startOffset": 0,
+              "nextOffset": 72
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 9,
+            "offset": 78,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 9,
+              "offset": 78,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 9,
+              "nextPage": 17,
+              "totalPages": 19,
+              "startOffset": 72,
+              "nextOffset": 142
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 1,
+            "page": 17,
+            "offset": 148,
+            "base": 6,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 1,
+              "page": 17,
+              "offset": 148,
+              "base": 6,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "02分页.pdf",
+            "pdf": {
+              "startPage": 17,
+              "nextPage": null,
+              "totalPages": 19,
+              "startOffset": 142,
+              "nextOffset": 172
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 2,
+            "page": 1,
+            "offset": 178,
+            "base": 178,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 2,
+              "page": 1,
+              "offset": 178,
+              "base": 178,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "03另一份.pdf",
+            "pdf": {
+              "startPage": 1,
+              "nextPage": null,
+              "totalPages": 2,
+              "startOffset": 0,
+              "nextOffset": 14
+            }
+          }
+        },
+        {
+          "request": {
+            "entry": 3,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 3,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "entries": 5,
+            "archivePath": "04未读.png"
+          }
+        },
+        {
+          "request": {
+            "entry": 4,
+            "page": 1,
+            "offset": 192,
+            "base": 192,
+            "expanded": 0
+          },
+          "response": {
+            "start": {
+              "entry": 4,
+              "page": 1,
+              "offset": 192,
+              "base": 192,
+              "expanded": 0
+            },
+            "next": null,
+            "entries": 5,
+            "archivePath": "05尾部.txt"
+          }
+        }
+      ],
+      "elapsedMs": 8180.956767
+    }
+  ]
+}

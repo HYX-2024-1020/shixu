@@ -1,0 +1,48 @@
+{
+  "kind": "synthetic-real-scanned-pdf-development",
+  "testedAt": "2026-10-31T12:35:01.666Z",
+  "realProviderCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793450098597,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "dc4700cde0885acde3a719e461b9a78f0d562fcd17a19d4f3911cec485a0fa4f",
+  "checks": {
+    "published": false,
+    "taskNumber": false,
+    "format": false,
+    "filename": false,
+    "deadline": false,
+    "algorithm": false,
+    "complexity": false,
+    "allPages": false,
+    "imageWarning": false
+  },
+  "state": "paused",
+  "reason": "READING_TASK_FAILED",
+  "elapsedMs": 2998.7322,
+  "spentMicros": 2588,
+  "calls": [
+    {
+      "id": "99372ab6-ae6b-4e05-a9d2-d377b929a2e7",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26063,
+      "actual": 2588,
+      "usage": "{\"prompt_tokens\":1566,\"completion_tokens\":475,\"prompt_cache_hit_tokens\":896}"
+    }
+  ],
+  "result": null,
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

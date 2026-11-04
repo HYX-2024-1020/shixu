@@ -1,0 +1,305 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "node": "v24.20.0",
+  "repetitions": 5,
+  "samples": [
+    {
+      "name": "合成.zip",
+      "originalBytes": 7172,
+      "originalHash": "82971f05bab6ce1b60a9eaf3a15f3e718910d899110eff7e79e9ac334f9e7433",
+      "textHash": "dc57ba04f45bc7c9bfc5395a3b0b473a52ec5887ea89712c4e94142f7619b2ac",
+      "state": "partial",
+      "covered": 8,
+      "uncovered": [
+        {
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "code": "PDF_VISUAL_UNREAD",
+          "archivePath": "页面/正文.pdf"
+        },
+        {
+          "kind": "pdf",
+          "page": 2,
+          "rotation": 0,
+          "code": "PDF_NO_TEXT",
+          "archivePath": "页面/正文.pdf"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "未读/扫描.png",
+          "code": "FORMAT_UNSUPPORTED"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "未读/嵌套.zip",
+          "code": "ARCHIVE_NESTED_UNSUPPORTED"
+        },
+        {
+          "kind": "csv",
+          "start": 50,
+          "end": 55,
+          "row": 2,
+          "code": "CSV_MALFORMED",
+          "archivePath": "损坏/数据.csv"
+        }
+      ],
+      "p50Ms": 493.43115,
+      "p95Ms": 519.571153,
+      "runs": [
+        {
+          "elapsedMs": 519.571153,
+          "parseMs": 310.583896,
+          "serializationAndTransferMs": 2.921348999999964,
+          "maxRssKiB": 76280
+        },
+        {
+          "elapsedMs": 493.43115,
+          "parseMs": 330.776813,
+          "serializationAndTransferMs": 2.704578999999967,
+          "maxRssKiB": 76484
+        },
+        {
+          "elapsedMs": 424.073263,
+          "parseMs": 306.845831,
+          "serializationAndTransferMs": 2.564050000000009,
+          "maxRssKiB": 76468
+        },
+        {
+          "elapsedMs": 485.014375,
+          "parseMs": 325.13882,
+          "serializationAndTransferMs": 3.1094799999999623,
+          "maxRssKiB": 78168
+        },
+        {
+          "elapsedMs": 499.499822,
+          "parseMs": 316.66451199999995,
+          "serializationAndTransferMs": 2.587113000000045,
+          "maxRssKiB": 79028
+        }
+      ]
+    },
+    {
+      "name": "合成.zip",
+      "originalBytes": 579143,
+      "originalHash": "059f6617868312b7f042f3bbc378121900e053e3013a7fac3f2e61c12413e849",
+      "textHash": "fa7a6569242894687d8e514e782e83c392f5ffe5189146350fc4294a7e38bc59",
+      "state": "partial",
+      "covered": 9,
+      "uncovered": [
+        {
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "code": "PDF_VISUAL_UNREAD",
+          "archivePath": "页面/正文.pdf"
+        },
+        {
+          "kind": "pdf",
+          "page": 2,
+          "rotation": 0,
+          "code": "PDF_NO_TEXT",
+          "archivePath": "页面/正文.pdf"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "未读/扫描.png",
+          "code": "FORMAT_UNSUPPORTED"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "未读/嵌套.zip",
+          "code": "ARCHIVE_NESTED_UNSUPPORTED"
+        },
+        {
+          "kind": "csv",
+          "start": 198039,
+          "end": 198044,
+          "row": 2,
+          "code": "CSV_MALFORMED",
+          "archivePath": "损坏/数据.csv"
+        }
+      ],
+      "p50Ms": 579.438627,
+      "p95Ms": 660.336182,
+      "runs": [
+        {
+          "elapsedMs": 660.336182,
+          "parseMs": 503.55221,
+          "serializationAndTransferMs": 7.637910999999917,
+          "maxRssKiB": 78836
+        },
+        {
+          "elapsedMs": 559.1616950000002,
+          "parseMs": 411.97868900000003,
+          "serializationAndTransferMs": 5.926082000000008,
+          "maxRssKiB": 78184
+        },
+        {
+          "elapsedMs": 579.438627,
+          "parseMs": 408.151097,
+          "serializationAndTransferMs": 5.432112000000018,
+          "maxRssKiB": 81232
+        },
+        {
+          "elapsedMs": 602.8734279999999,
+          "parseMs": 417.400483,
+          "serializationAndTransferMs": 64.29059600000005,
+          "maxRssKiB": 78424
+        },
+        {
+          "elapsedMs": 550.4309620000004,
+          "parseMs": 397.171392,
+          "serializationAndTransferMs": 6.385614999999973,
+          "maxRssKiB": 78584
+        }
+      ]
+    },
+    {
+      "name": "损坏.zip",
+      "originalBytes": 240,
+      "originalHash": "106a62b1fcce7f157f28dbd8b233f887a7665edcbc0ec3aba9deb5d18b1d0d19",
+      "textHash": "3ebbd0d9e63c4687feb796cc522b5b1539c9dd78d596b8720239194d2f5b02d7",
+      "state": "partial",
+      "covered": 1,
+      "uncovered": [
+        {
+          "kind": "archive",
+          "archivePath": "损坏.txt",
+          "code": "ARCHIVE_ENTRY_FAILED"
+        }
+      ],
+      "p50Ms": 147.52915800000028,
+      "p95Ms": 186.5434779999996,
+      "runs": [
+        {
+          "elapsedMs": 147.52915800000028,
+          "parseMs": 6.981065999999998,
+          "serializationAndTransferMs": 3.049576000000002,
+          "maxRssKiB": 51196
+        },
+        {
+          "elapsedMs": 186.5434779999996,
+          "parseMs": 10.520675999999995,
+          "serializationAndTransferMs": 2.4960610000000116,
+          "maxRssKiB": 51132
+        },
+        {
+          "elapsedMs": 164.88627199999974,
+          "parseMs": 6.725925999999994,
+          "serializationAndTransferMs": 53.664041000000005,
+          "maxRssKiB": 51140
+        },
+        {
+          "elapsedMs": 135.2946890000003,
+          "parseMs": 9.675897999999997,
+          "serializationAndTransferMs": 2.3663799999999995,
+          "maxRssKiB": 51124
+        },
+        {
+          "elapsedMs": 146.932057,
+          "parseMs": 6.514100999999997,
+          "serializationAndTransferMs": 2.447389000000001,
+          "maxRssKiB": 51200
+        }
+      ]
+    },
+    {
+      "name": "危险.zip",
+      "originalBytes": 234,
+      "originalHash": "114d4c67e38b4dc5af2c76a86f10a7b6ab48ccfa3be172ccebbb9515d0b2e9cc",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed",
+      "covered": 0,
+      "uncovered": [
+        {
+          "kind": "archive",
+          "code": "PACKAGE_PATH"
+        }
+      ],
+      "p50Ms": 164.89909700000044,
+      "p95Ms": 175.0359580000004,
+      "runs": [
+        {
+          "elapsedMs": 118.51058600000033,
+          "parseMs": 5.449611000000004,
+          "serializationAndTransferMs": 2.474833999999994,
+          "maxRssKiB": 51012
+        },
+        {
+          "elapsedMs": 164.89909700000044,
+          "parseMs": 6.0466320000000024,
+          "serializationAndTransferMs": 2.482779000000008,
+          "maxRssKiB": 51144
+        },
+        {
+          "elapsedMs": 117.73256200000014,
+          "parseMs": 5.428277000000001,
+          "serializationAndTransferMs": 2.371299999999998,
+          "maxRssKiB": 51012
+        },
+        {
+          "elapsedMs": 171.40730399999939,
+          "parseMs": 6.651432999999997,
+          "serializationAndTransferMs": 2.7003540000000044,
+          "maxRssKiB": 51140
+        },
+        {
+          "elapsedMs": 175.0359580000004,
+          "parseMs": 6.595721999999995,
+          "serializationAndTransferMs": 3.4303720000000055,
+          "maxRssKiB": 51140
+        }
+      ]
+    },
+    {
+      "name": "炸弹.zip",
+      "originalBytes": 322,
+      "originalHash": "79be49a5c61efe0887cb89b46239031bbeb426a12e9ee31db5eff2f0d79f9c2f",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed",
+      "covered": 0,
+      "uncovered": [
+        {
+          "kind": "archive",
+          "code": "PACKAGE_LIMIT"
+        }
+      ],
+      "p50Ms": 176.78618499999993,
+      "p95Ms": 184.24389299999984,
+      "runs": [
+        {
+          "elapsedMs": 178.55150700000013,
+          "parseMs": 5.922347000000002,
+          "serializationAndTransferMs": 2.564042999999998,
+          "maxRssKiB": 51128
+        },
+        {
+          "elapsedMs": 135.2762789999997,
+          "parseMs": 6.153934,
+          "serializationAndTransferMs": 2.5957269999999966,
+          "maxRssKiB": 51032
+        },
+        {
+          "elapsedMs": 159.21765799999957,
+          "parseMs": 6.131287,
+          "serializationAndTransferMs": 2.508459000000002,
+          "maxRssKiB": 51128
+        },
+        {
+          "elapsedMs": 176.78618499999993,
+          "parseMs": 6.877178000000001,
+          "serializationAndTransferMs": 2.9248620000000045,
+          "maxRssKiB": 51012
+        },
+        {
+          "elapsedMs": 184.24389299999984,
+          "parseMs": 54.714783,
+          "serializationAndTransferMs": 3.3697330000000107,
+          "maxRssKiB": 51144
+        }
+      ]
+    }
+  ]
+}

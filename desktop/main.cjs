@@ -79,6 +79,18 @@ else {
       const cloud = new AccountWorkspace({
         root: path.join(app.getPath("userData"), "cloud"),
         local: store,
+        confirmTemporaryLoss: async () =>
+          (
+            await dialog.showMessageBox(mainWindow, {
+              type: "warning",
+              title: "原件未保存",
+              message:
+                "本机原件保存失败，云端空间也不足。本次只能临时整理；停止、失败或关闭后原件将清理，继续需要重新选择。",
+              buttons: ["返回另存原件", "仍临时整理"],
+              defaultId: 0,
+              cancelId: 0,
+            })
+          ).response === 1,
         ...(!app.isPackaged &&
         process.env.SHIXU_TEST_SERVICE_ORIGIN &&
         process.env.SHIXU_DATA_DIR

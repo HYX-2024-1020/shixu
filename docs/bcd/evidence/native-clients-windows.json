@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-29",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "windowsElectronSource": [
+    {
+      "format": "rar",
+      "simulatedCalls": 3
+    },
+    {
+      "format": "7z",
+      "simulatedCalls": 3
+    }
+  ],
+  "verified": [
+    "original bytes upload",
+    "stop/continue",
+    "temporary cleanup and reupload",
+    "cumulative wallet",
+    "source location",
+    "PDF page and image omissions",
+    "publication and renderer reload",
+    "offline lock"
+  ],
+  "nodePageAndSignedHttp": {
+    "tests": 2,
+    "formats": [
+      "rar",
+      "7z"
+    ],
+    "expiredTemporary": true,
+    "crossRevisionReuse": true
+  },
+  "officialWxmlWxssCompile": true,
+  "notVerified": [
+    "native WeChat",
+    "phone",
+    "installed client",
+    "production"
+  ]
+}

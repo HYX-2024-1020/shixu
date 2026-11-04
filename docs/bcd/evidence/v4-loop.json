@@ -1,0 +1,34 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "simulatedProviderCalls": 4,
+  "bytes": 700018,
+  "parserRuns": 2,
+  "tailSeen": true,
+  "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+  "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+  "stopFromOtherDevice": true,
+  "continueFromOtherDevice": true,
+  "lateResponseDiscarded": true,
+  "resultsEqual": true,
+  "v3AIBlocked": true,
+  "spentMicros": 80,
+  "linuxBrokerUnprivilegedClient": true,
+  "unauthorizedUidDenied": true,
+  "clientProbeInjectionDenied": true,
+  "elapsedMs": 1923.8665270000001,
+  "measurement": "one controlled loop, not P95 or a capacity SLO",
+  "windowsSourceUIViaSSHTunnel": {
+    "realProviderCalls": 0,
+    "originalUpload": true,
+    "stopContinueButtons": true,
+    "cumulativeWallet": true,
+    "published": true,
+    "simulatedCalls": 3
+  },
+  "wechatNativeDevelop": {
+    "verified": false,
+    "officialCLIResult": "ECONNRESET while fetching AppID permissions",
+    "officialWXMLWXSSCompilation": true
+  }
+}

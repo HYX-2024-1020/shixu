@@ -16,7 +16,7 @@ export function fixtureItem(title = "合成事项", summary = title) {
     due: null,
   };
 }
-export async function accountUIFixture(ai = {}) {
+export async function accountUIFixture(ai = {}, options = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "shixu-account-ui-"));
   const service = createMultiUserService({
     directory: path.join(root, "server"),
@@ -39,6 +39,7 @@ export async function accountUIFixture(ai = {}) {
       chat: async () => ({ reply: "已按指令修改", patch: { starred: true } }),
       ...ai,
     },
+    ...options,
   });
   await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
   const base = `http://127.0.0.1:${service.server.address().port}`,
@@ -100,6 +101,7 @@ export async function accountUIFixture(ai = {}) {
     },
     async close() {
       await new Promise((done) => service.server.close(done));
+      await service.drained();
       if (!root.startsWith(path.join(tmpdir(), "shixu-account-ui-")))
         throw Error("Unsafe test cleanup");
       await rm(root, { recursive: true, force: true });

@@ -22,6 +22,9 @@ try {
     exact: true,
   });
   await input.waitFor();
+  // Visible markup precedes profile upgrade/IPC hydration on slower runners.
+  // Seed only after the actual application load barrier has opened.
+  await expect(input).toBeEnabled();
   await page.evaluate(async () => {
     const now = new Date().toISOString();
     await window.desktop.store("savePackets", [
@@ -63,6 +66,7 @@ try {
     ]);
   });
   await page.reload();
+  await expect(input).toBeEnabled();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".result-card")).toHaveCount(6);
   await page.evaluate(() => document.fonts.ready);

@@ -1,0 +1,72 @@
+{
+  "generator": "Edge/Chromium 156.0.4314.56 ImageDecoder + canvas white composite",
+  "synthetic": true,
+  "files": {
+    "apng-animation.png": {
+      "sha256": "4c7001ee79e7df3b401ded5b48c5111f296ee2bae52642e5b382048bfb1c0b74",
+      "poster": false,
+      "loops": 2,
+      "posterOracle": null,
+      "frames": [
+        {
+          "frame": 1,
+          "pixelsHash": "fa7d7b1372f8607cbe52cb624f89da4cbabe51d3fe070d7ad663bc3432d08d7a",
+          "delayMs": 30
+        },
+        {
+          "frame": 2,
+          "pixelsHash": "6a6f9a5345e4de5da89d8e62d22a2fd2cb52c839235b5ecf987e10a0401fbbaa",
+          "delayMs": 70
+        },
+        {
+          "frame": 3,
+          "pixelsHash": "5ac4c9a7bbd288ed22650333c468b89e5d9cf586ffa5adfacded99b5a4e83e41",
+          "delayMs": 130
+        },
+        {
+          "frame": 4,
+          "pixelsHash": "3347d0b00172073d8963bea47788a7820a71a35a26f4a9f65130e0d4fb317560",
+          "delayMs": 170
+        },
+        {
+          "frame": 5,
+          "pixelsHash": "6b0c3e4eeccc85d43733726dfc61cdac990d6518c99dba2f182c23fd68696d48",
+          "delayMs": 190
+        }
+      ]
+    },
+    "apng-poster.png": {
+      "sha256": "8dfa0c9940869ed2c963426c6bfad76924a44abab9e6d8055249937161523653",
+      "poster": true,
+      "loops": 2,
+      "posterOracle": "Pillow opaque static image, no animation compositing",
+      "frames": [
+        {
+          "frame": 1,
+          "pixelsHash": "fa7d7b1372f8607cbe52cb624f89da4cbabe51d3fe070d7ad663bc3432d08d7a",
+          "delayMs": 0
+        },
+        {
+          "frame": 2,
+          "pixelsHash": "932eb56c44f3627b7395c9cb4fcddd7a0ea75820c9f384c5cd38f4c217e44b6b",
+          "delayMs": 30
+        },
+        {
+          "frame": 3,
+          "pixelsHash": "5ac4c9a7bbd288ed22650333c468b89e5d9cf586ffa5adfacded99b5a4e83e41",
+          "delayMs": 70
+        },
+        {
+          "frame": 4,
+          "pixelsHash": "3347d0b00172073d8963bea47788a7820a71a35a26f4a9f65130e0d4fb317560",
+          "delayMs": 130
+        },
+        {
+          "frame": 5,
+          "pixelsHash": "6b0c3e4eeccc85d43733726dfc61cdac990d6518c99dba2f182c23fd68696d48",
+          "delayMs": 170
+        }
+      ]
+    }
+  }
+}

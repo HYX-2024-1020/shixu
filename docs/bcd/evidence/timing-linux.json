@@ -1,0 +1,135 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "node": "v24.20.0",
+  "longInputBytes": 7800012,
+  "repeats": 5,
+  "maxProcessRssKiB": 319236,
+  "scope": "real isolated parser and socket protocol, root-host client; ordinary UID dual-client loop separately tested",
+  "observations": [
+    {
+      "repeat": 0,
+      "case": "queued-integrity-failure",
+      "waitingMs": 584.7927929999998,
+      "failureMs": 742.762009,
+      "elapsedMs": 1307.75424,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 0,
+      "case": "queued-cancellation",
+      "waitingMs": 74.59925900000007,
+      "failureMs": 131.42674899999997,
+      "elapsedMs": 1240.21777,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 0,
+      "case": "remaining-active-deadline",
+      "budgetMs": 25,
+      "elapsedMs": 61.66619500000024
+    },
+    {
+      "repeat": 1,
+      "case": "queued-integrity-failure",
+      "waitingMs": 534.7034450000001,
+      "failureMs": 693.57321,
+      "elapsedMs": 1411.7645699999998,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 1,
+      "case": "queued-cancellation",
+      "waitingMs": 80.2894210000004,
+      "failureMs": 124.31042400000024,
+      "elapsedMs": 1300.889921,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 1,
+      "case": "remaining-active-deadline",
+      "budgetMs": 25,
+      "elapsedMs": 51.68421799999942
+    },
+    {
+      "repeat": 2,
+      "case": "queued-integrity-failure",
+      "waitingMs": 634.949157,
+      "failureMs": 803.380752,
+      "elapsedMs": 1340.5164700000005,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 2,
+      "case": "queued-cancellation",
+      "waitingMs": 73.46389400000044,
+      "failureMs": 125.20778799999971,
+      "elapsedMs": 1188.6679509999994,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 2,
+      "case": "remaining-active-deadline",
+      "budgetMs": 25,
+      "elapsedMs": 46.600924999998824
+    },
+    {
+      "repeat": 3,
+      "case": "queued-integrity-failure",
+      "waitingMs": 658.029113999999,
+      "failureMs": 784.8950860000004,
+      "elapsedMs": 1297.1447740000003,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 3,
+      "case": "queued-cancellation",
+      "waitingMs": 75.8431959999998,
+      "failureMs": 134.33786299999883,
+      "elapsedMs": 1264.0465079999994,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 3,
+      "case": "remaining-active-deadline",
+      "budgetMs": 25,
+      "elapsedMs": 61.54533900000024
+    },
+    {
+      "repeat": 4,
+      "case": "queued-integrity-failure",
+      "waitingMs": 552.3627250000009,
+      "failureMs": 678.612325,
+      "elapsedMs": 1216.661275999999,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 4,
+      "case": "queued-cancellation",
+      "waitingMs": 76.10280100000091,
+      "failureMs": 112.46105200000056,
+      "elapsedMs": 1126.9331600000005,
+      "fullHashAndCoverageEqual": true
+    },
+    {
+      "repeat": 4,
+      "case": "remaining-active-deadline",
+      "budgetMs": 25,
+      "elapsedMs": 42.36956699999973
+    }
+  ],
+  "transportGuards": [
+    {
+      "fault": "queue-full",
+      "guarded": true
+    },
+    {
+      "fault": "disconnect",
+      "guarded": true
+    },
+    {
+      "fault": "old-protocol",
+      "guarded": true
+    }
+  ]
+}

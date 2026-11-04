@@ -1,0 +1,98 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "ordinaryUidProtectedBroker": true,
+  "cases": [
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 5,
+      "bytes": 770,
+      "parserRuns": 8,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 100,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 3,
+        "newCalls": 1,
+        "rootCalls": 5,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "imageTiles": 3,
+      "imageCoordinatesAndTail": true,
+      "model": "synthetic, no text recognition claim",
+      "elapsedMs": 3671.462224
+    },
+    {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 5,
+      "bytes": 770,
+      "parserRuns": 8,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 100,
+      "originalMode": "deleted",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 3,
+        "newCalls": 1,
+        "rootCalls": 5,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      },
+      "imageTiles": 3,
+      "imageCoordinatesAndTail": true,
+      "model": "synthetic, no text recognition claim",
+      "elapsedMs": 3869.746005
+    }
+  ],
+  "samples": [
+    {
+      "width": 1024,
+      "height": 1024,
+      "tile": 1,
+      "inputBytes": 6493,
+      "elapsedMs": 460.57173799999964,
+      "parseMs": 198.50947299999999,
+      "serializationAndTransferMs": 2.480884000000003,
+      "maxRssKiB": 81196
+    },
+    {
+      "width": 8000,
+      "height": 4000,
+      "tile": 32,
+      "inputBytes": 132563,
+      "elapsedMs": 3791.124568000001,
+      "parseMs": 3503.854049,
+      "serializationAndTransferMs": 2.5569789999999557,
+      "maxRssKiB": 438100
+    }
+  ],
+  "note": "Single fixed measurements, not P95 or production SLO; model simulation and real API evidence are separate"
+}

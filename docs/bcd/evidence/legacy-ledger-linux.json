@@ -1,0 +1,35 @@
+{
+  "kind": "legacy-ledger-targeted-development",
+  "platform": "linux",
+  "directory": "/opt/shixu-bcd-test-20261101-legacy-ledger",
+  "uid": 65534,
+  "newRealProviderCalls": 0,
+  "runs": [
+    {
+      "log": "results.txt",
+      "exitFile": "exit.txt",
+      "tests": 59,
+      "pass": 59,
+      "exitCode": 0,
+      "beforeFinalDisplayReasonRefinement": true
+    },
+    {
+      "log": "final-results.txt",
+      "exitFile": "final-exit.txt",
+      "tests": 13,
+      "pass": 13,
+      "exitCode": 0
+    }
+  ],
+  "sourceSha256": {
+    "server/database-schemas.mjs": "b6654fc507c2456e9997668b1cb6a18dc348b93b566f627b9560838de5da8f96",
+    "server/reading/legacy-ledger.mjs": "10cc2a6b20f6876bb7ceb5a2e25900e739d23ddd251f665d6d1b986bee5a9ecd",
+    "server/reading/legacy-ledger.test.mjs": "5eb15732d2463177ea90e0869cbb06f52655b545c2a22f9952f891a5493b8174",
+    "server/reading/legacy-ledger-clients.test.mjs": "c40ce318def9e6d6cb22a8e9aad454d7e397f4cfc18b0f31b5319df7ce73a57a",
+    "server/reading/ledger.mjs": "2655b5a8287bfd0cf864a3f12c97f67d174468da4d58afcc42a1a8d4a5a230b8",
+    "server/reading/tasks.mjs": "d3cc3a6d43a125624c6bb50da441464dd9150f9af52174c57177310382542b1f",
+    "server/reading/routes.mjs": "7aade9ad8defa6ef7baf2dd93abbbb6f5bf34ed1f105f541c65e79a078dae30b",
+    "scripts/reading-client-loop.mjs": "df1679051d35a26c5db5dd601673cbad92315ded8dd7958ad7a6e99640477c76"
+  },
+  "scope": "Synthetic old registry, independent ledger, actual AccountWorkspace/Page Node signed HTTP; not supplier billing verification/native clients/whole migration acceptance"
+}

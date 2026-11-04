@@ -15,6 +15,9 @@ export default function ItemChat({
   return (
     <section className="item-supplement" aria-label="卡片对话">
       <h3>和 AI 说一声</h3>
+      <p className="quiet">
+        新版服务端对话依据已保存事项与本轮指令，不重新读取原件；发送会产生调用费用。
+      </p>
       {!!meta.additions?.length && (
         <details>
           <summary>之前保存的补充</summary>
@@ -55,7 +58,7 @@ export default function ItemChat({
           aria-label="给 AI 的指令"
           placeholder="比如：这应该是通知，移到通知分区；分到人工智能课程；帮我改短一点…"
           value={text}
-          maxLength={6000}
+          maxLength={4000}
           disabled={busy}
           onChange={(e) => setText(e.target.value)}
         />

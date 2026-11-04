@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-29",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "failedRun": 40840430448,
+  "failedHead": "d03f5ddd382e0300bc0389ead1cdffad154cd658",
+  "failure": "unprivileged runner EACCES writing read-only upstream List.cpp",
+  "fix": "chmod 0600 only explicit patched files in owned private build cache",
+  "uid": "nobody",
+  "cwd": "/opt/shixu-bcd-test-20261029-native/uid-build",
+  "cpuQuota": "50%",
+  "memoryMax": "512M",
+  "jobs": 1,
+  "freshBuild": true,
+  "elapsedMs": 239087.929528,
+  "sourceIntegrityUnchanged": true,
+  "toolSha256Unchanged": true,
+  "nativeReaderTests": 8,
+  "testsPassed": 8,
+  "manifest": {
+    "version": "26.05",
+    "protocol": "shixu-raw-path/1",
+    "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-src.tar.xz",
+    "sha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "sourceSha256": "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e",
+    "platform": "linux-x64",
+    "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "builderSha256": "4dcc0b8383c7897d1e20837a81f005c213cd5c824b746fd45f2fcc4ab4b6b3f1",
+    "toolSha256": "49ea82a527698b7c37de76d1064d5b983b7ae52ee24b4102a58bd811da7cdf2f",
+    "patchSha256": "68c7544277f1c4aec2ed9ad723417d0ab6d511f87e3a5ed856eef2f50e417e4a"
+  }
+}

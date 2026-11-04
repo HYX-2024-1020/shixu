@@ -9,10 +9,10 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
-import { AccountRegistry } from "../../server/sync-accounts.mjs";
-import { SyncStore } from "../../server/sync-store.mjs";
-import { createAttachmentStore } from "../../server/sync-files.mjs";
-import { createJobQueue } from "../../server/sync-jobs.mjs";
+import { AccountRegistry } from "./legacy/sync-accounts.mjs";
+import { SyncStore } from "./legacy/sync-store.mjs";
+import { createAttachmentStore } from "./legacy/sync-files.mjs";
+import { createJobQueue } from "./legacy/sync-jobs.mjs";
 import { DatabaseSync } from "node:sqlite";
 
 const manufactured = new WeakSet();

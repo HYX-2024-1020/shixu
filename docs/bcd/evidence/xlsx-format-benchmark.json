@@ -1,0 +1,52 @@
+{
+  "synthetic": true,
+  "repetitions": 5,
+  "baselineCommit": "46e942651e9065093d9f52fe06bbb47ef2094a44",
+  "realProviderCalls": 0,
+  "samples": [
+    {
+      "name": "table.xlsx",
+      "variant": "xlsx",
+      "bytes": 106746,
+      "state": "read",
+      "segments": 2000,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 1138.579897,
+      "parseP95Ms": 888.624458,
+      "peakWorkerRssKiB": 85348
+    },
+    {
+      "name": "small.xlsx",
+      "variant": "xlsx",
+      "bytes": 3870,
+      "state": "read",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 249.23575999999957,
+      "parseP95Ms": 91.270376,
+      "peakWorkerRssKiB": 61508
+    },
+    {
+      "name": "long.xlsx",
+      "variant": "xlsx",
+      "bytes": 789709,
+      "state": "read",
+      "segments": 2003,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 877.6378369999984,
+      "parseP95Ms": 593.607589,
+      "peakWorkerRssKiB": 87892
+    },
+    {
+      "name": "partial.xlsx",
+      "variant": "xlsx",
+      "bytes": 3219,
+      "state": "partial",
+      "segments": 2,
+      "exactTextAndRanges": true,
+      "isolatedP95Ms": 281.2869440000013,
+      "parseP95Ms": 84.867388,
+      "peakWorkerRssKiB": 60412
+    }
+  ]
+}

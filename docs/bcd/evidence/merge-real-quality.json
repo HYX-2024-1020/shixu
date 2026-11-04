@@ -1,0 +1,154 @@
+{
+  "kind": "synthetic-real-semantic-quality",
+  "testedAt": "2026-10-31T06:27:42.041Z",
+  "realProviderCalls": 1,
+  "simulatedUpstreamCalls": 2,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793428061071,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "state": "done",
+  "reason": "",
+  "qualityError": null,
+  "realSpentMicros": 1110,
+  "realCalls": [
+    {
+      "id": "80244328-2cc1-4fdc-9684-ac0eee0a4566",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 21393,
+      "actual": 1110,
+      "usage": "{\"prompt_tokens\":814,\"completion_tokens\":74,\"prompt_cache_hit_tokens\":0}"
+    }
+  ],
+  "result": {
+    "summary": "模拟上游，不是真实识别\n模拟上游，不是真实识别",
+    "warnings": [],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交算法实验A7319",
+        "summary": "任务编号A7319",
+        "facts": [
+          "任务编号A7319",
+          "格式PDF",
+          "文件名学号_姓名",
+          "要求说明时间复杂度"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "报告编号A731"
+          },
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_1_m0",
+            "quote": "实验报告，格式P"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_0_m0",
+          "synthetic-text_c731bc88e3b1_1_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": "算法课"
+      },
+      {
+        "kind": "task",
+        "title": "提交算法实验B7320",
+        "summary": "任务编号B7320",
+        "facts": [
+          "任务编号B7320",
+          "本事项与A7319是同一课程的另一份作业，须分别提交"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "报告编号A731"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_0_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": "算法课"
+      },
+      {
+        "kind": "task",
+        "title": "完成算法课习题C7321",
+        "summary": "任务编号C7321",
+        "facts": [
+          "任务编号C7321",
+          "独立习题，不能与实验报告合并"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_1_m0",
+            "quote": "实验报告，格式P"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_1_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": "算法课"
+      }
+    ]
+  },
+  "association": {
+    "links": [
+      {
+        "id": "task_relation_0",
+        "from": "packet#task_item_0",
+        "target": "packet#task_item_1",
+        "relation": "related",
+        "reason": "本次投递已读取事项的模型语义关联",
+        "title": "算法课"
+      },
+      {
+        "id": "task_relation_1",
+        "from": "packet#task_item_0",
+        "target": "packet#task_item_2",
+        "relation": "related",
+        "reason": "本次投递已读取事项的模型语义关联",
+        "title": "算法课"
+      },
+      {
+        "id": "task_relation_2",
+        "from": "packet#task_item_1",
+        "target": "packet#task_item_2",
+        "relation": "related",
+        "reason": "本次投递已读取事项的模型语义关联",
+        "title": "算法课"
+      }
+    ]
+  },
+  "semanticMerge": {
+    "version": "paid-semantic-pairs/1",
+    "originalItems": 4,
+    "mergedItems": 1,
+    "complete": true
+  },
+  "boundaries": [
+    "Only semantic call is real; upstream recognition simulated",
+    "No UI window",
+    "No final B/C/D acceptance"
+  ]
+}

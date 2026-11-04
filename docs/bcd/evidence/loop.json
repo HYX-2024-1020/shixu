@@ -1,0 +1,34 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "simulatedProviderCalls": 5,
+  "bytes": 1060033,
+  "uploadMs": 50.94264899999996,
+  "endToEndWithSimulatedModelMs": 606.437319,
+  "parserRuns": 1,
+  "readingMetrics": [
+    {
+      "parseMs": 86.00904899999998,
+      "serializationAndTransferMs": 15.722458000000017,
+      "maxRssKiB": 65668,
+      "waitingMs": 0.1268999999999778,
+      "prepareMs": 12.610545000000002,
+      "isolatedMs": 249.86422600000003
+    }
+  ],
+  "tailSeen": true,
+  "logicalClientProjections": [
+    {
+      "items": 5,
+      "coverage": "完整读取"
+    },
+    {
+      "items": 5,
+      "coverage": "完整读取"
+    }
+  ],
+  "querySamples": 26,
+  "queryP95Ms": 45.90270599999997,
+  "ledgerMicros": 100,
+  "privacy": "full extracted text excluded from task and published packet sources; retained original remains in synthetic blob store"
+}

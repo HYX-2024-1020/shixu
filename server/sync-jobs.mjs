@@ -1,5 +1,8 @@
+import {ensureDatabaseSchema}from './database-schema.mjs';
+import {LEGACY_JOBS_SCHEMA}from './database-schemas.mjs';
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
+import { migrateLegacyJobs } from "./reading/legacy-jobs.mjs";
 
 const validId = (v) =>
   typeof v === "string" &&
@@ -42,12 +45,16 @@ function withFileSources(store, packet) {
     })),
   };
 }
-export function createJobQueue(store, ai, hooks = {}) {
+export function createJobQueue(store, ai, hooks = {}, { archiveLegacy = false } = {}) {
   const db = store.db;
-  db.exec(`CREATE TABLE IF NOT EXISTS sync_jobs(
-    id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES sync_devices(id), record_id TEXT NOT NULL,
-    fingerprint TEXT NOT NULL, request TEXT NOT NULL, state TEXT NOT NULL, output TEXT, error TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
-  )`);
+  ensureDatabaseSchema(db,'tenant-jobs',LEGACY_JOBS_SCHEMA);
+  if (archiveLegacy) migrateLegacyJobs(store);
+  const archived = store.meta("legacy_jobs_v4") === "1";
+  if (archived && ai) throw Error("LEGACY_QUEUE_DISABLED");
+  const cleanupTimer = archived ? setInterval(() => {
+    try { migrateLegacyJobs(store); } catch { /* next query/start fails closed */ }
+  },60000) : null;
+  cleanupTimer?.unref();
   // A provider may already have charged for an interrupted request. Never repeat it automatically.
   db.prepare(
     "UPDATE sync_jobs SET state='interrupted', error='服务重启中断了任务，请核对后手动重试' WHERE state='running'",
@@ -71,6 +78,7 @@ export function createJobQueue(store, ai, hooks = {}) {
           error: row.error,
           updatedAt: row.updated_at,
           output: row.output ? JSON.parse(row.output) : null,
+          ...(archived ? {legacy:true,eligible:false,verified:false} : {}),
         }
       : null;
   const update = (id, state, output = null, error = "") => {
@@ -88,7 +96,7 @@ export function createJobQueue(store, ai, hooks = {}) {
   };
   const get = (id) => db.prepare("SELECT * FROM sync_jobs WHERE id=?").get(id);
   async function drain() {
-    if (running || stopped || !ai) return;
+    if (running || stopped || !ai || archived) return;
     running = true;
     try {
       for (;;) {
@@ -284,6 +292,7 @@ export function createJobQueue(store, ai, hooks = {}) {
       stopped = true;
       controller.abort();
       clearTimeout(timer);
+      clearInterval(cleanupTimer);
     },
     redact(packetId) {
       for (const job of db
@@ -294,9 +303,11 @@ export function createJobQueue(store, ai, hooks = {}) {
     },
     get(id) {
       if (!validId(id)) throw new SyncError(400, "INVALID_JOB", "任务 ID 无效");
+      if (archived) migrateLegacyJobs(store);
       return publicJob(get(id));
     },
     enqueue(deviceId, input) {
+      if (archived) throw new SyncError(426, "CLIENT_UPGRADE_REQUIRED", "旧任务已归档，请升级客户端后主动发起新整理");
       if (!ai)
         throw new SyncError(
           503,

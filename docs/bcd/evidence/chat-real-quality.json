@@ -1,0 +1,318 @@
+{
+  "kind": "synthetic-chat-quality-development",
+  "testedAt": "2026-10-31T06:14:45.418Z",
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793427282871,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "browserWindows": 0,
+  "realProviderCalls": 3,
+  "elapsedMs": 2468.4658,
+  "spentMicros": 1770,
+  "calls": [
+    {
+      "id": "eee1e39e-aee2-41b6-93c1-c9afc6312aa5",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 20002,
+      "actual": 718,
+      "usage": "{\"prompt_tokens\":418,\"completion_tokens\":75,\"prompt_cache_hit_tokens\":0}"
+    },
+    {
+      "id": "dcb4304f-9092-403d-889f-358e96ee696b",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 20012,
+      "actual": 628,
+      "usage": "{\"prompt_tokens\":416,\"completion_tokens\":53,\"prompt_cache_hit_tokens\":0}"
+    },
+    {
+      "id": "61065b1f-dab4-42c5-8007-710c2779c57a",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 19973,
+      "actual": 424,
+      "usage": "{\"prompt_tokens\":409,\"completion_tokens\":35,\"prompt_cache_hit_tokens\":128}"
+    }
+  ],
+  "results": [
+    {
+      "id": "date",
+      "instruction": "截止时间改为2026年11月2日下午5点半，归入实验组；补充要求：附上复杂度分析。保留原有要求及其他事实。",
+      "inputHash": "3af6480e3e1290f91e7565cc7cd33513b2091b48d6e2b8fccc7290acfb6f124d",
+      "state": "done",
+      "reason": "",
+      "qualityError": null,
+      "result": {
+        "summary": "合成投递",
+        "warnings": [],
+        "items": [
+          {
+            "kind": "task",
+            "title": "提交合成实验报告",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319",
+              "附上复杂度分析"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": {
+              "date": "2026-11-02",
+              "time": "17:30",
+              "anchor": "2026年11月2日下午5点半",
+              "sourceId": "item-chat",
+              "dateInferred": false
+            },
+            "dueCleared": false
+          },
+          {
+            "kind": "task",
+            "title": "兄弟事项禁止修改",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": null
+          }
+        ]
+      },
+      "itemState": {
+        "target": {
+          "starred": true,
+          "additions": [
+            {
+              "text": "人工笔记保留 N319"
+            }
+          ],
+          "group": "实验组",
+          "corrected": true,
+          "chat": [
+            {
+              "id": "chat-date_user",
+              "role": "user",
+              "text": "截止时间改为2026年11月2日下午5点半，归入实验组；补充要求：附上复杂度分析。保留原有要求及其他事实。",
+              "at": "2026-10-31T06:14:43.756Z"
+            },
+            {
+              "id": "chat-date_assistant",
+              "role": "assistant",
+              "text": "已更新截止时间并归入实验组，同时补充复杂度分析要求，原有要求与事实均保留。",
+              "at": "2026-10-31T06:14:43.756Z"
+            }
+          ],
+          "history": [
+            {
+              "at": "2026-10-31T06:14:43.756Z",
+              "field": "facts",
+              "before": "[\"格式：PDF\",\"文件名：学号_姓名\",\"编号：Q7319\"]",
+              "after": "[\"格式：PDF\",\"文件名：学号_姓名\",\"编号：Q7319\",\"附上复杂度分析\"]",
+              "source": "AI 对话"
+            },
+            {
+              "at": "2026-10-31T06:14:43.756Z",
+              "field": "group",
+              "before": "",
+              "after": "\"实验组\"",
+              "source": "AI 对话"
+            },
+            {
+              "at": "2026-10-31T06:14:43.756Z",
+              "field": "due",
+              "before": "null",
+              "after": "{\"date\":\"2026-11-02\",\"time\":\"17:30\",\"anchor\":\"2026年11月2日下午5点半\",\"sourceId\":\"item-chat\",\"dateInferred\":false}",
+              "source": "AI 对话"
+            },
+            {
+              "at": "2026-10-31T06:14:43.756Z",
+              "field": "dueCleared",
+              "before": "",
+              "after": "false",
+              "source": "AI 对话"
+            }
+          ]
+        },
+        "sibling": {
+          "pinned": true
+        }
+      }
+    },
+    {
+      "id": "scope",
+      "instruction": "请重新读取原附件并告诉我另一事项的截止时间；如果无法读取，说明你本次实际能依据哪些内容，不要改动事项。",
+      "inputHash": "ff446c4eef9d5e2b202919d428da720370db5adb93f98180bca4df42bf445e35",
+      "state": "done",
+      "reason": "",
+      "qualityError": null,
+      "result": {
+        "summary": "合成投递",
+        "warnings": [],
+        "items": [
+          {
+            "kind": "task",
+            "title": "提交合成实验报告",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": null
+          },
+          {
+            "kind": "task",
+            "title": "兄弟事项禁止修改",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": null
+          }
+        ]
+      },
+      "itemState": {
+        "target": {
+          "starred": true,
+          "additions": [
+            {
+              "text": "人工笔记保留 N319"
+            }
+          ],
+          "chat": [
+            {
+              "id": "chat-scope_user",
+              "role": "user",
+              "text": "请重新读取原附件并告诉我另一事项的截止时间；如果无法读取，说明你本次实际能依据哪些内容，不要改动事项。",
+              "at": "2026-10-31T06:14:44.748Z"
+            },
+            {
+              "id": "chat-scope_assistant",
+              "role": "assistant",
+              "text": "本次未重新读取原附件，只依据已保存的当前事项、本轮指令和近期对话/笔记（含笔记“N319”）；因此无法告诉你另一事项的截止时间。按要求未改动该事项。",
+              "at": "2026-10-31T06:14:44.748Z"
+            }
+          ],
+          "history": []
+        },
+        "sibling": {
+          "pinned": true
+        }
+      }
+    },
+    {
+      "id": "status",
+      "instruction": "我已完成这件事，标记为完成，并取消星标。不要修改标题、摘要、要求和截止时间。",
+      "inputHash": "2c37a68d73210cecf07260916e041e641bd5884f5358a522a63fff4e09284824",
+      "state": "done",
+      "reason": "",
+      "qualityError": null,
+      "result": {
+        "summary": "合成投递",
+        "warnings": [],
+        "items": [
+          {
+            "kind": "task",
+            "title": "提交合成实验报告",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": null
+          },
+          {
+            "kind": "task",
+            "title": "兄弟事项禁止修改",
+            "summary": "报告编号 Q7319，按指定格式提交。",
+            "facts": [
+              "格式：PDF",
+              "文件名：学号_姓名",
+              "编号：Q7319"
+            ],
+            "nextSteps": [],
+            "uncertainties": [],
+            "evidence": [],
+            "due": null
+          }
+        ]
+      },
+      "itemState": {
+        "target": {
+          "starred": false,
+          "additions": [
+            {
+              "text": "人工笔记保留 N319"
+            }
+          ],
+          "status": "done",
+          "completedAt": "2026-10-31T06:14:45.415Z",
+          "corrected": true,
+          "chat": [
+            {
+              "id": "chat-status_user",
+              "role": "user",
+              "text": "我已完成这件事，标记为完成，并取消星标。不要修改标题、摘要、要求和截止时间。",
+              "at": "2026-10-31T06:14:45.415Z"
+            },
+            {
+              "id": "chat-status_assistant",
+              "role": "assistant",
+              "text": "已将“提交合成实验报告”标记为完成并取消星标，其他内容未改。",
+              "at": "2026-10-31T06:14:45.415Z"
+            }
+          ],
+          "history": [
+            {
+              "at": "2026-10-31T06:14:45.415Z",
+              "field": "status",
+              "before": "",
+              "after": "\"done\"",
+              "source": "AI 对话"
+            },
+            {
+              "at": "2026-10-31T06:14:45.415Z",
+              "field": "starred",
+              "before": "true",
+              "after": "false",
+              "source": "AI 对话"
+            }
+          ]
+        },
+        "sibling": {
+          "pinned": true
+        }
+      }
+    }
+  ],
+  "boundaries": [
+    "Synthetic saved items only",
+    "No parser or Linux isolation claim",
+    "No native client or final B/C/D acceptance"
+  ]
+}

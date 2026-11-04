@@ -1,0 +1,379 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "samples": [
+    {
+      "name": "合成.rar",
+      "originalBytes": 578058,
+      "originalHash": "b528423096d708f5d9cdccdd0ae45eb411c2dce7d3c8c9734a51508a4fcd50f7",
+      "textHash": "48560e71f7d4736e52f07d8b3e3c5e34a2f867879224bff046c4879f78865baf",
+      "state": "partial",
+      "segments": 8,
+      "covered": [
+        {
+          "sourceId": "entry_a2a9e62bbe30327c27fc7af9444b5102bdfb330aff3826e2_62032fbf2310_0",
+          "name": "合成.rar",
+          "start": 0,
+          "end": 120000,
+          "kind": "text",
+          "part": 0,
+          "archivePath": "01说明.txt"
+        },
+        {
+          "sourceId": "entry_a2a9e62bbe30327c27fc7af9444b5102bdfb330aff3826e2_62032fbf2310_1",
+          "name": "合成.rar",
+          "start": 120000,
+          "end": 198000,
+          "kind": "text",
+          "part": 1,
+          "archivePath": "01说明.txt"
+        },
+        {
+          "sourceId": "entry_4f99fefb30e951801d4fdc0a09ba95b6ace19f897d9b111a_b10aa55bd424_0",
+          "name": "合成.rar",
+          "start": 198000,
+          "end": 198005,
+          "kind": "csv",
+          "row": 1,
+          "columns": 2,
+          "firstLine": 1,
+          "lastLine": 1,
+          "part": 0,
+          "archivePath": "02数据.csv"
+        },
+        {
+          "sourceId": "entry_4f99fefb30e951801d4fdc0a09ba95b6ace19f897d9b111a_b10aa55bd424_1",
+          "name": "合成.rar",
+          "start": 198005,
+          "end": 198013,
+          "kind": "csv",
+          "row": 2,
+          "columns": 2,
+          "firstLine": 2,
+          "lastLine": 3,
+          "part": 0,
+          "archivePath": "02数据.csv"
+        },
+        {
+          "sourceId": "entry_bad70e063e6c09e94b4235591e7ef4aa98da653ba4d51914_ac12dd13a16d_0",
+          "name": "合成.rar",
+          "start": 198013,
+          "end": 198019,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 1,
+          "fragment": 0,
+          "archivePath": "03文档.docx"
+        },
+        {
+          "sourceId": "entry_426a8473f7a51eedd0f1b51baf48ed08a66a3e10c72cef2d_2da0380e80e5_0",
+          "name": "合成.rar",
+          "start": 198019,
+          "end": 198026,
+          "kind": "xlsx",
+          "sheet": "表一",
+          "sheetId": 1,
+          "part": "xl/worksheets/sheet1.xml",
+          "row": 1,
+          "rowEnd": 1,
+          "column": 1,
+          "columnEnd": 1,
+          "fragment": 0,
+          "archivePath": "04表格.xlsx"
+        },
+        {
+          "sourceId": "entry_4f2c20f4b683ec035fb38cb43ae18662fa115c9f84fa8e7c_8351915eaafc_p1_0",
+          "name": "合成.rar",
+          "start": 198026,
+          "end": 198030,
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "part": 0,
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "sourceId": "entry_cbec2b92b9c653b891fb1106c73dfc5e416f4d8c8c498b4a_1b5808fd9fdd_0",
+          "name": "合成.rar",
+          "start": 198030,
+          "end": 198038,
+          "kind": "text",
+          "part": 0,
+          "archivePath": "07尾部.txt"
+        }
+      ],
+      "uncovered": [
+        {
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "code": "PDF_VISUAL_UNREAD",
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "kind": "pdf",
+          "page": 2,
+          "rotation": 0,
+          "code": "PDF_NO_TEXT",
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "06未读.png",
+          "code": "FORMAT_UNSUPPORTED"
+        }
+      ],
+      "runs": [
+        {
+          "elapsedMs": 731.2273279999999,
+          "parseMs": 580.349362,
+          "serializationAndTransferMs": 4.772925999999984,
+          "maxRssKiB": 84496
+        },
+        {
+          "elapsedMs": 787.4264949999999,
+          "parseMs": 647.757093,
+          "serializationAndTransferMs": 4.607699000000025,
+          "maxRssKiB": 84752
+        },
+        {
+          "elapsedMs": 791.6274530000003,
+          "parseMs": 663.263051,
+          "serializationAndTransferMs": 6.483600000000024,
+          "maxRssKiB": 84376
+        },
+        {
+          "elapsedMs": 775.3959279999999,
+          "parseMs": 589.54422,
+          "serializationAndTransferMs": 5.928632999999991,
+          "maxRssKiB": 85188
+        },
+        {
+          "elapsedMs": 737.5356389999997,
+          "parseMs": 595.679766,
+          "serializationAndTransferMs": 5.597601000000054,
+          "maxRssKiB": 84716
+        }
+      ],
+      "p50Ms": 775.3959279999999,
+      "p95Ms": 791.6274530000003
+    },
+    {
+      "name": "合成.7z",
+      "originalBytes": 578047,
+      "originalHash": "3bb5fafb89b582b0e064e3ed6822d0b9a023c35b98832162e59b9992e8060262",
+      "textHash": "48560e71f7d4736e52f07d8b3e3c5e34a2f867879224bff046c4879f78865baf",
+      "state": "partial",
+      "segments": 8,
+      "covered": [
+        {
+          "sourceId": "entry_a2a9e62bbe30327c27fc7af9444b5102bdfb330aff3826e2_62032fbf2310_0",
+          "name": "合成.7z",
+          "start": 0,
+          "end": 120000,
+          "kind": "text",
+          "part": 0,
+          "archivePath": "01说明.txt"
+        },
+        {
+          "sourceId": "entry_a2a9e62bbe30327c27fc7af9444b5102bdfb330aff3826e2_62032fbf2310_1",
+          "name": "合成.7z",
+          "start": 120000,
+          "end": 198000,
+          "kind": "text",
+          "part": 1,
+          "archivePath": "01说明.txt"
+        },
+        {
+          "sourceId": "entry_4f99fefb30e951801d4fdc0a09ba95b6ace19f897d9b111a_b10aa55bd424_0",
+          "name": "合成.7z",
+          "start": 198000,
+          "end": 198005,
+          "kind": "csv",
+          "row": 1,
+          "columns": 2,
+          "firstLine": 1,
+          "lastLine": 1,
+          "part": 0,
+          "archivePath": "02数据.csv"
+        },
+        {
+          "sourceId": "entry_4f99fefb30e951801d4fdc0a09ba95b6ace19f897d9b111a_b10aa55bd424_1",
+          "name": "合成.7z",
+          "start": 198005,
+          "end": 198013,
+          "kind": "csv",
+          "row": 2,
+          "columns": 2,
+          "firstLine": 2,
+          "lastLine": 3,
+          "part": 0,
+          "archivePath": "02数据.csv"
+        },
+        {
+          "sourceId": "entry_bad70e063e6c09e94b4235591e7ef4aa98da653ba4d51914_ac12dd13a16d_0",
+          "name": "合成.7z",
+          "start": 198013,
+          "end": 198019,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 1,
+          "fragment": 0,
+          "archivePath": "03文档.docx"
+        },
+        {
+          "sourceId": "entry_426a8473f7a51eedd0f1b51baf48ed08a66a3e10c72cef2d_2da0380e80e5_0",
+          "name": "合成.7z",
+          "start": 198019,
+          "end": 198026,
+          "kind": "xlsx",
+          "sheet": "表一",
+          "sheetId": 1,
+          "part": "xl/worksheets/sheet1.xml",
+          "row": 1,
+          "rowEnd": 1,
+          "column": 1,
+          "columnEnd": 1,
+          "fragment": 0,
+          "archivePath": "04表格.xlsx"
+        },
+        {
+          "sourceId": "entry_4f2c20f4b683ec035fb38cb43ae18662fa115c9f84fa8e7c_8351915eaafc_p1_0",
+          "name": "合成.7z",
+          "start": 198026,
+          "end": 198030,
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "part": 0,
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "sourceId": "entry_cbec2b92b9c653b891fb1106c73dfc5e416f4d8c8c498b4a_1b5808fd9fdd_0",
+          "name": "合成.7z",
+          "start": 198030,
+          "end": 198038,
+          "kind": "text",
+          "part": 0,
+          "archivePath": "07尾部.txt"
+        }
+      ],
+      "uncovered": [
+        {
+          "kind": "pdf",
+          "page": 1,
+          "rotation": 0,
+          "code": "PDF_VISUAL_UNREAD",
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "kind": "pdf",
+          "page": 2,
+          "rotation": 0,
+          "code": "PDF_NO_TEXT",
+          "archivePath": "05页面.pdf"
+        },
+        {
+          "kind": "archive",
+          "archivePath": "06未读.png",
+          "code": "FORMAT_UNSUPPORTED"
+        }
+      ],
+      "runs": [
+        {
+          "elapsedMs": 704.0824050000001,
+          "parseMs": 521.147631,
+          "serializationAndTransferMs": 4.331601999999975,
+          "maxRssKiB": 85508
+        },
+        {
+          "elapsedMs": 711.1468580000001,
+          "parseMs": 517.4161230000001,
+          "serializationAndTransferMs": 5.751953999999955,
+          "maxRssKiB": 84744
+        },
+        {
+          "elapsedMs": 794.2807339999999,
+          "parseMs": 608.775554,
+          "serializationAndTransferMs": 5.495224000000007,
+          "maxRssKiB": 83956
+        },
+        {
+          "elapsedMs": 737.6844730000003,
+          "parseMs": 583.47681,
+          "serializationAndTransferMs": 6.291709000000083,
+          "maxRssKiB": 84176
+        },
+        {
+          "elapsedMs": 846.530342,
+          "parseMs": 613.666375,
+          "serializationAndTransferMs": 5.496543999999972,
+          "maxRssKiB": 85128
+        }
+      ],
+      "p50Ms": 737.6844730000003,
+      "p95Ms": 846.530342
+    },
+    {
+      "name": "拒绝.rar",
+      "originalBytes": 91,
+      "originalHash": "5ff1661d1fdd1bbf3c94c0c65b70465b8ad3751c7cac022116f125f14110b4dc",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed",
+      "segments": 0,
+      "covered": [],
+      "uncovered": [
+        {
+          "kind": "archive",
+          "code": "PACKAGE_PATH"
+        }
+      ],
+      "runs": [
+        {
+          "elapsedMs": 222.49117399999977,
+          "parseMs": 92.771692,
+          "serializationAndTransferMs": 0.9874870000000158,
+          "maxRssKiB": 58952
+        }
+      ]
+    },
+    {
+      "name": "压缩.7z",
+      "originalBytes": 113354,
+      "originalHash": "3127e16288fc5a7fd913223b559dccb58f5a90501a7e709a0ec5c62715ed40b8",
+      "textHash": "addbc27a1b86611c9e49c9aeba35652c1da94d78b67df959143f40a32f5c5431",
+      "state": "read",
+      "segments": 2,
+      "covered": [
+        {
+          "sourceId": "entry_e42bbfbddafd9927ab782d70aed1898cb207e2b3e6748430_b026beed391e_0",
+          "name": "压缩.7z",
+          "start": 0,
+          "end": 120000,
+          "kind": "text",
+          "part": 0,
+          "archivePath": "a.txt"
+        },
+        {
+          "sourceId": "entry_e42bbfbddafd9927ab782d70aed1898cb207e2b3e6748430_b026beed391e_1",
+          "name": "压缩.7z",
+          "start": 120000,
+          "end": 194999,
+          "kind": "text",
+          "part": 1,
+          "archivePath": "a.txt"
+        }
+      ],
+      "uncovered": [],
+      "runs": [
+        {
+          "elapsedMs": 354.81077299999924,
+          "parseMs": 122.74813400000001,
+          "serializationAndTransferMs": 63.385088999999994,
+          "maxRssKiB": 63228
+        }
+      ]
+    }
+  ],
+  "memoryBoundary": "maxRssKiB measures Node worker only; native child shares unchanged 512MiB cgroup, not measured individually"
+}

@@ -174,8 +174,11 @@ function validate(state) {
   return state;
 }
 class DesktopStore {
-  constructor(root) {
+  constructor(root, { allowVolatileOriginals = false } = {}) {
     this.root = root;
+    this.allowVolatileOriginals = allowVolatileOriginals;
+    this.volatileOriginals = new Map();
+    this.localSaveError = "";
     this.tail = Promise.resolve();
   }
   file(name) {
@@ -226,13 +229,21 @@ class DesktopStore {
           await fs
             .writeFile(this.file("files/" + hash), data, { flag: "wx" })
             .catch((e) => {
-              if (e.code !== "EEXIST") throw e;
+              if (e.code !== "EEXIST") {
+                if (!this.allowVolatileOriginals) throw e;
+                this.keepVolatile(hash, data);
+              }
             });
-          return { ...a, hash };
+          return {
+            ...a,
+            hash,
+            ...(this.volatileOriginals.has(hash) ? { localSaved: false } : {}),
+          };
         }
         if (!/^[a-f0-9]{64}$/.test(a.hash))
           throw new Error("附件原件缺失：" + a.name);
         await fs.access(this.file("files/" + a.hash)).catch(() => {
+          if (this.volatileOriginals.has(a.hash)) return;
           throw new Error("原件已清理或缺失，无法恢复：" + a.name);
         });
         return a;
@@ -242,12 +253,32 @@ class DesktopStore {
   async decode(attachments) {
     return Promise.all(
       attachments.map(async (a) => {
-        const bytes = await fs.readFile(this.file("files/" + a.hash));
+        let bytes;
+        try {
+          bytes = await fs.readFile(this.file("files/" + a.hash));
+        } catch (e) {
+          bytes = this.volatileOriginals.get(a.hash);
+          if (!bytes && this.allowVolatileOriginals && a.localSaved === false)
+            return { ...a, error: "本机原件未保存；请从云端下载或重新选择" };
+          if (!bytes) throw e;
+        }
         if (crypto.createHash("sha256").update(bytes).digest("hex") !== a.hash)
           throw new Error("原件校验失败：" + a.name + "；请从备份恢复");
         return { ...a, bytes: Uint8Array.from(bytes).buffer };
       }),
     );
+  }
+  keepVolatile(hash, bytes) {
+    if (
+      !this.volatileOriginals.has(hash) &&
+      [...this.volatileOriginals.values()].reduce((n, b) => n + b.length, 0) +
+        bytes.length >
+        40 * 1024 * 1024
+    )
+      throw Error("本机临时原件超过40MiB，请先完成上传");
+    this.volatileOriginals.set(hash, Buffer.from(bytes));
+    this.localSaveError =
+      "本机原件保存失败，仅本次会话可用；请检查云端保存结果，关闭前另存副本";
   }
   call(method, value) {
     return this.serial(async () => {

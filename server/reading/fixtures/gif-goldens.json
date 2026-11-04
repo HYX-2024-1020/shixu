@@ -1,0 +1,63 @@
+{
+  "generator": "Pillow 12.3.0",
+  "synthetic": true,
+  "files": {
+    "gif-lzw.gif": {
+      "sha256": "be2417f28d5392e2e239c4459da254a5573ed72d604a3f80fd214b7f8c861a41",
+      "width": 129,
+      "height": 129,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 0,
+          "pixelsHash": "b14d73f8f24905ab64b17bc8262e26eaa4408b7109ead5830e635cb0cdd9beaf"
+        }
+      ]
+    },
+    "gif-disposals.gif": {
+      "sha256": "bef6b43394b8b333210c7bcf8c2fe63b099b210f17de1c5154362eb17e7bb46e",
+      "width": 9,
+      "height": 11,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 10,
+          "pixelsHash": "1860e67037d39e9af2de0df9b431906ef9681143bd0d0786aeb283f321e74f84"
+        },
+        {
+          "frame": 2,
+          "startMs": 10,
+          "durationMs": 20,
+          "pixelsHash": "4646c1ce790f59a41140347fa1be5bbc85663ef94fdf2b48e118d4a8c4fb2a23"
+        },
+        {
+          "frame": 3,
+          "startMs": 30,
+          "durationMs": 30,
+          "pixelsHash": "8c1352f88d3880456049d71213106fbf933a5740e8b0cc9f1df0521fa9259d0f"
+        },
+        {
+          "frame": 4,
+          "startMs": 60,
+          "durationMs": 40,
+          "pixelsHash": "0456df022f5c2df209353fdeb250f4e355b6ea86580f9710341b90f101af7cc1"
+        }
+      ]
+    },
+    "gif-transparent-background.gif": {
+      "sha256": "372d87d1786a2c3d341c145ea3efd19b3cd9e1aa651da1b221332624a5941a00",
+      "width": 2,
+      "height": 1,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 0,
+          "pixelsHash": "3040d16b106efdd1b7f036c5a710af8e3bb2b11fea0fbec78e05e31019537df4"
+        }
+      ]
+    }
+  }
+}

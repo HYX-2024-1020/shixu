@@ -1,0 +1,70 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "cases": [
+    {
+      "format": "rar",
+      "elapsedMs": 4292.168594,
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 578058,
+      "parserRuns": 4,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "temporary",
+      "sourceByMini": true,
+      "expireBeforeStart": true,
+      "startByMini": true,
+      "deleteBeforeStart": false,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    },
+    {
+      "format": "7z",
+      "elapsedMs": 3872.344781,
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "simulatedProviderCalls": 4,
+      "bytes": 578066,
+      "parserRuns": 4,
+      "tailSeen": true,
+      "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+      "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+      "stopFromOtherDevice": true,
+      "continueFromOtherDevice": true,
+      "lateResponseDiscarded": true,
+      "resultsEqual": true,
+      "v3AIBlocked": true,
+      "spentMicros": 80,
+      "originalMode": "retained",
+      "sourceByMini": true,
+      "expireBeforeStart": false,
+      "startByMini": true,
+      "deleteBeforeStart": true,
+      "lifecycleVerified": false,
+      "revisionEvidence": {
+        "reusedBlocks": 2,
+        "newCalls": 1,
+        "rootCalls": 4,
+        "newSpentMicros": 20,
+        "currentOriginalRevalidated": true,
+        "dualClientResultAndLabelAgree": true
+      }
+    }
+  ]
+}

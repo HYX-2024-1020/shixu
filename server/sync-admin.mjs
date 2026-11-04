@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
 import { AccountRegistry } from "./sync-accounts.mjs";
+import {acquireDataLease,resolveDataVersion} from './data-versions.mjs';
 
 // Local privileged CLI only; no administrator credential or endpoint in clients.
 // Run as the service user/root with the private environment file, never place
@@ -43,15 +44,14 @@ if (
   )
 ) {
   process.umask(0o077);
-  const registry = new AccountRegistry(
-    resolve(process.env.SYNC_ACCOUNT_DIR || "data/accounts-v3"),
-    process.env.SYNC_ACCOUNT_SECRET,
-  );
+  const lease=acquireDataLease(resolve(process.env.SYNC_ACCOUNT_DIR || "data/accounts-v3"));
+  let registry;
   try {
+    registry=new AccountRegistry(resolveDataVersion(lease).directory,process.env.SYNC_ACCOUNT_SECRET);
     console.log(
       JSON.stringify(runAdmin(registry, process.argv.slice(2)), null, 2),
     );
   } finally {
-    registry.close();
+    registry?.close();lease.release();
   }
 }

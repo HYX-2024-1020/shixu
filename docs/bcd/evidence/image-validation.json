@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-30",
+  "baseline": "46e9fe0859e1ec05bd812eba17f5d6dcbf346a0f",
+  "scope": "Static 8-bit noninterlaced PNG, controlled task/provider and dual-client adapters; BCD incomplete",
+  "local": {
+    "affectedKernel": 92,
+    "syncMini": 125,
+    "release": 2,
+    "finalImageAndView": 8,
+    "finalTaskTargeted": 4,
+    "finalProviderRoutesClients": 12,
+    "webBuild": true,
+    "typecheck": true,
+    "miniGeneratedFiles": 15,
+    "officialWxmlWxssCompile": true,
+    "groupsOverlap": true,
+    "uiWindowsLaunchedForImageBatch": 0
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261029-image-tile",
+    "ordinaryUidInitial": 6,
+    "finalImage": 6,
+    "finalTaskTargeted": 4,
+    "protectedBroker": "image-clients-linux.json",
+    "maxPixels": 32000000,
+    "pressureMaxRssKiB": 438100,
+    "resourceLimitsUnchanged": true
+  },
+  "realApi": {
+    "plan": "image-live-plan.json",
+    "report": "image-live.json",
+    "calls": 1,
+    "usageEstimatedCny": 0.002316,
+    "reservedCny": 0.02602,
+    "savedSyntheticLedgerSha256": "8676d47d6aae9b73d1fe403ba862a0987c1033619cfd93c8740270fbe0763c36",
+    "headlessSafeStorage": true,
+    "historicalBudgetNotUsedAsBlocker": true
+  },
+  "reused": {
+    "commit": "46e9fe0859e1ec05bd812eba17f5d6dcbf346a0f",
+    "ci": "https://github.com/HYX-2024-1020/shixu/actions/runs/40901911637",
+    "allSixRequiredPassed": true,
+    "localHistoricalUiNotRepeated": true
+  },
+  "knownFailuresFixed": [
+    "Missing generated imageProgressView export caused actual Page failure; fixed build-miniprogram and regenerated",
+    "Deleted-original test initially selected device without local bytes; valid same-hash holder now initiates, no gate weakened",
+    "Visual quotes were incorrectly subject to local-text contains; new provenance, bounds and warning; valid usage always settles on quote-validation failure",
+    "Privacy cap locator-only image certificates must reuse without reconstructing text or losing validated deadline",
+    "Initial image-provider token-envelope test threshold was below existing system prompt; corrected expectation",
+    "Headless helper attempted profile removal before Electron exit; parent launcher now waits and dry-run passed, first own temporary profile cleanup later rejected by automatic approval and preserved"
+  ],
+  "boundaries": [
+    "No new source Electron window verification",
+    "Page/Node wx and official compile do not replace native WeChat/phone/installer",
+    "Real API used local decoder; Linux evidence separate",
+    "No local OCR, production deployment/migration/account opening",
+    "JPEG/other PNG encodings/scanned PDF/archive and Office visuals/semantic merge/other BCD gaps remain",
+    "New commit mandatory CI must be checked independently after push"
+  ]
+}

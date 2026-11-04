@@ -1,0 +1,38 @@
+{
+  "dateBeijing": "2026-10-31",
+  "syntheticOnly": true,
+  "sourceHashes": {
+    "server/reading/merge.mjs": "55a81de593868ab1bbd1ca35170af7904b6ee4f6360b2f8e1b329cbf8239be00",
+    "server/reading/reuse.mjs": "76ef16decb5dfb3d5efb5e963fb66cda8055172d4d2ba05f9861dce49e87d337",
+    "server/reading/tasks.mjs": "3612db7ee61d4212cc941c8030cd36dc7d7a4183b24e630100a2693f81b2f4e0",
+    "server/reading/image.mjs": "0b04c16562ec5652d0b0814ea42a793833882fd91a32713ccd6bfa2fd5678e83",
+    "server/reading/material.mjs": "e241e6e829a5669ce9881cf15018cb45e9349880585ea7a132c9cff3cba29ff2",
+    "server/reading/deepseek.mjs": "8fcec74ab725371592c27f7c0196b640d4f047e6fe7c7c9466aa2de40102350d"
+  },
+  "windows": {
+    "semanticProviderClients": 18,
+    "pngImageArchive": 47,
+    "pixelSamples": 120,
+    "core": 93,
+    "syncMini": 125,
+    "desktopHeadless": 18,
+    "selfContainedRelease": 2,
+    "officialCompile": true,
+    "browserWindows": 0
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261031-semantic",
+    "uid": "nobody",
+    "tests": 18,
+    "additional40ItemBoundary": "13 merge tests, including added boundary, passed as nobody; other 5 prior tests passed at same behavioral version"
+  },
+  "realAPI": {
+    "chatCalls": 3,
+    "chatMicros": 1770,
+    "mergeCalls": 1,
+    "mergeMicros": 1110,
+    "totalWithPriorImagesMicros": 11674
+  },
+  "finalWholeBCD": "not performed",
+  "remaining": "implementation-status.md"
+}

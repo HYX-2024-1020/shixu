@@ -1,0 +1,84 @@
+{
+  "dateBeijing": "2026-10-30",
+  "syntheticOnly": true,
+  "sourceHashes": {
+    "server/reading/jpeg.mjs": "744e3c5b83f967a051f06fde5ee6dbeea2a5603e0dcfdc8cb1466821404d28e7",
+    "server/reading/jpeg-reader.cjs": "56a316259915b31e013e1dc2035fbc7437d7602296f944ac803b343b6b2b9276",
+    "server/reading/jpeg-reader.LICENSE": "1ec4282112ac505faefc0365a489603b0985f4cd956099622aed47fe120ce78d",
+    "node_modules/jpeg-js/lib/decoder.js": "a3f175fd6f62d142aad94d3bd90f3a30be4e076baf9b6a6fa31c8e84d9d4aa9f",
+    "scripts/build-reading-parser.mjs": "ab7e103fe5f0332e6b3ccd26663331df9a04083972fe6fe5cb3ce860d8bce66a"
+  },
+  "decoderVersion": "jpeg-js/0.4.4;strict-jpeg/2",
+  "npmAudit": {
+    "newDependency": "jpeg-js@0.4.4",
+    "newDependencies": 1,
+    "reportedVulnerabilities": 0,
+    "securityGuarantee": false
+  },
+  "strictSuffixDefect": {
+    "before": {
+      "state": "read",
+      "segments": 1
+    },
+    "after": {
+      "state": "failed",
+      "segments": 0,
+      "reason": "JPEG_MALFORMED"
+    },
+    "fixedInBuilder": true
+  },
+  "postStrictGuardLiveFixture": {
+    "realProviderCalls": 0,
+    "inputHash": "4ce8a3f06f61a99253e48a10b8fc7844cd7f9e5fbdcd79ab9f2b72468a35dafd",
+    "normalizedImageHash": "bc2a8d48737c3a206f09a399cf01f58cfc20c7d5d532265b5f2af541e7270b74",
+    "matchesActualApiInput": true
+  },
+  "realApi": {
+    "report": "jpeg-live.json",
+    "calls": 1,
+    "spentMicros": 6478,
+    "previousPngSpentMicros": 2316,
+    "totalNewCalls": 2,
+    "totalNewSpentMicros": 8794,
+    "qualityLimitations": [
+      "one task duplicated as task and notice",
+      "tail-check instruction interpreted as report editing advice; human verification and semantic merging remain necessary"
+    ]
+  },
+  "preparationFailures": {
+    "batches": [
+      "shixu-image-ledger-B416Z3",
+      "shixu-image-ledger-CRb94A"
+    ],
+    "providerCalls": 0,
+    "reason": "validation helper tariff lookup used omitted period field; fixed to snapshot id",
+    "recordsRetained": true
+  },
+  "retainedLedger": {
+    "path": "../outputs/shixu-image-ledger-fLItDs/ledger.sqlite",
+    "sha256": "f98ef2952eef04d4695dc8d1758fb5a23a2b6e38675ed02333c97a376cfb579a",
+    "calls": [
+      {
+        "state": "settled",
+        "actual": 6478,
+        "usage": "{\"prompt_tokens\":1493,\"completion_tokens\":656,\"prompt_cache_hit_tokens\":896}"
+      }
+    ]
+  },
+  "localChecks": {
+    "relatedKernelAndReleaseTestsBeforeFinalScanGuard": 124,
+    "finalJpegTests": 25,
+    "finalReleaseAndPolicyTests": 10,
+    "typescriptBuild": true,
+    "miniGeneratedAndCheck": true,
+    "officialWxmlWxssCompilation": true,
+    "localUiWindows": 0
+  },
+  "externalEvidence": [
+    "jpeg-linux.json",
+    "jpeg-strict-linux.json",
+    "jpeg-pixels-linux.json"
+  ],
+  "nativeWeChatAndInstallerVerified": false,
+  "wholeBcdFinalAcceptance": false
+}

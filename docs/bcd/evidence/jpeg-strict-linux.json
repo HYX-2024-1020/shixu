@@ -1,0 +1,45 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "actualLinuxIsolation": true,
+  "postStrictGuard": true,
+  "samples": [
+    {
+      "name": "rotated-tail",
+      "tile": 3,
+      "valid": true,
+      "inputHash": "cb1818ab9135a8328001945ef727f0bfe37a6eef6e987dc4256c84ba2d23a773",
+      "state": "read",
+      "reasons": [],
+      "normalizedImageHash": "3afd16d796120eb80c4d2210728217d4eb8a0b42af29eab51cb0208b584f14b5",
+      "parseMs": 178.040434,
+      "serializationAndTransferMs": 3.8879589999999666,
+      "maxRssKiB": 65236
+    },
+    {
+      "name": "progressive-restart",
+      "tile": 1,
+      "valid": true,
+      "inputHash": "4a48cdf74cfddb9dfe3c195dec99d0e9368042e9809352668c79ff480959b4a7",
+      "state": "read",
+      "reasons": [],
+      "normalizedImageHash": "432dab5dbeb7a7a6f243ed9c81f1e43c799a00ce150d41ab2cf8b48119ca15fa",
+      "parseMs": 11.455857000000002,
+      "serializationAndTransferMs": 2.569823999999997,
+      "maxRssKiB": 55620
+    },
+    {
+      "name": "unused-entropy",
+      "tile": 1,
+      "valid": false,
+      "inputHash": "17b3603a03fa4aadf5f23ce4d499109c81e4b922bd6e8e024a66e398e3593923",
+      "state": "failed",
+      "reasons": [
+        "JPEG_MALFORMED"
+      ],
+      "parseMs": 13.034963000000005,
+      "serializationAndTransferMs": 2.5043659999999974,
+      "maxRssKiB": 57280
+    }
+  ]
+}

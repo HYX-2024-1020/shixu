@@ -1,0 +1,194 @@
+{
+  "kind": "synthetic-real-rotated-jpeg-development",
+  "testedAt": "2026-10-30T08:00:32.344Z",
+  "realProviderCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-peak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793347227766,
+    "inputMicrosPerMillion": 2000000,
+    "cachedMicrosPerMillion": 40000,
+    "outputMicrosPerMillion": 8000000
+  },
+  "inputHash": "4ce8a3f06f61a99253e48a10b8fc7844cd7f9e5fbdcd79ab9f2b72468a35dafd",
+  "checks": {
+    "published": true,
+    "orientation": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 4524.830099999999,
+  "spentMicros": 6478,
+  "calls": [
+    {
+      "id": "308faf89-36e6-49f8-adeb-09ea71c13194",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-peak",
+      "reserved": 52052,
+      "actual": 6478,
+      "usage": "{\"prompt_tokens\":1493,\"completion_tokens\":656,\"prompt_cache_hit_tokens\":896}"
+    }
+  ],
+  "result": {
+    "summary": "收下一张照片通知：需提交图像实验报告（任务编号8642），含截止时间、PDF命名与内容要求。",
+    "warnings": [
+      "图像为合成旋转照片的识别结果，仅按可见文字整理；提交渠道未在图中出现。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告8642",
+        "summary": "按通知要求完成图像实验报告，说明算法思路与时间复杂度，以PDF并按学号_姓名命名提交，截止2026年11月2日17:30。",
+        "facts": [
+          "提交内容：图像实验报告，任务编号 8642。",
+          "截止时间：2026年11月2日17:30。",
+          "格式：PDF。",
+          "命名：学号_姓名。",
+          "要求：说明算法思路与时间复杂度。",
+          "尾部核对：8642，禁止遗漏此编号。"
+        ],
+        "nextSteps": [
+          "先确认报告封面/正文是否已写清算法思路与时间复杂度。",
+          "导出PDF前按“学号_姓名”命名检查一次。",
+          "提交前核对正文或尾部是否包含任务编号8642。"
+        ],
+        "uncertainties": [
+          "通知未说明提交渠道或提交平台。",
+          "“尾部核对”具体加在文件末尾何处未详细说明。"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号 8642。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年11月2日17:30。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：8642，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-11-02",
+          "time": "17:30",
+          "anchor": "2026年11月2日17:30",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "notice",
+        "title": "图像实验报告提交要求",
+        "summary": "通知给出任务编号8642的提交格式、命名方式与内容要求，并强调尾部核对编号不可遗漏。",
+        "facts": [
+          "任务编号为8642。",
+          "提交格式限定PDF。",
+          "文件命名为“学号_姓名”。",
+          "报告需说明算法思路与时间复杂度。"
+        ],
+        "nextSteps": [],
+        "uncertainties": [
+          "本图为合成旋转照片的识别结果，通知来源课程名未出现。"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "JPEG验证：旋转照片"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-11-02",
+          "time": "17:30",
+          "anchor": "2026年11月2日17:30",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成旋转照片.jpg",
+      "contentHash": "4ce8a3f06f61a99253e48a10b8fc7844cd7f9e5fbdcd79ab9f2b72468a35dafd",
+      "readerVersion": "jpeg-js/0.4.4;strict-jpeg/1",
+      "normalizationVersion": "jpeg-oriented-png-rgba-tiles/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成旋转照片.jpg",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "orientation": 6,
+          "encodedWidth": 600,
+          "encodedHeight": 900,
+          "start": 0,
+          "end": 1,
+          "imageHash": "bc2a8d48737c3a206f09a399cf01f58cfc20c7d5d532265b5f2af541e7270b74"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "imagePagination": {
+        "startTile": 1,
+        "nextTile": null,
+        "totalTiles": 1,
+        "width": 900,
+        "height": 600,
+        "orientation": 6,
+        "encodedWidth": 600,
+        "encodedHeight": 900
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

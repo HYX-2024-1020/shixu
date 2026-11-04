@@ -1,0 +1,214 @@
+{
+  "id": "notice",
+  "state": "done",
+  "reason": "",
+  "inputHashes": [
+    "d8f6ee1416abfbc4c03c8719591d3140547d1515b8aa67886c7fa9a7169346a2",
+    "7b330444507c700cdc4dde3931518dcca1c399e4d656dfa6e687ae3e8ec730de"
+  ],
+  "result": {
+    "summary": "本次收下了算法课的一份实验报告提交要求和另一份独立作业的通知。\n收下一份算法课补充通知，涉及实验报告命名与内容要求，以及一项未给细节的独立习题。",
+    "warnings": [
+      "通知中未给出A7319和B7320的截止时间，也未说明提交方式。"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交A7319实验报告PDF",
+        "summary": "算法课要求提交A7319实验报告，文件格式为PDF。",
+        "facts": [
+          "A7319实验报告需提交",
+          "提交格式为PDF",
+          "A7319实验报告命名为学号_姓名",
+          "要求说明算法与时间复杂度",
+          "补充摘要：按“学号_姓名”命名A7319实验报告，并在报告中说明算法与时间复杂度。"
+        ],
+        "nextSteps": [
+          "按课程要求整理实验报告内容并导出为PDF后提交",
+          "按“学号_姓名”格式建立或重命名报告文件",
+          "在报告中单列算法思路与时间复杂度分析"
+        ],
+        "uncertainties": [
+          "通知未给出A7319实验报告的截止时间",
+          "通知未给出提交方式或提交平台",
+          "通知未给出提交截止时间与提交方式"
+        ],
+        "evidence": [
+          {
+            "sourceId": "file0_56f3fd843f7a_0_m0",
+            "quote": "A7319：请提交实验报告，格式PDF。"
+          },
+          {
+            "sourceId": "file1_c147efcfc2d7_0_m0",
+            "quote": "A7319实验报告命名为学号_姓名，要求说明算法与时间复杂度。"
+          }
+        ],
+        "sourceIds": [
+          "file0_56f3fd843f7a_0_m0",
+          "file1_c147efcfc2d7_0_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "task",
+        "title": "提交B7320独立作业",
+        "summary": "B7320是算法课的另一份作业，须与A7319实验报告分别提交。",
+        "facts": [
+          "B7320与A7319是同一课程的另一份作业",
+          "B7320须与A7319分别提交"
+        ],
+        "nextSteps": [
+          "确认B7320的作业内容和提交要求后单独提交"
+        ],
+        "uncertainties": [
+          "通知未说明B7320的截止时间、格式与提交方式"
+        ],
+        "evidence": [
+          {
+            "sourceId": "file0_56f3fd843f7a_0_m0",
+            "quote": "B7320是同课程另一份作业，须分别提交。"
+          }
+        ],
+        "sourceIds": [
+          "file0_56f3fd843f7a_0_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "note",
+        "title": "C7321为独立习题",
+        "summary": "通知说明C7321是独立习题，但未给出该习题的具体做法或提交要求。",
+        "facts": [
+          "C7321是独立习题"
+        ],
+        "nextSteps": [],
+        "uncertainties": [
+          "原文未说明C7321的具体提交形式与时间"
+        ],
+        "evidence": [
+          {
+            "sourceId": "file1_c147efcfc2d7_0_m0",
+            "quote": "C7321是独立习题。"
+          }
+        ],
+        "sourceIds": [
+          "file1_c147efcfc2d7_0_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "association": {
+    "links": []
+  },
+  "historyAssociation": null,
+  "coverage": [
+    {
+      "attachmentId": "file0",
+      "name": "课程通知一.txt",
+      "contentHash": "d8f6ee1416abfbc4c03c8719591d3140547d1515b8aa67886c7fa9a7169346a2",
+      "readerVersion": "text-csv/2;docx/1;xlsx/1;pdf-text/5;pdf-visual/3;pdf-resources/1;pdf-annotations/1;archive/13;visual-review/1;office-assets/1;window-state/1;apng/1",
+      "normalizationVersion": "unicode-lf/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "file0_56f3fd843f7a_0_m0",
+          "name": "课程通知一.txt",
+          "start": 0,
+          "end": 47,
+          "kind": "text",
+          "part": 0
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "readRetries": 0
+    },
+    {
+      "attachmentId": "file1",
+      "name": "课程通知二.txt",
+      "contentHash": "7b330444507c700cdc4dde3931518dcca1c399e4d656dfa6e687ae3e8ec730de",
+      "readerVersion": "text-csv/2;docx/1;xlsx/1;pdf-text/5;pdf-visual/3;pdf-resources/1;pdf-annotations/1;archive/13;visual-review/1;office-assets/1;window-state/1;apng/1",
+      "normalizationVersion": "unicode-lf/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "file1_c147efcfc2d7_0_m0",
+          "name": "课程通知二.txt",
+          "start": 0,
+          "end": 48,
+          "kind": "text",
+          "part": 0
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "readRetries": 0
+    }
+  ],
+  "calls": [
+    {
+      "id": "33f67710-cc0f-41dc-a5f5-1cfd39505f4e",
+      "state": "settled",
+      "reserved": 23729,
+      "actual": 1656,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "e4fe4d0f5e6007ad9350fdcf56672d322fe1cbaf546050034d54705ca1268335",
+        "responseIdHash": "b93585ecb5f69d2544906f99f68a22b63427f30d01a54d7fffc531546b109424",
+        "model": "deepseek-flash",
+        "created": 1793728211,
+        "httpStatus": 200,
+        "responseHash": "3cc95061f68b92b2d5479b9003d31ba481a17e921e5fb5e2ee9e56c80d20c671",
+        "usageHash": "c4bb8fc8f944c9a37c97d1655bb0103d5009ec19ac7eb17b3092b74c7af38d78",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "26e4b441-e4cf-41da-ab00-47c2838a842d",
+      "state": "settled",
+      "reserved": 23736,
+      "actual": 1498,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "22db4292a043bdfb2ce4397016d10fb70e65f56c3142c2b4f83a8bdd33d23f02",
+        "responseIdHash": "bb7f881a13c719473113a9952a45844399ac947398c30e5f51643691455ec0b7",
+        "model": "deepseek-flash",
+        "created": 1793728213,
+        "httpStatus": 200,
+        "responseHash": "ab0ddc0c7915daa8e5819206bb88f75c8895a10e33bba3f58cb8746a302c1c90",
+        "usageHash": "11f8cefc5bf41eaa7bcc3a9e833b9b4b6a11bb88456c1b7bc28b3f830d2732a6",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "413e6f2c-8e06-4899-adda-6317e990446d",
+      "state": "settled",
+      "reserved": 23028,
+      "actual": 1000,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "03fb29086b65d23027bf4824977b18ec9dfabeb48a3b9d4c6b278d0f20b2bb30",
+        "responseIdHash": "6f3a24920bca8077736bca9e7147448dff6d73a71a46badcbdef30a4987650c4",
+        "model": "deepseek-flash",
+        "created": 1793728214,
+        "httpStatus": 200,
+        "responseHash": "db41e7784177e9554f1ddd8e0192e151158affdce9ebe7f0922c3ceebbf5f087",
+        "usageHash": "dd92e99d9cca22397ebb2c107f187bb209e9faf74ddd4bebdb3717cc2c35899b",
+        "finalBillingEvidence": false
+      }
+    }
+  ]
+}

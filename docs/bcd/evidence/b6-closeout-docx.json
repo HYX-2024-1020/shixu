@@ -1,0 +1,291 @@
+{
+  "id": "docx",
+  "state": "done",
+  "reason": "",
+  "inputHashes": [
+    "8ea7d9b4160dc6525a9078b629077ed81633c80237273cf36a060063531539ea"
+  ],
+  "result": {
+    "summary": "这次收下的两份内容都是无法对应具体行动的Office文档片段，暂存为资料备注，没有可执行任务。\n收下一份合成通知图片：要求提交任务编号9537的图像实验报告，PDF格式、按学号_姓名命名，截止2026年11月3日16:45，并说明算法思路与时间复杂度。",
+    "warnings": [
+      "来源内容为无法独立理解的文档片段，未识别出可执行待办、日程或明确通知。",
+      "来源为图片内嵌资源，仅依据该图像识别内容整理，未读取文档其他部分。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "note",
+        "title": "暂存Office文档片段",
+        "summary": "两份来源均为Office文档的零散文字，未包含明确事项或行动要求，仅作资料保留。",
+        "facts": [
+          "来源一正文为“Office图像之前”，无其他说明。",
+          "来源二正文为“Office尾部唯一标记”，无其他说明。"
+        ],
+        "nextSteps": [
+          "若这些片段属于某份通知，可补充完整正文或附件以便归入具体任务。"
+        ],
+        "uncertainties": [
+          "两段文字之间关系不明，无法判断是否属于同一文档的上下文。"
+        ],
+        "evidence": [
+          {
+            "sourceId": "ot_f254bec69607d097dfa509a7c317a94dd5d4fc397c5bac26_m0",
+            "quote": "Office图像之前"
+          },
+          {
+            "sourceId": "ot_f535e200ec2b2ede76ba7e894dfa00de2ddf98f2e111f369_m0",
+            "quote": "Office尾部唯一标记"
+          }
+        ],
+        "sourceIds": [
+          "ot_f254bec69607d097dfa509a7c317a94dd5d4fc397c5bac26_m0",
+          "ot_f535e200ec2b2ede76ba7e894dfa00de2ddf98f2e111f369_m0"
+        ],
+        "due": null,
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      },
+      {
+        "kind": "task",
+        "title": "提交9537图像实验报告",
+        "summary": "按通知要求提交图像实验报告，任务编号9537；PDF文件命名为学号_姓名，内容需说明算法思路与时间复杂度。",
+        "facts": [
+          "请提交图像实验报告，任务编号9537。",
+          "截止：2026年11月3日16:45。",
+          "格式：PDF，命名：学号_姓名。",
+          "要求：说明算法思路与时间复杂度。"
+        ],
+        "nextSteps": [
+          "先按算法思路与时间复杂度两部分整理报告正文，再导出为PDF。",
+          "导出前检查文件名是否为“学号_姓名”。",
+          "在截止时间前完成提交。"
+        ],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          }
+        ],
+        "sourceIds": [
+          "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "association": {
+    "links": []
+  },
+  "historyAssociation": null,
+  "coverage": [
+    {
+      "attachmentId": "file0",
+      "name": "合成Office通知.docx",
+      "contentHash": "8ea7d9b4160dc6525a9078b629077ed81633c80237273cf36a060063531539ea",
+      "readerVersion": "office-assets/1;docx/1",
+      "normalizationVersion": "office-structure-original-image/1",
+      "state": "partial",
+      "covered": [
+        {
+          "sourceId": "ot_f254bec69607d097dfa509a7c317a94dd5d4fc397c5bac26_m0",
+          "name": "合成Office通知.docx",
+          "start": 0,
+          "end": 12,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 1,
+          "fragment": 0
+        },
+        {
+          "sourceId": "ot_56942e495fe985ec09e7866149fdf217a4cbca52fcc0eec8_m0",
+          "name": "合成Office通知.docx",
+          "start": 12,
+          "end": 13,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "fragment": 0
+        },
+        {
+          "sourceId": "ot_f535e200ec2b2ede76ba7e894dfa00de2ddf98f2e111f369_m0",
+          "name": "合成Office通知.docx",
+          "start": 13,
+          "end": 26,
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 3,
+          "fragment": 0
+        },
+        {
+          "sourceId": "oi_eb5ff7efa923a82a98ba2f30b957179177dffa2da7a690f9_b1d2aa64de17_i1",
+          "name": "合成Office通知.docx",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "start": 26,
+          "end": 27,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "mediaPart": "word/media/图像.png",
+          "relationship": "image1",
+          "extension": "png",
+          "officeKind": "docx"
+        }
+      ],
+      "uncovered": [
+        {
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "code": "DOCX_OBJECT_UNREAD"
+        },
+        {
+          "kind": "docx",
+          "part": "word/document.xml",
+          "paragraph": 2,
+          "mediaPart": "word/media/图像.png",
+          "relationship": "image1",
+          "extension": "png",
+          "code": "OFFICE_DRAWING_LAYOUT_UNREAD"
+        }
+      ],
+      "reasons": [
+        "DOCX_OBJECT_UNREAD",
+        "OFFICE_DRAWING_LAYOUT_UNREAD"
+      ],
+      "officeImageParts": [
+        {
+          "image": 1,
+          "totalImages": 1,
+          "mediaPart": "word/media/图像.png",
+          "part": "word/document.xml",
+          "checked": 1,
+          "total": 1
+        }
+      ],
+      "officePagination": {
+        "start": {
+          "text": 0,
+          "image": 0,
+          "tile": 1,
+          "offset": 26
+        },
+        "next": null,
+        "totalText": 26,
+        "nextOffset": 27,
+        "totalImages": 1,
+        "image": {
+          "startTile": 1,
+          "nextTile": null,
+          "totalTiles": 1,
+          "width": 900,
+          "height": 600
+        }
+      },
+      "readRetries": 0
+    }
+  ],
+  "calls": [
+    {
+      "id": "55a170a0-8d2d-404a-bd8b-cbda0e59a945",
+      "state": "settled",
+      "reserved": 23820,
+      "actual": 1442,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "4d0b95e2807a2b666e1e68f5faab84d8a84b40d8374a33543bd76b97c0f852a4",
+        "responseIdHash": "0b3167258438c839963eadd3e5e0e5fd6c116e4a3afa3b1749b6a81688c10566",
+        "model": "deepseek-flash",
+        "created": 1793728204,
+        "httpStatus": 200,
+        "responseHash": "e6f8a0b5eade334b9ae120ca407f601dffdc16355592134bc29997c713c72979",
+        "usageHash": "091e288c255f423647cf93c06a4ddbb8213e08e003c4d0c0a56f9d479cd70954",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "c14361b0-3ac7-4727-8ac1-02c3b0268445",
+      "state": "settled",
+      "reserved": 26759,
+      "actual": 2796,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "ee9783401be60fb6a6b8190bdb4bb41c5c84271d55b2d31b30cd74adeea6fe6a",
+        "responseIdHash": "b5e1f2eade69056c02ead3defcfd3e967ee79e1248fc8153a598244a0ef3f98a",
+        "model": "deepseek-flash",
+        "created": 1793728206,
+        "httpStatus": 200,
+        "responseHash": "80c65cd4f2a3865ce3c59d53677573bc8a67f841abe4bea8b9cff0edd40c000d",
+        "usageHash": "96022a0f27ad8131bb18505730b7670172ec81da1d62011909c3e517f78634d4",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "189607a1-6895-487f-934e-90cc589bd7d7",
+      "state": "settled",
+      "reserved": 25996,
+      "actual": 2342,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "39c834077c32ef084a757ed15e71c720ed31ea96ded8a0d471e84f0b146fd770",
+        "responseIdHash": "3b18066a58dc06815f9f361e3b5ccd36a583f77b561bbfa16ff34854d52f8571",
+        "model": "deepseek-flash",
+        "created": 1793728209,
+        "httpStatus": 200,
+        "responseHash": "a180518f439fe7ef847bf3a577ada57fef1461315d644eb96601c90981aaa77a",
+        "usageHash": "bccd5fd7e5ea2b50cf8130c75cb4b9a4a887be69dc4ff16c27af200059fd8e48",
+        "finalBillingEvidence": false
+      }
+    },
+    {
+      "id": "93268f63-655e-4f38-a577-e058628184c3",
+      "state": "settled",
+      "reserved": 22926,
+      "actual": 1180,
+      "receipt": {
+        "status": "linked",
+        "provider": "deepseek",
+        "requestHash": "ec153038905dd50f7dcb6823df8cb4e68e198068bc28a0efcff069ab718439cb",
+        "responseIdHash": "9cdcc3d35a40831f3ac6a0db683f7cf56139274ba1b30d7212b11084e84ee2e4",
+        "model": "deepseek-flash",
+        "created": 1793728210,
+        "httpStatus": 200,
+        "responseHash": "22f37fd8d1dc841dce3caae68c1b362969a23ed2a4835926f87ddbc3aafc3976",
+        "usageHash": "6e6c5f2da0ddf61be04c329e05351e6bef4f62e2850817014a91ee9156ad6621",
+        "finalBillingEvidence": false
+      }
+    }
+  ]
+}

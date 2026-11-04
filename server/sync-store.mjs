@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { TENANT_SYNC_SCHEMA } from './database-schemas.mjs';
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -37,7 +39,7 @@ function canonical(value) {
     );
   return value;
 }
-function validateData(data, id) {
+function validateData(data, id, maxBytes = 800000) {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new SyncError(400, "INVALID_DATA", "投递资料必须是对象");
   assertJSON(data);
@@ -64,12 +66,12 @@ function validateData(data, id) {
       Array.isArray(data.itemState))
   )
     throw new SyncError(400, "INVALID_DATA", "事项状态无效");
-  if (Buffer.byteLength(JSON.stringify(data)) > 800000)
+  if (Buffer.byteLength(JSON.stringify(data)) > maxBytes)
     throw new SyncError(413, "TOO_LARGE", "单次同步资料超过限制");
 }
 // Partial top-level updates retain fields an older client does not understand.
 // Item fields are merged independently so toggling done does not erase AI chat.
-function mergeData(before, patch, id) {
+function mergeData(before, patch, id, maxBytes = 800000) {
   const next = { ...before, ...patch, id };
   if (patch.itemState) {
     next.itemState = { ...before?.itemState };
@@ -84,8 +86,31 @@ function mergeData(before, patch, id) {
       next.itemState[itemId] = { ...before?.itemState?.[itemId], ...changes };
     }
   }
-  validateData(next, id);
+  validateData(next, id, maxBytes);
   return next;
+}
+
+function patchResult(before, patch) {
+  const invalid = () => { throw new SyncError(422, "INVALID_RESULT_PATCH", "事项修改无效，请先同步最新资料"); };
+  if (!before || !Array.isArray(before.items) || !patch ||
+      Object.keys(patch).sort().join(",") !== "fields,items" ||
+      !patch.fields || typeof patch.fields !== "object" || Array.isArray(patch.fields) ||
+      Object.keys(patch.fields).some(key => !["summary", "warnings"].includes(key)) ||
+      !Array.isArray(patch.items) || patch.items.length > before.items.length) invalid();
+  assertJSON(patch);
+  if (Buffer.byteLength(JSON.stringify(patch)) > 800000)
+    throw new SyncError(413, "TOO_LARGE", "本次事项修改超过限制，请分次保存");
+  if (("summary" in patch.fields && typeof patch.fields.summary !== "string") ||
+      ("warnings" in patch.fields && (!Array.isArray(patch.fields.warnings) || patch.fields.warnings.some(s => typeof s !== "string")))) invalid();
+  const items = [...before.items], changed = new Set();
+  for (const edit of patch.items) {
+    if (!edit || Object.keys(edit).sort().join(",") !== "index,value" ||
+        !Number.isSafeInteger(edit.index) || edit.index < 0 || edit.index >= items.length ||
+        changed.has(edit.index) || !edit.value || typeof edit.value !== "object" || Array.isArray(edit.value)) invalid();
+    changed.add(edit.index);
+    items[edit.index] = edit.value;
+  }
+  return { ...before, ...patch.fields, items };
 }
 
 export class SyncStore {
@@ -93,30 +118,32 @@ export class SyncStore {
     if (path !== ":memory:")
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
-    this.db.exec(`
-      PRAGMA journal_mode=WAL;
-      PRAGMA foreign_keys=ON;
-      PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS sync_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS sync_records(
-        id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT,
-        deleted_at TEXT, purged INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS sync_records_version ON sync_records(version);
-      CREATE TABLE IF NOT EXISTS sync_devices(
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL,
-        expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS sync_operations(
-        device_id TEXT NOT NULL REFERENCES sync_devices(id), op_id TEXT NOT NULL,
-        fingerprint TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL,
-        PRIMARY KEY(device_id, op_id)
-      );
-    `);
+    this.db.exec(
+      "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
+    );
+    const existingSchema = !!this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE name='sync_meta'")
+      .get();
+    try {
+      ensureDatabaseSchema(this.db, "tenant-sync", TENANT_SYNC_SCHEMA);
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
     const schema = this.meta("schema");
     if (schema && schema !== "1") {
       this.db.close();
       throw new Error("同步数据库版本不兼容，请使用匹配版本的服务");
+    }
+    if (
+      existingSchema &&
+      (!this.meta("epoch") ||
+        !this.meta("schema") ||
+        !/^\d+$/.test(this.meta("sequence") || "") ||
+        !Number.isSafeInteger(Number(this.meta("sequence"))))
+    ) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
     }
     this.db
       .prepare("INSERT OR IGNORE INTO sync_meta VALUES(?,?)")
@@ -167,6 +194,7 @@ export class SyncStore {
     this.db.prepare("UPDATE sync_devices SET revoked=1 WHERE id=?").run(id);
   }
   record(id) {
+    this.safety?.assert();
     const row = this.db
       .prepare("SELECT * FROM sync_records WHERE id=?")
       .get(id);
@@ -181,6 +209,7 @@ export class SyncStore {
       : null;
   }
   pull({ cursor = 0, epoch, limit = 100 } = {}) {
+    this.safety?.assert();
     if (
       !Number.isSafeInteger(cursor) ||
       cursor < 0 ||
@@ -213,14 +242,19 @@ export class SyncStore {
       records: selected.map((row) => this.record(row.id)),
     };
   }
-  apply(deviceId, operation, epoch) {
+  apply(deviceId, operation, epoch, internal = {}) {
+    if (this.safety && !this.safety.active)
+      return this.safety.transaction(() => this.apply(deviceId, operation, epoch, internal));
     if (epoch !== this.epoch)
       fail("RESET_REQUIRED", "服务器资料版本已变化，请先核对本地资料", {
         epoch: this.epoch,
       });
     if (!operation || typeof operation !== "object" || Array.isArray(operation))
       throw new SyncError(400, "INVALID_OPERATION", "同步操作无效");
-    const { opId, id, baseVersion, type, data } = operation;
+    const { opId, id, baseVersion, type, resultPatch } = operation;
+    let { data } = operation;
+    if (resultPatch !== undefined && (type !== "put" || !data || typeof data !== "object" || Array.isArray(data) || "result" in data))
+      throw new SyncError(422, "INVALID_RESULT_PATCH", "分项修改不能同时替换完整结果");
     if (
       !isId(opId) ||
       !isId(id) ||
@@ -233,7 +267,12 @@ export class SyncStore {
         "INVALID_OPERATION",
         "同步操作 ID、类型或基准版本无效",
       );
-    if (type === "put") validateData(data, id);
+    if (type === "put")
+      validateData(
+        data,
+        id,
+        internal.taskId ? Number.MAX_SAFE_INTEGER : 800000,
+      );
     else if (data !== undefined)
       throw new SyncError(
         400,
@@ -248,10 +287,12 @@ export class SyncStore {
           baseVersion,
           type,
           ...(data === undefined ? {} : { data }),
+          ...(resultPatch === undefined ? {} : { resultPatch }),
         }),
       ),
     );
-    this.db.exec("BEGIN IMMEDIATE");
+    const coordinated = this.safety?.active;
+    if (!coordinated) this.db.exec("BEGIN IMMEDIATE");
     try {
       const saved = this.db
         .prepare("SELECT * FROM sync_operations WHERE device_id=? AND op_id=?")
@@ -265,10 +306,28 @@ export class SyncStore {
           record: this.record(saved.record_id),
           replayed: true,
         };
-        this.db.exec("COMMIT");
+        if (!coordinated) this.db.exec("COMMIT");
         return response;
       }
       const current = this.record(id);
+      // Trusted in-process task integration only; HTTP handlers never accept
+      // this context. Guards run inside the same write transaction.
+      this.validateOperation?.(operation, internal);
+      if (
+        type === "put" &&
+        ["readingCoverage", "processingCoverage"].some(
+          (field) =>
+            field in data &&
+            JSON.stringify(data[field]) !==
+              JSON.stringify(current?.data?.[field]),
+        ) &&
+        !internal.taskId
+      )
+        throw new SyncError(
+          422,
+          "SERVER_FIELD_READONLY",
+          "服务端读取覆盖不能由设备改写",
+        );
       if ((current?.version || 0) !== baseVersion)
         fail("REVISION_CONFLICT", "另一台设备已修改这次投递，本机修改已保留", {
           current,
@@ -285,11 +344,29 @@ export class SyncStore {
         fail("NOT_DELETED", "请先移入最近删除", { current });
       if (type === "restore" && !current.deletedAt)
         fail("NOT_DELETED", "投递当前不在最近删除中", { current });
+      if (resultPatch !== undefined) data = { ...data, result: patchResult(current?.data?.result, resultPatch) };
       const version = this.sequence + 1;
       const nextData =
-        type === "put" ? mergeData(current?.data, data, id) : current.data;
+        type === "put"
+          ? mergeData(
+              current?.data,
+              data,
+              id,
+              internal.taskId
+                ? Number.MAX_SAFE_INTEGER
+                : Buffer.byteLength(JSON.stringify(current?.data || {})) >
+                    800000
+                  ? Buffer.byteLength(JSON.stringify(current.data)) + 800000
+                  : 800000,
+            )
+          : current.data;
       if (type === "put" && typeof nextData.text !== "string")
         throw new SyncError(400, "INVALID_DATA", "新投递缺少文字");
+      // v4 reads authoritative user text/original bytes. Client extraction
+      // previews must never reintroduce a persistent full-text cache.
+      if (type === "put" && this.meta("legacy_jobs_v4") === "1")
+        nextData.sources = [];
+      internal.beforeValidate?.();
       if (type === "put") this.validateStorage?.(nextData, current);
       if (type === "put") {
         if (this.files)
@@ -331,10 +408,12 @@ export class SyncStore {
         record: this.record(id),
         replayed: false,
       };
-      this.db.exec("COMMIT");
+      internal.beforeCommit?.(response);
+      this.afterOperation?.(operation, response);
+      if (!coordinated) this.db.exec("COMMIT");
       return response;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      if (!coordinated) this.db.exec("ROLLBACK");
       throw error;
     }
   }

@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-28",
+  "timezone": "Asia/Shanghai",
+  "baseline": "cda0cedd18e1cc18dc512e38aadac53d5da99753",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "historicalProviderBudgetRemaining": "unknown; no live calls authorized by an assumption of zero historical spend",
+  "readingKernel": { "fullRunPassed": 119, "subsequentArchiveSuitePassed": 7, "overlap": 6 },
+  "syncAndMiniPassed": 125,
+  "corePassed": 93,
+  "browserPassed": 92,
+  "desktopDataPassed": 18,
+  "personalServerPassed": 1,
+  "releasePassed": 4,
+  "prAndParityGatesPassed": 8,
+  "generatedFilesVerified": 15,
+  "xmlAndPdfBundlesVerified": true,
+  "webAndDesktopBuild": true,
+  "officialWxmlWxssCompileAndRendering": true,
+  "electronSourceArchive": {
+    "command": "node scripts/desktop-reading-tasks-smoke.mjs --zip --temporary",
+    "passed": true,
+    "uploadStopContinuePublishReload": true,
+    "archiveMissingPathsVisible": true,
+    "temporaryCleanupReuploadOfflineLock": true,
+    "existingUiSuitesPassed": 17,
+    "installedBuild": false
+  },
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261028-zip",
+    "node": "v24.20.0",
+    "benchmarkReads": 25,
+    "independentTextHashAndFullMetadataMatch": true,
+    "ordinaryUidRelatedTestsPassed": 59,
+    "subsequentArchiveSuitePassed": 7,
+    "subsequentOverlap": 6,
+    "brokerUnauthorizedUidAndProbeInjectionDenied": true,
+    "temporaryExpiredAndDeletedReverifyLoopsPassed": true,
+    "hostPackagesInstalled": false,
+    "productionChanged": false
+  },
+  "notVerified": [
+    "RAR and 7z readers", "vision model input and scanned PDF", "larger PDF streaming and memory",
+    "native WeChat develop and real identity", "phone", "installed desktop update",
+    "production migration", "live model semantic quality", "E/F and production capacity"
+  ]
+}

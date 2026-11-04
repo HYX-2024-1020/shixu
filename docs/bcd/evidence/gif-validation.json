@@ -1,0 +1,23 @@
+{
+  "dateBeijing": "2026-10-31",
+  "sourceHashes": {
+    "server/reading/gif.mjs": "d170ad521e32cd0ebec11e4a2d4ab67a8b9c0b7ed76cfd2c4332e403a21d5b05",
+    "server/reading/image.mjs": "92e3d3659a55b9fd9664d27f5a604925c0d63b193f022bdd7becca8a413b8b14",
+    "server/reading/material.mjs": "6266d7280e0593503a9b8cd1475825b77de2a158c42e5a590f333f9b007d690e",
+    "server/reading/windows.mjs": "7dd896bdefcf2ceee36e1a2e7356ce08aa39f2972c2af4699bd2a0cf3606cd2e",
+    "server/reading/archive.mjs": "b7142f4b172f7ad05b635678866b8c78a4ca386bf5e8beff90f2251f9fbe7218",
+    "server/reading/tasks.mjs": "3c580197676183953dc54872d86be6b14000b1162d1dbd16a8b42e3318a54101",
+    "shared/reading-view.mjs": "7985c90e3cb8261759dc8d0194c7230bc454f277f532701093e50bdf35108c77"
+  },
+  "relatedWindowsTests": 26,
+  "linuxGifTests": 4,
+  "officialCompile": true,
+  "browserWindows": 0,
+  "realCalls": 3,
+  "realMicros": 4898,
+  "cumulativeContinuationRealMicros": 16572,
+  "notFinalAcceptance": true,
+  "imageRegression": 59,
+  "syncTests": 125,
+  "transparentBackgroundRegression": "reproduced then fixed; Windows and Linux nobody passed"
+}

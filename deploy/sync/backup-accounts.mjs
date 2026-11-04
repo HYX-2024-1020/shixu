@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readdir, lstat, writeFile } from "node:fs/promises";
 import { join, resolve, dirname, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
+import {acquireDataLease,resolveDataVersion} from '../../server/data-versions.mjs';
 
 export async function backupAccounts(
   source,
@@ -13,11 +14,20 @@ export async function backupAccounts(
     throw Error(
       "Stop the account service before taking a cross-database snapshot",
     );
+  const lease=acquireDataLease(source,'maintenance');
+  try {
+    return await backupActiveAccounts(resolveDataVersion(lease).directory,destination);
+  }finally{lease.release();}
+}
+async function backupActiveAccounts(source,destination) {
   process.umask(0o077);
   const root = resolve(source),
     files = [];
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
+      // Shadows are not the selected data set, including before the first
+      // activation. Never back up partial/expired copies by recursive discovery.
+      if(directory===root&&entry.name==='data-versions')continue;
       const file = join(directory, entry.name);
       if ((await lstat(file)).isSymbolicLink())
         throw Error("Refusing a symlink in account data");

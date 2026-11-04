@@ -1,3 +1,5 @@
+import { ensureDatabaseSchema } from './database-schema.mjs';
+import { ACCOUNTS_CORE_SCHEMA } from './database-schemas.mjs';
 import { DatabaseSync } from "node:sqlite";
 import {
   createHash,
@@ -27,25 +29,40 @@ export class AccountRegistry {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.secret = secret;
     this.db = new DatabaseSync(join(directory, "accounts.sqlite"));
-    this.db
-      .exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS account_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 1,
-        invite_hash TEXT UNIQUE NOT NULL,limits TEXT NOT NULL,created_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS bindings(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES accounts(id),
-        kind TEXT NOT NULL CHECK(kind IN ('windows','wechat')),identity TEXT NOT NULL,public_key TEXT,
-        revoked INTEGER NOT NULL DEFAULT 0,expires INTEGER NOT NULL);
-      CREATE UNIQUE INDEX IF NOT EXISTS active_slot ON bindings(user_id,kind) WHERE revoked=0;
-      CREATE UNIQUE INDEX IF NOT EXISTS active_identity ON bindings(kind,identity) WHERE revoked=0;
-      CREATE TABLE IF NOT EXISTS nonces(binding_id TEXT NOT NULL,nonce TEXT NOT NULL,expires INTEGER NOT NULL,
-        PRIMARY KEY(binding_id,nonce));
-      CREATE TABLE IF NOT EXISTS request_rates(key TEXT PRIMARY KEY,window INTEGER NOT NULL,n INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS ai_usage(user_id TEXT NOT NULL,job_id TEXT NOT NULL,fingerprint TEXT NOT NULL,
-        day TEXT NOT NULL,reserved_micros INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(user_id,job_id));`);
+    this.db.exec(
+      "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
+    );
+    try {
+      ensureDatabaseSchema(this.db, "accounts-core", ACCOUNTS_CORE_SCHEMA, {
+        compatibleObjects: [
+          "CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0",
+        ],
+      });
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
+    if(this.db.prepare("SELECT 1 FROM account_meta WHERE key=?").get("data_version_required")) {
+      this.db.close();throw Error("DATA_VERSION_ROOT_FENCED");
+    }
+    const authMode=this.db.prepare("SELECT value FROM account_meta WHERE key='auth_v4'").get();
+    const legacySlot=!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='active_slot'").get();
+    const knownAuth=!!this.db.prepare("SELECT 1 FROM service_schema_versions WHERE component='accounts-auth' LIMIT 1").get()||!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_credentials'").get();
+    if(authMode&&authMode.value!=='1'){this.db.close();throw Error('UNKNOWN_AUTH_SCHEMA');}
+    if((knownAuth&&!authMode)||(authMode&&legacySlot)){this.db.close();throw Error('DATABASE_STATE_RECONCILIATION');}
+    if(!authMode&&!legacySlot){
+      const initialized=['account_meta','accounts','bindings','nonces','request_rates','ai_usage'].some(table=>this.db.prepare('SELECT 1 FROM '+table+' LIMIT 1').get());
+      if(initialized){this.db.close();throw Error('DATABASE_STATE_RECONCILIATION');}
+      this.db.exec('CREATE UNIQUE INDEX active_slot ON bindings(user_id,kind) WHERE revoked=0');
+    }
     const check = digest(secret);
     const previous = this.db
       .prepare("SELECT value FROM account_meta WHERE key='secret_check'")
       .get();
+    if (!previous && this.db.prepare("SELECT 1 FROM accounts LIMIT 1").get()) {
+      this.db.close();
+      throw Error("DATABASE_STATE_RECONCILIATION");
+    }
     if (previous && previous.value !== check) {
       this.db.close();
       throw Error("Account secret changed; restore the original secret");
@@ -57,7 +74,8 @@ export class AccountRegistry {
   close() {
     this.db.close();
   }
-  transaction(fn) {
+  transaction(fn, restriction) {
+    if (this.safety) return this.safety.transaction(fn, false, restriction);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
@@ -90,6 +108,7 @@ export class AccountRegistry {
     );
   }
   account(id) {
+    this.safety?.assert();
     const row = this.db
       .prepare("SELECT id,enabled,limits FROM accounts WHERE id=?")
       .get(id);
@@ -106,6 +125,8 @@ export class AccountRegistry {
     );
   }
   bind(invite, kind, identity, publicKey = null) {
+    if (this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get())
+      reject(426, "CLIENT_UPGRADE_REQUIRED", "请使用账号密码注册或登录");
     if (typeof invite !== "string" || invite.length > 100)
       reject(401, "INVALID_INVITE", "邀请码无效");
     return this.transaction(() => {
@@ -156,6 +177,7 @@ export class AccountRegistry {
     });
   }
   authenticate(token) {
+    this.safety?.assert();
     if (typeof token !== "string" || token.length > 150)
       reject(401, "UNAUTHORIZED", "请激活或恢复设备授权，本地资料仍保留");
     const id = token.slice(4).split(".")[0];
@@ -166,6 +188,12 @@ export class AccountRegistry {
     if (!binding || !safeEqual(token, this.token(binding)))
       reject(401, "UNAUTHORIZED", "设备授权已撤销或失效，本地资料仍保留");
     this.account(binding.user_id);
+    if (this.db.prepare("SELECT 1 FROM account_meta WHERE key='auth_v4'").get())
+      this.db
+        .prepare(
+          "UPDATE account_device_slots SET last_seen=? WHERE binding=? AND last_seen<?",
+        )
+        .run(Date.now(), binding.id, Date.now() - 60000);
     return binding;
   }
   proof(binding, method, path, body, headers) {
@@ -199,15 +227,17 @@ export class AccountRegistry {
     this.account(userId);
     if (!["windows", "wechat"].includes(kind))
       throw Error("kind must be windows or wechat");
-    this.db
+    return this.transaction(() => this.db
       .prepare("UPDATE bindings SET revoked=1 WHERE user_id=? AND kind=?")
-      .run(userId, kind);
+      .run(userId, kind), { account: userId, kind: "revoke-" + kind });
   }
   enable(userId, enabled) {
-    const result = this.db
-      .prepare("UPDATE accounts SET enabled=? WHERE id=?")
-      .run(enabled ? 1 : 0, userId);
-    if (!result.changes) throw Error("Unknown account");
+    return this.transaction(() => {
+      const result = this.db
+        .prepare("UPDATE accounts SET enabled=? WHERE id=?")
+        .run(enabled ? 1 : 0, userId);
+      if (!result.changes) throw Error("Unknown account");
+    }, enabled ? undefined : { account: userId, kind: "disable" });
   }
   limits(userId, changes) {
     const account = this.account(userId);
@@ -219,9 +249,9 @@ export class AccountRegistry {
         value > 1024 * 1024 * 1024
       )
         throw Error("Invalid account limit");
-    this.db
+    return this.transaction(() => this.db
       .prepare("UPDATE accounts SET limits=? WHERE id=?")
-      .run(JSON.stringify({ ...account.limits, ...changes }), userId);
+      .run(JSON.stringify({ ...account.limits, ...changes }), userId));
   }
   usage(userId) {
     return this.db

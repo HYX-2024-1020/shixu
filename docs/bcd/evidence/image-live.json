@@ -1,0 +1,142 @@
+{
+  "kind": "synthetic-real-image-development",
+  "testedAt": "2026-10-29T15:39:26.620Z",
+  "realProviderCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793288364127,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 2421.215,
+  "spentMicros": 2316,
+  "calls": [
+    {
+      "id": "171de6d2-6ad7-4e59-a62b-43a271a40c9e",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26020,
+      "actual": 2316,
+      "usage": "{\"prompt_tokens\":1492,\"completion_tokens\":394,\"prompt_cache_hit_tokens\":768}"
+    }
+  ],
+  "result": {
+    "summary": "收下一份“图像开发验证”合成通知截图，核心是提交图像实验报告（任务编号7319）的截止要求与格式规范。",
+    "warnings": [
+      "截图未说明提交渠道或平台，无法确认如何提交。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告7319",
+        "summary": "按通知要求提交图像实验报告，PDF格式、以学号_姓名命名，内容需说明算法思路与时间复杂度，截止2026年10月30日18:00。",
+        "facts": [
+          "课程/项目名称：图像开发验证",
+          "需提交图像实验报告，任务编号7319",
+          "截止时间：2026年10月30日18:00",
+          "格式：PDF",
+          "命名：学号_姓名",
+          "要求：说明算法思路与时间复杂度",
+          "尾部核对：7319，禁止遗漏此编号"
+        ],
+        "nextSteps": [
+          "按“学号_姓名”命名PDF文件，确认尾部含7319编号后于2026年10月30日18:00前提交"
+        ],
+        "uncertainties": [
+          "通知未说明提交渠道或平台"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号 7319。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年10月30日18:00。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：7319，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-10-30",
+          "time": "18:00",
+          "anchor": "2026年10月30日18:00",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成通知.png",
+      "contentHash": "ad237e5f47e243e83f3c5e454627cfe4986cb5389c4db7ac987292a8279f3317",
+      "readerVersion": "png-tiles/1;zlib-node/24",
+      "normalizationVersion": "unicode-lf/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成通知.png",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "start": 0,
+          "end": 1,
+          "imageHash": "b9b75b57d5b3f840afec717b51842bb2cbbee3ee1f19a04d8590ef261722ba0c"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "imagePagination": {
+        "startTile": 1,
+        "nextTile": null,
+        "totalTiles": 1,
+        "width": 900,
+        "height": 600
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

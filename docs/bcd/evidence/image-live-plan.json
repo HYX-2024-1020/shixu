@@ -1,0 +1,18 @@
+{
+  "authorizedBy": "User request 2026-10-29 replacing prior CNY10 development cap",
+  "purpose": "Verify real Flash image input via bounded PNG tile task/provider and independent synthetic ledger",
+  "plannedCalls": 1,
+  "estimatedCostCnyLessThan": 0.1,
+  "sample": "Generated 900x600 Chinese notice, task7319, deadline2026-10-30T18:00, PDF, filename and unique tail",
+  "expected": [
+    "task number",
+    "date and explicit time",
+    "PDF format",
+    "filename",
+    "algorithm and complexity",
+    "tail number"
+  ],
+  "noBrowserWindow": true,
+  "personalMaterials": false,
+  "automaticRetry": false
+}

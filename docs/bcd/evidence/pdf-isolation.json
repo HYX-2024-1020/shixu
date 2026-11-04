@@ -1,0 +1,104 @@
+{
+  "synthetic": true,
+  "providerCalls": 0,
+  "samples": [
+    {
+      "name": "合成.txt",
+      "bytes": 29,
+      "state": "read",
+      "segments": 1,
+      "exactMatch": true,
+      "parseMs": 1.790818999999999,
+      "serializationAndTransferMs": 3.072496000000001,
+      "maxRssKiB": 49348,
+      "waitingMs": 0,
+      "prepareMs": 3.103752000000007,
+      "isolatedMs": 174.39571
+    },
+    {
+      "name": "结构.csv",
+      "bytes": 64,
+      "state": "read",
+      "segments": 3,
+      "exactMatch": true,
+      "parseMs": 1.8686130000000105,
+      "serializationAndTransferMs": 6.067549999999997,
+      "maxRssKiB": 50504,
+      "waitingMs": 0,
+      "prepareMs": 1.5027809999999988,
+      "isolatedMs": 158.041589
+    },
+    {
+      "name": "合成.txt",
+      "bytes": 780018,
+      "state": "read",
+      "segments": 4,
+      "exactMatch": true,
+      "parseMs": 67.848501,
+      "serializationAndTransferMs": 8.789522000000005,
+      "maxRssKiB": 65424,
+      "waitingMs": 0,
+      "prepareMs": 5.265000999999984,
+      "isolatedMs": 176.80363899999998
+    },
+    {
+      "name": "部分.csv",
+      "bytes": 15,
+      "state": "partial",
+      "segments": 2,
+      "exactMatch": true,
+      "parseMs": 2.0138019999999983,
+      "serializationAndTransferMs": 3.582812000000004,
+      "maxRssKiB": 50364,
+      "waitingMs": 0,
+      "prepareMs": 0.8874459999999544,
+      "isolatedMs": 127.77386200000001
+    }
+  ],
+  "probes": {
+    "boundary": {
+      "uid": 64092,
+      "inputUid": 64092,
+      "inputMode": 256,
+      "inputDirectoryMode": 448,
+      "envKeys": [
+        "LANG",
+        "PATH"
+      ],
+      "noNewPrivileges": true,
+      "noCapabilities": true,
+      "hostDenied": true,
+      "symlinkDenied": true,
+      "otherTaskDenied": true,
+      "inputReadOnly": true,
+      "runtimeReadOnly": true,
+      "networkDenied": true,
+      "diskDenied": true,
+      "scratchBytes": 268435456,
+      "timing": {
+        "waitingMs": 0,
+        "prepareMs": 3.9896439999999984,
+        "isolatedMs": 408.61430200000007
+      }
+    },
+    "memory": {
+      "terminated": true,
+      "elapsedMs": 999.7350309999999
+    },
+    "timeout": {
+      "terminated": true,
+      "elapsedMs": 2176.6427409999997
+    },
+    "process": {
+      "processLimitDenied": true,
+      "denied": 58,
+      "timing": {
+        "waitingMs": 0,
+        "prepareMs": 1.569738000000143,
+        "isolatedMs": 1350.4007659999997
+      }
+    },
+    "brokerCrashCleanup": true
+  },
+  "stagingClean": true
+}

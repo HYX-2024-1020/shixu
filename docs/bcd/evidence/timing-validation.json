@@ -1,0 +1,190 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linuxOrdinaryUid": {
+    "tests": 41,
+    "pass": 41,
+    "elapsedSeconds": 19.96,
+    "maxProcessRssKiB": 196176
+  },
+  "linuxIsolatedClientLoop": {
+    "synthetic": true,
+    "realProviderCalls": 0,
+    "simulatedProviderCalls": 4,
+    "bytes": 700018,
+    "parserRuns": 2,
+    "tailSeen": true,
+    "desktopTransport": "AccountWorkspace with signed HTTP and isolated profile",
+    "miniTransport": "actual Page lifecycle with Node wx adapter, not WeChat UI",
+    "stopFromOtherDevice": true,
+    "continueFromOtherDevice": true,
+    "lateResponseDiscarded": true,
+    "resultsEqual": true,
+    "v3AIBlocked": true,
+    "spentMicros": 80,
+    "originalMode": "temporary",
+    "sourceByMini": true,
+    "lifecycleVerified": true,
+    "linuxBrokerUnprivilegedClient": true,
+    "unauthorizedUidDenied": true,
+    "clientProbeInjectionDenied": true,
+    "elapsedMs": 2390.971446
+  },
+  "isolation": {
+    "synthetic": true,
+    "providerCalls": 0,
+    "samples": [
+      {
+        "name": "合成.txt",
+        "bytes": 29,
+        "state": "read",
+        "segments": 1,
+        "exactMatch": true,
+        "parseMs": 1.754559999999998,
+        "serializationAndTransferMs": 2.9484279999999927,
+        "maxRssKiB": 49336,
+        "waitingMs": 0,
+        "prepareMs": 2.557019000000004,
+        "isolatedMs": 186.18876799999998
+      },
+      {
+        "name": "结构.csv",
+        "bytes": 64,
+        "state": "read",
+        "segments": 3,
+        "exactMatch": true,
+        "parseMs": 2.2762029999999953,
+        "serializationAndTransferMs": 5.221404000000007,
+        "maxRssKiB": 50372,
+        "waitingMs": 0,
+        "prepareMs": 1.267483999999996,
+        "isolatedMs": 184.543502
+      },
+      {
+        "name": "合成.txt",
+        "bytes": 780018,
+        "state": "read",
+        "segments": 4,
+        "exactMatch": true,
+        "parseMs": 23.670541,
+        "serializationAndTransferMs": 69.70581,
+        "maxRssKiB": 65456,
+        "waitingMs": 0,
+        "prepareMs": 6.1033350000000155,
+        "isolatedMs": 214.60079899999994
+      },
+      {
+        "name": "部分.csv",
+        "bytes": 15,
+        "state": "partial",
+        "segments": 2,
+        "exactMatch": true,
+        "parseMs": 1.7118899999999968,
+        "serializationAndTransferMs": 3.6401070000000004,
+        "maxRssKiB": 50372,
+        "waitingMs": 0,
+        "prepareMs": 1.0420279999999593,
+        "isolatedMs": 124.56744200000003
+      }
+    ],
+    "probes": {
+      "boundary": {
+        "uid": 62118,
+        "inputUid": 62118,
+        "inputMode": 256,
+        "inputDirectoryMode": 448,
+        "envKeys": [
+          "LANG",
+          "PATH"
+        ],
+        "noNewPrivileges": true,
+        "noCapabilities": true,
+        "hostDenied": true,
+        "symlinkDenied": true,
+        "otherTaskDenied": true,
+        "inputReadOnly": true,
+        "runtimeReadOnly": true,
+        "networkDenied": true,
+        "diskDenied": true,
+        "scratchBytes": 268435456,
+        "timing": {
+          "waitingMs": 0,
+          "prepareMs": 1.3952639999999974,
+          "isolatedMs": 426.507073
+        }
+      },
+      "memory": {
+        "terminated": true,
+        "elapsedMs": 1096.9073210000001
+      },
+      "timeout": {
+        "terminated": true,
+        "elapsedMs": 2163.39339
+      },
+      "process": {
+        "processLimitDenied": true,
+        "denied": 59,
+        "timing": {
+          "waitingMs": 0,
+          "prepareMs": 2.6926290000001245,
+          "isolatedMs": 1295.950694
+        }
+      },
+      "brokerCrashCleanup": true
+    },
+    "stagingClean": true
+  },
+  "windowsSourceElectron": {
+    "limit": {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "electronSourceUI": true,
+      "readFailure": "EXECUTION_LIMIT",
+      "noContinue": true,
+      "noChargeOrPublication": true
+    },
+    "uncertain": {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "electronSourceUI": true,
+      "readFailure": "ACTIVE_TIME_RECONCILIATION",
+      "noContinue": true,
+      "noChargeOrPublication": true
+    },
+    "temporary": {
+      "synthetic": true,
+      "realProviderCalls": 0,
+      "electronSourceUI": true,
+      "sshTunnelToIsolatedLinux": false,
+      "originalUpload": true,
+      "originalLifecycle": true,
+      "originalOfflineLock": true,
+      "temporaryCleanupAndReupload": true,
+      "stopContinueButtons": true,
+      "cumulativeWallet": true,
+      "published": true,
+      "format": "txt",
+      "simulatedCalls": 3
+    }
+  },
+  "localChecks": {
+    "reading": 97,
+    "syncMini": 124,
+    "core": 93,
+    "browser": 92,
+    "personalServer": 1,
+    "desktopData": 18,
+    "release": 4,
+    "policy": 8,
+    "docs": 68,
+    "miniGeneratedFiles": 15,
+    "officialCompiler": true,
+    "webAndDesktopBuild": true
+  },
+  "boundaries": [
+    "Synthetic provider; no semantic model acceptance",
+    "Node wx adapter is not native WeChat",
+    "Source Electron is not installed client",
+    "No production migration, deployment or private data"
+  ]
+}

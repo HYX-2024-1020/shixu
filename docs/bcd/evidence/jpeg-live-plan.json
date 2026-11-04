@@ -1,0 +1,17 @@
+{
+  "authorizedBy": "User's current B/C/D necessary real-API development authorization",
+  "dateBeijing": "2026-10-30",
+  "purpose": "Verify that a lossy JPEG stored sideways with EXIF orientation 6 is normalized upright and preserves task number, absolute deadline, file format/name, requirements and tail in real model understanding",
+  "syntheticOnly": true,
+  "plannedCalls": 1,
+  "automaticRetries": 0,
+  "expectedCostCny": "approximately 0.004-0.02; conservative frozen reservation below 0.06",
+  "provider": "DeepSeek-V4.1-Flash-1017",
+  "pricingSource": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+  "calendarSource": "https://www.beijing.gov.cn/cs/gncs/zcwj/202603/t20260327_4568275.html",
+  "tariffReview": "2026-10-30 is a Friday outside the officially published Chinese holiday dates; Beijing 14:00-18:00 is peak, conditional on actual execution clock",
+  "sample": {"encodedWidth":600,"encodedHeight":900,"orientation":6,"displayWidth":900,"displayHeight":600,"jpegQuality":85,"taskNumber":"8642","deadline":"2026-11-02 17:30","format":"PDF","filename":"学号_姓名","requirements":["算法思路","时间复杂度"],"tail":"8642"},
+  "credentialHandling": "Existing safe configuration, process-only decryption; no key in input/output/repository. Electron main process for safeStorage only, no BrowserWindow",
+  "ledgerHandling": "Unique synthetic batch ledger retained under workspace outputs; no historical ledger, unknown or safety watermark cleared",
+  "limits": "No supplier recharge, quota changes, private material, local OCR, production migration or client installation"
+}

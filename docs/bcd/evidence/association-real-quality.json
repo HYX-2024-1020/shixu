@@ -1,0 +1,133 @@
+{
+  "kind": "synthetic-real-history-association-quality",
+  "testedAt": "2026-10-31T18:55:08.766Z",
+  "realProviderCalls": 1,
+  "simulatedUpstreamCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793472907469,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "state": "done",
+  "reason": "",
+  "qualityError": null,
+  "realSpentMicros": 1648,
+  "realUnknownCalls": 0,
+  "calls": [
+    {
+      "id": "db45f24f-4845-460e-86d2-c8083ce5fe80",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 136000,
+      "actual": 50,
+      "usage": "{\"prompt_tokens\":10,\"completion_tokens\":10,\"prompt_cache_hit_tokens\":0}",
+      "simulated": true
+    },
+    {
+      "id": "fcb435d9-0275-415a-afc6-85c0d9b65cd8",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22435,
+      "actual": 1648,
+      "usage": "{\"prompt_tokens\":1128,\"completion_tokens\":130,\"prompt_cache_hit_tokens\":0}",
+      "simulated": false
+    }
+  ],
+  "association": {
+    "links": [
+      {
+        "id": "task_history_4a8225cdd7d94fd03355",
+        "from": "packet#task_item_0",
+        "target": "old0#old-item",
+        "relation": "same",
+        "title": "提交算法实验A7319",
+        "confidence": 0.98,
+        "newEvidence": {
+          "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+          "quote": "算法课实验A7319，提交PDF报告并另附UTF-8源代码。截止2026-11-03 16:45。"
+        },
+        "oldEvidence": {
+          "sourceId": "old-source0",
+          "quote": "算法课实验A7319，提交PDF报告，截止2026-11-03 16:45。"
+        },
+        "contextRefs": [
+          "packet#task_item_0",
+          "old0#old-item"
+        ]
+      }
+    ]
+  },
+  "historyAssociation": {
+    "version": "saved-history-association/1",
+    "complete": true,
+    "candidates": 3
+  },
+  "result": {
+    "summary": "模拟已经读取的本次事项",
+    "warnings": [],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交算法实验A7319",
+        "summary": "算法课实验报告",
+        "facts": [
+          "实验编号A7319",
+          "格式PDF",
+          "另附UTF-8源代码"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "算法课实验A7319，提交PDF报告并另附UTF-8源代码。截止2026-11-03 16:45。"
+          }
+        ],
+        "sourceIds": [
+          "synthetic-text_c731bc88e3b1_0_m0"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026-11-03 16:45",
+          "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "links": [
+        {
+          "from": "new:0",
+          "target": "old0#old-item",
+          "relation": "same",
+          "title": "提交算法实验A7319",
+          "confidence": 0.98,
+          "newEvidence": {
+            "sourceId": "synthetic-text_c731bc88e3b1_0_m0",
+            "quote": "算法课实验A7319，提交PDF报告并另附UTF-8源代码。截止2026-11-03 16:45。"
+          },
+          "oldEvidence": {
+            "sourceId": "old-source0",
+            "quote": "算法课实验A7319，提交PDF报告，截止2026-11-03 16:45。"
+          }
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    "Only history association model call real; upstream recognition simulated",
+    "Synthetic saved history, completed candidate excluded",
+    "No UI window or final B/C/D acceptance"
+  ]
+}

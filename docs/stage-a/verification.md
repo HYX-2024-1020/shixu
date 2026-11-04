@@ -1,3 +1,5 @@
+2026-11-01：运行核心加入版本写入门禁后，合成旧库生成改用[固定阶段A历史模块](../../scripts/stage-a/legacy/README.md)，保持原草案SQL/状态契约及20项演练。新构造器不再隐式当作旧结构，源码SHA256由迁移专项校验。[运行底层增量](../bcd/runtime-schema-verification.md)不代替阶段A或完整迁移验收。
+
 # 阶段 A 本地验证记录
 
 日期：2026-10-28（北京时间）。Issue #71，分支 `docs/stage-a-baseline`，基于main 2574a5e。范围与限制见 [入口](README.md)。

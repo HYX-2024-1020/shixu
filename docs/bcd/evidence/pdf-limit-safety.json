@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "originalBytes": 531269,
+  "expandedResourceLimit": true,
+  "completePages": 207,
+  "independentPrefixHash": "92bf7ac88212854738746c3b5f9108f71d31e2dfd6b5da3044e4eb07cdd81aec",
+  "fullPrefixAndCoordinatesChecked": true,
+  "unreadSuffix": {
+    "kind": "pdf",
+    "page": 208,
+    "pageEnd": 241,
+    "code": "PDF_RESOURCE_LIMIT"
+  },
+  "elapsedMs": 25423.953128,
+  "parseMs": 24671.836580000003,
+  "serializationAndTransferMs": 253.3709459999991,
+  "maxRssKiB": 155140
+}

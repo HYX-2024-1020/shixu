@@ -1,0 +1,7 @@
+# Canvas 1.0.13 corresponding notices and sources
+
+The native canvas is taken from the exact npm packages locked in package-lock.json. The generated package retains the published platform SBOM, npm source archives, original canvas/PDF.js licenses, supplementary native/Rust notices, and these unmodified MPL-covered sources. They are separate third-party works; the repository MIT license does not replace their licenses.
+
+`provenance.json` records the exact SBOM crate SHA-256 values, source URLs, Git revisions and fetched notice hashes. `upstream-notices.json` preserves missing package-level copyright notices from their exact upstream Git commits. Freetype is distributed under its FTL alternative. The MPL source archives for cssparser, cssparser-macros, dtoa-short and selectors are complete and unmodified. Their license is MPL-2.0, not MIT. Source availability is provided directly in the self-contained release, alongside original public download URLs.
+
+`scripts/collect-pdf-canvas-notices.py` regenerates the combined `pdf-canvas-notices.LICENSE` from the published Windows/Linux SBOM union; registry archives must match SBOM checksums. It uses only public dependency source archives and exact Git revisions, never personal materials or credentials. Native rendering remains unable to load system/user fonts or image URLs. Library inclusion is not permission to enable unsupported formats or external resources.

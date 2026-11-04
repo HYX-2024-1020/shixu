@@ -1,0 +1,158 @@
+{
+  "kind": "synthetic-real-webp-development",
+  "testedAt": "2026-10-31T07:17:07.528Z",
+  "realProviderCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793431024672,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "16d245ff5cf9f23ff00ae25506fd1799911e5acb0c03f1a1b41eb63d7c13a141",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 2790.0282,
+  "spentMicros": 2447,
+  "calls": [
+    {
+      "id": "fa968d27-4f1f-4ac5-988b-ccce539fe220",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26081,
+      "actual": 2447,
+      "usage": "{\"prompt_tokens\":1567,\"completion_tokens\":408,\"prompt_cache_hit_tokens\":768}"
+    }
+  ],
+  "result": {
+    "summary": "收下一份图像实验报告提交通知，包含截止时间、PDF命名与内容要求。",
+    "warnings": [
+      "图片文字来自图像识别，关键信息建议对照原通知确认。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告",
+        "summary": "按PDF格式提交图像实验报告，文件以学号_姓名命名，正文说明算法思路与时间复杂度。",
+        "facts": [
+          "任务编号9537",
+          "截止：2026年11月3日16:45",
+          "格式：PDF",
+          "命名：学号_姓名",
+          "要求：说明算法思路与时间复杂度",
+          "尾部核对：9537，禁止遗漏此编号"
+        ],
+        "nextSteps": [
+          "先完成报告正文，写清算法思路并分析时间复杂度",
+          "导出为PDF，按“学号_姓名”命名文件",
+          "提交前核对文末是否写有9537"
+        ],
+        "uncertainties": [
+          "未说明提交入口或提交平台",
+          "未说明“尾部核对”具体放置位置，仅原文要求在尾部核对并禁止遗漏编号"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：9537，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成通知.webp",
+      "contentHash": "16d245ff5cf9f23ff00ae25506fd1799911e5acb0c03f1a1b41eb63d7c13a141",
+      "readerVersion": "webp-composited-tiles/3;libwebp/1.6.0-strict",
+      "normalizationVersion": "webp-composited-white-png-tiles/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成通知.webp",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frame": 1,
+          "totalFrames": 1,
+          "frameStartMs": 0,
+          "frameDurationMs": 0,
+          "start": 0,
+          "end": 1,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "decoderMetrics": {},
+      "imagePagination": {
+        "startTile": 1,
+        "nextTile": null,
+        "totalTiles": 1,
+        "width": 900,
+        "height": 600,
+        "frame": 1,
+        "totalFrames": 1,
+        "frameStartMs": 0,
+        "frameDurationMs": 0
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

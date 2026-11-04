@@ -1,0 +1,209 @@
+{
+  "kind": "synthetic-real-scanned-pdf-development",
+  "testedAt": "2026-10-31T12:37:09.015Z",
+  "realProviderCalls": 1,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793450226516,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "dc4700cde0885acde3a719e461b9a78f0d562fcd17a19d4f3911cec485a0fa4f",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "pageAndPixelSource": true,
+    "allPages": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 2433.1219,
+  "spentMicros": 1803,
+  "calls": [
+    {
+      "id": "26c41bf7-5822-40a3-9628-730fc4a8cece",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26063,
+      "actual": 1803,
+      "usage": "{\"prompt_tokens\":1566,\"completion_tokens\":404,\"prompt_cache_hit_tokens\":1408}"
+    }
+  ],
+  "modelResponses": [
+    {
+      "summary": "收下1份图像实验报告提交通知，包含截止时间、PDF命名与内容要求及报告尾部编号。",
+      "items": [
+        {
+          "kind": "task",
+          "title": "提交图像实验报告9537",
+          "summary": "按PDF格式提交图像实验报告，文件命名为“学号_姓名”，正文需说明算法思路与时间复杂度。",
+          "facts": [
+            "任务编号9537",
+            "截止时间：2026年11月3日16:45",
+            "格式：PDF，命名：学号_姓名",
+            "要求：说明算法思路与时间复杂度",
+            "尾部核对：9537，禁止遗漏此编号，需写在报告尾部"
+          ],
+          "nextSteps": [
+            "建议先完成算法思路与时间复杂度说明，再导出PDF并按要求命名",
+            "建议在报告尾部加入9537编号后再提交"
+          ],
+          "uncertainties": [],
+          "due": {
+            "date": "2026-11-03",
+            "time": "16:45",
+            "anchor": "2026年11月3日16:45",
+            "sourceId": "image_6105d6cc76af_vp1_i1"
+          },
+          "evidence": [
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "请提交图像实验报告，任务编号9537。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "截止：2026年11月3日16:45。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "格式：PDF，命名：学号_姓名。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "要求：说明算法思路与时间复杂度。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "尾部核对：9537，禁止遗漏此编号。"
+            }
+          ]
+        }
+      ],
+      "warnings": [
+        "来源为PDF页面视觉识别文本，未提供完整文件或提交入口信息。"
+      ]
+    }
+  ],
+  "result": {
+    "summary": "收下1份图像实验报告提交通知，包含截止时间、PDF命名与内容要求及报告尾部编号。",
+    "warnings": [
+      "来源为PDF页面视觉识别文本，未提供完整文件或提交入口信息。",
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告9537",
+        "summary": "按PDF格式提交图像实验报告，文件命名为“学号_姓名”，正文需说明算法思路与时间复杂度。",
+        "facts": [
+          "任务编号9537",
+          "截止时间：2026年11月3日16:45",
+          "格式：PDF，命名：学号_姓名",
+          "要求：说明算法思路与时间复杂度",
+          "尾部核对：9537，禁止遗漏此编号，需写在报告尾部"
+        ],
+        "nextSteps": [
+          "建议先完成算法思路与时间复杂度说明，再导出PDF并按要求命名",
+          "建议在报告尾部加入9537编号后再提交"
+        ],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "尾部核对：9537，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_vp1_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "image_6105d6cc76af_vp1_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成扫描通知.pdf",
+      "contentHash": "dc4700cde0885acde3a719e461b9a78f0d562fcd17a19d4f3911cec485a0fa4f",
+      "readerVersion": "pdf-visual/1;pdfjs/6.2.108;canvas/1.0.13",
+      "normalizationVersion": "pdf-108dpi-white-png/1",
+      "state": "read",
+      "covered": [
+        {
+          "name": "合成扫描通知.pdf",
+          "kind": "image",
+          "sourceId": "image_6105d6cc76af_vp1_i1",
+          "start": 0,
+          "end": 1,
+          "page": 1,
+          "rotation": 0,
+          "tile": 1,
+          "totalTiles": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18",
+          "dpi": 108
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "pdfVisualPagination": {
+        "page": 1,
+        "startTile": 1,
+        "totalTiles": 1,
+        "totalPages": 1,
+        "width": 900,
+        "height": 600,
+        "startOffset": 0,
+        "nextOffset": 1,
+        "next": null
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

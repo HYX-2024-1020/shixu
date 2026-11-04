@@ -1,0 +1,36 @@
+{
+  "kind": "association-history-stream-linux-development",
+  "uid": 65534,
+  "directory": "/opt/shixu-bcd-test-20261101-association-stream",
+  "exitCode": 0,
+  "tests": 29,
+  "nodeOldSpaceMiB": 64,
+  "model": "synthetic only; no new live API",
+  "corpusMeasurement": {
+    "savedHistoricalBytes": 18227125,
+    "graphBytes": 111368,
+    "heapUsed": 26026504,
+    "maxRSSKiB": 103624,
+    "candidates": 401
+  },
+  "suiteMaxProcessRSSKiB": 206624,
+  "hashes": {
+    "server/reading/association.mjs": "58f3912db8bbca36b293ed63b98c78f7e64b25d552bd57028dfccaeda0174013",
+    "server/reading/association-streaming.test.mjs": "cef9f4c4b88c24aa4da2c14ad93f017054796841f34604a2f05723ed6cdf25b0",
+    "server/reading/association-history-fixtures.mjs": "ab04c0da5bb900242609eb43d2150fd7abf727d8e24210958a13ecdc852de977"
+  },
+  "cases": [
+    "401 history items with full facts >16MiB; all preflighted including far tail",
+    "tail edit after one paid association call blocks next consumption",
+    "legacy dependency/pair hashes and full shared group context remain identical",
+    "graph bound and oversized tail fail before any association fee",
+    "33 large saved packet summaries publish tail link without old data edits",
+    "signed AccountWorkspace and Page/Node wx temporary/deleted chains"
+  ],
+  "boundaries": [
+    "Node old-space flag is not total process/cgroup memory limit",
+    "RSS single synthetic process-run evidence; not P95 or aggregate concurrent-service peak",
+    "16MiB relation graph and per-record guards remain",
+    "No original-file streaming, huge-group solution, production, native client or final B/C/D acceptance"
+  ]
+}

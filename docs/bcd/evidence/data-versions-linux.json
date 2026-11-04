@@ -1,0 +1,23 @@
+{
+  "kind": "complete-shadow-data-set-development",
+  "platform": "linux",
+  "directory": "/opt/shixu-bcd-test-20261101-data-versions",
+  "uid": 65534,
+  "newRealProviderCalls": 0,
+  "relatedTests": 69,
+  "lastTests": 16,
+  "lastExitCode": 0,
+  "scope": "Synthetic 3 identities/2 tenant baseline, actual dual-client signed HTTP retained/temporary; no production, physical power-cut, 10-user acceptance or complete security replay",
+  "sourceSha256": {
+    "server/data-versions.mjs": "894377eab26be036b666d8bffffe338bb693fcc947373404b85a6746ec4a360f",
+    "server/data-migration.mjs": "2cbc056f26df73bde867d5010256a57df8151f5a6e3982f115da469e9b15c0a0",
+    "server/reading/data-versions.test.mjs": "cbe998735bca875c48b842f3b10744e0ae55fd630661c48288a84b1890a43fba",
+    "server/reading/data-versions-clients.test.mjs": "074b508a5320f11daafb6e1449514f4d7b0da9ad438f68304eadfce3907ad2ae",
+    "server/sync-multi-user.mjs": "3c53b2e2877353109914817945f6c6b57105c871c99e8e8bcb8b7bc9663bf6a1",
+    "server/sync-accounts.mjs": "8de1c2f8f7f5ba3d5517452d65876cbfa4d83f176a49b232aa4f953e209dfb35",
+    "server/database-schemas.mjs": "4ffd4b1fe99137523f9c66c992729988dbf834af40ee97300c76b8876fd15faf",
+    "server/sync-admin.mjs": "c8c6c58e4e4a6aa8260d5647cbb1cbc732a06f00c0862e70460edcc68ffb8b4a",
+    "deploy/sync/backup-accounts.mjs": "7e56cc65922efb0951fb01498a070be90e48b0ed7e248586e98be85e5dad693f",
+    "scripts/reading-client-loop.mjs": "22b987814c761f2eda2e5415bdedd1a1e646ea64db9904e302f37305233b09fd"
+  }
+}

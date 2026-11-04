@@ -1,0 +1,202 @@
+{
+  "kind": "synthetic-real-webp-development",
+  "testedAt": "2026-10-31T07:14:15.315Z",
+  "realProviderCalls": 2,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793430851008,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "16d245ff5cf9f23ff00ae25506fd1799911e5acb0c03f1a1b41eb63d7c13a141",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 4242.3523,
+  "spentMicros": 4156,
+  "calls": [
+    {
+      "id": "de38844e-8c3a-4b82-b24f-37067443fbdc",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26081,
+      "actual": 3258,
+      "usage": "{\"prompt_tokens\":1512,\"completion_tokens\":656,\"prompt_cache_hit_tokens\":896}"
+    },
+    {
+      "id": "b2ac8e5b-dc1a-4eb8-a132-15472da31a8d",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22069,
+      "actual": 898,
+      "usage": "{\"prompt_tokens\":987,\"completion_tokens\":9,\"prompt_cache_hit_tokens\":128}"
+    }
+  ],
+  "result": {
+    "summary": "收下一份图像实验报告提交通知，已整理出待办任务与通知背景。",
+    "warnings": [
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告9537",
+        "summary": "按PDF格式提交图像实验报告，命名为学号_姓名，内容需说明算法思路与时间复杂度，截止2026年11月3日16:45。",
+        "facts": [
+          "任务编号9537，尾部核对处同样标注9537，禁止遗漏此编号",
+          "截止时间：2026年11月3日16:45",
+          "格式：PDF",
+          "命名方式：学号_姓名",
+          "要求：说明算法思路与时间复杂度"
+        ],
+        "nextSteps": [
+          "先按“算法思路—时间复杂度分析”搭好报告框架，再补充实验过程与结果",
+          "导出PDF前确认文件名是“学号_姓名”，并检查文末保留9537编号"
+        ],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "尾部核对：9537，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 2,
+        "importanceReason": "有明确截止时间与提交格式要求，逾期或格式不符可能影响提交",
+        "group": ""
+      },
+      {
+        "kind": "notice",
+        "title": "图像实验报告提交要求通知",
+        "summary": "通知给出任务编号9537、截止时间、PDF格式与学号_姓名命名，并要求报告说明算法思路与时间复杂度。",
+        "facts": [
+          "标题为“WebP开发验证：合成通知”",
+          "提交物为图像实验报告，任务编号9537",
+          "截止：2026年11月3日16:45",
+          "格式PDF，命名学号_姓名",
+          "需说明算法思路与时间复杂度",
+          "尾部核对编号9537，禁止遗漏"
+        ],
+        "nextSteps": [],
+        "uncertainties": [],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "WebP开发验证：合成通知"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "截止：2026年11月3日16:45。",
+          "sourceId": "image_6105d6cc76af_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "作为背景通知保留，具体行动已拆成任务，重要程度随任务设定",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成通知.webp",
+      "contentHash": "16d245ff5cf9f23ff00ae25506fd1799911e5acb0c03f1a1b41eb63d7c13a141",
+      "readerVersion": "webp-composited-tiles/3;libwebp/1.6.0-strict",
+      "normalizationVersion": "webp-composited-white-png-tiles/1",
+      "state": "read",
+      "covered": [
+        {
+          "sourceId": "image_6105d6cc76af_i1",
+          "name": "合成通知.webp",
+          "kind": "image",
+          "tile": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "frame": 1,
+          "totalFrames": 1,
+          "frameStartMs": 0,
+          "frameDurationMs": 0,
+          "start": 0,
+          "end": 1,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18"
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "decoderMetrics": {},
+      "imagePagination": {
+        "startTile": 1,
+        "nextTile": null,
+        "totalTiles": 1,
+        "width": 900,
+        "height": 600,
+        "frame": 1,
+        "totalFrames": 1,
+        "frameStartMs": 0,
+        "frameDurationMs": 0
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

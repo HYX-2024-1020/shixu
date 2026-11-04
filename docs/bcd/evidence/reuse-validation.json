@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Shanghai",
+  "baseline": "bf09e33938a66d2abbd88d330b587245962a30d0",
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "historicalProviderBudgetRemaining": "unknown",
+  "readingKernel": {
+    "fullRunPassedBeforeFinalTargetedChanges": 131,
+    "finalAffectedTasksAndDualClientPassed": 53,
+    "note": "Final affected run covers four new regressions and capture-date fingerprint correction; overlapping suites are not summed."
+  },
+  "syncAndMiniPassed": 125,
+  "corePassed": 93,
+  "browserPassed": 92,
+  "desktopDataPassed": 18,
+  "personalServerPassed": 1,
+  "releasePassed": 4,
+  "existingElectronUiSuitesPassed": 17,
+  "electronSourceRevisionReuse": true,
+  "generatedFilesVerified": 15,
+  "xmlAndPdfBundleCheck": true,
+  "webAndDesktopBuild": true,
+  "officialWxmlWxssCompileAndTemplateRendering": true,
+  "linux": {
+    "directory": "/opt/shixu-bcd-test-20261028-reuse",
+    "initialRelatedTestsPassed": 62,
+    "finalTargetedRegressionsPassed": 15,
+    "sameSampleRevisions": 5,
+    "benchmarkReusedBlocks": 2,
+    "benchmarkNewCalls": 1,
+    "independentFullTextHashAndPublishedItemsChecked": true,
+    "ordinaryUidExpiredAndDeletedDualClientRevisions": true,
+    "unauthorizedUidAndProbeInjectionDenied": true,
+    "hostPackagesInstalled": false,
+    "productionChanged": false
+  },
+  "notVerified": [
+    "live model semantic quality or latency", "semantic equivalence and merging",
+    "native WeChat and real identity", "phone", "installed desktop",
+    "production migration", "RAR/7z", "vision and scanned PDF", "E/F"
+  ]
+}

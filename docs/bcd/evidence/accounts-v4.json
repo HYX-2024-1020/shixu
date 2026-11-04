@@ -1,0 +1,31 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "linux": {
+    "node": "24.20.0",
+    "applicationUid": 65534,
+    "accountTestsPassed": 8,
+    "walletQueriesDuringScrypt": 8,
+    "walletP95Ms": 16.623545000000377,
+    "processCumulativeMaxRssKiB": 234628,
+    "measurement": "entire test process; not per-hash incremental RSS or a ten-user capacity test"
+  },
+  "windowsSourceUI": {
+    "passwordRegistration": true,
+    "passwordChangeAndRevokeAll": true,
+    "relogin": true,
+    "initialGrantExactlyOnce": true
+  },
+  "mini": {
+    "actualPageWithNodeWxAdapter": true,
+    "sameIdentityReinstallRecovery": true,
+    "officialCompilation": true,
+    "nativeIDEAccountUIVerified": false,
+    "realWechatIdentityVerifiedInThisIncrement": false
+  },
+  "legacyClaim": {
+    "identityAndDataPreserved": true,
+    "noNewGrant": true,
+    "unreconciledWalletKeepsAIDisabled": true
+  }
+}

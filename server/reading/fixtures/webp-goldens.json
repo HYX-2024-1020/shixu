@@ -1,0 +1,76 @@
+{
+  "generator": "Pillow 12.3.0",
+  "synthetic": true,
+  "files": {
+    "webp-lossless.webp": {
+      "sha256": "e03816e8728c44c1a7562258d08f11a85ba324cb1a42096ac4f8870175771021",
+      "width": 19,
+      "height": 11,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 0,
+          "pixelsHash": "26a3f95c3a9eea08e0a86b284e7d4d4b43e5c7d8ad4ddc77303963b1638b1317"
+        }
+      ]
+    },
+    "webp-lossy.webp": {
+      "sha256": "c31f69cca35ec1e20413d336aad83cc144665611477963e9b1f5ba1ce8790ee4",
+      "width": 19,
+      "height": 11,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 0,
+          "pixelsHash": "9ec382f222142fd558e25579745d93230b04429a58bd51cca6537a4b682523cc"
+        }
+      ]
+    },
+    "webp-wide.webp": {
+      "sha256": "8828c719958c921eeb53fb0e0ea26acd0b84ff525246db3f1d8f55310de9580d",
+      "width": 2051,
+      "height": 4,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 0,
+          "pixelsHash": "649925a7424d554708687090bb5ecc5b1a6d0784144a7b2250874ae5ebb35679"
+        }
+      ]
+    },
+    "webp-animation.webp": {
+      "sha256": "b22f98285c8366f16e7680ab9f9fe0ef7399997d6e9a782b436ff1babd91a360",
+      "width": 9,
+      "height": 11,
+      "frames": [
+        {
+          "frame": 1,
+          "startMs": 0,
+          "durationMs": 10,
+          "pixelsHash": "b5767dd42a1b1efc5202ebaf1148dd43860c81a3733a99669f94cf756581f3d4"
+        },
+        {
+          "frame": 2,
+          "startMs": 10,
+          "durationMs": 20,
+          "pixelsHash": "6ac85056ff164f2b495f8bff7d21d9fe1117ac53b38743ffd3527860c3392f07"
+        },
+        {
+          "frame": 3,
+          "startMs": 30,
+          "durationMs": 30,
+          "pixelsHash": "0a318ef2b5f38724bd87408a0dd50d6a6b068e05ca71022e2aa7c0788c1db573"
+        },
+        {
+          "frame": 4,
+          "startMs": 60,
+          "durationMs": 40,
+          "pixelsHash": "2523f0765c0321e4de985cca6ad71bdb54f0879001574762e4d1a5caa4465450"
+        }
+      ]
+    }
+  }
+}

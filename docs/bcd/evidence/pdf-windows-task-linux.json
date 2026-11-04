@@ -1,0 +1,516 @@
+{
+  "synthetic": true,
+  "realProviderCalls": 0,
+  "originalBytes": 531269,
+  "originalHash": "13283eec9c941b9330ba45510c3a29ab802295bdd82c8c7194ba0d2005644894",
+  "independentFullTextHash": "dca2cfc1a44b2305631adb301b8e62a604c57f784460c624dac38f7d7819362d",
+  "totalPages": 241,
+  "windows": 31,
+  "simulatedCalls": 121,
+  "checkpointCalls": 120,
+  "spentMicros": 2420,
+  "elapsedMs": 65470.098837,
+  "maxWindowTextUnits": 323200,
+  "maxWorkerRssKiB": 102148,
+  "tailSeen": true,
+  "completeTextOrderCoordinatesAndSourcesChecked": true,
+  "visualContentsUnread": true,
+  "samples": [
+    {
+      "request": {
+        "page": 1,
+        "offset": 0
+      },
+      "pagination": {
+        "startPage": 1,
+        "nextPage": 9,
+        "totalPages": 241,
+        "startOffset": 0,
+        "nextOffset": 323200
+      },
+      "parseMs": 1786.199591,
+      "serializationAndTransferMs": 8.404721999999992,
+      "maxRssKiB": 95016
+    },
+    {
+      "request": {
+        "page": 9,
+        "offset": 323200
+      },
+      "pagination": {
+        "startPage": 9,
+        "nextPage": 17,
+        "totalPages": 241,
+        "startOffset": 323200,
+        "nextOffset": 646400
+      },
+      "parseMs": 1908.779145,
+      "serializationAndTransferMs": 7.472017000000051,
+      "maxRssKiB": 90936
+    },
+    {
+      "request": {
+        "page": 17,
+        "offset": 646400
+      },
+      "pagination": {
+        "startPage": 17,
+        "nextPage": 25,
+        "totalPages": 241,
+        "startOffset": 646400,
+        "nextOffset": 969600
+      },
+      "parseMs": 1881.445977,
+      "serializationAndTransferMs": 6.702686999999969,
+      "maxRssKiB": 96108
+    },
+    {
+      "request": {
+        "page": 25,
+        "offset": 969600
+      },
+      "pagination": {
+        "startPage": 25,
+        "nextPage": 33,
+        "totalPages": 241,
+        "startOffset": 969600,
+        "nextOffset": 1292800
+      },
+      "parseMs": 1787.328287,
+      "serializationAndTransferMs": 5.863137000000052,
+      "maxRssKiB": 89480
+    },
+    {
+      "request": {
+        "page": 33,
+        "offset": 1292800
+      },
+      "pagination": {
+        "startPage": 33,
+        "nextPage": 41,
+        "totalPages": 241,
+        "startOffset": 1292800,
+        "nextOffset": 1616000
+      },
+      "parseMs": 1791.188107,
+      "serializationAndTransferMs": 7.784786000000167,
+      "maxRssKiB": 102148
+    },
+    {
+      "request": {
+        "page": 41,
+        "offset": 1616000
+      },
+      "pagination": {
+        "startPage": 41,
+        "nextPage": 49,
+        "totalPages": 241,
+        "startOffset": 1616000,
+        "nextOffset": 1939200
+      },
+      "parseMs": 1691.514061,
+      "serializationAndTransferMs": 7.440245999999888,
+      "maxRssKiB": 94208
+    },
+    {
+      "request": {
+        "page": 49,
+        "offset": 1939200
+      },
+      "pagination": {
+        "startPage": 49,
+        "nextPage": 57,
+        "totalPages": 241,
+        "startOffset": 1939200,
+        "nextOffset": 2262400
+      },
+      "parseMs": 1788.321994,
+      "serializationAndTransferMs": 7.521417000000156,
+      "maxRssKiB": 87284
+    },
+    {
+      "request": {
+        "page": 57,
+        "offset": 2262400
+      },
+      "pagination": {
+        "startPage": 57,
+        "nextPage": 65,
+        "totalPages": 241,
+        "startOffset": 2262400,
+        "nextOffset": 2585600
+      },
+      "parseMs": 1784.211826,
+      "serializationAndTransferMs": 6.537315999999919,
+      "maxRssKiB": 95372
+    },
+    {
+      "request": {
+        "page": 65,
+        "offset": 2585600
+      },
+      "pagination": {
+        "startPage": 65,
+        "nextPage": 73,
+        "totalPages": 241,
+        "startOffset": 2585600,
+        "nextOffset": 2908800
+      },
+      "parseMs": 1709.070137,
+      "serializationAndTransferMs": 6.581071000000065,
+      "maxRssKiB": 86820
+    },
+    {
+      "request": {
+        "page": 73,
+        "offset": 2908800
+      },
+      "pagination": {
+        "startPage": 73,
+        "nextPage": 81,
+        "totalPages": 241,
+        "startOffset": 2908800,
+        "nextOffset": 3232000
+      },
+      "parseMs": 1622.070092,
+      "serializationAndTransferMs": 72.57041700000013,
+      "maxRssKiB": 90460
+    },
+    {
+      "request": {
+        "page": 81,
+        "offset": 3232000
+      },
+      "pagination": {
+        "startPage": 81,
+        "nextPage": 89,
+        "totalPages": 241,
+        "startOffset": 3232000,
+        "nextOffset": 3555200
+      },
+      "parseMs": 1624.530649,
+      "serializationAndTransferMs": 6.269288999999844,
+      "maxRssKiB": 92828
+    },
+    {
+      "request": {
+        "page": 89,
+        "offset": 3555200
+      },
+      "pagination": {
+        "startPage": 89,
+        "nextPage": 97,
+        "totalPages": 241,
+        "startOffset": 3555200,
+        "nextOffset": 3878400
+      },
+      "parseMs": 1813.853701,
+      "serializationAndTransferMs": 6.088040999999976,
+      "maxRssKiB": 89212
+    },
+    {
+      "request": {
+        "page": 97,
+        "offset": 3878400
+      },
+      "pagination": {
+        "startPage": 97,
+        "nextPage": 105,
+        "totalPages": 241,
+        "startOffset": 3878400,
+        "nextOffset": 4201600
+      },
+      "parseMs": 1790.719869,
+      "serializationAndTransferMs": 7.175048000000061,
+      "maxRssKiB": 88308
+    },
+    {
+      "request": {
+        "page": 105,
+        "offset": 4201600
+      },
+      "pagination": {
+        "startPage": 105,
+        "nextPage": 113,
+        "totalPages": 241,
+        "startOffset": 4201600,
+        "nextOffset": 4524800
+      },
+      "parseMs": 1709.839391,
+      "serializationAndTransferMs": 69.595687,
+      "maxRssKiB": 95664
+    },
+    {
+      "request": {
+        "page": 113,
+        "offset": 4524800
+      },
+      "pagination": {
+        "startPage": 113,
+        "nextPage": 121,
+        "totalPages": 241,
+        "startOffset": 4524800,
+        "nextOffset": 4848000
+      },
+      "parseMs": 1828.26598,
+      "serializationAndTransferMs": 7.328212000000121,
+      "maxRssKiB": 86916
+    },
+    {
+      "request": {
+        "page": 121,
+        "offset": 4848000
+      },
+      "pagination": {
+        "startPage": 121,
+        "nextPage": 129,
+        "totalPages": 241,
+        "startOffset": 4848000,
+        "nextOffset": 5171200
+      },
+      "parseMs": 1868.311584,
+      "serializationAndTransferMs": 11.010706000000027,
+      "maxRssKiB": 88396
+    },
+    {
+      "request": {
+        "page": 129,
+        "offset": 5171200
+      },
+      "pagination": {
+        "startPage": 129,
+        "nextPage": 137,
+        "totalPages": 241,
+        "startOffset": 5171200,
+        "nextOffset": 5494400
+      },
+      "parseMs": 1917.0170830000002,
+      "serializationAndTransferMs": 62.84834599999999,
+      "maxRssKiB": 88248
+    },
+    {
+      "request": {
+        "page": 137,
+        "offset": 5494400
+      },
+      "pagination": {
+        "startPage": 137,
+        "nextPage": 145,
+        "totalPages": 241,
+        "startOffset": 5494400,
+        "nextOffset": 5817600
+      },
+      "parseMs": 1907.638982,
+      "serializationAndTransferMs": 69.40679099999988,
+      "maxRssKiB": 88640
+    },
+    {
+      "request": {
+        "page": 145,
+        "offset": 5817600
+      },
+      "pagination": {
+        "startPage": 145,
+        "nextPage": 153,
+        "totalPages": 241,
+        "startOffset": 5817600,
+        "nextOffset": 6140800
+      },
+      "parseMs": 1783.1401979999998,
+      "serializationAndTransferMs": 7.253386000000091,
+      "maxRssKiB": 89160
+    },
+    {
+      "request": {
+        "page": 153,
+        "offset": 6140800
+      },
+      "pagination": {
+        "startPage": 153,
+        "nextPage": 161,
+        "totalPages": 241,
+        "startOffset": 6140800,
+        "nextOffset": 6464000
+      },
+      "parseMs": 1599.970914,
+      "serializationAndTransferMs": 74.14696000000004,
+      "maxRssKiB": 94524
+    },
+    {
+      "request": {
+        "page": 161,
+        "offset": 6464000
+      },
+      "pagination": {
+        "startPage": 161,
+        "nextPage": 169,
+        "totalPages": 241,
+        "startOffset": 6464000,
+        "nextOffset": 6787200
+      },
+      "parseMs": 1802.1061009999999,
+      "serializationAndTransferMs": 7.418034000000034,
+      "maxRssKiB": 87352
+    },
+    {
+      "request": {
+        "page": 169,
+        "offset": 6787200
+      },
+      "pagination": {
+        "startPage": 169,
+        "nextPage": 177,
+        "totalPages": 241,
+        "startOffset": 6787200,
+        "nextOffset": 7110400
+      },
+      "parseMs": 1895.632587,
+      "serializationAndTransferMs": 7.819659999999885,
+      "maxRssKiB": 89544
+    },
+    {
+      "request": {
+        "page": 177,
+        "offset": 7110400
+      },
+      "pagination": {
+        "startPage": 177,
+        "nextPage": 185,
+        "totalPages": 241,
+        "startOffset": 7110400,
+        "nextOffset": 7433600
+      },
+      "parseMs": 1808.070564,
+      "serializationAndTransferMs": 65.34871599999997,
+      "maxRssKiB": 93692
+    },
+    {
+      "request": {
+        "page": 185,
+        "offset": 7433600
+      },
+      "pagination": {
+        "startPage": 185,
+        "nextPage": 193,
+        "totalPages": 241,
+        "startOffset": 7433600,
+        "nextOffset": 7756800
+      },
+      "parseMs": 1895.21531,
+      "serializationAndTransferMs": 6.433133999999882,
+      "maxRssKiB": 92952
+    },
+    {
+      "request": {
+        "page": 193,
+        "offset": 7756800
+      },
+      "pagination": {
+        "startPage": 193,
+        "nextPage": 201,
+        "totalPages": 241,
+        "startOffset": 7756800,
+        "nextOffset": 8080000
+      },
+      "parseMs": 1815.161882,
+      "serializationAndTransferMs": 73.043095,
+      "maxRssKiB": 87024
+    },
+    {
+      "request": {
+        "page": 201,
+        "offset": 8080000
+      },
+      "pagination": {
+        "startPage": 201,
+        "nextPage": 209,
+        "totalPages": 241,
+        "startOffset": 8080000,
+        "nextOffset": 8403200
+      },
+      "parseMs": 1825.425512,
+      "serializationAndTransferMs": 9.015351999999893,
+      "maxRssKiB": 88972
+    },
+    {
+      "request": {
+        "page": 209,
+        "offset": 8403200
+      },
+      "pagination": {
+        "startPage": 209,
+        "nextPage": 217,
+        "totalPages": 241,
+        "startOffset": 8403200,
+        "nextOffset": 8726400
+      },
+      "parseMs": 1803.603542,
+      "serializationAndTransferMs": 7.20000600000003,
+      "maxRssKiB": 92504
+    },
+    {
+      "request": {
+        "page": 217,
+        "offset": 8726400
+      },
+      "pagination": {
+        "startPage": 217,
+        "nextPage": 225,
+        "totalPages": 241,
+        "startOffset": 8726400,
+        "nextOffset": 9049600
+      },
+      "parseMs": 1798.7035720000001,
+      "serializationAndTransferMs": 5.999994000000015,
+      "maxRssKiB": 89648
+    },
+    {
+      "request": {
+        "page": 225,
+        "offset": 9049600
+      },
+      "pagination": {
+        "startPage": 225,
+        "nextPage": 233,
+        "totalPages": 241,
+        "startOffset": 9049600,
+        "nextOffset": 9372800
+      },
+      "parseMs": 1613.398406,
+      "serializationAndTransferMs": 8.511331000000155,
+      "maxRssKiB": 88456
+    },
+    {
+      "request": {
+        "page": 233,
+        "offset": 9372800
+      },
+      "pagination": {
+        "startPage": 233,
+        "nextPage": 241,
+        "totalPages": 241,
+        "startOffset": 9372800,
+        "nextOffset": 9696000
+      },
+      "parseMs": 1891.4259260000001,
+      "serializationAndTransferMs": 6.246024999999918,
+      "maxRssKiB": 92668
+    },
+    {
+      "request": {
+        "page": 241,
+        "offset": 9696000
+      },
+      "pagination": {
+        "startPage": 241,
+        "nextPage": null,
+        "totalPages": 241,
+        "startOffset": 9696000,
+        "nextOffset": 9696010
+      },
+      "parseMs": 316.750897,
+      "serializationAndTransferMs": 1.9477130000000216,
+      "maxRssKiB": 74112
+    }
+  ]
+}

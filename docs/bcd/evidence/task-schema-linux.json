@@ -1,0 +1,33 @@
+{
+  "kind": "task-schema-targeted-development-tests",
+  "platform": "linux",
+  "directory": "/opt/shixu-bcd-test-20261101-task-schema",
+  "uid": 65534,
+  "newProviderCalls": 0,
+  "runs": [
+    {
+      "log": "results.txt",
+      "exitFile": "exit.txt",
+      "tests": 37,
+      "passed": 37,
+      "exitCode": 0,
+      "beforeFinalAuthModeConsistency": true
+    },
+    {
+      "log": "final-results.txt",
+      "exitFile": "final-exit.txt",
+      "tests": 33,
+      "passed": 33,
+      "exitCode": 0
+    }
+  ],
+  "sourceSha256": {
+    "server/database-schemas.mjs": "2ee1940ac0adbd49e0d767633f13bed59937206f581d509b05a481e58b4af789",
+    "server/database-schema.test.mjs": "7e77f77868b29d801edc5b2b6b1f04e6b614821746407732cbf34759d8135815",
+    "server/reading/schema.mjs": "de0660b7cce7fe513b6fec25b7392d0cc558d8476f15dc166139d7cd52affc3d",
+    "server/reading/task-schema.test.mjs": "5d6cc799dab7a6469e4a4f2d0cc02d33279b9f894c8f2c232c40496514937716",
+    "server/sync-accounts.mjs": "408122a531a1838ebb57006ba9503cfecd365bb460d6adf9e6f57a3b5aed5692",
+    "scripts/reading-synthetic-writer.mjs": "bd662ca3b475b0fd531fa2f8f128641176fbf255b0c2bc3bdc637462343ee13b"
+  },
+  "scope": "headless source modules and signed-HTTP client adapters; no native client or new protected broker claim"
+}
