@@ -15,6 +15,7 @@ export default defineConfig({
         "**/apple.spec.ts",
         "**/admin-test.spec.ts",
         "**/admin-touch.spec.ts",
+        "**/admin-console.spec.ts",
       ],
       use: {
         ...devices["Desktop Chrome"],
@@ -28,6 +29,7 @@ export default defineConfig({
         "**/apple.spec.ts",
         "**/admin-test.spec.ts",
         "**/admin-touch.spec.ts",
+        "**/admin-console.spec.ts",
       ],
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium", channel },
     },
@@ -44,6 +46,14 @@ export default defineConfig({
       name: "admin-touch",
       testMatch: "**/admin-touch.spec.ts",
       use: { ...devices["iPhone 13"], browserName: "chromium", channel },
+    },
+    {
+      name: "admin-console",
+      testMatch: "**/admin-console.spec.ts",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel,
+      },
     },
     ...["iPhone 13", "iPad (gen 7)", "iPad (gen 7) landscape"].map(
       (device) => ({
