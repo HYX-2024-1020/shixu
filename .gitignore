@@ -24,3 +24,4 @@ project.private.config.json
 server/reading/generated-native/
 server/reading/generated-webp/
 server/reading/generated-pdf-visual/
+.workbuddy/

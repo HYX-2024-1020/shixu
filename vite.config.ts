@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   build: {
     rollupOptions: {
-      input: { main: "index.html", admin: "admin-test/index.html" },
+      input: { main: "index.html", admin: "admin-test/index.html", console: "admin/index.html" },
     },
   },
   test: { include: ["src/**/*.test.{ts,js}"] },
