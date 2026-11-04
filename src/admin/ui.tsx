@@ -121,8 +121,9 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[]
     loadRef.current()
       .then((data) => alive && setState({ phase: "ready", data }))
       .catch((error) => {
+        if (!alive) return;
         reportSessionExpired(error);
-        if (alive) setState({ phase: "error", error });
+        setState({ phase: "error", error });
       });
     return () => {
       alive = false;

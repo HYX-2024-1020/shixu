@@ -20,6 +20,7 @@ const invalidResponse = () => new AdminApiError({
 
 export function createHttpApi(): AdminApi {
   let csrfToken = "";
+  let sessionRevision = 0;
 
   function rememberSession(session: AdminSession | null) {
     if (session === null) {
@@ -34,6 +35,7 @@ export function createHttpApi(): AdminApi {
   }
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const revision = sessionRevision;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     const headers = new Headers(init.headers);
@@ -45,6 +47,8 @@ export function createHttpApi(): AdminApi {
         ...init, headers, credentials: "same-origin", redirect: "error", signal: controller.signal,
       });
       if (response.status === 401 && path !== "/login") {
+        if (revision !== sessionRevision)
+          throw new AdminApiError({ error: "请求所属会话已变化", code: "STALE_SESSION", retryable: false }, 401);
         csrfToken = "";
         throw AdminApiError.sessionExpired();
       }
@@ -84,6 +88,7 @@ export function createHttpApi(): AdminApi {
   return {
     source: "http",
     login: async (username, password) => {
+      sessionRevision += 1;
       const session = await post("/login", { username, password }) as AdminSession;
       if (!session) throw invalidResponse();
       rememberSession(session);
@@ -91,11 +96,13 @@ export function createHttpApi(): AdminApi {
     },
     logout: async () => {
       await post("/logout", {});
+      sessionRevision += 1;
       csrfToken = "";
     },
     getSession: async () => {
+      const revision = sessionRevision;
       const session = await request<AdminSession | null>("/session");
-      rememberSession(session);
+      if (revision === sessionRevision) rememberSession(session);
       return session;
     },
     getOverview: () => request<Overview>("/overview"),

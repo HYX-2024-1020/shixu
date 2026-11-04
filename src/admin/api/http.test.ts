@@ -53,3 +53,35 @@ test("HTTP sessions require an operation credential", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ username: "test-admin", expiresAt: session.expiresAt })));
   await expect(createHttpApi().getSession()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
 });
+
+test("a late anonymous session query cannot erase a successful login credential", async () => {
+  let respond!: (response: Response) => void;
+  const fetcher = vi.fn()
+    .mockReturnValueOnce(new Promise<Response>((done) => { respond = done; }))
+    .mockResolvedValueOnce(Response.json(session))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetcher);
+  const api = createHttpApi();
+  const pending = api.getSession();
+  await api.login("test-admin", "synthetic-password");
+  respond(Response.json(null));
+  await pending;
+  await api.logout();
+  expect(new Headers(fetcher.mock.calls[2][1].headers).get("x-csrf-token")).toBe(session.csrfToken);
+});
+
+test("an old unauthorized response cannot invalidate a newer login", async () => {
+  let respond!: (response: Response) => void;
+  const fetcher = vi.fn()
+    .mockReturnValueOnce(new Promise<Response>((done) => { respond = done; }))
+    .mockResolvedValueOnce(Response.json(session))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetcher);
+  const api = createHttpApi();
+  const pending = expect(api.getOverview()).rejects.toMatchObject({ code: "STALE_SESSION" });
+  await api.login("test-admin", "synthetic-password");
+  respond(Response.json({ error: "会话已过期", code: "SESSION_EXPIRED", retryable: false }, { status: 401 }));
+  await pending;
+  await api.logout();
+  expect(new Headers(fetcher.mock.calls[2][1].headers).get("x-csrf-token")).toBe(session.csrfToken);
+});

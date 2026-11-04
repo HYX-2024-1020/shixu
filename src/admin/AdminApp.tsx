@@ -86,11 +86,13 @@ export function AdminApp() {
   const [logoutError, setLogoutError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     api
       .getSession()
-      .then((s) => setSession(s))
-      .catch(() => setSession(null))
-      .finally(() => setBooting(false));
+      .then((s) => { if (active) setSession(s); })
+      .catch(() => { if (active) setSession(null); })
+      .finally(() => { if (active) setBooting(false); });
+    return () => { active = false; };
   }, [api]);
 
   useEffect(() => {

@@ -39,7 +39,9 @@ test("administrator credentials are explicit and loopback origins cannot be expa
 test("real sign-in, CSRF rejection, logout and audit never expose credentials", async (t) => {
   const { service, request, login, events } = await start(t);
   assert.equal(service.server.address().address, "127.0.0.1");
-  assert.equal(await (await request("/admin/v1/session")).json(), null);
+  const anonymous = await request("/admin/v1/session");
+  assert.equal(await anonymous.json(), null);
+  assert.equal(anonymous.headers.has("set-cookie"), false);
   assert.equal((await request("/admin/v1/overview")).status, 401);
   const wrong = await request("/admin/v1/login", { method: "POST", body: { username, password: "wrong" } });
   assert.equal(wrong.status, 401);

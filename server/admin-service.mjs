@@ -169,7 +169,6 @@ export function createAdminService({
         return;
       }
       if (path === "/admin/v1/session" && req.method === "GET") {
-        if (!session) res.setHeader("Set-Cookie", cookie("", 0));
         json(200, session ? publicSession(session) : null);
         return;
       }
