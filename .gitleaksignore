@@ -4,6 +4,8 @@
 
 # Public generated PDF.js api.mjs SHA256, verified in the build manifest; no credential.
 30b82e54b6b273b09d99b73dfb29dc3537d7eeea:docs/bcd/evidence/pdf-visual-windows-build.json:generic-api-key:35
+# The B/C/D squash merge reproduces the identical public checksum at this occurrence.
+a8b3feb5d455477531459e8cea450faf296a52bc:docs/bcd/evidence/pdf-visual-windows-build.json:generic-api-key:35
 
 # Historical SQL metadata key literal used in a schema-marker loss test; no credential.
 # Current source uses a bound parameter. Exact occurrence only, no directory exclusion.
