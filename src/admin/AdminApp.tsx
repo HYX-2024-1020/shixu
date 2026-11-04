@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createAdminApi, getSyntheticControls, type AdminApi } from "./api";
+import { AdminApiError, createAdminApi, getSyntheticControls, type AdminApi } from "./api";
 import { formatBeijingTime } from "./format";
 import { LoginPage } from "./LoginPage";
 import { OverviewPage } from "./OverviewPage";
@@ -82,13 +82,17 @@ export function AdminApp() {
   const [booting, setBooting] = useState(true);
   const [route, setRoute] = useState<Route>(routeFromHash());
   const [expiredNotice, setExpiredNotice] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     api
       .getSession()
-      .then((s) => setSession(s))
-      .catch(() => setSession(null))
-      .finally(() => setBooting(false));
+      .then((s) => { if (active) setSession(s); })
+      .catch(() => { if (active) setSession(null); })
+      .finally(() => { if (active) setBooting(false); });
+    return () => { active = false; };
   }, [api]);
 
   useEffect(() => {
@@ -108,10 +112,17 @@ export function AdminApp() {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    setLogoutBusy(true);
+    setLogoutError(null);
     try {
       await api.logout();
-    } catch {
-      /* 退出失败不影响本地状态清理 */
+    } catch (error) {
+      if (!(error instanceof AdminApiError && error.code === "SESSION_EXPIRED")) {
+        setLogoutError("退出未完成，请重试。管理会话仍可能有效。");
+        return;
+      }
+    } finally {
+      setLogoutBusy(false);
     }
     setSession(null);
     setExpiredNotice(false);
@@ -130,9 +141,10 @@ export function AdminApp() {
       <LoginPage
         api={api}
         reason={expiredNotice ? "expired" : null}
-        onLogin={() => {
+        onLogin={(nextSession) => {
           setExpiredNotice(false);
-          void api.getSession().then(setSession);
+          setLogoutError(null);
+          setSession(nextSession);
         }}
       />
     );
@@ -175,11 +187,12 @@ export function AdminApp() {
             <span className="sub" style={{ margin: 0 }}>
               {session.username}
             </span>
-            <Button variant="ghost" onClick={handleLogout}>
+            <Button variant="ghost" busy={logoutBusy} onClick={handleLogout}>
               退出
             </Button>
           </header>
           <main className="content">
+            {logoutError && <p className="login-notice" role="alert">{logoutError}</p>}
             {api.source === "synthetic" && <DemoConsole />}
             {route === "overview" && <OverviewPage api={api} />}
             {route === "users" && <UsersPage api={api} />}

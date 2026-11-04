@@ -1,6 +1,6 @@
 # E 阶段管理台前端（首批交付）
 
-更新：2026-11-04，北京时间。任务分支 `feat/e-admin-ui`。本页记录管理网页前端的首批交付、接口需求与其余页面结构；后端 `/admin/v1` 由独立后端任务接续，未就绪前前端使用合成数据适配层。
+更新：2026-11-04，北京时间。前端首批由 PR #88 交付，独立管理登录由 Issue #89 接续。管理台默认开发预览使用合成数据；回环管理服务提供真实登录、会话与退出，数据和管控接口继续按独立任务实现。
 
 依据：[原方案 §9–§12](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/docs/server-client-plan-2026-10-28.md) 与 [阶段 A 契约](../stage-a/contracts.md)（管理路由回环监听、独立会话、只读统计/元数据、不提供用户正文/导出）。
 
@@ -28,7 +28,7 @@ npm run dev
 
 | 拟定路由 | 用途 | 状态 |
 | --- | --- | --- |
-| POST /admin/v1/login；POST /admin/v1/logout；GET /admin/v1/session | 独立管理员会话（HttpOnly Cookie） | 待后端实现 |
+| POST /admin/v1/login；POST /admin/v1/logout；GET /admin/v1/session | 独立管理员会话（HttpOnly Cookie） | 独立回环服务已实现，见下节 |
 | GET /admin/v1/overview | 服务/资源/队列/费用/备份/告警聚合 | 待后端实现 |
 | GET /admin/v1/users（keyword/status/page）；GET /admin/v1/users/:id | 用户列表与详情（账本+设备+审计） | 待后端实现 |
 | POST /admin/v1/users/:id/topup | 追加额度（amountMicro/note/operationId） | 待后端实现 |
@@ -45,7 +45,23 @@ npm run dev
 3. 备份「维护原因」触发时上传/AI 暂停的联动字段形状（当前以 `maintenanceReason` + 两个布尔表达）。
 4. 密码重置是否允许网页签发临时密码，或仅保留受保护 CLI 兜底（当前两种都预留了 result 形状）。
 5. 恢复/部署是否提供网页按钮：按方案 §9/§10，恢复前核对安全记录，网页入口待后端能力确认，本批未实现。
-6. 会话时长、登录限流与 CSRF 头细节（前端 fetch 已带 `X-Operation-Id`，后续按契约补 CSRF token 传递方式）。
+6. 会话与 CSRF 已落实为下节契约。后续写操作继续同时携带 `X-Operation-Id` 和 `X-CSRF-Token`。
+
+## 独立管理登录（Issue #89）
+
+`server/admin-service.mjs` 提供独立监听，`listen()` 固定绑定 `127.0.0.1`。管理员凭据由单独环境配置提供，密码使用 scrypt（N=131072、r=8、p=1、64 字节）验证。配置示例见 [环境模板](../../.env.admin.example)，凭据配置阶段通过导出的 `hashAdminPassword(password)` 生成随机盐哈希，密码长度 12–128 字符。模板空哈希会拒绝启动；配置文件纳入本机私密保管。
+
+先运行 `npm run build`，配置独立的 `.env.admin` 或受保护进程环境，再运行 `npm run admin:start`。默认入口为 `http://127.0.0.1:8789/admin/`，服务自动选择 HTTP 适配层；SSH 隧道的浏览器 origin 需与 `SHIXU_ADMIN_ORIGIN` 一致。普通用户服务继续使用原有入口。
+
+- `login` 接收 JSON `{username,password}`，成功设置 HttpOnly、SameSite=Strict、限定 `/admin/v1` 的 Cookie，并返回 `{username,expiresAt,csrfToken}`。账号或密码错误统一返回 401。单进程最多一个密码校验，每分钟最多五次登录请求。
+- 会话默认有效 30 分钟，最多八个活跃会话。重新登录轮换当前 Cookie，过期、退出和进程重启使相应会话失效。`session` 在未登录时返回 `null`。
+- 写请求必须通过指定 Host/Origin 校验，登录后的写请求还需会话对应的 `X-CSRF-Token`。前端操作编号独立保留。请求体最多 8KiB，HTTP 接收与前端完整响应读取均设超时。
+- 退出失败时页面保留会话并显示可重试提示。实际退出成功才返回登录页。登录结果直接建立前端会话，避免额外会话查询失败造成无提示停留。
+- 登录和退出改变前端会话代次，旧查询及旧 401 不能覆盖新登录的操作凭据。未登录会话查询只返回状态，Cookie 的清除由退出及浏览器过期处理，避免迟到查询清除新 Cookie。
+- 认证审计只输出事件、管理员标识和时间，由受保护服务日志保管；密码、哈希、Cookie 和 CSRF token 均不输出。静态文件仅放行管理页面、构建资源和既有字体，解析真实路径后验证范围。
+- 本批真实服务的 `overview`、`users` 在鉴权后返回明确的 503 未就绪状态。页面显示待接入，后续实现直接复用该访问边界。资料正文、下载、导出与审计删除路由返回拒绝或不存在。
+
+验证包括独立服务 HTTP 鉴权、过期与退出、来源/CSRF、并发与限流、请求大小、静态资源边界，以及浏览器访问实际构建页面并经真实 HTTP 登录、退出失败重试。所有身份和材料均为合成测试数据。符号链接越界专项在 Linux CI 执行，Windows 本机因创建权限要求跳过该专项。
 
 ## 其余页面结构（下批，复用本批组件与交互）
 
@@ -64,7 +80,7 @@ npm run dev
 
 用户已体验首批设计并授权继续。总览进入尚未实现的任务、存储、运维路由时显示说明和返回入口。用户详情加载失败可重新请求所选账号，加载期间可关闭抽屉，迟到响应不能重新打开它；切换账号时清除上一个账号的临时密码。新增浏览器回归覆盖这些入口和失败恢复，保留登录、账本展示、操作确认和演示标识。
 
-后端接续需核对 B/C/D 来源 `feat/bcd-attachment-loop` / PR #74。该分支的任务和独立账本尚未合入本批主线，不能将演示适配层当作真实管理服务，或复制旧目录源码覆盖当前实现。
+后端接续复用 B/C/D 的任务和独立账本。其来源 `feat/bcd-attachment-loop` / PR #74 已按用户确认范围收尾合入主线 `a8b3feb`。后续任务从最新主线单独建立分支和 PR，保留原费用、删除、撤销与恢复保护。
 
 ## 边界
 

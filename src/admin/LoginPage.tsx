@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { AdminApiError, type AdminApi } from "./api";
 import { Button, Field } from "./ui";
+import type { AdminSession } from "./api/types";
 
 /**
  * 独立管理员登录。
@@ -14,7 +15,7 @@ export function LoginPage({
 }: {
   api: AdminApi;
   reason: "expired" | null;
-  onLogin: () => void;
+  onLogin: (session: AdminSession) => void;
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,8 +28,8 @@ export function LoginPage({
     setBusy(true);
     setError(null);
     try {
-      await api.login(username.trim(), password);
-      onLogin();
+      const session = await api.login(username.trim(), password);
+      onLogin(session);
     } catch (err) {
       // 失败保留输入，仅提示错误，绝不清空
       setError(
