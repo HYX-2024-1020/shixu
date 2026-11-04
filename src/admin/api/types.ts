@@ -13,6 +13,8 @@ export type MicroYuan = number;
 
 export interface AdminSession {
   username: string;
+  /** 独立管理服务签发的操作凭据；合成演示模式无需此字段。 */
+  csrfToken?: string;
   /** 会话过期时间（ISO） */
   expiresAt: string;
 }

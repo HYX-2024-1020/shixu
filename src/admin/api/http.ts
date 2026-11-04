@@ -4,7 +4,6 @@ import type {
   AdminUserDetail,
   Overview,
   PasswordResetResult,
-  TaskAction,
   TaskListQuery,
   TaskListResult,
   TopupResult,
@@ -12,61 +11,93 @@ import type {
   UserListResult,
 } from "./types";
 
-/**
- * 真实后端适配层（/admin/v1，回环监听，HttpOnly 会话）。
- *
- * 后端尚未实现（E 阶段由后端 agent 接续），本适配层给出完整请求形状，
- * 路由与 contracts.md §95 对齐。就绪后通过 VITE_ADMIN_API=http 启用。
- * 所有写操作带 X-Operation-Id 幂等头；401 统一映射为会话失效。
- */
-
+/** 同源管理接口。会话签发操作凭据，所有写操作携带 CSRF token。 */
 const BASE = "/admin/v1";
 const TIMEOUT_MS = 10_000;
+const invalidResponse = () => new AdminApiError({
+  error: "管理服务响应无效，请重试", code: "INVALID_RESPONSE", retryable: true,
+});
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
-      signal: controller.signal,
-      ...init,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw AdminApiError.timeout();
-    throw AdminApiError.network();
-  } finally {
-    clearTimeout(timer);
-  }
-  if (res.status === 401) throw AdminApiError.sessionExpired();
-  if (!res.ok) {
-    let body = { error: "服务异常", code: "INTERNAL", retryable: res.status >= 500 };
-    try {
-      body = { ...body, ...(await res.json()) };
-    } catch {
-      /* 保留默认错误体 */
+export function createHttpApi(): AdminApi {
+  let csrfToken = "";
+
+  function rememberSession(session: AdminSession | null) {
+    if (session === null) {
+      csrfToken = "";
+      return;
     }
-    throw new AdminApiError(body, res.status);
+    if (!session || typeof session.username !== "string" || typeof session.expiresAt !== "string" ||
+        !Number.isFinite(Date.parse(session.expiresAt)) ||
+        typeof session.csrfToken !== "string" || !/^[\w-]{32,128}$/.test(session.csrfToken))
+      throw invalidResponse();
+    csrfToken = session.csrfToken;
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
 
-const post = (path: string, body: unknown, operationId?: string) =>
-  request(path, {
+  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined) headers.set("Content-Type", "application/json");
+    if (init.method === "POST" && path !== "/login" && csrfToken)
+      headers.set("X-CSRF-Token", csrfToken);
+    try {
+      const response = await fetch(`${BASE}${path}`, {
+        ...init, headers, credentials: "same-origin", redirect: "error", signal: controller.signal,
+      });
+      if (response.status === 401 && path !== "/login") {
+        csrfToken = "";
+        throw AdminApiError.sessionExpired();
+      }
+      if (!response.ok) {
+        let body = { error: "服务异常", code: "INTERNAL", retryable: response.status >= 500 };
+        try {
+          const value = await response.json();
+          if (typeof value.error === "string" && typeof value.code === "string" && typeof value.retryable === "boolean")
+            body = { error: value.error, code: value.code, retryable: value.retryable };
+        } catch {
+          if (controller.signal.aborted) throw AdminApiError.timeout();
+        }
+        throw new AdminApiError(body, response.status);
+      }
+      if (response.status === 204) return undefined as T;
+      try {
+        return await response.json() as T;
+      } catch {
+        if (controller.signal.aborted) throw AdminApiError.timeout();
+        throw invalidResponse();
+      }
+    } catch (error) {
+      if (error instanceof AdminApiError) throw error;
+      if (controller.signal.aborted) throw AdminApiError.timeout();
+      throw AdminApiError.network();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const post = (path: string, body: unknown, operationId?: string) => request(path, {
     method: "POST",
     body: JSON.stringify(body),
     headers: operationId ? { "X-Operation-Id": operationId } : undefined,
   });
 
-export function createHttpApi(): AdminApi {
   return {
     source: "http",
-    login: (username, password) => post("/login", { username, password }) as Promise<AdminSession>,
-    logout: () => post("/logout", {}) as Promise<void>,
-    getSession: () => request<AdminSession | null>("/session"),
+    login: async (username, password) => {
+      const session = await post("/login", { username, password }) as AdminSession;
+      if (!session) throw invalidResponse();
+      rememberSession(session);
+      return session;
+    },
+    logout: async () => {
+      await post("/logout", {});
+      csrfToken = "";
+    },
+    getSession: async () => {
+      const session = await request<AdminSession | null>("/session");
+      rememberSession(session);
+      return session;
+    },
     getOverview: () => request<Overview>("/overview"),
     listUsers: (query: UserListQuery) => {
       const params = new URLSearchParams();
