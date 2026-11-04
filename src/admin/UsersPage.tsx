@@ -43,6 +43,8 @@ export function UsersPage({ api }: { api: AdminApi }) {
   const [detail, setDetail] = useState<AdminUserDetail | null>(null);
   const [detailPhase, setDetailPhase] = useState<"closed" | "loading" | "error" | "ready">("closed");
   const [detailError, setDetailError] = useState<unknown>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const detailRequest = useRef(0);
 
   const [action, setAction] = useState<PendingAction | null>(null);
   const [actionOpId, setActionOpId] = useState("");
@@ -83,13 +85,18 @@ export function UsersPage({ api }: { api: AdminApi }) {
   }, [keyword]);
 
   async function openDetail(user: AdminUser) {
+    const requestId = ++detailRequest.current;
+    setSelectedUser(user);
+    setResetResult(null);
     setDetail(null);
     setDetailPhase("loading");
     try {
       const d = await api.getUserDetail(user.id);
+      if (requestId !== detailRequest.current) return;
       setDetail(d);
       setDetailPhase("ready");
     } catch (err) {
+      if (requestId !== detailRequest.current) return;
       reportSessionExpired(err);
       setDetailError(err);
       setDetailPhase("error");
@@ -97,6 +104,8 @@ export function UsersPage({ api }: { api: AdminApi }) {
   }
 
   function closeDetail() {
+    detailRequest.current += 1;
+    setSelectedUser(null);
     setDetailPhase("closed");
     setDetail(null);
     setResetResult(null);
@@ -291,10 +300,15 @@ export function UsersPage({ api }: { api: AdminApi }) {
         <>
           <div className="drawer-backdrop" onClick={closeDetail} />
           <aside className="drawer" role="dialog" aria-modal="true" aria-label="用户详情">
-            {detailPhase === "loading" && <Skeleton rows={6} height={24} />}
+            {detailPhase === "loading" && (
+              <>
+                <Button variant="ghost" onClick={closeDetail}>关闭</Button>
+                <Skeleton rows={6} height={24} />
+              </>
+            )}
             {detailPhase === "error" && (
               <>
-                <ErrorState error={detailError} onRetry={() => detail && openDetail(detail)} />
+                <ErrorState error={detailError} onRetry={() => selectedUser && openDetail(selectedUser)} />
                 <Button variant="ghost" onClick={closeDetail}>
                   关闭
                 </Button>

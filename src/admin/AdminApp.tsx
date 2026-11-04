@@ -183,6 +183,13 @@ export function AdminApp() {
             {api.source === "synthetic" && <DemoConsole />}
             {route === "overview" && <OverviewPage api={api} />}
             {route === "users" && <UsersPage api={api} />}
+            {!activeNav.ready && (
+              <section className="panel">
+                <h1>{activeNav.label}</h1>
+                <p>此页面待后续实现，当前可使用服务总览和用户管理。</p>
+                <a className="btn btn-ghost" href="#/overview">返回服务总览</a>
+              </section>
+            )}
           </main>
         </div>
       </div>

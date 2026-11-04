@@ -80,3 +80,36 @@ test("窄屏下导航与总览单列可读", async ({ page }) => {
   await expect(page.locator(".side")).toBeVisible();
   await expect(page.locator(".metrics .metric").first()).toBeVisible();
 });
+
+test("未交付页面的总览入口显示说明并能返回", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "去任务管理" }).click();
+  await expect(page.getByRole("heading", { name: "任务管理" })).toBeVisible();
+  await expect(page.getByText("此页面待后续实现，当前可使用服务总览和用户管理。")).toBeVisible();
+  await page.getByRole("link", { name: "返回服务总览" }).click();
+  await expect(page.getByRole("heading", { name: "服务总览" })).toBeVisible();
+});
+
+test("用户详情失败后可以重试，关闭加载中的抽屉不会被迟到响应打开", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "用户管理", exact: true }).click();
+  const firstRow = page.locator("tbody tr").first();
+  await expect(firstRow).toContainText("chen.li");
+  await page.locator(".demo-console summary").click();
+  await page.getByLabel("读取持续失败").check();
+  await firstRow.click();
+  const drawer = page.locator(".drawer");
+  await expect(drawer.getByText("加载失败")).toBeVisible();
+  // 故障开关位于模态抽屉后方，此处只解除测试注入的故障。
+  await page.getByLabel("读取持续失败").evaluate((input: HTMLInputElement) => input.click());
+  await drawer.getByRole("button", { name: "重试" }).click();
+  await expect(drawer.getByRole("heading", { name: "chen.li" })).toBeVisible();
+  await drawer.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.clock.install();
+  await firstRow.click();
+  await expect(drawer.getByRole("status", { name: "加载中" })).toBeVisible();
+  await drawer.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(drawer).toHaveCount(0);
+  await page.clock.runFor(1000);
+  await expect(drawer).toHaveCount(0);
+});
