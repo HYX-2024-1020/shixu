@@ -9,6 +9,9 @@ test -f /etc/shixu-cloud/service.env
 id shixu-cloud >/dev/null 2>&1 || useradd --system --home-dir /var/lib/shixu-cloud --shell /usr/sbin/nologin shixu-cloud
 install -d -m 0700 -o shixu-cloud -g shixu-cloud /var/lib/shixu-cloud /var/lib/shixu-cloud-ledger
 chown root:shixu-cloud /etc/shixu-cloud/service.env
+chown root:shixu-cloud /etc/shixu-cloud /etc/shixu-cloud/runtime.json
+chmod 0750 /etc/shixu-cloud
+chmod 0640 /etc/shixu-cloud/runtime.json
 chmod 0640 /etc/shixu-cloud/service.env
 if [ ! -d /opt/shixu-cloud/runtime ]; then
   python3 scripts/reading-prepare-runtime.py /opt/shixu-cloud/runtime --pdf-visual "$release/server/reading/generated-pdf-visual/linux-x64"
