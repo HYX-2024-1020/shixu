@@ -16,7 +16,7 @@ function readPrivateConnection(localAppData) {
     c.user !== "shixu-access"
   )
     throw Error("INVALID_PRIVATE_CONNECTION");
-  for (const name of ["id_ed25519", "known_hosts"])
+  for (const name of ["id_ed25519", "known_hosts", "ssh_config"])
     if (!fs.statSync(path.join(root, name)).isFile())
       throw Error("PRIVATE_CONNECTION_INCOMPLETE");
   return { ...c, root, origin: "http://127.0.0.1:18788" };
@@ -42,14 +42,14 @@ function startPrivateConnection(c, { onError = () => {} } = {}) {
         "-v",
         "-N",
         "-T",
+        "-F",
+        path.join(c.root, "ssh_config"),
         "-o",
         "BatchMode=yes",
         "-o",
         "IdentitiesOnly=yes",
         "-o",
         "StrictHostKeyChecking=yes",
-        "-o",
-        `UserKnownHostsFile=${path.join(c.root, "known_hosts")}`,
         "-o",
         "ExitOnForwardFailure=yes",
         "-o",
@@ -58,11 +58,9 @@ function startPrivateConnection(c, { onError = () => {} } = {}) {
         "ServerAliveInterval=15",
         "-o",
         "ServerAliveCountMax=2",
-        "-i",
-        path.join(c.root, "id_ed25519"),
         "-L",
         "127.0.0.1:18788:127.0.0.1:8790",
-        `${c.user}@${c.host}`,
+        "shixu-private",
       ],
       { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] },
     );

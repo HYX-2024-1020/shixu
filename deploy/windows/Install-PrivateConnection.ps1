@@ -17,6 +17,8 @@ if(-not(Test-Path -LiteralPath $key)){
   if($process.ExitCode -ne 0){throw 'Dedicated SSH key generation failed'}
 }
 [IO.File]::WriteAllText((Join-Path $root 'connection.json'),(@{version=1;host=$CloudHost;user='shixu-access'}|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
+$sshConfig=@('Host shixu-private',('    HostName '+$CloudHost),'    User shixu-access',('    UserKnownHostsFile "'+(Join-Path $root 'known_hosts').Replace('\','/')+'"'),('    IdentityFile "'+$key.Replace('\','/')+'"'),'    IdentitiesOnly yes','    StrictHostKeyChecking yes','    BatchMode yes','    ConnectTimeout 10','    ServerAliveInterval 15','    ServerAliveCountMax 2')
+[IO.File]::WriteAllLines((Join-Path $root 'ssh_config'),$sshConfig,(New-Object Text.UTF8Encoding($false)))
 $old=Join-Path $console 'Launch.ps1'
 if((Test-Path -LiteralPath $old) -and -not(Test-Path -LiteralPath (Join-Path $console 'Launch.local-login.ps1'))){Copy-Item -LiteralPath $old -Destination (Join-Path $console 'Launch.local-login.ps1')}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Launch-Console.ps1') -Destination $old

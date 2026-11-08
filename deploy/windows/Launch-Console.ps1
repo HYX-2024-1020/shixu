@@ -13,9 +13,11 @@ if(Test-Path -LiteralPath $record){
 }
 if(-not $reuse){
   if(Get-NetTCPConnection -LocalPort 18789 -State Listen -ErrorAction SilentlyContinue){throw 'Console port is occupied by another process'}
-  $args=@('-N','-T','-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-o',('UserKnownHostsFile="'+(Join-Path $root 'known_hosts')+'"'),'-o','ExitOnForwardFailure=yes','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2','-i',('"'+(Join-Path $root 'id_ed25519')+'"'),'-L','127.0.0.1:18789:127.0.0.1:8791',($config.user+'@'+$config.host))
+  $args=@('-N','-T','-F',('"'+(Join-Path $root 'ssh_config')+'"'),'-o','ExitOnForwardFailure=yes','-L','127.0.0.1:18789:127.0.0.1:8791','shixu-private')
   $process=Start-Process -FilePath $ssh -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardError (Join-Path $PSScriptRoot 'logs\cloud-ssh.log')
   Start-Sleep -Milliseconds 300
+  $process.Refresh()
+  if($process.HasExited){throw 'Protected SSH connection failed. See logs/cloud-ssh.log.'}
   @{pid=$process.Id;ticks=$process.StartTime.ToUniversalTime().Ticks}|ConvertTo-Json|Set-Content -LiteralPath $record -Encoding UTF8
 }
 $ready=$false
