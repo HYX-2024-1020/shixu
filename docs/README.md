@@ -9,6 +9,8 @@
 
 ## 参与开发
 
+- [当前工作计划：Windows、阿里云与统一管理控制台（2026-11-09）](project-continuity/work-plan-20261109.md) · [第 1 项新对话提示词](project-continuity/windows-cloud-start-prompt.md) · [管理术语](../GLOSSARY.md)
+
 - [63份历史本地改动：逐文件核对、归档与清理结果](project-continuity/local-remnants-20261102.md)
 
 - [固定开发位置、任务基线检查与保留旧修复](project-continuity/local-workspace.md)
