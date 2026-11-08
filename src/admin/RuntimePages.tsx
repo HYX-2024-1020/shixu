@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { AdminApi } from "./api";
 import { formatBeijingTime, newOperationId } from "./format";
 import { Button, ErrorState, useAsyncData } from "./ui";
@@ -71,6 +71,8 @@ export function SiteControl({
 }
 
 export function AlertsPage({ api }: { api: AdminApi }) {
+  const [busy,setBusy]=useState(''),[error,setError]=useState('');
+  const operations=useRef<Record<string,string>>({});
   const { state, retry } = useAsyncData(
     () => (api.getAlerts ? api.getAlerts() : Promise.resolve([])),
     [],
@@ -105,6 +107,12 @@ export function AlertsPage({ api }: { api: AdminApi }) {
               </p>
               {a.recoveredAt && <p>恢复：{formatBeijingTime(a.recoveredAt)}</p>}
               <p>{a.suggestion}</p>
+              <p>{a.readAt ? `已读 · ${formatBeijingTime(a.readAt)}` : '未读'}</p>
+              {!a.readAt && api.readAlert && <Button busy={busy===a.id} disabled={!!busy} onClick={async()=>{
+                operations.current[a.id] ||= newOperationId();setBusy(a.id);setError('');
+                try{await api.readAlert!(a.id,operations.current[a.id]);retry();}catch(e){setError(e instanceof Error?e.message:'标记失败，请重试');}finally{setBusy('');}
+              }}>标为已读</Button>}
+              {error&&<p role="alert">{error}</p>}
               <a href={a.actionHref}>{a.actionLabel}</a>
             </div>
           </article>

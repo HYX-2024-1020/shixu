@@ -323,7 +323,7 @@ export default function AccountConnection({
         </p>
         {state?.base && (
           <>
-            <button disabled={busy} onClick={() => void action("sync")}>
+            <button disabled={busy} onClick={() => void action("sync", {force:true})}>
               立即同步
             </button>
             <button

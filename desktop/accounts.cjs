@@ -26,6 +26,9 @@ function atomic(file, value) {
 class AccountWorkspace extends CloudWorkspace {
   constructor(options) {
     super(options);
+    this.minimumReadIntervalMs = options.minimumReadIntervalMs || 0;
+    if(!Number.isSafeInteger(this.minimumReadIntervalMs)||this.minimumReadIntervalMs<0||this.minimumReadIntervalMs>30000)
+      throw Error('INVALID_POLL_INTERVAL');
     this.protocolVersion = 3;
     // Injectable only in the main-process test harness; the renderer cannot set a URL.
     this.origin = serviceURL(options.serviceOrigin || SERVICE_ORIGIN);
@@ -50,6 +53,8 @@ class AccountWorkspace extends CloudWorkspace {
     this.lastError = "";
   }
   async request(base, method, api, data, extra = {}) {
+    if(base===this.retryBase && this.retryUntil>Date.now() && !extra.activationKey)
+      throw Object.assign(Error('请求较多，稍后自动重试；资料和任务进度保留'),{status:429,retryable:true});
     api = api.replace(/^\/api\/v2\//, "/api/v3/");
     if (
       this.accountState?.reading &&
@@ -99,6 +104,11 @@ class AccountWorkspace extends CloudWorkspace {
       ...(bytes.length ? { body: bytes } : {}),
     });
     if (!response.ok) {
+      if(response.status===429){
+        const seconds=Number(response.headers?.get?.('retry-after'));
+        this.retryBase=base;
+        this.retryUntil=Date.now()+(Number.isFinite(seconds)&&seconds>0?Math.min(300,seconds):60)*1000;
+      }
       const value = await response.json().catch(() => ({}));
       if (device && response.status === 401) {
         this.authorization = "invalid";
@@ -275,6 +285,10 @@ class AccountWorkspace extends CloudWorkspace {
           job.state === "submitting" ? job.request : null,
         );
       } catch (error) {
+        // A temporary read/rate failure is not a terminal server task result.
+        // Preserve ID, paid progress and action state; the next bounded poll
+        // obtains the authoritative result without creating a replacement job.
+        if(error.status===429 || (job.state!=="submitting" && error.status===503))throw error;
         if (![400, 403, 404, 409, 413, 422, 429, 503].includes(error.status))
           throw error;
         result = { state: "error", error: error.message };
@@ -285,8 +299,14 @@ class AccountWorkspace extends CloudWorkspace {
       this.writeJobs(jobs);
     }
   }
-  async sync() {
+  async sync({force=false} = {}) {
     if (!this.config.active) return this.status();
+    if(this.retryBase===this.config.active && this.retryUntil>Date.now()){
+      this.lastError=`请求较多，${Math.ceil((this.retryUntil-Date.now())/1000)}秒后自动重试；资料和任务进度保留`;
+      return this.status();
+    }
+    if(!force && this.readSyncBase===this.config.active && this.nextReadAt>Date.now() && !this.space().client.pendingCount() &&
+        !this.readJobs().some(j=>j.pendingAction || j.state==='submitting'))return this.status();
     try {
       const status = await super.sync();
       this.accountState = await this.request(
@@ -305,6 +325,8 @@ class AccountWorkspace extends CloudWorkspace {
           "/api/v4/storage",
         );
       await this.pollJobs();
+      this.readSyncBase=this.config.active;
+      this.nextReadAt=Date.now()+this.minimumReadIntervalMs;
       return { ...status, ...this.status() };
     } catch (error) {
       this.lastError = error.message;
@@ -560,6 +582,7 @@ class AccountWorkspace extends CloudWorkspace {
     if (!this.materialConsentAccepted()) throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
   }
   action(action, value) {
+    if(action==='sync' && value?.force)return this.serial(()=>this.sync({force:true}));
     if (action === "taskPreview") return this.serial(async () => {
       this.taskPreview = await this.request(this.config.active, "GET", `/api/v4/tasks/${encodeURIComponent(value.id)}/preview?offset=${value.offset || 0}`);
       return this.status();

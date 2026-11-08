@@ -66,6 +66,12 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   backend.sample();
   backend.sample();
   assert.equal(backend.alerts().filter((a) => !a.recoveredAt).length, 1);
+  const alert=backend.alerts().find(a=>!a.recoveredAt);
+  backend.markRead(alert.id,'read-alert-1','operator');
+  backend.markRead(alert.id,'read-alert-1','operator');
+  assert.ok(backend.alerts().find(a=>a.id===alert.id).readAt);
+  assert.equal(backend.alerts().filter(a=>!a.recoveredAt).length,1);
+  assert.equal(backend.audits().filter(a=>a.action==='alert-read').length,1);
   registry.pauseAI(false);
   backend.sample();
   assert.ok(backend.alerts()[0].recoveredAt);

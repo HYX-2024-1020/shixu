@@ -10,6 +10,8 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  READING_TASK_FAILED: "处理结果未通过核对，资料与累计费用保留；不会自动重试，主动继续可能再次计费",
+  NO_READABLE_MATERIAL: "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
   ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
   RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
   ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
@@ -592,6 +594,7 @@ export function createReadingRoutes({
       scheduler.close();
       for (const e of engines.values()) e.finalizeShutdown();
     },
-    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: closed ? 0 : [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0) }),
+    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: closed ? 0 : [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0),
+      failures: closed ? [] : [...engines.values()].flatMap(e=>e.db.prepare("SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason").all().map(r=>({account:e.account,...r}))) }),
   };
 }

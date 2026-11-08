@@ -5,6 +5,40 @@ const { tmpdir } = require("node:os");
 const path = require("node:path");
 const { AccountWorkspace } = require("./accounts.cjs");
 const { DesktopStore } = require("./storage.cjs");
+
+test('installed polling coalesces reads, flushes edits, and preserves paid task state across 429 and 503',async t=>{
+  const {createMultiUserService}=await import('../server/sync-multi-user.mjs');
+  const root=await fs.mkdtemp(path.join(tmpdir(),'shixu-rate-client-'));
+  const service=createMultiUserService({directory:path.join(root,'server'),secret:'synthetic-rate-secret-'.repeat(3)});
+  await new Promise(done=>service.server.listen(0,'127.0.0.1',done));
+  t.after(async()=>{await new Promise(done=>service.server.close(done));await fs.rm(root,{recursive:true,force:true});});
+  const [invitation]=service.registry.generate(1),base=`http://127.0.0.1:${service.server.address().port}`;
+  let requests=0,transient=0;
+  const cloud=new AccountWorkspace({root:path.join(root,'client'),local:new DesktopStore(path.join(root,'local')),serviceOrigin:base,
+    minimumReadIntervalMs:10000,seal:async v=>Buffer.from(v),unseal:async v=>v.toString(),fetcher:async(url,init)=>{
+      requests++;
+      if(url.endsWith('/api/v3/jobs/paid-task'))return transient
+        ?new Response(JSON.stringify({error:'synthetic temporary failure',code:'RATE_LIMIT'}),{status:transient,headers:{'Content-Type':'application/json','Retry-After':'1'}})
+        :new Response(JSON.stringify({state:'paused',reason:'ADMIN_PAUSED',calls:1}),{headers:{'Content-Type':'application/json'}});
+      return fetch(url,init);
+    }});
+  await cloud.init();await cloud.action('activate',{invite:invitation.invite});
+  const initial=requests;
+  for(let i=0;i<100;i++)await cloud.action('sync');
+  assert.equal(requests,initial,'UI wait loops must not exhaust server rate limits');
+  await cloud.call('savePackets',[{id:'edit',text:'synthetic edit',sources:[],attachments:[],doneIds:[],result:null,status:'pending'}],cloud.config.active);
+  await cloud.action('sync');
+  assert.ok(requests>initial);assert.equal(cloud.space().client.pendingCount(),0);
+  cloud.writeJobs([{id:'paid-task',state:'running',calls:1,request:{packetId:'edit',kind:'organize'}}]);
+  for(const status of [429,503]){
+    transient=status;
+    await assert.rejects(cloud.pollJobs(),e=>e.status===status);
+    assert.equal(cloud.readJobs()[0].state,'running');assert.equal(cloud.readJobs()[0].calls,1);
+    if(status===429){const count=requests;await cloud.action('sync');assert.equal(requests,count);await new Promise(done=>setTimeout(done,1050));}
+  }
+  transient=0;await cloud.pollJobs();
+  assert.equal(cloud.readJobs()[0].state,'paused');assert.equal(cloud.readJobs()[0].reason,'ADMIN_PAUSED');assert.equal(cloud.readJobs()[0].calls,1);
+});
 test("Windows activation retains an encrypted signing identity across lost replies, isolates accounts and routes AI through the server", async (t) => {
   const { createMultiUserService } = await import(
     "../server/sync-multi-user.mjs"

@@ -65,6 +65,7 @@ export class AdminApiError extends Error {
  */
 export interface AdminApi {
   getAlerts?(): Promise<import('./types').AlertItem[]>;
+  readAlert?(id: string, operationId: string): Promise<import('./types').AlertItem>;
   getAudit?(): Promise<import('./types').AuditEntry[]>;
   setSitePaused?(paused: boolean, operationId: string): Promise<{paused: boolean; safetyPaused: boolean}>;
   /** 数据来源标识，用于界面标明演示状态 */

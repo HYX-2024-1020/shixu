@@ -44,8 +44,11 @@ test('真实管理 HTTP 数据、行内暂停、独立告警与审计', async ({
     await page.getByRole('link',{name:/告警中心/}).click();
     await expect(page.getByRole('heading',{name:'告警中心',exact:true})).toBeVisible();
     await expect(page.getByText('服务安全开关仍关闭，人工恢复不会解除此门禁')).toBeVisible();
+    await page.getByRole('button',{name:'标为已读',exact:true}).click();
+    await expect(page.getByRole('button',{name:'标为已读',exact:true})).toHaveCount(0);
+    await expect(page.locator('a[href="#/alerts"]')).toContainText('1');
     await page.getByRole('link',{name:'运维与审计',exact:true}).click();
-    await expect(page.locator('.audit-row')).toHaveCount(2);
+    await expect(page.locator('.audit-row')).toHaveCount(3);
   } finally {await page.goto('about:blank');await service.close();backend.close();credentials.close();registry.close();ledger.close();rmSync(directory,{recursive:true,force:true});}
 });
 

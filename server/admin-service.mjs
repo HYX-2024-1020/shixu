@@ -191,6 +191,12 @@ export function createAdminService({
           if (req.method === "GET" && path === "/admin/v1/users") { json(200, backend.users(url.searchParams)); return; }
           if (req.method === "GET" && path === "/admin/v1/alerts") { json(200, backend.alerts()); return; }
           if (req.method === "GET" && path === "/admin/v1/audit") { json(200, backend.audits()); return; }
+          const readAlert=/^\/admin\/v1\/alerts\/(\d{1,20})\/read$/.exec(path);
+          if(req.method==='POST'&&readAlert){
+            const value=await readJson(req);
+            if(Object.keys(value).length)throw failure(400,'INVALID_OPERATION','操作内容无效');
+            json(200,backend.markRead(readAlert[1],req.headers['x-operation-id'],username));return;
+          }
           const user = /^\/admin\/v1\/users\/([\w-]+)$/.exec(path);
           if (req.method === "GET" && user) { json(200, backend.user(user[1])); return; }
           const control = /^\/admin\/v1\/(site|users\/([\w-]+))\/(ai-pause|ai-resume)$/.exec(path);

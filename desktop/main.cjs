@@ -100,7 +100,7 @@ else {
         process.env.SHIXU_DATA_DIR
           ? { serviceOrigin: process.env.SHIXU_TEST_SERVICE_ORIGIN }
           : {}),
-          ...(privateConnection ? {serviceOrigin: privateConnection.origin, fetcher: stopConnection.fetch} : {}),
+          ...(privateConnection ? {serviceOrigin: privateConnection.origin, fetcher: stopConnection.fetch, minimumReadIntervalMs: 10000} : {}),
         seal: (value) => safeStorage.encryptStringAsync(value),
         unseal: async (bytes) =>
           (await safeStorage.decryptStringAsync(bytes)).result,

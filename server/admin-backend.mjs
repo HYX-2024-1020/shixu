@@ -253,6 +253,7 @@ export class AdminBackend {
     const add = (kind, object, severity, message) =>
       signals.push({ kind, object, severity, message });
     const priceError = this.pricingHealth();
+    for(const failure of this.routes.snapshot().failures || [])add('task-'+failure.reason,failure.account,'warning',`${failure.count} 个任务等待处理：${failure.reason}；请核对用户任务及累计费用`);
     if (priceError)
       add("tariff", "site", "critical", `模型价格验证门禁：${priceError}`);
     if (this.routes.snapshot().waiting >= 10)
@@ -334,6 +335,22 @@ export class AdminBackend {
         actionHref: "#/ops",
         suggestion: "检查对应服务、队列或费用门禁；已读不会解除故障。",
       }));
+  }
+  markRead(id, operation, actor) {
+    if(!/^\d{1,20}$/.test(id)||typeof operation!=='string'||!/^[\w-]{8,120}$/.test(operation))fail(400,'INVALID_OPERATION');
+    if(!this.db.prepare('SELECT 1 FROM alerts WHERE id=?').get(id))fail(404,'ALERT_NOT_FOUND');
+    const fingerprint=createHash('sha256').update(JSON.stringify(['alert-read',id,actor])).digest('hex');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const old=this.db.prepare('SELECT fingerprint FROM audit WHERE operation=?').get(operation);
+      if(old&&old.fingerprint!==fingerprint)fail(409,'IDEMPOTENCY_CONFLICT');
+      if(!old){
+        this.db.prepare('UPDATE alerts SET read_at=COALESCE(read_at,?) WHERE id=?').run(this.now(),id);
+        this.db.prepare('INSERT INTO audit(at,actor,action,scope,operation,fingerprint,reason) VALUES(?,?,?,?,?,?,?)').run(this.now(),actor,'alert-read','alert:'+id,operation,fingerprint,'');
+      }
+      this.db.exec('COMMIT');
+    }catch(e){this.db.exec('ROLLBACK');throw e;}
+    return this.alerts().find(a=>a.id===id);
   }
   overview() {
     const sampledAt = this.resources.sampledAt,
