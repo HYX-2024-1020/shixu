@@ -592,6 +592,6 @@ export function createReadingRoutes({
       scheduler.close();
       for (const e of engines.values()) e.finalizeShutdown();
     },
-    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0) }),
+    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: closed ? 0 : [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0) }),
   };
 }
