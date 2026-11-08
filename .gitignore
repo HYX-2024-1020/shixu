@@ -20,6 +20,7 @@ data/
 Thumbs.db
 
 !.env.sync.example
+!.env.admin.example
 project.private.config.json
 server/reading/generated-native/
 server/reading/generated-webp/

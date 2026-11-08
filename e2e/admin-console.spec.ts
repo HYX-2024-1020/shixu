@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { resolve } from "node:path";
+import { createAdminService, hashAdminPassword } from "../server/admin-service.mjs";
 
 /**
  * 管理台（E 阶段首批：服务总览 + 用户管理）浏览器回归。
@@ -112,4 +114,37 @@ test("用户详情失败后可以重试，关闭加载中的抽屉不会被迟�
   await expect(drawer).toHaveCount(0);
   await page.clock.runFor(1000);
   await expect(drawer).toHaveCount(0);
+});
+
+test("真实回环服务登录、明确显示数据待接入，退出失败后可重试", async ({ page }) => {
+  const password = "synthetic-admin-password";
+  const service = createAdminService({
+    username: "test-admin", passwordHash: await hashAdminPassword(password),
+    staticDirectory: resolve("dist"), audit: () => {},
+  });
+  const origin = await service.listen(0);
+  try {
+    await page.goto(`${origin}/admin/`);
+    await expect(page).toHaveURL(`${origin}/admin/?api=http`);
+    await page.getByRole("textbox", { name: "管理员账号" }).fill("test-admin");
+    await page.locator('input[type="password"]').fill("wrong");
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page.getByText("账号或密码不正确")).toBeVisible();
+    await page.locator('input[type="password"]').fill(password);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page.getByText("管理数据接口尚未接入，请稍后重试", { exact: false })).toBeVisible();
+    await expect(page.getByText("演示数据 · 未连接后端")).toHaveCount(0);
+    await page.route("**/admin/v1/logout", (route) => route.abort());
+    await page.getByRole("button", { name: "退出", exact: true }).click();
+    await expect(page.getByText("退出未完成，请重试。管理会话仍可能有效。")).toBeVisible();
+    await expect(page.getByRole("button", { name: "退出", exact: true })).toBeVisible();
+    await page.unroute("**/admin/v1/logout");
+    await page.getByRole("button", { name: "退出", exact: true }).click();
+    await expect(page.getByRole("button", { name: "登录", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "登录", exact: true })).toBeVisible();
+  } finally {
+    await page.goto("about:blank");
+    await service.close();
+  }
 });
