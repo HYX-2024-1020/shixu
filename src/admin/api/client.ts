@@ -64,6 +64,9 @@ export class AdminApiError extends Error {
  * - 返回结果以后端为准；前端不做本地乐观推算金额。
  */
 export interface AdminApi {
+  getAlerts?(): Promise<import('./types').AlertItem[]>;
+  getAudit?(): Promise<import('./types').AuditEntry[]>;
+  setSitePaused?(paused: boolean, operationId: string): Promise<{paused: boolean; safetyPaused: boolean}>;
   /** 数据来源标识，用于界面标明演示状态 */
   readonly source: "synthetic" | "http";
 

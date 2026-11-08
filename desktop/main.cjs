@@ -15,6 +15,7 @@ const {
 } = require("electron");
 const { externalWebUrl } = require("./external.cjs");
 const { AccountWorkspace } = require("./accounts.cjs");
+const { readPrivateConnection, startPrivateConnection } = require("./connection.cjs");
 const { DesktopStore } = require("./storage.cjs");
 const { exportBackup, importBackup } = require("./backup.cjs");
 const { readArchive } = require("./archive.cjs");
@@ -36,12 +37,13 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 app.setName("拾序");
+const privateConnection = app.isPackaged ? readPrivateConnection(process.env.LOCALAPPDATA || app.getPath("appData")) : null;
 // Dedicated desktop profile. Existing browser test data is left in its browser.
 app.setPath(
   "userData",
   process.env.SHIXU_DATA_DIR && path.isAbsolute(process.env.SHIXU_DATA_DIR)
     ? process.env.SHIXU_DATA_DIR
-    : path.join(app.getPath("appData"), "ShixuDesktop"),
+    : path.join(app.getPath("appData"), privateConnection ? "ShixuDesktopCloud" : "ShixuDesktop"),
 );
 let mainWindow,
   tray,
@@ -53,6 +55,8 @@ const show = () => {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  const stopConnection = privateConnection ? startPrivateConnection(privateConnection) : ()=>{};
+  app.on("will-quit", stopConnection);
   app.on("second-instance", show);
   app.on("before-quit", (event) => {
     if (quitting) return;
@@ -96,6 +100,7 @@ else {
         process.env.SHIXU_DATA_DIR
           ? { serviceOrigin: process.env.SHIXU_TEST_SERVICE_ORIGIN }
           : {}),
+          ...(privateConnection ? {serviceOrigin: privateConnection.origin, fetcher: stopConnection.fetch} : {}),
         seal: (value) => safeStorage.encryptStringAsync(value),
         unseal: async (bytes) =>
           (await safeStorage.decryptStringAsync(bytes)).result,

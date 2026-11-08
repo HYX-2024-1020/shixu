@@ -31,6 +31,7 @@ export interface ServiceHealth {
 }
 
 export interface ResourceUsage {
+  source?: string;
   cpuPercent: number;
   memoryUsedMB: number;
   memoryTotalMB: number;
@@ -56,16 +57,17 @@ export interface QueueStageStat {
 
 export interface CostSummary {
   currency: "CNY";
-  todayMicro: MicroYuan;
-  monthMicro: MicroYuan;
+  todayMicro: MicroYuan | null;
+  monthMicro: MicroYuan | null;
   /** 站点级月度预算上限 */
-  siteBudgetMonthMicro: MicroYuan;
+  siteBudgetMonthMicro: MicroYuan | null;
   /** 当前全体预留（未结算） */
   reservedMicro: MicroYuan;
   asOf: string;
 }
 
 export interface BackupStatus {
+  available?: boolean;
   lastSuccessAt: string | null;
   lastFailureAt: string | null;
   /** 当前保留的成功备份份数（方案 §10：最近 2 份） */
@@ -83,6 +85,12 @@ export interface BackupStatus {
 export type AlertSeverity = "critical" | "warning";
 
 export interface AlertItem {
+  object?: string;
+  firstAt?: string;
+  lastAt?: string;
+  recoveredAt?: string | null;
+  readAt?: string | null;
+  suggestion?: string;
   id: string;
   severity: AlertSeverity;
   message: string;
@@ -92,6 +100,7 @@ export interface AlertItem {
 }
 
 export interface Overview {
+  control?: { paused: boolean; safetyPaused: boolean };
   services: ServiceHealth[];
   resources: ResourceUsage;
   queue: QueueStageStat[];
@@ -103,6 +112,9 @@ export interface Overview {
 export type AdminUserStatus = "active" | "ai-paused" | "disabled";
 
 export interface AdminUser {
+  personalAiPaused?: boolean;
+  siteAiPaused?: boolean;
+  unknownRiskMicro?: number;
   id: string;
   username: string;
   status: AdminUserStatus;
@@ -124,7 +136,7 @@ export interface AdminDevice {
   id: string;
   name: string;
   platform: "windows" | "wechat" | "other";
-  lastActiveAt: string;
+  lastActiveAt: string | null;
 }
 
 export interface AdminUserDetail extends AdminUser {

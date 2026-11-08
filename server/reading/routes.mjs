@@ -10,6 +10,7 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
   RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
   ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
   ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
@@ -243,7 +244,7 @@ export function createReadingRoutes({
         .all()) {
         try {
           const wallet = ledger.wallet(account);
-          if (!enabled() || wallet.pausedReason)
+          if (!enabled(account) || wallet.pausedReason)
             throw Error(wallet.pausedReason || "MAINTENANCE");
           schedule(e, task.id);
         } catch (error) {
@@ -591,6 +592,6 @@ export function createReadingRoutes({
       scheduler.close();
       for (const e of engines.values()) e.finalizeShutdown();
     },
-    snapshot: () => scheduler.snapshot(),
+    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0) }),
   };
 }

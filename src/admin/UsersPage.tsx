@@ -349,7 +349,7 @@ export function UsersPage({ api }: { api: AdminApi }) {
                     <div className="v">{formatMicroYuan(detail.availableMicro)}</div>
                   </div>
                 </div>
-                <p className="wallet-note">余额 = 累计额度 − 已消费 − 预留。追加额度不清除已消费，也不等于向 DeepSeek 供应商账户充值。</p>
+                <p className="wallet-note">费用不明风险预留：{formatMicroYuan(detail.unknownRiskMicro || 0)}。余额 = 累计额度 − 已消费 − 在途预留 − 费用不明风险。</p>
 
                 {resetResult && (
                   <p className="login-notice" role="status">
@@ -361,10 +361,10 @@ export function UsersPage({ api }: { api: AdminApi }) {
 
                 <h3 className="section-title">管理操作</h3>
                 <div className="action-row">
-                  <Button variant="primary" onClick={() => beginAction({ kind: "topup", user: detail })}>
+                  <Button disabled={api.source === "http"} variant="primary" onClick={() => beginAction({ kind: "topup", user: detail })}>
                     追加额度
                   </Button>
-                  {detail.status === "ai-paused" ? (
+                  {(detail.personalAiPaused ?? detail.status === "ai-paused") ? (
                     <Button variant="ghost" onClick={() => beginAction({ kind: "ai", user: detail, pause: false })}>
                       恢复 AI
                     </Button>
@@ -377,11 +377,39 @@ export function UsersPage({ api }: { api: AdminApi }) {
                       暂停 AI
                     </Button>
                   )}
-                  <Button variant="danger" onClick={() => beginAction({ kind: "reset", user: detail })}>
+                  <Button disabled={api.source === "http"} variant="danger" onClick={() => beginAction({ kind: "reset", user: detail })}>
                     重置密码
                   </Button>
                 </div>
 
+      <ConfirmDialog
+        inline
+        open={action?.kind === "ai"}
+        title={action?.kind === "ai" && action.pause ? "暂停 AI" : "恢复 AI"}
+        subject={`账号 ${action?.kind === "ai" ? action.user.username : ""}`}
+        impact={
+          action?.kind === "ai" && action.pause
+            ? "阻止该账号后续新的付费模型派发，已发请求仍可能产生费用。"
+            : "恢复该账号的人工 AI 使用权限；其他暂停与安全门禁仍生效。"
+        }
+        consequence={
+          action?.kind === "ai" && action.pause
+            ? "暂停保留全部进度，可随时恢复；不影响其他账号。"
+            : "旧任务由用户主动继续；保留已消费记录和费用不明预留。"
+        }
+        confirmLabel={action?.kind === "ai" && action.pause ? "确认暂停" : "确认恢复"}
+        danger={action?.kind === "ai" && action.pause}
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={confirmAction}
+        onCancel={cancelAction}
+      >
+        {action?.kind === "ai" && action.pause && (
+          <Field label="暂停原因（写入审计）">
+            <input value={pauseReason} onChange={(e) => setPauseReason(e.target.value)} disabled={actionBusy} placeholder="例如：异常消费待核查" />
+          </Field>
+        )}
+      </ConfirmDialog>
                 <h3 className="section-title">设备（撤销协助）</h3>
                 {detail.devices.length === 0 ? (
                   <EmptyState title="暂无已绑定设备" />
@@ -392,11 +420,12 @@ export function UsersPage({ api }: { api: AdminApi }) {
                         {d.name}
                         <span className="sub">
                           {d.platform === "windows" ? "Windows" : d.platform === "wechat" ? "微信小程序" : "其他"} ·
-                          最近活跃 {formatRelative(d.lastActiveAt)}
+                          最近活跃 {d.lastActiveAt ? formatRelative(d.lastActiveAt) : "未采集"}
                         </span>
                       </div>
                       <Button
                         variant="ghost"
+                        disabled={api.source === "http"}
                         onClick={() => beginAction({ kind: "revoke", user: detail!, deviceId: d.id, deviceName: d.name })}
                       >
                         撤销登录
@@ -455,33 +484,7 @@ export function UsersPage({ api }: { api: AdminApi }) {
         </Field>
       </ConfirmDialog>
 
-      <ConfirmDialog
-        open={action?.kind === "ai"}
-        title={action?.kind === "ai" && action.pause ? "暂停 AI" : "恢复 AI"}
-        subject={`账号 ${action?.kind === "ai" ? action.user.username : ""}`}
-        impact={
-          action?.kind === "ai" && action.pause
-            ? "该账号的 AI 整理、命名等任务停止排队与执行。"
-            : "该账号恢复 AI 任务的排队与执行。"
-        }
-        consequence={
-          action?.kind === "ai" && action.pause
-            ? "暂停保留全部进度，可随时恢复；不影响其他账号。"
-            : "恢复后按队列顺序继续处理，不会重复扣费已结算部分。"
-        }
-        confirmLabel={action?.kind === "ai" && action.pause ? "确认暂停" : "确认恢复"}
-        danger={action?.kind === "ai" && action.pause}
-        busy={actionBusy}
-        error={actionError}
-        onConfirm={confirmAction}
-        onCancel={cancelAction}
-      >
-        {action?.kind === "ai" && action.pause && (
-          <Field label="暂停原因（写入审计）">
-            <input value={pauseReason} onChange={(e) => setPauseReason(e.target.value)} disabled={actionBusy} placeholder="例如：异常消费待核查" />
-          </Field>
-        )}
-      </ConfirmDialog>
+
 
       <ConfirmDialog
         open={action?.kind === "revoke"}

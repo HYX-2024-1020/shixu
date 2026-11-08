@@ -12,7 +12,7 @@
     "url": "https://github.com/HYX-2024-1020/shixu/issues"
   },
   "private": true,
-  "version": "0.3.23",
+  "version": "0.3.24",
   "type": "module",
   "scripts": {
     "workspace:check": "node scripts/check-development-base.mjs",
@@ -23,7 +23,7 @@
     "check": "tsc -b",
     "test:e2e": "playwright test",
     "start": "node --env-file-if-exists=.env server/index.mjs",
-    "test:server": "node --test server/server.test.mjs server/database-schema.test.mjs server/admin-service.test.mjs",
+    "test:server": "node --test server/server.test.mjs server/database-schema.test.mjs server/admin-service.test.mjs server/admin-backend.test.mjs",
     "desktop:build": "tsc -b && vite build --base=/",
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",

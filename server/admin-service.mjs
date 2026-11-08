@@ -83,6 +83,7 @@ export function createAdminService({
   sessionTtlMs = 30 * 60_000,
   now = Date.now,
   audit = (event) => console.info(JSON.stringify(event)),
+  backend = null,
 } = {}) {
   if (typeof username !== "string" || !/^[\w.-]{3,64}$/.test(username) ||
       typeof passwordHash !== "string" || !HASH_PATTERN.test(passwordHash) ||
@@ -184,6 +185,20 @@ export function createAdminService({
           res.setHeader("Set-Cookie", cookie("", 0));
           json(204);
           return;
+        }
+        if (backend) {
+          if (req.method === "GET" && path === "/admin/v1/overview") { json(200, backend.overview()); return; }
+          if (req.method === "GET" && path === "/admin/v1/users") { json(200, backend.users(url.searchParams)); return; }
+          if (req.method === "GET" && path === "/admin/v1/alerts") { json(200, backend.alerts()); return; }
+          if (req.method === "GET" && path === "/admin/v1/audit") { json(200, backend.audits()); return; }
+          const user = /^\/admin\/v1\/users\/([\w-]+)$/.exec(path);
+          if (req.method === "GET" && user) { json(200, backend.user(user[1])); return; }
+          const control = /^\/admin\/v1\/(site|users\/([\w-]+))\/(ai-pause|ai-resume)$/.exec(path);
+          if (req.method === "POST" && control) {
+            const body = await readJson(req);
+            if (Object.keys(body).some(k=>k!=="reason")) throw failure(400,"INVALID_OPERATION","操作内容无效");
+            json(200,backend.control(control[2] || "site",control[3]==="ai-pause",req.headers["x-operation-id"],username,body.reason || "")); return;
+          }
         }
         if (req.method === "GET" && ["/admin/v1/overview", "/admin/v1/users"].includes(path))
           throw failure(503, "ADMIN_BACKEND_UNAVAILABLE", "管理数据接口尚未接入，请稍后重试", true);

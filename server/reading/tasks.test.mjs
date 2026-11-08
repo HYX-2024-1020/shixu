@@ -37,6 +37,27 @@ const result = (sources) => ({
   ],
 });
 
+test("manual pause blocks later paid steps, preserves settled progress and requires explicit continue", async t => {
+  let paused=false;
+  const f=fixture(t,{text:'合成材料'.repeat(50000),provider:async sources=>{
+    paused=true;
+    return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};
+  }});
+  f.ledger.dispatchGuard=()=>{if(paused)throw Error('ADMIN_PAUSED');};
+  f.enqueue();
+  await f.tasks.run('task');
+  const spent=f.ledger.wallet('synthetic').spent;
+  assert.equal(f.calls(),1);
+  assert.equal((await f.tasks.run('task')).reason,'ADMIN_PAUSED');
+  assert.equal(f.calls(),1);
+  paused=false;
+  assert.equal(f.tasks.get('task').state,'paused');
+  assert.equal(f.ledger.wallet('synthetic').spent,spent);
+  f.action('continue','manual-resume');
+  await f.tasks.run('task');
+  assert.equal(f.calls(),2);
+});
+
 test("older tenant timing cannot rewind the independent root watermark or resume paid work", async (t) => {
   const f = fixture(t);
   f.enqueue();

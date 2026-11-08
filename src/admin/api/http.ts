@@ -86,6 +86,9 @@ export function createHttpApi(): AdminApi {
   });
 
   return {
+    getAlerts: () => request('/alerts'),
+    getAudit: () => request('/audit'),
+    setSitePaused: (paused, operationId) => post(`/site/${paused?'ai-pause':'ai-resume'}`, {}, operationId) as Promise<{paused:boolean;safetyPaused:boolean}>,
     source: "http",
     login: async (username, password) => {
       sessionRevision += 1;

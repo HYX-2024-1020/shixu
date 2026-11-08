@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify reviewed official Shixu provider tariff
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/env node /opt/shixu-cloud/current/scripts/refresh-cloud-tariff.mjs /etc/shixu-cloud/runtime.json
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/shixu-cloud
+ProtectHome=yes
+UMask=0027
