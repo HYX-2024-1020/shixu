@@ -1,6 +1,12 @@
 ﻿param([Alias("Headless")][switch]$NoBrowser)
 $ErrorActionPreference='Stop'
 $launcherPath=$PSCommandPath
+function Get-InstalledFileSha256([string]$FilePath){
+  $stream=[IO.File]::OpenRead($FilePath)
+  $algorithm=[Security.Cryptography.SHA256]::Create()
+  try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','') }
+  finally { $algorithm.Dispose();$stream.Dispose() }
+}
 function Save-LaunchReceipt([string]$Phase,[string]$FailureCode=''){
   $receiptPath=Join-Path $PSScriptRoot 'logs\last-launch.json'
   $temporary=$receiptPath+'.'+$PID+'.next'
@@ -48,7 +54,7 @@ $manifest=Get-Content -LiteralPath (Join-Path $releaseRoot 'installation-manifes
 foreach($file in $manifest.files){
   $target=[IO.Path]::GetFullPath((Join-Path $releaseRoot $file.path))
   if(-not $target.StartsWith(($releaseRoot+'\'),[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid console manifest path'}
-  if(-not(Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $file.sha256){throw 'Console installation failed integrity verification'}
+  if(-not(Test-Path -LiteralPath $target) -or (Get-InstalledFileSha256 $target) -ne $file.sha256){throw 'Console installation failed integrity verification'}
 }
 $node=Join-Path $releaseRoot 'node.exe'
 $gatewayRecord=Join-Path $PSScriptRoot 'gateway-running.json'
