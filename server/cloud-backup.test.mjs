@@ -400,6 +400,11 @@ test("host maintenance recovery proves child death and cannot clear a live write
 test("protected account CLI selects the configured v4 data and its safety authority instead of creating a legacy side database", async (t) => {
   const f = await fixture(t),
     config = join(f.root, "runtime.json");
+  const floor = join(f.root, "host-floor.json");
+  writeFileSync(
+    floor,
+    JSON.stringify(readingAuthorityFloor(f.config.ledgerPath)),
+  );
   writeFileSync(
     config,
     JSON.stringify({
@@ -413,6 +418,7 @@ test("protected account CLI selects the configured v4 data and its safety author
     env: {
       ...process.env,
       SYNC_V4_CONFIG: config,
+      SHIXU_AUTHORITY_FLOOR: floor,
       SYNC_ACCOUNT_SECRET: secret,
     },
     encoding: "utf8",
