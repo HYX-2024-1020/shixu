@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { createAdminService, hashAdminPassword } from "../server/admin-service.mjs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AccountRegistry } from "../server/sync-accounts.mjs";
+import { AccountsV4 } from "../server/accounts-v4.mjs";
+import { ReadingLedger } from "../server/reading/ledger.mjs";
+import { AdminBackend } from "../server/admin-backend.mjs";
+import { createConsoleGateway } from "../server/console-gateway.mjs";
 
 /**
  * 管理台（E 阶段首批：服务总览 + 用户管理）浏览器回归。
@@ -9,6 +17,43 @@ import { createAdminService, hashAdminPassword } from "../server/admin-service.m
 
 const DEMO_USER = "admin";
 const DEMO_PASS = "admin-demo";
+
+test('真实管理 HTTP 数据、行内暂停、独立告警与审计', async ({page})=>{
+  const directory=mkdtempSync(join(tmpdir(),'shixu-console-http-'));
+  const registry=new AccountRegistry(directory,'synthetic-secret-'.repeat(4)),credentials=new AccountsV4(registry),ledger=new ReadingLedger(join(directory,'ledger.sqlite'));
+  const [{userId,invite}]=registry.generate(1);await credentials.register({username:'fixture-owner',password:'synthetic-password',invite,operationId:'register-console-fixture'},{kind:'windows',identity:'c'.repeat(64),publicKey:'synthetic-only',name:'合成设备'},'synthetic');ledger.grantInitial(userId);registry.generate(1);registry.pauseAI(true);
+  const backend=new AdminBackend({path:join(directory,'ops.sqlite'),registry,ledger,directory,routes:{snapshot:()=>({running:0,waiting:0})}});
+  const password='synthetic-admin-password',service=createAdminService({username:'test-admin',passwordHash:await hashAdminPassword(password),backend,audit:()=>{}}),upstream=await service.listen(0),gateway=createConsoleGateway({staticDirectory:resolve('dist'),upstreamOrigin:upstream}),origin=await gateway.listen(0);
+  try {
+    await page.goto(origin+'/admin/');
+    await page.getByRole('textbox',{name:'管理员账号'}).fill('test-admin');
+    await page.locator('input[type=password]').fill(password);
+    await page.getByRole('button',{name:'登录',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'全站 AI 权限'})).toBeVisible();
+    await page.getByRole('button',{name:'暂停全站 AI'}).click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await page.locator('.inline-confirm').getByRole('button',{name:'确认暂停'}).click();
+    await expect(page.getByRole('button',{name:'恢复全站 AI'})).toBeVisible();
+    await page.getByRole('link',{name:'用户管理',exact:true}).click();
+    await page.locator('tbody tr').first().click();
+    await page.locator('.drawer').getByRole('button',{name:'暂停 AI',exact:true}).click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await page.locator('.inline-confirm').getByRole('button',{name:'确认暂停'}).click();
+    await expect(page.locator('.drawer').getByRole('button',{name:'恢复 AI',exact:true})).toBeVisible();
+    expect(ledger.wallet(userId).spent).toBe(0);
+    await page.locator('.drawer').getByRole('button',{name:'关闭',exact:true}).click();
+    await page.getByRole('link',{name:/告警中心/}).click();
+    await expect(page.getByRole('heading',{name:'告警中心',exact:true})).toBeVisible();
+    await expect(page.getByText('服务安全开关仍关闭，人工恢复不会解除此门禁')).toBeVisible();
+    const safetyAlert=page.getByRole('article').filter({hasText:'服务安全开关仍关闭，人工恢复不会解除此门禁'});
+    const unresolved=(await page.locator('a[href="#/alerts"]').textContent())||'';
+    await safetyAlert.getByRole('button',{name:'标为已读',exact:true}).click();
+    await expect(safetyAlert.getByRole('button',{name:'标为已读',exact:true})).toHaveCount(0);
+    await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
+    await page.getByRole('link',{name:'运维与审计',exact:true}).click();
+    await expect(page.locator('.audit-row')).toHaveCount(3);
+  } finally {await page.goto('about:blank');await gateway.close();await service.close();backend.close();credentials.close();registry.close();ledger.close();rmSync(directory,{recursive:true,force:true});}
+});
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/admin/");

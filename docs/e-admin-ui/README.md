@@ -1,6 +1,8 @@
 # E 阶段管理台前端（首批交付）
 
-更新：2026-11-04，北京时间。前端首批由 PR #88 交付，独立管理登录由 Issue #89 接续。管理台默认开发预览使用合成数据；回环管理服务提供真实登录、会话与退出，数据和管控接口继续按独立任务实现。
+更新：2026-11-10，北京时间。PR #96 已把原快捷方式控制台实际安装为本机页面与受保护云端API连接，接入真实资源/队列、用户账本、全站及个人AI控制、独立告警页和持久审计，沿用原管理员身份。实际版本与验收见[闭环交付记录](../project-continuity/windows-cloud-delivery-20261109.md)。真实模式禁用尚未交付的额度追加、密码及设备协助；备份和月预算明确显示未接入。
+
+以下是2026-11-04首批前端及合成预览历史说明；开发预览仍可使用合成数据，不代表已开放所有云端写接口。
 
 依据：[原方案 §9–§12](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/docs/server-client-plan-2026-10-28.md) 与 [阶段 A 契约](../stage-a/contracts.md)（管理路由回环监听、独立会话、只读统计/元数据、不提供用户正文/导出）。
 
@@ -26,17 +28,17 @@ npm run dev
 
 类型与适配层：`src/admin/api/types.ts`、`src/admin/api/client.ts`（接口定义）、`synthetic.ts`（合成实现）、`http.ts`（真实实现）。金额均为整数微元；错误体 `{error, code, retryable}`。
 
-| 拟定路由 | 用途 | 状态 |
-| --- | --- | --- |
-| POST /admin/v1/login；POST /admin/v1/logout；GET /admin/v1/session | 独立管理员会话（HttpOnly Cookie） | 独立回环服务已实现，见下节 |
-| GET /admin/v1/overview | 服务/资源/队列/费用/备份/告警聚合 | 待后端实现 |
-| GET /admin/v1/users（keyword/status/page）；GET /admin/v1/users/:id | 用户列表与详情（账本+设备+审计） | 待后端实现 |
-| POST /admin/v1/users/:id/topup | 追加额度（amountMicro/note/operationId） | 待后端实现 |
-| POST /admin/v1/users/:id/ai-pause、/ai-resume | 暂停/恢复 AI（进度保留） | 待后端实现 |
-| POST /admin/v1/users/:id/devices/:deviceId/revoke | 设备撤销协助 | 待后端实现 |
-| POST /admin/v1/users/:id/password-reset | 密码重置（一次性临时密码） | 待后端实现 |
-| GET /admin/v1/tasks；POST /admin/v1/tasks/:id/actions | 任务列表与重试/暂停/停止 | 类型已定义，页面下批 |
-| （其余见下节） | 存储统计、备份操作、部署与审计 | 下批细化 |
+| 拟定路由                                                            | 用途                                     | 状态                       |
+| ------------------------------------------------------------------- | ---------------------------------------- | -------------------------- |
+| POST /admin/v1/login；POST /admin/v1/logout；GET /admin/v1/session  | 独立管理员会话（HttpOnly Cookie）        | 独立回环服务已实现，见下节 |
+| GET /admin/v1/overview                                              | 服务/资源/队列/费用/备份/告警聚合        | 待后端实现                 |
+| GET /admin/v1/users（keyword/status/page）；GET /admin/v1/users/:id | 用户列表与详情（账本+设备+审计）         | 待后端实现                 |
+| POST /admin/v1/users/:id/topup                                      | 追加额度（amountMicro/note/operationId） | 待后端实现                 |
+| POST /admin/v1/users/:id/ai-pause、/ai-resume                       | 暂停/恢复 AI（进度保留）                 | 待后端实现                 |
+| POST /admin/v1/users/:id/devices/:deviceId/revoke                   | 设备撤销协助                             | 待后端实现                 |
+| POST /admin/v1/users/:id/password-reset                             | 密码重置（一次性临时密码）               | 待后端实现                 |
+| GET /admin/v1/tasks；POST /admin/v1/tasks/:id/actions               | 任务列表与重试/暂停/停止                 | 类型已定义，页面下批       |
+| （其余见下节）                                                      | 存储统计、备份操作、部署与审计           | 下批细化                   |
 
 **待后端确认的语义**：
 

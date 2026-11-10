@@ -293,6 +293,10 @@ export class ReadingLedger {
     maxPromptTokens,
     maxOutputTokens,
   }) {
+    // All paid paths (reading/chat/visual/merge/association) pass this synchronous
+    // boundary immediately before sent/provider. Administrative resume never
+    // modifies the independent billing or reconciliation controls below.
+    this.dispatchGuard?.(account);
     if (
       ![callId, account, task, block, priceId].every(id) ||
       !integer(generation) ||

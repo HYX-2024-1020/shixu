@@ -661,6 +661,10 @@ function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "", previousEnd = 0;
   return text.replace(relative, (token, offset) => {
+    if (/^\d/.test(token) && /[-~～至到—–]/.test(token) && (/第\s*$/.test(text.slice(0, offset)) || /^\s*(?:题|章|节|条|项|页|册|元|人|次|个|%)/.test(
+      text.slice(offset + token.length)
+    )))
+      return token;
     const scoped = token.match(/^(上上|上|下下|下|本|这)(?:周|星期|礼拜)/);
     const isWeek = /(?:周|星期|礼拜)/.test(token);
     const coordinated = isWeek && !scoped && previousWeek && /^[、和及与或\s]+$/.test(text.slice(previousEnd, offset));

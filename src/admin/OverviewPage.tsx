@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import type { AdminApi } from "./api";
+import { SiteControl } from "./RuntimePages";
 import { formatBeijingTime, formatMicroYuan, formatRelative, formatWaitSeconds } from "./format";
 import type { Overview, ServiceStatus } from "./api/types";
 import { EmptyState, ErrorState, Skeleton, StatusBadge, useAsyncData, type BadgeTone } from "./ui";
@@ -22,13 +24,13 @@ function OverviewBody({ data }: { data: Overview }) {
   const { resources: r, costs, backup } = data;
   const diskPercent = (r.diskUsedGB / r.diskTotalGB) * 100;
   const memPercent = (r.memoryUsedMB / r.memoryTotalMB) * 100;
-  const budgetPercent = costs.siteBudgetMonthMicro > 0 ? (costs.monthMicro / costs.siteBudgetMonthMicro) * 100 : 0;
+  const budgetPercent = costs.siteBudgetMonthMicro && costs.monthMicro !== null ? (costs.monthMicro / costs.siteBudgetMonthMicro) * 100 : 0;
 
   return (
     <>
       {data.alerts.length > 0 ? (
         <section className="alert-rail" aria-label="需要处理的问题">
-          {data.alerts.map((a) => (
+          {data.alerts.slice(0,3).map((a) => (
             <div key={a.id} className={`alert-slip ${a.severity}`}>
               <span className="sev">{a.severity === "critical" ? "需处理" : "留意"}</span>
               <span className="msg">{a.message}</span>
@@ -39,7 +41,7 @@ function OverviewBody({ data }: { data: Overview }) {
           ))}
         </section>
       ) : (
-        <EmptyState title="当前没有需要处理的问题" hint="服务、队列与备份均在正常范围内。" />
+        <EmptyState title="当前采样未发现告警" hint="详细状态见告警中心；未接入能力单独标注。" />
       )}
 
       <section className="panel" aria-labelledby="ov-services">
@@ -80,7 +82,7 @@ function OverviewBody({ data }: { data: Overview }) {
           <div
             className={`metric ${diskPercent >= r.diskPauseThresholdPercent ? "exceed" : diskPercent >= 55 ? "approach" : ""}`}
           >
-            <span className="label">磁盘（≥{r.diskPauseThresholdPercent}% 暂停新上传）</span>
+            <span className="label">磁盘（≥{r.diskPauseThresholdPercent}% 告警）</span>
             <div className="value">
               {diskPercent.toFixed(0)}
               <small>% · {r.diskUsedGB.toFixed(0)}/{r.diskTotalGB.toFixed(0)} GB</small>
@@ -89,7 +91,8 @@ function OverviewBody({ data }: { data: Overview }) {
           </div>
         </div>
         <p className="sub" style={{ marginTop: 10 }}>
-          采样于 {formatBeijingTime(r.sampledAt)}（北京时间，UTC+8）
+          来源 {r.source || "演示采样"} · 采样于 {formatBeijingTime(r.sampledAt)}（北京时间，UTC+8）
+          {Date.now()-Date.parse(r.sampledAt)>30_000 && <strong role="alert"> · 数据已过期，请核对连接</strong>}
         </p>
       </section>
 
@@ -128,13 +131,13 @@ function OverviewBody({ data }: { data: Overview }) {
         <div className="metrics">
           <div className="metric">
             <span className="label">今日消费</span>
-            <div className="value">{formatMicroYuan(costs.todayMicro)}</div>
+            <div className="value">{costs.todayMicro === null ? "未接入" : formatMicroYuan(costs.todayMicro)}</div>
           </div>
           <div className={`metric ${budgetPercent >= 90 ? "exceed" : budgetPercent >= 70 ? "approach" : ""}`}>
             <span className="label">本月消费 / 站点预算</span>
             <div className="value">
-              {formatMicroYuan(costs.monthMicro)}
-              <small>/ {formatMicroYuan(costs.siteBudgetMonthMicro)}</small>
+              {costs.monthMicro === null ? "未接入" : formatMicroYuan(costs.monthMicro)}
+              <small>/ {costs.siteBudgetMonthMicro === null ? "未设置月预算" : formatMicroYuan(costs.siteBudgetMonthMicro)}</small>
             </div>
             <UsageBar percent={budgetPercent} />
           </div>
@@ -150,6 +153,7 @@ function OverviewBody({ data }: { data: Overview }) {
 
       <section className="panel" aria-labelledby="ov-backup">
         <h2 id="ov-backup">备份</h2>
+        {backup.available === false ? <p>备份监测尚未接入；不表示没有现存备份。</p> : <>
         <div className="metrics">
           <div className={`metric ${backup.maintenanceReason ? "exceed" : ""}`}>
             <span className="label">最近成功</span>
@@ -183,6 +187,7 @@ function OverviewBody({ data }: { data: Overview }) {
             {backup.aiPaused && "（已暂停 AI 任务）"}
           </p>
         )}
+        </>}
       </section>
     </>
   );
@@ -190,7 +195,9 @@ function OverviewBody({ data }: { data: Overview }) {
 
 /** 服务总览：服务/资源/队列/费用/备份，需要处理的问题置顶。 */
 export function OverviewPage({ api }: { api: AdminApi }) {
-  const { state, retry } = useAsyncData(() => api.getOverview(), []);
+  const [tick,setTick]=useState(0);
+  useEffect(()=>{const timer=setInterval(()=>setTick(v=>v+1),15_000);return ()=>clearInterval(timer);},[]);
+  const { state, retry } = useAsyncData(() => api.getOverview(), [tick], true);
   return (
     <>
       <header className="page-head">
@@ -204,7 +211,7 @@ export function OverviewPage({ api }: { api: AdminApi }) {
         </>
       )}
       {state.phase === "error" && <ErrorState error={state.error} onRetry={retry} />}
-      {state.phase === "ready" && <OverviewBody data={state.data} />}
+      {state.phase === "ready" && <><SiteControl api={api} control={state.data.control} onChange={retry}/><OverviewBody data={state.data} /></>}
     </>
   );
 }

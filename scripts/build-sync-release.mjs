@@ -7,6 +7,8 @@ import { PDF_RESOURCE_CATALOG } from "../server/reading/pdf-resource-catalog.mjs
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
+  "server/admin-service.mjs", "server/admin-backend.mjs",
+  "server/reading/price-calendar.mjs",
   "server/reading-runtime.mjs", "server/account-safety.mjs", "server/tenant-safety.mjs", "server/reading/deepseek.mjs", "server/reading/broker-service.mjs", "server/reading/linux-broker.mjs", "server/reading/worker.mjs",
   "shared/reading-view.mjs", "shared/bucket-engine.mjs", "shared/deadline-date.mjs", "shared/deadline-time.mjs", "shared/deadlines.mjs", "shared/usage.mjs",
   "server/data-control.mjs", "server/data-migration.mjs", "server/data-versions.mjs", "server/database-schema.mjs", "server/database-schemas.mjs", "server/sync-server.mjs", "server/sync-store.mjs",

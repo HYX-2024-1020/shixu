@@ -93,3 +93,6 @@ Canvas封装MIT及Chromium图标版权、Skia BSD和原生/Rust依赖各自许�
 ## PNG动画固定样本（2026-11-01，Issue #73）
 
 APNG解析/合成代码及apng-animation.png、apng-poster.png图案为项目自作，MIT。结构依据W3C PNG Third Edition（https://www.w3.org/TR/png-3/）；未复制规范实现代码。可选开发生成器使用Pillow12.3.0（HPND）编码，独立动画像素oracle使用本机Edge156 ImageDecoder/Canvas，默认不含动画的静态图使用Pillow原图；普通测试仅读固定全像素hash，无浏览器/Python生产依赖。Pillow半透明OVER输出差异保留在apng-pillow-observed.json，不能将它与浏览器golden合并冒称两者全部一致。
+# 已安装控制台运行时
+
+Windows 控制台将本机 Node.js 24 运行文件与当前静态页面一起固定打包，二进制版本、逐文件 SHA-256 及安装来源记录在 `installation-manifest.json`。构建器从 [Node.js 官方源](https://github.com/nodejs/node)中对应运行时版本的 `LICENSE` 获取完整许可，随包保存在 `notices/Node-LICENSE.txt`；不将 Node.js 及其内置组件声明为本项目 MIT。沿用的 Noto Sans SC、Space Grotesk 字体原件及两份 SIL OFL 同步随包保留，不修改字体或许可证。

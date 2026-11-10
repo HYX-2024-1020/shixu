@@ -931,6 +931,7 @@ export class ReadingTasks {
       }
     };
     try {
+      this.ledger.dispatchGuard?.(this.account);
       if (root.reason) throw Error(root.reason);
       this.windows.safety.assertRoot(id);
       if (root.activeMs >= activeLimitMs) throw Error("EXECUTION_LIMIT");
@@ -1273,6 +1274,7 @@ export class ReadingTasks {
           )
           .run(
             [
+              "ADMIN_PAUSED",
               "STALE_COST_REVIEW",
               "RECONCILIATION_REQUIRED",
               "PERSONAL_BUDGET",

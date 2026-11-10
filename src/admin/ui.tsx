@@ -109,7 +109,7 @@ export function reportSessionExpired(error: unknown): void {
   }
 }
 
-export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[]) {
+export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[], keepPrevious = false) {
   const [state, setState] = useState<AsyncState<T>>({ phase: "loading" });
   const [tick, setTick] = useState(0);
   const loadRef = useRef(load);
@@ -117,7 +117,7 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[]
 
   useEffect(() => {
     let alive = true;
-    setState({ phase: "loading" });
+    setState(current => keepPrevious && current.phase === "ready" ? current : { phase: "loading" });
     loadRef.current()
       .then((data) => alive && setState({ phase: "ready", data }))
       .catch((error) => {
@@ -138,6 +138,7 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[]
 /* ---------------- 确认对话框（敏感操作：说明对象、影响与后果） ---------------- */
 
 export function ConfirmDialog({
+  inline = false,
   open,
   title,
   subject,
@@ -151,6 +152,7 @@ export function ConfirmDialog({
   onCancel,
   children,
 }: {
+  inline?: boolean;
   open: boolean;
   title: string;
   /** 操作对象 */
@@ -169,11 +171,11 @@ export function ConfirmDialog({
 }) {
   if (!open) return null;
   return (
-    <div className="dialog-backdrop" role="presentation">
+    <div className={inline ? "panel inline-confirm" : "dialog-backdrop"} role="presentation">
       <div
         className="dialog"
-        role="alertdialog"
-        aria-modal="true"
+        role={inline ? "region" : "alertdialog"}
+        aria-modal={inline ? undefined : true}
         aria-labelledby="confirm-title"
         onKeyDown={(e) => {
           if (e.key === "Escape" && !busy) onCancel();

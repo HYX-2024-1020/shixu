@@ -14,6 +14,16 @@ export function absoluteText(text, day) {
   let previousWeek = "",
     previousEnd = 0;
   return text.replace(relative, (token, offset) => {
+    // Question/page/quantity ranges in prose are not abbreviated calendar dates.
+    if (
+      /^\d/.test(token) &&
+      /[-~～至到—–]/.test(token) &&
+      (/第\s*$/.test(text.slice(0, offset)) ||
+        /^\s*(?:题|章|节|条|项|页|册|元|人|次|个|%)/.test(
+          text.slice(offset + token.length),
+        ))
+    )
+      return token;
     const scoped = token.match(/^(上上|上|下下|下|本|这)(?:周|星期|礼拜)/);
     const isWeek = /(?:周|星期|礼拜)/.test(token);
     const coordinated =
