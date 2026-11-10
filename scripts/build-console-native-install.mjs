@@ -80,6 +80,7 @@ if (!node) throw Error("NODE_PAYLOAD_REQUIRED");
 const lines = [
   "Unicode true",
   '!include "MUI2.nsh"',
+  '!include "x64.nsh"',
   'Name "拾序控制台安装修复"',
   "OutFile " + quote(exe),
   "RequestExecutionLevel user",
@@ -120,7 +121,9 @@ for (const f of files) {
 lines.push(
   'SetOutPath "$LOCALAPPDATA\\Shixu\\AdminConsole"',
   "File /oname=native-delivery.json " + quote(manifest),
-  'CreateShortCut "$DESKTOP\\拾序管理控制台.lnk" "$SYSDIR\\wscript.exe" \'"$LOCALAPPDATA\\Shixu\\AdminConsole\\Cloud-Start.vbs"\' "$LOCALAPPDATA\\Shixu\\AdminConsole\\console-xu-v1.ico"',
+  "${DisableX64FSRedirection}",
+  'CreateShortCut "$DESKTOP\\拾序管理控制台.lnk" "$WINDIR\\System32\\wscript.exe" \'"$LOCALAPPDATA\\Shixu\\AdminConsole\\Cloud-Start.vbs"\' "$LOCALAPPDATA\\Shixu\\AdminConsole\\console-xu-v1.ico"',
+  "${EnableX64FSRedirection}",
   "nsExec::ExecToLog '\"$LOCALAPPDATA\\Shixu\\AdminConsole\\releases\\" +
     metadata.release +
     '\\node.exe" "$LOCALAPPDATA\\Shixu\\AdminConsole\\verify-user-install.mjs" --verify "$LOCALAPPDATA\\Shixu\\AdminConsole\\native-delivery.json"\'',
