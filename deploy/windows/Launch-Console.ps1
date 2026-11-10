@@ -4,7 +4,7 @@ $launcherPath=$PSCommandPath
 function Save-LaunchReceipt([string]$Phase,[string]$FailureCode=''){
   $receiptPath=Join-Path $PSScriptRoot 'logs\last-launch.json'
   $temporary=$receiptPath+'.'+$PID+'.next'
-  $receipt=@{phase=$Phase;at=[DateTime]::UtcNow.ToString('o');launcher=$launcherPath;launcherPID=$PID;failureCode=$FailureCode;sourceCommit=$current.sourceCommit;fingerprint=$current.fingerprint;gatewayPID=$gateway.Id}
+  $receipt=@{phase=$Phase;at=[DateTime]::UtcNow.ToString('o');launcher=$launcherPath;launcherPID=$PID;failureCode=$FailureCode;failureLine=$failureLine;failureCommand=$failureCommand;is64Bit=[Environment]::Is64BitProcess;sourceCommit=$current.sourceCommit;fingerprint=$current.fingerprint;gatewayPID=$gateway.Id}
   [IO.File]::WriteAllText($temporary,($receipt|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
   Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
 }
@@ -80,6 +80,8 @@ if(-not $gatewayReady){throw 'Local console gateway verification failed'}
 if(-not $NoBrowser){Start-Process 'http://127.0.0.1:8789/admin/?api=http'}
 Save-LaunchReceipt 'ready'
 } catch {
+  $failureLine=$_.InvocationInfo.ScriptLineNumber
+  $failureCommand=$_.InvocationInfo.MyCommand.Name
   Save-LaunchReceipt 'failed' $_.FullyQualifiedErrorId
   throw
 }
