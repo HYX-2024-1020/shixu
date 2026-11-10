@@ -1,5 +1,21 @@
 ﻿param([Alias("Headless")][switch]$NoBrowser)
 $ErrorActionPreference='Stop'
+$launcherPath=$PSCommandPath
+function Get-InstalledFileSha256([string]$FilePath){
+  $stream=[IO.File]::OpenRead($FilePath)
+  $algorithm=[Security.Cryptography.SHA256]::Create()
+  try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','') }
+  finally { $algorithm.Dispose();$stream.Dispose() }
+}
+function Save-LaunchReceipt([string]$Phase,[string]$FailureCode=''){
+  $receiptPath=Join-Path $PSScriptRoot 'logs\last-launch.json'
+  $temporary=$receiptPath+'.'+$PID+'.next'
+  $receipt=@{phase=$Phase;at=[DateTime]::UtcNow.ToString('o');launcher=$launcherPath;launcherPID=$PID;failureCode=$FailureCode;failureLine=$failureLine;failureCommand=$failureCommand;is64Bit=[Environment]::Is64BitProcess;sourceCommit=$current.sourceCommit;fingerprint=$current.fingerprint;gatewayPID=$gateway.Id}
+  [IO.File]::WriteAllText($temporary,($receipt|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
+  Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
+}
+try {
+Save-LaunchReceipt 'starting'
 $root=Join-Path $env:LOCALAPPDATA 'Shixu\Connection'
 $config=Get-Content -LiteralPath (Join-Path $root 'connection.json') -Raw | ConvertFrom-Json
 if($config.version -ne 1 -or $config.host -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or $config.user -ne 'shixu-access'){throw 'Invalid private connection'}
@@ -38,7 +54,7 @@ $manifest=Get-Content -LiteralPath (Join-Path $releaseRoot 'installation-manifes
 foreach($file in $manifest.files){
   $target=[IO.Path]::GetFullPath((Join-Path $releaseRoot $file.path))
   if(-not $target.StartsWith(($releaseRoot+'\'),[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid console manifest path'}
-  if(-not(Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $file.sha256){throw 'Console installation failed integrity verification'}
+  if(-not(Test-Path -LiteralPath $target) -or (Get-InstalledFileSha256 $target) -ne $file.sha256){throw 'Console installation failed integrity verification'}
 }
 $node=Join-Path $releaseRoot 'node.exe'
 $gatewayRecord=Join-Path $PSScriptRoot 'gateway-running.json'
@@ -68,3 +84,10 @@ for($attempt=0;$attempt -lt 15;$attempt++){
 }
 if(-not $gatewayReady){throw 'Local console gateway verification failed'}
 if(-not $NoBrowser){Start-Process 'http://127.0.0.1:8789/admin/?api=http'}
+Save-LaunchReceipt 'ready'
+} catch {
+  $failureLine=$_.InvocationInfo.ScriptLineNumber
+  $failureCommand=$_.InvocationInfo.MyCommand.Name
+  Save-LaunchReceipt 'failed' $_.FullyQualifiedErrorId
+  throw
+}

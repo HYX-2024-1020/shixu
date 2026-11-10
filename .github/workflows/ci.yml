@@ -127,6 +127,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node --test deploy/windows/*.test.mjs
       - run: npm run reading:archive:build
       - run: npm run reading:webp:build
       - run: npm run reading:pdf:visual:build
