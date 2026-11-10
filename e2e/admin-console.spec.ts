@@ -8,6 +8,7 @@ import { AccountRegistry } from "../server/sync-accounts.mjs";
 import { AccountsV4 } from "../server/accounts-v4.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { AdminBackend } from "../server/admin-backend.mjs";
+import { createConsoleGateway } from "../server/console-gateway.mjs";
 
 /**
  * 管理台（E 阶段首批：服务总览 + 用户管理）浏览器回归。
@@ -22,7 +23,7 @@ test('真实管理 HTTP 数据、行内暂停、独立告警与审计', async ({
   const registry=new AccountRegistry(directory,'synthetic-secret-'.repeat(4)),credentials=new AccountsV4(registry),ledger=new ReadingLedger(join(directory,'ledger.sqlite'));
   const [{userId}]=registry.generate(1);ledger.grantInitial(userId);registry.pauseAI(true);
   const backend=new AdminBackend({path:join(directory,'ops.sqlite'),registry,ledger,directory,routes:{snapshot:()=>({running:0,waiting:0})}});
-  const password='synthetic-admin-password',service=createAdminService({username:'test-admin',passwordHash:await hashAdminPassword(password),staticDirectory:resolve('dist'),backend,audit:()=>{}}),origin=await service.listen(0);
+  const password='synthetic-admin-password',service=createAdminService({username:'test-admin',passwordHash:await hashAdminPassword(password),backend,audit:()=>{}}),upstream=await service.listen(0),gateway=createConsoleGateway({staticDirectory:resolve('dist'),upstreamOrigin:upstream}),origin=await gateway.listen(0);
   try {
     await page.goto(origin+'/admin/');
     await page.getByRole('textbox',{name:'管理员账号'}).fill('test-admin');
@@ -44,12 +45,14 @@ test('真实管理 HTTP 数据、行内暂停、独立告警与审计', async ({
     await page.getByRole('link',{name:/告警中心/}).click();
     await expect(page.getByRole('heading',{name:'告警中心',exact:true})).toBeVisible();
     await expect(page.getByText('服务安全开关仍关闭，人工恢复不会解除此门禁')).toBeVisible();
-    await page.getByRole('button',{name:'标为已读',exact:true}).click();
-    await expect(page.getByRole('button',{name:'标为已读',exact:true})).toHaveCount(0);
-    await expect(page.locator('a[href="#/alerts"]')).toContainText('1');
+    const safetyAlert=page.getByRole('article').filter({hasText:'服务安全开关仍关闭，人工恢复不会解除此门禁'});
+    const unresolved=(await page.locator('a[href="#/alerts"]').textContent())||'';
+    await safetyAlert.getByRole('button',{name:'标为已读',exact:true}).click();
+    await expect(safetyAlert.getByRole('button',{name:'标为已读',exact:true})).toHaveCount(0);
+    await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
     await page.getByRole('link',{name:'运维与审计',exact:true}).click();
     await expect(page.locator('.audit-row')).toHaveCount(3);
-  } finally {await page.goto('about:blank');await service.close();backend.close();credentials.close();registry.close();ledger.close();rmSync(directory,{recursive:true,force:true});}
+  } finally {await page.goto('about:blank');await gateway.close();await service.close();backend.close();credentials.close();registry.close();ledger.close();rmSync(directory,{recursive:true,force:true});}
 });
 
 async function login(page: import("@playwright/test").Page) {
