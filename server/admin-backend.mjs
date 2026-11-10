@@ -214,7 +214,11 @@ export class AdminBackend {
     const keyword = (query.get("keyword") || "").toLowerCase(),
       status = query.get("status");
     const items = this.registry.db
-      .prepare("SELECT id FROM accounts ORDER BY created_at,id")
+      .prepare(`SELECT id FROM accounts a WHERE
+        EXISTS(SELECT 1 FROM account_credentials c WHERE c.user_id=a.id) OR
+        EXISTS(SELECT 1 FROM bindings b WHERE b.user_id=a.id) OR
+        EXISTS(SELECT 1 FROM ai_usage u WHERE u.user_id=a.id)
+        ORDER BY created_at,id`)
       .all()
       .map((r) => this.user(r.id))
       .filter(

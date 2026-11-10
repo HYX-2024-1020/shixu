@@ -8,7 +8,7 @@ import { AccountsV4 } from "./accounts-v4.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
 import { AdminBackend } from "./admin-backend.mjs";
 
-test("durable independent controls compose, deduplicate, preserve billing and append-only audit", (t) => {
+test("durable independent controls compose, deduplicate, preserve billing and append-only audit", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-admin-backend-"));
   const registry = new AccountRegistry(
     directory,
@@ -16,7 +16,9 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   );
   const credentials = new AccountsV4(registry),
     ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
-  const [a, b] = registry.generate(2).map((r) => r.userId);
+  const invitations=registry.generate(2),[a,b]=invitations.map(r=>r.userId);
+  for(const [index,invitation] of invitations.entries())await credentials.register({username:`synthetic-${index}`,password:'synthetic-password',invite:invitation.invite,operationId:`register-${index}`},{kind:'windows',identity:String(index).repeat(64),publicKey:'synthetic-only',name:'合成设备'},'synthetic');
+  registry.generate(1); // Unused invitations must not appear as registered users.
   ledger.grantInitial(a);
   ledger.grantInitial(b);
   let backend = new AdminBackend({

@@ -21,7 +21,7 @@ const DEMO_PASS = "admin-demo";
 test('真实管理 HTTP 数据、行内暂停、独立告警与审计', async ({page})=>{
   const directory=mkdtempSync(join(tmpdir(),'shixu-console-http-'));
   const registry=new AccountRegistry(directory,'synthetic-secret-'.repeat(4)),credentials=new AccountsV4(registry),ledger=new ReadingLedger(join(directory,'ledger.sqlite'));
-  const [{userId}]=registry.generate(1);ledger.grantInitial(userId);registry.pauseAI(true);
+  const [{userId,invite}]=registry.generate(1);await credentials.register({username:'fixture-owner',password:'synthetic-password',invite,operationId:'register-console-fixture'},{kind:'windows',identity:'c'.repeat(64),publicKey:'synthetic-only',name:'合成设备'},'synthetic');ledger.grantInitial(userId);registry.generate(1);registry.pauseAI(true);
   const backend=new AdminBackend({path:join(directory,'ops.sqlite'),registry,ledger,directory,routes:{snapshot:()=>({running:0,waiting:0})}});
   const password='synthetic-admin-password',service=createAdminService({username:'test-admin',passwordHash:await hashAdminPassword(password),backend,audit:()=>{}}),upstream=await service.listen(0),gateway=createConsoleGateway({staticDirectory:resolve('dist'),upstreamOrigin:upstream}),origin=await gateway.listen(0);
   try {
