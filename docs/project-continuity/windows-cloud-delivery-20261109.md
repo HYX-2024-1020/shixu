@@ -69,3 +69,9 @@
 此路径必须等待用户实际执行及回执，不能由代理执行替代。当前具体安装/验收及PR/CI状态以 #100 关联PR和本机接续记录为准。此补充优先于上方历史“已完成”措辞；不重新调用模型。
 
 用户进一步确认连代理导出的本机修复包目录也不可见，因此本机路径交付再次停止。新增独立 `Console download` CI：从明确源码构建完整可下载程序包并上传 GitHub Actions artifact（14天），发布模式不读取或包含专用私钥、管理员凭据、个人profile、主机配置或运行PID。用户下载解压后运行安装，在自己的Windows会话输入代理提供的公开主机配对信息，现场生成SSH私钥并只回传公钥，代理为既有受限转发身份追加授权。授权后再完成实际安装及桌面确认。公网业务/管理端口不开放，不新增账户或扩大转发权限。私有本机包与公开下载包明确分离；不能把任一代理侧测试当作用户已经执行。
+
+## 确认目录重定向与原生安装（2026-11-10，当前）
+
+已通过 Win32 `GetFinalPathNameByHandleW` 确认：工具中表面的 `%LOCALAPPDATA%\Shixu\AdminConsole\Cloud-Start.vbs` 实际位于 `%LOCALAPPDATA%\Packages\OpenAI.Codex_…\LocalCache\Local\Shixu\AdminConsole\Cloud-Start.vbs`。Node `realpathSync.native` 得到同一结果。工具可读与用户缺少文件的矛盾来自这处已证实的物理目录差异；机制依据 [Microsoft MSIX 文件重定向说明](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes)。客户端 exe/ASAR 的物理路径则仍为真实 Programs 目录，不能笼统称全部客户端文件未安装；新 Connection 配置确实被重定向。
+
+下载的未签名PowerShell脚本又被用户的执行策略正常拒绝，停止让用户改策略、执行脚本或配对公钥。上述下载/配对路径已撤回，不再作为交付步骤。当前在固定 checkout 使用既有 NSIS 工具生成仅本机可用的原生 EXE，完整嵌入已校验页面/Node/许可证、入口脚本、图标及既有专用连接配置，不向GitHub上传私钥。用户只需从 Windows 桌面运行正常安装器；`GetCurrentPackageFullName` 拒绝在工具包身份中安装，Node原生物理路径检查拒绝写入重定向目录，安装后逐文件核对物理位置/哈希及后台就绪，生成真实用户目录回执。变更文件先备份，管理员凭据和个人profile不覆盖。仍必须等待用户安装和实际入口确认，不由工具启动安装器替代。

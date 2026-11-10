@@ -66,6 +66,15 @@ try {
     const stamp = new Date().toISOString().replace(/\D/g, "");
     for (const f of metadata.files) {
       const target = destination(f);
+      if (
+        existsSync(target) &&
+        realpathSync.native(target).toLowerCase() !== target.toLowerCase()
+      ) {
+        console.error(
+          "INSTALLATION_REDIRECTED: " + realpathSync.native(target),
+        );
+        process.exit(3);
+      }
       if (existsSync(target) && digest(target) !== f.sha256) {
         if (f.path.startsWith("releases/"))
           throw Error("IMMUTABLE_RELEASE_DIFFERS");
