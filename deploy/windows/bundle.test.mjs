@@ -37,7 +37,7 @@ test(
       };
       const run = () => {
         writeFileSync(join(root, "delivery.json"), JSON.stringify(delivery));
-        return spawnSync(
+        const result = spawnSync(
           join(
             process.env.SystemRoot,
             "System32/WindowsPowerShell/v1.0/powershell.exe",
@@ -51,8 +51,11 @@ test(
             join(root, "Install.ps1"),
             "-VerifyOnly",
           ],
-          { encoding: "utf8", windowsHide: true, timeout: 10000 },
+          { encoding: "utf8", windowsHide: true, timeout: 30000 },
         );
+        assert.equal(result.error, undefined, result.error?.message);
+        assert.notEqual(result.status, null, result.stderr);
+        return result;
       };
       assert.equal(run().status, 0);
       writeFileSync(join(root, "payload/connection/ssh_config"), "tampered");

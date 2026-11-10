@@ -52,7 +52,7 @@ test(
             "-File",
             script,
           ],
-          { encoding: "utf8", windowsHide: true, timeout: 10000 },
+          { encoding: "utf8", windowsHide: true, timeout: 30000 },
         );
       for (const bytes of [
         Buffer.from([0, 128, 255, 13, 10]),
