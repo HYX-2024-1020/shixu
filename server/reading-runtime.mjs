@@ -244,7 +244,7 @@ export function createReadingRuntime(
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   process.umask(0o077);
   if (!process.env.SYNC_V4_CONFIG || !isAbsolute(process.env.SYNC_V4_CONFIG))
     invalid();

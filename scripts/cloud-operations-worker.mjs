@@ -10,7 +10,7 @@ import {
   lstatSync,
   unlinkSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   CloudOperations,
@@ -325,7 +325,7 @@ async function main() {
 }
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
 )
   main().catch((e) => {
     process.stderr.write(code(e) + "\n");

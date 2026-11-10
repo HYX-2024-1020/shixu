@@ -47,7 +47,7 @@ User=shixu-cloud
 Group=shixu-cloud
 WorkingDirectory=/opt/shixu-cloud/current
 Environment=SHIXU_AUTHORITY_FLOOR=/var/lib/shixu-cloud-authority/latest.json
-ExecStart=/usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env /opt/shixu-cloud/current/server/reading-runtime.mjs
+ExecStart=/bin/sh -c 'exec /usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env "\$(/usr/bin/readlink -f /opt/shixu-cloud/current/server/reading-runtime.mjs)"'
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=yes
