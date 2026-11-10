@@ -13,6 +13,98 @@ import { createReadingRoutes } from "./reading/routes.mjs";
 import { createAttachmentStore } from "./sync-files.mjs";
 import { ReadingTasks } from "./reading/tasks.mjs";
 import { createAdminService, hashAdminPassword } from "./admin-service.mjs";
+import { createMultiUserService } from "./sync-multi-user.mjs";
+
+test("disabled account tasks remain visible after service restart without granting access or dispatching a model", async () => {
+  const root = mkdtempSync(join(tmpdir(), "shixu-disabled-tasks-")),
+    directory = join(root, "data"),
+    ledger = new ReadingLedger(join(root, "ledger.sqlite"));
+  ledger.freezePrice(price);
+  const registry = new AccountRegistry(
+    directory,
+    "synthetic-disabled-account-".repeat(2),
+  );
+  const [invitation] = registry.generate(1),
+    account = invitation.userId;
+  ledger.grantInitial(account);
+  const store = new SyncStore(
+    join(directory, "users", account, "workspace.sqlite"),
+  );
+  createAttachmentStore(store);
+  const device = store.createDevice("synthetic");
+  store.apply(
+    device.deviceId,
+    {
+      id: "packet",
+      opId: "put-disabled-task",
+      type: "put",
+      baseVersion: 0,
+      data: { text: "PRIVATE_SYNTHETIC_BODY", sources: [], attachments: [] },
+    },
+    store.epoch,
+  );
+  const seed = new ReadingTasks({
+    store,
+    account,
+    ledger,
+    reader() {},
+    provider() {},
+    priceId: price.id,
+    modelVersion: price.model,
+    authorize() {},
+  });
+  seed.enqueue({
+    id: "retained-task",
+    packetId: "packet",
+    deviceId: device.deviceId,
+  });
+  seed.close();
+  store.close();
+  registry.enable(account, false);
+  registry.close();
+  let calls = 0;
+  const service = createMultiUserService({
+    directory,
+    secret: "synthetic-disabled-account-".repeat(2),
+    reading: {
+      ledger,
+      enabled: true,
+      priceId: price.id,
+      modelVersion: price.model,
+      reader() {
+        throw Error("NO_READS");
+      },
+      provider() {
+        calls++;
+        throw Error("NO_MODELS");
+      },
+    },
+  });
+  await new Promise((resolve) =>
+    service.server.listen(0, "127.0.0.1", resolve),
+  );
+  try {
+    const rows = service.readingRoutes.adminTasks();
+    assert.ok(
+      rows.some(
+        (row) => row.accountId === account && row.taskId === "retained-task",
+      ),
+    );
+    assert.equal(
+      JSON.stringify(rows).includes("PRIVATE_SYNTHETIC_BODY"),
+      false,
+    );
+    assert.throws(
+      () => service.registry.account(account),
+      (e) => e.code === "ACCOUNT_DISABLED",
+    );
+    assert.equal(calls, 0);
+  } finally {
+    await service.quiesce();
+    ledger.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const price = {
   id: "synthetic",

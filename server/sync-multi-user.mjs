@@ -267,7 +267,7 @@ function createAccountService(
       next.resolve();
     } else running--;
   }
-  function tenant(userId) {
+  function tenant(userId, includeDisabledMetadata = false) {
     if (tenants.has(userId)) {
       const service = tenants.get(userId);
       service.store.safety?.assert();
@@ -289,7 +289,15 @@ function createAccountService(
     // IDs originate exclusively from our registry, never from a URL/body.
     if (!/^[a-f0-9-]{36}$/.test(userId))
       throw Error("Invalid internal account ID");
-    const account = registry.account(userId);
+    // Startup also retains disabled accounts' task metadata for management.
+    // This does not authorize their devices or resume their queued work.
+    let account;
+    if (includeDisabledMetadata) {
+      registry.safety?.assert();
+      const row=registry.db.prepare("SELECT id,enabled,limits FROM accounts WHERE id=?").get(userId);
+      if(!row)throw Error("Invalid internal account ID");
+      account={id:row.id,limits:JSON.parse(row.limits),disabled:!row.enabled};
+    } else account = registry.account(userId);
     const database = join(directory, "users", userId, "workspace.sqlite");
     if (reading?.tenantSafety && !existsSync(database)) {
       const ledger = reading.ledger.db;
@@ -405,7 +413,7 @@ function createAccountService(
             }
           : {}),
       });
-    readingRoutes?.attach(userId, service.store);
+    readingRoutes?.attach(userId, service.store, { resume: !account.disabled });
     tenants.set(userId, service);
     if (!readingRoutes) for (const row of registry.db
       .prepare(
@@ -930,10 +938,10 @@ function createAccountService(
   // Resume durable queued work even if a user has not opened their client yet.
   if (readingRoutes)
     for (const account of registry.db
-      .prepare("SELECT id FROM accounts WHERE enabled=1")
+      .prepare("SELECT id FROM accounts")
       .all()) {
       if (existsSync(join(directory, "users", account.id, "workspace.sqlite")))
-        tenant(account.id);
+        tenant(account.id, true);
     }
   if (!readingRoutes)
     for (const row of registry.db
@@ -1043,6 +1051,7 @@ export function wechatCodeExchange(appId, appSecret, fetcher = fetch) {
 }
 if (
   process.argv[1] &&
+  existsSync(process.argv[1]) &&
   [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
     (path) => import.meta.url === pathToFileURL(path).href,
   )

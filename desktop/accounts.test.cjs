@@ -6,137 +6,189 @@ const path = require("node:path");
 const { AccountWorkspace } = require("./accounts.cjs");
 const { DesktopStore } = require("./storage.cjs");
 
-test("installed XLSX adapter stops an in-flight call without waiting for provider completion", async (t) => {
-  const { accountUIFixture } = await import(
-    "../scripts/account-ui-fixture.mjs"
-  );
-  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
-  const { readMaterial } = await import("../server/reading/material.mjs");
-  const { xlsxBytes, inline } = await import(
-    "../server/reading/xlsx-fixtures.mjs"
-  );
-  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-stop-client-"));
-  const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
-  ledger.freezePrice({
-    id: "fixture",
-    model: "fixture",
-    currency: "CNY",
-    source: "synthetic",
-    verifiedAt: 1,
-    inputMicrosPerMillion: 1000000,
-    cachedMicrosPerMillion: 0,
-    outputMicrosPerMillion: 1000000,
-  });
-  let started,
-    finish,
-    aborted = false;
-  const entered = new Promise((resolve) => {
-    started = resolve;
-  });
-  const pending = new Promise((resolve) => {
-    finish = resolve;
-  });
-  const fixture = await accountUIFixture(
-    {},
-    {
-      reading: {
-        enabled: true,
-        ledger,
-        priceId: "fixture",
-        modelVersion: "fixture",
-        reader: readMaterial,
-        provider: async (sources, signal) => {
-          signal.addEventListener(
-            "abort",
-            () => {
-              aborted = true;
-            },
-            { once: true },
-          );
-          started();
-          await pending;
-          return {
-            usage: { prompt_tokens: 10, completion_tokens: 10 },
-            result: { summary: "合成", warnings: [], items: [] },
-          };
+for (const scenario of ["stop", "settlement"])
+  test(`installed XLSX adapter ${scenario === "stop" ? "stops without waiting for the provider" : "returns a settled wallet with a task completed during polling"}`, async (t) => {
+    const { accountUIFixture } = await import(
+      "../scripts/account-ui-fixture.mjs"
+    );
+    const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+    const { readMaterial } = await import("../server/reading/material.mjs");
+    const { xlsxBytes, inline } = await import(
+      "../server/reading/xlsx-fixtures.mjs"
+    );
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-stop-client-"));
+    const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+    ledger.freezePrice({
+      id: "fixture",
+      model: "fixture",
+      currency: "CNY",
+      source: "synthetic",
+      verifiedAt: 1,
+      inputMicrosPerMillion: 1000000,
+      cachedMicrosPerMillion: 0,
+      outputMicrosPerMillion: 1000000,
+    });
+    let started,
+      finish,
+      aborted = false;
+    const entered = new Promise((resolve) => {
+      started = resolve;
+    });
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const fixture = await accountUIFixture(
+      {},
+      {
+        reading: {
+          enabled: true,
+          ledger,
+          priceId: "fixture",
+          modelVersion: "fixture",
+          reader: readMaterial,
+          provider: async (sources, signal) => {
+            signal.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+              },
+              { once: true },
+            );
+            started();
+            await pending;
+            return {
+              usage: { prompt_tokens: 10, completion_tokens: 10 },
+              result: {
+                summary: "合成",
+                warnings: [],
+                items: [
+                  {
+                    kind: "note",
+                    title: "合成要点",
+                    summary: "合成",
+                    facts: [],
+                    nextSteps: [],
+                    uncertainties: [],
+                    due: null,
+                    evidence: [
+                      {
+                        sourceId: sources[0].id,
+                        quote: sources[0].text.slice(0, 10),
+                      },
+                    ],
+                  },
+                ],
+              },
+            };
+          },
         },
       },
-    },
-  );
-  t.after(async () => {
-    finish();
-    await fixture.close();
-    ledger.close();
-    await fs.rm(root, { recursive: true, force: true });
-  });
-  ledger.grantInitial(fixture.invitation.userId);
-  const client = new AccountWorkspace({
-    root: path.join(root, "client"),
-    local: new DesktopStore(path.join(root, "local")),
-    serviceOrigin: fixture.base,
-    seal: async (s) => Buffer.from(s),
-    unseal: async (b) => b.toString(),
-  });
-  await client.init();
-  await client.action("activate", { invite: fixture.invitation.invite });
-  const bytes = xlsxBytes([
-    {
-      name: "资料表",
-      xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(16000))}</row>`,
-    },
-  ]);
-  await client.call(
-    "savePackets",
-    [
-      {
-        id: "stop-xlsx",
-        text: "",
-        sources: [],
-        attachments: [
-          {
-            id: "original",
-            name: "synthetic.xlsx",
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            bytes,
-          },
-        ],
-        doneIds: [],
-        capturedAt: "2026-11-11T00:00:00Z",
-        captureDate: "2026-11-11",
-        updatedAt: "2026-11-11T00:00:00Z",
-        result: null,
-        status: "pending",
+    );
+    t.after(async () => {
+      finish();
+      await fixture.close();
+      ledger.close();
+      await fs.rm(root, { recursive: true, force: true });
+    });
+    ledger.grantInitial(fixture.invitation.userId);
+    let settleOnPoll = false;
+    const client = new AccountWorkspace({
+      root: path.join(root, "client"),
+      local: new DesktopStore(path.join(root, "local")),
+      serviceOrigin: fixture.base,
+      fetcher: async (url, init) => {
+        if (settleOnPoll && url.endsWith("/api/v4/tasks")) {
+          settleOnPoll = false;
+          finish();
+          const deadline = Date.now() + 5000;
+          while (fixture.service.readingRoutes.snapshot().accounts) {
+            assert.ok(
+              Date.now() < deadline,
+              "synthetic settlement did not finish",
+            );
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+        }
+        return fetch(url, init);
       },
-    ],
-    client.config.active,
-  );
-  await client.action("sync");
-  const submitted = await client.action("ai", {
-    kind: "organize",
-    packetId: "stop-xlsx",
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    });
+    await client.init();
+    await client.action("activate", { invite: fixture.invitation.invite });
+    const bytes = xlsxBytes([
+      {
+        name: "资料表",
+        xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(scenario === "stop" ? 16000 : 100))}</row>`,
+      },
+    ]);
+    await client.call(
+      "savePackets",
+      [
+        {
+          id: "stop-xlsx",
+          text: "",
+          sources: [],
+          attachments: [
+            {
+              id: "original",
+              name: "synthetic.xlsx",
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              bytes,
+            },
+          ],
+          doneIds: [],
+          capturedAt: "2026-11-11T00:00:00Z",
+          captureDate: "2026-11-11",
+          updatedAt: "2026-11-11T00:00:00Z",
+          result: null,
+          status: "pending",
+        },
+      ],
+      client.config.active,
+    );
+    await client.action("sync");
+    const submitted = await client.action("ai", {
+      kind: "organize",
+      packetId: "stop-xlsx",
+    });
+    await entered;
+    if (scenario === "settlement") {
+      settleOnPoll = true;
+      const result = await client.action("sync", { force: true });
+      assert.equal(
+        result.jobs.find((j) => j.id === submitted.job).state,
+        "done",
+      );
+      assert.equal(ledger.wallet(fixture.invitation.userId).spent, 20);
+      assert.equal(
+        result.account.wallet.spent,
+        20,
+        "completed task and returned wallet must include the same settlement",
+      );
+      return;
+    }
+    await client.action("sync");
+    const start = performance.now();
+    const stopped = await client.action("taskAction", {
+      id: submitted.job,
+      action: "stop",
+    });
+    assert.ok(
+      performance.now() - start < 5000,
+      "stop must not wait for the held provider result",
+    );
+    assert.equal(
+      stopped.jobs.find((j) => j.id === submitted.job).state,
+      "cancelled",
+    );
+    assert.equal(aborted, true);
+    assert.equal(ledger.wallet(fixture.invitation.userId).spent, 0);
+    assert.ok(
+      ledger.wallet(fixture.invitation.userId).reserved > 0,
+      "in-flight cost remains reserved until final evidence",
+    );
   });
-  await entered;
-  await client.action("sync");
-  const start = performance.now();
-  const stopped = await client.action("taskAction", {
-    id: submitted.job,
-    action: "stop",
-  });
-  assert.ok(
-    performance.now() - start < 5000,
-    "stop must not wait for the held provider result",
-  );
-  assert.equal(
-    stopped.jobs.find((j) => j.id === submitted.job).state,
-    "cancelled",
-  );
-  assert.equal(aborted, true);
-  assert.equal(ledger.wallet(fixture.invitation.userId).spent, 0);
-  assert.ok(
-    ledger.wallet(fixture.invitation.userId).reserved > 0,
-    "in-flight cost remains reserved until final evidence",
-  );
-});
 
 test("installed account adapter can enter restricted temporary-password login and change password before any material sync", async (t) => {
   const { createMultiUserService } = await import(

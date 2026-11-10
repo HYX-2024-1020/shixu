@@ -351,11 +351,15 @@ class AccountWorkspace extends CloudWorkspace {
     )
       return this.status();
     try {
-      this.accountState = await this.request(
-        this.config.active,
-        "GET",
-        "/api/v3/account",
-      );
+      // A new/temporary login must pass its password gate before material sync.
+      // For an established space, refresh the wallet after polling: the last
+      // call may settle while that poll publishes the completed task.
+      if (!this.accountState || this.accountState.authentication?.passwordChangeRequired)
+        this.accountState = await this.request(
+          this.config.active,
+          "GET",
+          "/api/v3/account",
+        );
       if (this.accountState.authentication?.passwordChangeRequired) {
         this.lastError =
           "请在账号设置中先修改管理员签发的临时密码，再同步和使用 AI";
@@ -374,6 +378,11 @@ class AccountWorkspace extends CloudWorkspace {
           "/api/v4/storage",
         );
       await this.pollJobs();
+      this.accountState = await this.request(
+        this.config.active,
+        "GET",
+        "/api/v3/account",
+      );
       this.readSyncBase=this.config.active;
       this.nextReadAt=Date.now()+this.minimumReadIntervalMs;
       return { ...status, ...this.status() };

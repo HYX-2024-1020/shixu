@@ -42,6 +42,7 @@ export function runAdmin(registry, [command, userId, argument, amount]) {
 }
 if (
   process.argv[1] &&
+  existsSync(process.argv[1]) &&
   [resolve(process.argv[1]), realpathSync(process.argv[1])].some(
     (path) => import.meta.url === pathToFileURL(path).href,
   )

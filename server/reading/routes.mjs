@@ -18,6 +18,7 @@ const shutdownMessages = {
   NO_READABLE_MATERIAL:
     "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
   ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
+  ACCOUNT_DISABLED: "账号已停用，任务与费用保留；恢复账号及设备授权后请主动继续",
   RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
   ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
   ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
@@ -377,8 +378,12 @@ export function createReadingRoutes({
       if (result.state === "queued") schedule(e, result.id);
       return { state: result.state, generation: result.generation };
     },
-    attach(account, store) {
+    attach(account, store, { resume = true } = {}) {
       const e = engine(account, store);
+      if (!resume) {
+        e.db.prepare("UPDATE reading_tasks SET state='paused',reason='ACCOUNT_DISABLED' WHERE state='queued'").run();
+        return;
+      }
       for (const task of e.db
         .prepare("SELECT * FROM reading_tasks WHERE state='queued'")
         .all()) {

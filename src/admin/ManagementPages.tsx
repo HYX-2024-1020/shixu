@@ -120,6 +120,8 @@ export function TasksPage({ api }: { api: AdminApi }) {
                         onClick={() => {
                           setSelected(t);
                           setPending(null);
+                          setLimit(null);
+                          setError("");
                         }}
                       >
                         查看与处置
@@ -166,6 +168,7 @@ export function TasksPage({ api }: { api: AdminApi }) {
             <Button
               onClick={() => {
                 setError("");
+                setPending(null);
                 setLimit({
                   id: newOperationId(),
                   minutes: String(
@@ -189,8 +192,11 @@ export function TasksPage({ api }: { api: AdminApi }) {
             error={error}
             onCancel={() => setLimit(null)}
             onConfirm={async () => {
-              if (!limit || !selected.limitReview || !limit.reason.trim())
+              if (!limit || !selected.limitReview) return;
+              if (!limit.reason.trim()) {
+                setError("请填写核对与调整原因");
                 return;
+              }
               const seconds = Number(limit.minutes) * 60;
               if (!Number.isSafeInteger(seconds) || seconds <= 0) {
                 setError("请输入有效的累计分钟数");
@@ -259,6 +265,7 @@ export function TasksPage({ api }: { api: AdminApi }) {
               disabled={busy}
               onClick={() => {
                 setError("");
+                setLimit(null);
                 setPending({
                   task: selected,
                   action: a,
@@ -274,6 +281,7 @@ export function TasksPage({ api }: { api: AdminApi }) {
             onClick={() => {
               setSelected(null);
               setPending(null);
+              setLimit(null);
             }}
           >
             关闭详情

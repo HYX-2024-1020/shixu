@@ -29,6 +29,14 @@ test("published current link starts the actual runtime and maintenance entrypoin
       "linked worker must execute its authority gate, not silently exit",
     );
     assert.match(worker.stderr, /OPERATION_AUTHORITY_REQUIRED/);
+    const imported = spawnSync(process.execPath, ["--input-type=module", "-"], {
+      input: `await import(${JSON.stringify(new URL("../reading-runtime.mjs", import.meta.url).href)});await import(${JSON.stringify(new URL("../../scripts/cloud-operations-worker.mjs", import.meta.url).href)});console.log('imported-without-starting');`,
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 10000,
+    });
+    assert.equal(imported.status, 0, imported.stderr);
+    assert.match(imported.stdout, /imported-without-starting/);
     const config = join(root, "runtime.json"),
       now = Date.now();
     writeFileSync(

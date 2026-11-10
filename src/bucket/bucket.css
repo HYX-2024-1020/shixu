@@ -920,6 +920,31 @@ button:hover:not(:disabled) {
   flex-direction: column;
   gap: 18px;
 }
+.account-access form {
+  display: grid;
+  gap: 14px;
+}
+.account-modes {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.account-modes button {
+  padding: 8px 10px;
+  border-bottom: 2px solid transparent;
+}
+.account-modes button[aria-pressed="true"] {
+  border-color: #698a4e;
+  color: #405932;
+}
+.account-feedback {
+  margin: 0;
+  line-height: 1.7;
+  color: #506344;
+}
+.account-feedback[role="alert"] {
+  color: #974d39;
+}
 .connection-data > button {
   display: flex;
   align-items: center;
