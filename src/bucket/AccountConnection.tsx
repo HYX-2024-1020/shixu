@@ -28,6 +28,8 @@ export default function AccountConnection({
     [lastAction, setLastAction] = useState(""),
     [deviceName, setDeviceName] = useState("这台 Windows"),
     [state, setState] = useState<State | null>(null),
+    [discovering, setDiscovering] = useState(true),
+    [connectionFailed, setConnectionFailed] = useState(false),
     [busy, setBusy] = useState(false),
     [online, setOnline] = useState(navigator.onLine),
     [error, setError] = useState("");
@@ -43,15 +45,29 @@ export default function AccountConnection({
   }, []);
   useEffect(() => {
     ref.current?.showModal();
-    void window
-      .desktop!.cloud("capabilities")
-      .then((value) => {
-        setState(value);
-        setUsername(value.account?.authentication?.username || "");
-      })
-      .catch((e) => setError(e.message));
+    void discoverConnection();
     return () => ref.current?.close();
   }, []);
+  async function discoverConnection() {
+    setDiscovering(true);
+    setConnectionFailed(false);
+    setError("");
+    try {
+      const value = await window.desktop!.cloud("capabilities");
+      setState(value);
+      setUsername(value.account?.authentication?.username || "");
+    } catch (e) {
+      setConnectionFailed(true);
+      setError((e as Error).message);
+      try {
+        setState(await window.desktop!.cloud("status"));
+      } catch {
+        /* Local controls remain available. */
+      }
+    } finally {
+      setDiscovering(false);
+    }
+  }
   async function action(name: string, value?: unknown, reload = false) {
     setBusy(true);
     setLastAction(name);
@@ -155,7 +171,22 @@ export default function AccountConnection({
               ? `当前账号：${state.account?.authentication?.username || "已激活账号"}。此设备凭证已保存，日常使用无需重复登录。`
               : "当前使用本机资料；无需激活也能记录、查看和手动管理事项。"}
         </p>
-        {state?.capabilities?.features.registration ? (
+        {connectionFailed ? (
+          <div className="account-feedback" role="alert">
+            <p>
+              暂时无法连接账号服务；本机资料仍可使用。请检查网络，恢复连接后重试。
+            </p>
+            <p>{error}</p>
+            <button
+              disabled={discovering || busy}
+              onClick={() => void discoverConnection()}
+            >
+              重试连接方式
+            </button>
+          </div>
+        ) : discovering ? (
+          <p role="status">正在读取账号连接方式…</p>
+        ) : state?.capabilities?.features.registration ? (
           state.activation === "active" && !showAccountForm ? (
             <button disabled={busy} onClick={() => setShowAccountForm(true)}>
               切换账号
@@ -371,12 +402,15 @@ export default function AccountConnection({
             返回已激活账号
           </button>
         )}
-        {!!state && !state.capabilities?.features.registration && (
-          <p>
-            一个邀请码绑定一台 Windows
-            安装和一个微信身份。换机或重装后丢失凭证，请联系管理员重置。
-          </p>
-        )}
+        {!!state &&
+          !connectionFailed &&
+          !discovering &&
+          !state.capabilities?.features.registration && (
+            <p>
+              一个邀请码绑定一台 Windows
+              安装和一个微信身份。换机或重装后丢失凭证，请联系管理员重置。
+            </p>
+          )}
       </section>
       {!!state?.materialUseNotice && (
         <section className="connection-data">
@@ -810,7 +844,8 @@ export default function AccountConnection({
         </button>
         <p>切回本机空间后可备份或恢复本机资料；账号服务器由管理员独立备份。</p>
       </section>
-      {!authError &&
+      {!connectionFailed &&
+        !authError &&
         !(lastAction === "password" && error) &&
         (error || state?.error) && (
           <p role="alert">

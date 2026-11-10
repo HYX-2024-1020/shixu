@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-async function openSettings(page, connected = false) {
+async function openSettings(page, connected = false, unavailable = false) {
   await page.addInitScript(
-    ({ connected }) => {
+    ({ connected, unavailable }) => {
+      let attempts = 0;
       const state = {
         base: connected ? "account:synthetic" : "",
         pending: 0,
@@ -25,6 +26,8 @@ async function openSettings(page, connected = false) {
       };
       window.desktop = {
         cloud: async (name) => {
+          if (name === "capabilities" && unavailable && ++attempts === 1)
+            throw Error("合成账号服务暂不可用");
           if (name === "login" || name === "password") {
             await new Promise((resolve) => setTimeout(resolve, 500));
             throw Error(
@@ -35,11 +38,31 @@ async function openSettings(page, connected = false) {
         },
       } as any;
     },
-    { connected },
+    { connected, unavailable },
   );
   await page.goto("/e2e/fixtures/account-settings.html");
   await expect(page.getByRole("dialog")).toBeVisible();
 }
+
+test("账号服务不可用时结束加载、保留本机备份，并能重试恢复", async ({
+  page,
+}) => {
+  await openSettings(page, false, true);
+  await expect(page.getByRole("alert")).toContainText("暂时无法连接账号服务");
+  await expect(
+    page.getByText("正在读取账号连接方式…", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("注册邀请码", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "备份全部资料（含草稿、最近删除与原件）",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "重试连接方式", exact: true }).click();
+  await expect(page.getByLabel("账号名称", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
 
 test("账号登录不索要邀请码，提交反馈和错误紧邻操作并保留输入", async ({
   page,
@@ -99,11 +122,9 @@ test("已连接账号清楚可见，改密使用本区当前密码并保留错�
   await page
     .getByRole("button", { name: "修改密码并撤销全部设备", exact: true })
     .click();
-  const security = page
-    .locator("section")
-    .filter({
-      has: page.getByRole("heading", { name: "设备与密码", exact: true }),
-    });
+  const security = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "设备与密码", exact: true }),
+  });
   await expect(security.getByRole("alert")).toContainText("当前密码不正确");
   await expect(page.getByLabel("当前密码", { exact: true })).toHaveValue(
     "synthetic-current",
