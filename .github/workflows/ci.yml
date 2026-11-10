@@ -157,10 +157,33 @@ jobs:
       - run: node scripts/desktop-account-v4-smoke.mjs
       - run: node scripts/desktop-layout-drag-smoke.mjs
 
+  console-delivery:
+    name: Console download
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/export-console-install.mjs release/console-install --public
+      - run: powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File release/console-install/Install-ConsoleBundle.ps1 -VerifyOnly
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shixu-console-install
+          path: release/console-install/
+          retention-days: 14
+          include-hidden-files: false
+
   required:
     name: Required checks
     if: always()
-    needs: [policy, secrets, core, browser, desktop]
+    needs: [policy, secrets, core, browser, desktop, console-delivery]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
