@@ -60,37 +60,64 @@ function parse(req, bytes) {
 // This module never opens the legacy workspace.sqlite. Each account gets its own
 // SQLite file, including its records, cursors, blobs, idempotency log and jobs.
 export function createMultiUserService(options) {
-  const lease = acquireDataLease(options.directory,'runtime'), cleanup = [];
+  const lease = acquireDataLease(options.directory, "runtime"),
+    cleanup = [];
   try {
-    const selected=resolveDataVersion(lease,{ledgerPath:options.reading?.ledger?.db.location() || undefined});
-    if(selected.version && (!options.reading || !options.reading.ledger.db.location()))
-      throw Error('VERSIONED_READING_REQUIRED');
-    const service=createAccountService({...options,directory:selected.directory},cleanup);
-    service.server.once("close",()=>{
-      if(options.reading)service.drained().then(()=>lease.release());
+    const selected = resolveDataVersion(lease, {
+      ledgerPath: options.reading?.ledger?.db.location() || undefined,
+    });
+    if (
+      selected.version &&
+      (!options.reading || !options.reading.ledger.db.location())
+    )
+      throw Error("VERSIONED_READING_REQUIRED");
+    const service = createAccountService(
+      { ...options, directory: selected.directory },
+      cleanup,
+    );
+    service.server.once("close", () => {
+      if (options.reading) service.drained().then(() => lease.release());
       else lease.release();
     });
-    return {...service,dataVersion:selected.version,async quiesce(){
-      await new Promise((done,reject)=>service.server.close(error=>error?reject(error):done()));
-      await service.drained();lease.release();
-    }};
-  } catch(error) {
-    let safelyClosed=true;
-    for(const close of cleanup.reverse()) {try{close();}catch(closeError){if(!/database is not open/i.test(closeError.message))safelyClosed=false;}}
-    if(safelyClosed)lease.release();else error.dataLeaseRetained=true;
+    return {
+      ...service,
+      dataVersion: selected.version,
+      async quiesce() {
+        await new Promise((done, reject) =>
+          service.server.close((error) => (error ? reject(error) : done())),
+        );
+        await service.drained();
+        lease.release();
+      },
+    };
+  } catch (error) {
+    let safelyClosed = true;
+    for (const close of cleanup.reverse()) {
+      try {
+        close();
+      } catch (closeError) {
+        if (!/database is not open/i.test(closeError.message))
+          safelyClosed = false;
+      }
+    }
+    if (safelyClosed) lease.release();
+    else error.dataLeaseRetained = true;
     throw error;
   }
 }
-function createAccountService({
-  directory,
-  secret,
-  origin = "https://sync.shixunote.top",
-  ai = null,
-  aiLimits = {},
-  wechat = null,
-  reading = null,
-  shutdownGraceMs = 30000,
-}, startupCleanup) {
+function createAccountService(
+  {
+    directory,
+    secret,
+    origin = "https://sync.shixunote.top",
+    ai = null,
+    aiLimits = {},
+    wechat = null,
+    reading = null,
+    shutdownGraceMs = 30000,
+  },
+  startupCleanup,
+) {
   if (
     !Number.isSafeInteger(shutdownGraceMs) ||
     shutdownGraceMs < 1 ||
@@ -148,22 +175,45 @@ function createAccountService({
     const hasGrantIntents = !!registry.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_grant_intents'").get();
     for (const row of registry.db.prepare(`SELECT id FROM accounts WHERE
       EXISTS(SELECT 1 FROM bindings WHERE user_id=accounts.id) OR
-      EXISTS(SELECT 1 FROM ai_usage WHERE user_id=accounts.id)`).all()) {
-      const oldUsage = registry.db.prepare("SELECT 1 FROM ai_usage WHERE user_id=? LIMIT 1").get(row.id);
-      const imported = reading.ledger.db.prepare("SELECT 1 FROM reading_legacy_accounts WHERE account=?").get(row.id);
-      const wallet = reading.ledger.db.prepare("SELECT 1 FROM reading_wallets WHERE account=?").get(row.id);
-      const newRegistration = hasGrantIntents && registry.db.prepare("SELECT 1 FROM account_grant_intents WHERE account=?").get(row.id);
-      if ((oldUsage && !imported) || (!wallet && !newRegistration)) throw Error("LEGACY_RECONCILIATION_REQUIRED");
+      EXISTS(SELECT 1 FROM ai_usage WHERE user_id=accounts.id)`,
+      )
+      .all()) {
+      const oldUsage = registry.db
+        .prepare("SELECT 1 FROM ai_usage WHERE user_id=? LIMIT 1")
+        .get(row.id);
+      const imported = reading.ledger.db
+        .prepare("SELECT 1 FROM reading_legacy_accounts WHERE account=?")
+        .get(row.id);
+      const wallet = reading.ledger.db
+        .prepare("SELECT 1 FROM reading_wallets WHERE account=?")
+        .get(row.id);
+      const newRegistration =
+        hasGrantIntents &&
+        registry.db
+          .prepare("SELECT 1 FROM account_grant_intents WHERE account=?")
+          .get(row.id);
+      if ((oldUsage && !imported) || (!wallet && !newRegistration))
+        throw Error("LEGACY_RECONCILIATION_REQUIRED");
     }
   }
   const credentials = reading?.credentials ? new AccountsV4(registry) : null;
   if(credentials)startupCleanup.push(()=>credentials.close());
   if (reading?.accountSafety) {
     if (!credentials) throw Error("ACCOUNT_SAFETY_CREDENTIALS_REQUIRED");
-    new AccountSafety(registry, reading.ledger, { baselineHash: reading.trustedAccountBaseline });
-  } else if (registry.db.prepare("SELECT 1 FROM account_safety_checkpoint").get() ||
-      (reading?.ledger.db.prepare("SELECT 1 FROM sqlite_master WHERE name='account_safety_intents'").get() &&
-       reading.ledger.db.prepare("SELECT 1 FROM account_safety_intents LIMIT 1").get())) {
+    new AccountSafety(registry, reading.ledger, {
+      baselineHash: reading.trustedAccountBaseline,
+    });
+  } else if (
+    registry.db.prepare("SELECT 1 FROM account_safety_checkpoint").get() ||
+    (reading?.ledger.db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE name='account_safety_intents'",
+      )
+      .get() &&
+      reading.ledger.db
+        .prepare("SELECT 1 FROM account_safety_intents LIMIT 1")
+        .get())
+  ) {
     throw Error("ACCOUNT_SAFETY_REQUIRED");
   }
   if (credentials)
@@ -192,6 +242,7 @@ function createAccountService({
       throw new SyncError(503, "SERVICE_CLOSING", "服务正在关闭，请稍后重试");
   };
   const waiting = [];
+  let uploadGuard = () => {};
   async function acquire(signal) {
     if (closed || signal.aborted) throw Error("Stopped");
     if (running < limits.concurrency) {
@@ -222,10 +273,19 @@ function createAccountService({
       service.store.safety?.assert();
       return service;
     }
-    if (reading && !reading.tenantSafety &&
-        reading.ledger.db.prepare("SELECT 1 FROM sqlite_master WHERE name='tenant_safety_intents'").get() &&
-        reading.ledger.db.prepare('SELECT 1 FROM tenant_safety_intents WHERE account=? LIMIT 1').get(userId))
-      throw Error('TENANT_SAFETY_REQUIRED');
+    if (
+      reading &&
+      !reading.tenantSafety &&
+      reading.ledger.db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE name='tenant_safety_intents'",
+        )
+        .get() &&
+      reading.ledger.db
+        .prepare("SELECT 1 FROM tenant_safety_intents WHERE account=? LIMIT 1")
+        .get(userId)
+    )
+      throw Error("TENANT_SAFETY_REQUIRED");
     // IDs originate exclusively from our registry, never from a URL/body.
     if (!/^[a-f0-9-]{36}$/.test(userId))
       throw Error("Invalid internal account ID");
@@ -239,7 +299,11 @@ function createAccountService({
         "SELECT 1 FROM tenant_safety_intents WHERE account=? LIMIT 1",
       ).get(userId);
       if (hasHistory)
-        throw new SyncError(503, "TENANT_RESTORE_REQUIRED", "账号仍保留，资料库缺失，请联系维护者恢复");
+        throw new SyncError(
+          503,
+          "TENANT_RESTORE_REQUIRED",
+          "账号仍保留，资料库缺失，请联系维护者恢复",
+        );
     }
     const wrap =
       (fn) =>
@@ -331,11 +395,15 @@ function createAccountService({
       new OriginalStore(service.store, {
         pool: originalPool,
         ...reading.originals,
-        ...(reading.tenantSafety ? { safety: {
-          ledger: reading.ledger,
-          account: userId,
-          baselineHash: reading.trustedTenantBaselines?.[userId],
-        } } : {}),
+        ...(reading.tenantSafety
+          ? {
+              safety: {
+                ledger: reading.ledger,
+                account: userId,
+                baselineHash: reading.trustedTenantBaselines?.[userId],
+              },
+            }
+          : {}),
       });
     readingRoutes?.attach(userId, service.store);
     tenants.set(userId, service);
@@ -502,7 +570,11 @@ function createAccountService({
               : !!ai?.organize && limits.enabled && !registry.aiPaused(),
             readingTasks: !!readingRoutes,
             resultItemPatches: !!readingRoutes,
-            itemChat: readingRoutes ? typeof reading.provider.chat==='function' && reading.enabled===true && !registry.aiPaused() : !!ai?.chat && limits.enabled && !registry.aiPaused(),
+            itemChat: readingRoutes
+              ? typeof reading.provider.chat === "function" &&
+                reading.enabled === true &&
+                !registry.aiPaused()
+              : !!ai?.chat && limits.enabled && !registry.aiPaused(),
           },
         });
         return;
@@ -589,6 +661,12 @@ function createAccountService({
       const token = req.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
       const binding = registry.authenticate(token),
         account = registry.account(binding.user_id);
+      if (
+        (req.method === "PUT" && /\/files\//.test(req.url)) ||
+        (req.method === "POST" &&
+          /^\/api\/v4\/submissions(?:\?|$)/.test(req.url))
+      )
+        uploadGuard();
       registry.rate(
         "account:" + binding.user_id,
         account.limits.requestsPerMinute,
@@ -601,6 +679,19 @@ function createAccountService({
       registry.authenticate(token); // Revocation may happen while bytes arrive.
       if (binding.kind === "windows")
         registry.proof(binding, req.method, req.url, bytes, req.headers);
+      if (
+        credentials?.passwordResetState(binding.user_id) &&
+        ![
+          "/api/v3/account",
+          "/api/v4/auth/password",
+          "/api/v4/devices",
+        ].includes(req.url)
+      )
+        throw new SyncError(
+          403,
+          "PASSWORD_CHANGE_REQUIRED",
+          "管理员已重置密码，请在账号设置中先修改临时密码，再同步和使用 AI",
+        );
       const service = tenant(binding.user_id);
       const credentialValue =
         credentials &&
@@ -745,6 +836,9 @@ function createAccountService({
           ...(credentials
             ? {
                 authentication: {
+                  passwordChangeRequired: !!credentials.passwordResetState(
+                    account.id,
+                  ),
                   version: 4,
                   username:
                     registry.db
@@ -841,19 +935,20 @@ function createAccountService({
       if (existsSync(join(directory, "users", account.id, "workspace.sqlite")))
         tenant(account.id);
     }
-  if (!readingRoutes) for (const row of registry.db
-    .prepare("SELECT DISTINCT user_id FROM ai_usage WHERE state='pending'")
-    .all()) {
-    try {
-      tenant(row.user_id);
-    } catch {
-      registry.db
-        .prepare(
-          "UPDATE ai_usage SET state='interrupted' WHERE user_id=? AND state='pending'",
-        )
-        .run(row.user_id);
+  if (!readingRoutes)
+    for (const row of registry.db
+      .prepare("SELECT DISTINCT user_id FROM ai_usage WHERE state='pending'")
+      .all()) {
+      try {
+        tenant(row.user_id);
+      } catch {
+        registry.db
+          .prepare(
+            "UPDATE ai_usage SET state='interrupted' WHERE user_id=? AND state='pending'",
+          )
+          .run(row.user_id);
+      }
     }
-  }
   let drained = Promise.resolve();
   const finishClose = () => {
     for (const service of tenants.values()) {
@@ -914,6 +1009,10 @@ function createAccountService({
     limits,
     readingRoutes,
     credentials,
+    setUploadGuard(guard) {
+      if (typeof guard !== "function") throw Error("INVALID_GUARD");
+      uploadGuard = guard;
+    },
     drained: () => drained,
   };
 }

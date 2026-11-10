@@ -15,258 +15,1189 @@ import { verifyService } from "./verify.mjs";
 import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";
 import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
 import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
-import { archiveSample, archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
+import {
+  archiveSample,
+  archiveWindowSample,
+} from "../../server/reading/archive-fixtures.mjs";
 import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
-import {jpegSample} from '../../server/reading/jpeg-fixtures.mjs';
-import {officeImageBytes} from '../../server/reading/office-fixtures.mjs';
-import {apngBytes} from '../../server/reading/apng-fixtures.mjs';
-import {sevenZipBytes} from '../../server/reading/native-archive-fixtures.mjs';
-import {rarSolidSample} from '../../server/reading/rar-solid-fixtures.mjs';
-import {fontPdfBytes} from '../../server/reading/pdf-font-fixtures.mjs';
-import {annotationPdfBytes} from '../../server/reading/pdf-annotation-fixtures.mjs';
-import {gifBytes} from '../../server/reading/gif-fixtures.mjs';
+import { jpegSample } from "../../server/reading/jpeg-fixtures.mjs";
+import { officeImageBytes } from "../../server/reading/office-fixtures.mjs";
+import { apngBytes } from "../../server/reading/apng-fixtures.mjs";
+import { sevenZipBytes } from "../../server/reading/native-archive-fixtures.mjs";
+import { rarSolidSample } from "../../server/reading/rar-solid-fixtures.mjs";
+import { fontPdfBytes } from "../../server/reading/pdf-font-fixtures.mjs";
+import { annotationPdfBytes } from "../../server/reading/pdf-annotation-fixtures.mjs";
+import { gifBytes } from "../../server/reading/gif-fixtures.mjs";
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
   let service;
   try {
-    const { directory: release } = await buildRelease(join(directory, "release"));
+    const { directory: release } = await buildRelease(
+      join(directory, "release"),
+    );
     const current = join(directory, "current");
-    await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
-    const { createMultiUserService } = await import(pathToFileURL(join(release, "server/sync-multi-user.mjs")));
-    const { createReadingRuntime } = await import(pathToFileURL(join(release, "server/reading-runtime.mjs")));
-    const releasedRuntime = createReadingRuntime({ directory: join(directory, "runtime-data"), ledgerPath: join(directory, "runtime-billing", "ledger.sqlite"),
-      brokerSocket: "/run/shixu-release/reader.sock", enabled: false, pdfVisual: true,
-      tariff: { id: "deepseek-flash-1017-20261028-peak", verifiedAt: 1, validUntil: 2 } }, { secret: "synthetic-release-runtime-secret-32-chars" });
+    await symlink(
+      release,
+      current,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const { createMultiUserService } = await import(
+      pathToFileURL(join(release, "server/sync-multi-user.mjs"))
+    );
+    const { createReadingRuntime } = await import(
+      pathToFileURL(join(release, "server/reading-runtime.mjs"))
+    );
+    const releasedRuntime = createReadingRuntime(
+      {
+        directory: join(directory, "runtime-data"),
+        ledgerPath: join(directory, "runtime-billing", "ledger.sqlite"),
+        brokerSocket: "/run/shixu-release/reader.sock",
+        enabled: false,
+        pdfVisual: true,
+        tariff: {
+          id: "deepseek-flash-1017-20261028-peak",
+          verifiedAt: 1,
+          validUntil: 2,
+        },
+      },
+      { secret: "synthetic-release-runtime-secret-32-chars" },
+    );
     try {
       const address = await releasedRuntime.listen(0);
-      const cap = await fetch(`http://127.0.0.1:${address.port}/api/v4/capabilities`).then(r => r.json());
-      assert.equal(cap.features.remainingTasks, true); assert.equal(cap.features.readingEnabled, false);
-      assert.equal(cap.materialUseNotice.version, 1);
-    } finally { await releasedRuntime.close(); }
-    const {SyncStore}=await import(pathToFileURL(join(release,'server/sync-store.mjs')));
-    const {ReadingLedger}=await import(pathToFileURL(join(release,'server/reading/ledger.mjs')));
-    const {ReadingTasks}=await import(pathToFileURL(join(release,'server/reading/tasks.mjs')));
-    const {createJobQueue:releasedQueue}=await import(pathToFileURL(join(release,'server/sync-jobs.mjs')));
-    const releasedLegacy=new SyncStore(':memory:');
+      const cap = await fetch(
+        `http://127.0.0.1:${address.port}/api/v4/capabilities`,
+      ).then((r) => r.json());
+      assert.equal(cap.features.remainingTasks, true);
+      assert.equal(cap.features.readingEnabled, false);
+      assert.equal(cap.materialUseNotice.version, 2);
+    } finally {
+      await releasedRuntime.close();
+    }
+    const { SyncStore } = await import(
+      pathToFileURL(join(release, "server/sync-store.mjs"))
+    );
+    const { ReadingLedger } = await import(
+      pathToFileURL(join(release, "server/reading/ledger.mjs"))
+    );
+    const { ReadingTasks } = await import(
+      pathToFileURL(join(release, "server/reading/tasks.mjs"))
+    );
+    const { createJobQueue: releasedQueue } = await import(
+      pathToFileURL(join(release, "server/sync-jobs.mjs"))
+    );
+    const releasedLegacy = new SyncStore(":memory:");
     try {
-      const device=releasedLegacy.createDevice('synthetic-old').deviceId;
-      const q=releasedQueue(releasedLegacy,null);q.stop();
-      releasedLegacy.apply(device,{id:'old-packet',opId:'old-seed',type:'put',baseVersion:0,data:{text:'canonical',sources:[{id:'input',text:'canonical'}]}},releasedLegacy.epoch);
-      releasedLegacy.db.prepare('INSERT INTO sync_jobs VALUES(?,?,?,?,?,?,?,?,?)').run('old-job',device,'old-packet','a'.repeat(64),JSON.stringify({id:'old-job',packetId:'old-packet',kind:'organize'}),'queued',null,'',new Date().toISOString());
-      const archived=releasedQueue(releasedLegacy,null,{}, {archiveLegacy:true});
-      try{assert.equal(archived.get('old-job').state,'interrupted');assert.equal(archived.get('old-job').eligible,false);assert.deepEqual(releasedLegacy.record('old-packet').data.sources,[]);}finally{archived.stop();}
-    }finally{releasedLegacy.close();}
-    const {ReadingLegacyMaintenance}=await import(pathToFileURL(join(release,'server/reading/legacy-ledger.mjs')));
-    const {AccountRegistry}=await import(pathToFileURL(join(release,'server/sync-accounts.mjs')));
-    const versionHost=await import(pathToFileURL(join(release,'server/data-versions.mjs')));
-    const {createRuntimeMigrator:releasedMigrator}=await import(pathToFileURL(join(release,'server/data-migration.mjs')));
-    const {ReadingRootSafety:ReleasedSafety}=await import(pathToFileURL(join(release,'server/reading/root-safety.mjs')));
-    const retirementRoot=join(directory,'retirement-root'),retirementLedgerPath=join(directory,'retirement-ledger.sqlite'),retirementSecret='synthetic-release-retirement-secret-32-characters';
-    const retirementRegistry=new AccountRegistry(retirementRoot,retirementSecret);retirementRegistry.generate(1);retirementRegistry.close();
-    const retirementLedger=new ReadingLedger(retirementLedgerPath);let retirementLease;
+      const device = releasedLegacy.createDevice("synthetic-old").deviceId;
+      const q = releasedQueue(releasedLegacy, null);
+      q.stop();
+      releasedLegacy.apply(
+        device,
+        {
+          id: "old-packet",
+          opId: "old-seed",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "canonical",
+            sources: [{ id: "input", text: "canonical" }],
+          },
+        },
+        releasedLegacy.epoch,
+      );
+      releasedLegacy.db
+        .prepare("INSERT INTO sync_jobs VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(
+          "old-job",
+          device,
+          "old-packet",
+          "a".repeat(64),
+          JSON.stringify({
+            id: "old-job",
+            packetId: "old-packet",
+            kind: "organize",
+          }),
+          "queued",
+          null,
+          "",
+          new Date().toISOString(),
+        );
+      const archived = releasedQueue(
+        releasedLegacy,
+        null,
+        {},
+        { archiveLegacy: true },
+      );
+      try {
+        assert.equal(archived.get("old-job").state, "interrupted");
+        assert.equal(archived.get("old-job").eligible, false);
+        assert.deepEqual(releasedLegacy.record("old-packet").data.sources, []);
+      } finally {
+        archived.stop();
+      }
+    } finally {
+      releasedLegacy.close();
+    }
+    const { ReadingLegacyMaintenance } = await import(
+      pathToFileURL(join(release, "server/reading/legacy-ledger.mjs"))
+    );
+    const { AccountRegistry } = await import(
+      pathToFileURL(join(release, "server/sync-accounts.mjs"))
+    );
+    const versionHost = await import(
+      pathToFileURL(join(release, "server/data-versions.mjs"))
+    );
+    const { createRuntimeMigrator: releasedMigrator } = await import(
+      pathToFileURL(join(release, "server/data-migration.mjs"))
+    );
+    const { ReadingRootSafety: ReleasedSafety } = await import(
+      pathToFileURL(join(release, "server/reading/root-safety.mjs"))
+    );
+    const retirementRoot = join(directory, "retirement-root"),
+      retirementLedgerPath = join(directory, "retirement-ledger.sqlite"),
+      retirementSecret = "synthetic-release-retirement-secret-32-characters";
+    const retirementRegistry = new AccountRegistry(
+      retirementRoot,
+      retirementSecret,
+    );
+    retirementRegistry.generate(1);
+    retirementRegistry.close();
+    const retirementLedger = new ReadingLedger(retirementLedgerPath);
+    let retirementLease;
     try {
-      retirementLedger.freezePrice({id:'synthetic',model:'synthetic',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});new ReleasedSafety(retirementLedger,'synthetic');
-      retirementLease=versionHost.acquireDataLease(retirementRoot,'maintenance');
-      const prepared=versionHost.prepareShadowVersion(retirementLease,{id:'release-v1',ledgerPath:retirementLedgerPath,migrate:releasedMigrator({secret:retirementSecret,ledger:retirementLedger,priceId:'synthetic',modelVersion:'synthetic',credentials:false}),now:1000});
-      versionHost.activateDataVersion(retirementLease,prepared,{now:1000});
-      assert.deepEqual(versionHost.purgeRetiredData(retirementLease,{operationId:'release-purge',actor:'release-host',now:1000+7*86400000},({actor})=>actor==='release-host'),{completed:['release-v1']});
-      assert.equal(versionHost.resolveDataVersion(retirementLease).version,'release-v1');
-      assert.equal(retirementLedger.db.prepare('SELECT COUNT(*) n FROM reading_wallets').get().n,0);
-    }finally{retirementLease?.release();retirementLedger.close();}
-    const oldRegistry=new AccountRegistry(join(directory,'legacy-cost-source'),'synthetic-release-legacy-secret-32-chars'),oldLedger=new ReadingLedger(':memory:');
-    try{
-      const account=oldRegistry.generate(1)[0].userId;
-      oldRegistry.db.prepare('INSERT INTO ai_usage VALUES(?,?,?,?,?,?)').run(account,'old','a'.repeat(64),'2026-10-31',9000,'done');
-      const host=new ReadingLegacyMaintenance(oldLedger,()=>true,({account,sourceHash,usageHash,evidenceHash})=>({account,sourceHash,usageHash,evidenceHash,final:true,currency:'CNY',allHistoricalActivityCovered:true,proofIdHash:'b'.repeat(64),spentMicros:1234,beijingDays:[{day:'2026-10-31',micros:1234}]}));
-      host.intake(oldRegistry,{operationId:'release-intake',expectedSourceHash:host.preview(oldRegistry,'host').sourceHash},'host');
-      assert.equal(oldLedger.wallet(account).unknownRisk,9000);assert.equal(oldLedger.wallet(account).granted,0);
-      host.reconcile(account,{operationId:'release-reconcile',evidenceHash:'c'.repeat(64),expectedLedgerSequence:oldLedger.sequence(account)},'host');
-      assert.equal(oldLedger.wallet(account).spent,1234);assert.equal(oldLedger.audit().valid,true);
-    }finally{oldRegistry.close();oldLedger.close();}
-    const chatStore=new SyncStore(':memory:'),chatLedger=new ReadingLedger(':memory:');
-    const {createAttachmentStore}=await import(pathToFileURL(join(release,'server/sync-files.mjs')));
+      retirementLedger.freezePrice({
+        id: "synthetic",
+        model: "synthetic",
+        currency: "CNY",
+        source: "synthetic",
+        verifiedAt: 1,
+        inputMicrosPerMillion: 1,
+        cachedMicrosPerMillion: 0,
+        outputMicrosPerMillion: 1,
+      });
+      new ReleasedSafety(retirementLedger, "synthetic");
+      retirementLease = versionHost.acquireDataLease(
+        retirementRoot,
+        "maintenance",
+      );
+      const prepared = versionHost.prepareShadowVersion(retirementLease, {
+        id: "release-v1",
+        ledgerPath: retirementLedgerPath,
+        migrate: releasedMigrator({
+          secret: retirementSecret,
+          ledger: retirementLedger,
+          priceId: "synthetic",
+          modelVersion: "synthetic",
+          credentials: false,
+        }),
+        now: 1000,
+      });
+      versionHost.activateDataVersion(retirementLease, prepared, { now: 1000 });
+      assert.deepEqual(
+        versionHost.purgeRetiredData(
+          retirementLease,
+          {
+            operationId: "release-purge",
+            actor: "release-host",
+            now: 1000 + 7 * 86400000,
+          },
+          ({ actor }) => actor === "release-host",
+        ),
+        { completed: ["release-v1"] },
+      );
+      assert.equal(
+        versionHost.resolveDataVersion(retirementLease).version,
+        "release-v1",
+      );
+      assert.equal(
+        retirementLedger.db
+          .prepare("SELECT COUNT(*) n FROM reading_wallets")
+          .get().n,
+        0,
+      );
+    } finally {
+      retirementLease?.release();
+      retirementLedger.close();
+    }
+    const oldRegistry = new AccountRegistry(
+        join(directory, "legacy-cost-source"),
+        "synthetic-release-legacy-secret-32-chars",
+      ),
+      oldLedger = new ReadingLedger(":memory:");
+    try {
+      const account = oldRegistry.generate(1)[0].userId;
+      oldRegistry.db
+        .prepare("INSERT INTO ai_usage VALUES(?,?,?,?,?,?)")
+        .run(account, "old", "a".repeat(64), "2026-10-31", 9000, "done");
+      const host = new ReadingLegacyMaintenance(
+        oldLedger,
+        () => true,
+        ({ account, sourceHash, usageHash, evidenceHash }) => ({
+          account,
+          sourceHash,
+          usageHash,
+          evidenceHash,
+          final: true,
+          currency: "CNY",
+          allHistoricalActivityCovered: true,
+          proofIdHash: "b".repeat(64),
+          spentMicros: 1234,
+          beijingDays: [{ day: "2026-10-31", micros: 1234 }],
+        }),
+      );
+      host.intake(
+        oldRegistry,
+        {
+          operationId: "release-intake",
+          expectedSourceHash: host.preview(oldRegistry, "host").sourceHash,
+        },
+        "host",
+      );
+      assert.equal(oldLedger.wallet(account).unknownRisk, 9000);
+      assert.equal(oldLedger.wallet(account).granted, 0);
+      host.reconcile(
+        account,
+        {
+          operationId: "release-reconcile",
+          evidenceHash: "c".repeat(64),
+          expectedLedgerSequence: oldLedger.sequence(account),
+        },
+        "host",
+      );
+      assert.equal(oldLedger.wallet(account).spent, 1234);
+      assert.equal(oldLedger.audit().valid, true);
+    } finally {
+      oldRegistry.close();
+      oldLedger.close();
+    }
+    const chatStore = new SyncStore(":memory:"),
+      chatLedger = new ReadingLedger(":memory:");
+    const { createAttachmentStore } = await import(
+      pathToFileURL(join(release, "server/sync-files.mjs"))
+    );
     createAttachmentStore(chatStore);
     let chatTasks;
     try {
-      chatLedger.freezePrice({id:'synthetic',model:'synthetic',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});
-      chatLedger.grantInitial('synthetic');
-      const device=chatStore.createDevice('synthetic').deviceId;
-      chatStore.apply(device,{id:'packet',opId:'seed',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],itemIds:['item1'],result:{summary:'',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],evidence:[],due:null}]}}},chatStore.epoch);
-      const receiptIntent={provider:'deepseek',requestHash:'c'.repeat(64),model:'synthetic'};
-      const provider=Object.assign(async()=>{throw Error('unexpected organize');},{chat:Object.assign(async()=>({usage:{prompt_tokens:1,completion_tokens:1},result:{reply:'合成回答',patch:{group:'独立包'}},receipt:{...receiptIntent,responseId:'release-synthetic',created:1,httpStatus:200,responseHash:'d'.repeat(64)}}),{prepare:()=>({receiptIntent})})});
-      chatTasks=new ReadingTasks({store:chatStore,ledger:chatLedger,account:'synthetic',provider,reader:()=>{throw Error('unexpected parser');},priceId:'synthetic',modelVersion:'synthetic',authorize:id=>assert.equal(id,device)});
-      chatTasks.enqueue({id:'chat',packetId:'packet',deviceId:device,chat:{itemId:'item1',instruction:'放到独立包组',baseVersion:chatStore.record('packet').version,epoch:chatStore.epoch}});
-      for(let i=0;i<4&&chatTasks.get('chat').state==='queued';i++)await chatTasks.run('chat');
-      assert.equal(chatTasks.get('chat').state,'done');
-      assert.equal(chatStore.record('packet').data.itemState.item1.group,'独立包');
-      const receiptCall=chatLedger.db.prepare("SELECT id FROM reading_calls WHERE task='chat'").get();assert.equal(chatLedger.receipts.review(receiptCall.id).status,'linked');
-      chatStore.apply(device,{id:'semantic',opId:'seed-semantic',type:'put',baseVersion:0,data:{text:'合成提交报告',captureDate:'2026-10-31',sources:[],attachments:[],result:null}},chatStore.epoch);
-      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:['提交报告','交报告'].map(title=>({kind:'task',title,summary:'合成',facts:[title],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text}]}))}}),
-        {merge:async sources=>{const items=JSON.parse(sources[0].text).items;return {usage:{prompt_tokens:1,completion_tokens:1},result:{same:[[items[0].id,items[1].id]],related:[]}};}});
-      const {readMaterial:readReleased}=await import(pathToFileURL(join(release,'server/reading/material.mjs')));
-      chatTasks.reader=readReleased;
-      chatTasks.enqueue({id:'semantic-task',packetId:'semantic',deviceId:device});
-      for(let i=0;i<8&&chatTasks.get('semantic-task').state==='queued';i++)await chatTasks.run('semantic-task');
-      assert.equal(chatTasks.get('semantic-task').state,'done');
-      const {encodePng:encodeReleased}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
-      chatStore.apply(device,{id:'visual',opId:'seed-visual',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-10-31',attachments:[],sources:[],result:null}},chatStore.epoch);
-      const png=encodeReleased(1,1,Buffer.from([20,30,40,255]));
-      const file=chatStore.files.put('visual','image',{name:'synthetic.png',body:png,type:'image/png',epoch:chatStore.epoch});
-      chatStore.apply(device,{id:'visual',opId:'attach-visual',type:'put',baseVersion:chatStore.record('visual').version,data:{attachments:[file]}},chatStore.epoch);
-      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'task',title:'提交报告',summary:'',facts:['格式PDF','报告尾部写编号'],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:'格式PDF'}]}]}}),
-        {imageInput:true,reviewVisual:async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{claims:JSON.parse(sources[0].text).claims.map(c=>({id:c.id,status:c.text.includes('尾部')?'unsupported':'supported',reason:c.text.includes('尾部')?'仅为页尾标记':''}))}})});
-      chatTasks.reader=Object.assign((...args)=>readReleased(...args),{imageWindows:true,pdfWindows:true});
-      chatTasks.enqueue({id:'visual-task',packetId:'visual',deviceId:device});
-      for(let i=0;i<8&&chatTasks.get('visual-task').state==='queued';i++)await chatTasks.run('visual-task');
-      assert.equal(chatTasks.get('visual-task').state,'done');
-      assert.deepEqual(chatStore.record('visual').data.result.items[0].facts,['格式PDF']);
-      assert.ok(chatStore.record('visual').data.result.items[0].uncertainties[0].includes('报告尾部写编号'));
-      assert.equal(chatTasks.roots.stats('visual-task').calls,2);
-      const solid=await sevenZipBytes({'01.txt':Buffer.from('solid首件'),'02.txt':Buffer.from('solid尾部唯一标记')},['-mx=1','-ms=on']),solidMaterial=await readReleased({id:'solid',name:'release.7z',body:solid,size:solid.length,hash:createHash('sha256').update(solid).digest('hex')});
-      assert.equal(solidMaterial.state,'read');assert.equal(solidMaterial.segments.map(s=>s.text).join(''),'solid首件solid尾部唯一标记');assert.equal(solidMaterial.archiveCompression.blocks.length,1);assert.equal(solidMaterial.archiveCompression.blocks[0].members,2);
-      for (const version of [4,5]) {
-        const sample=await rarSolidSample(version),material=await readReleased({id:'rar-solid',name:'release.rar',body:sample.body,size:sample.body.length,hash:createHash('sha256').update(sample.body).digest('hex')});
-        assert.equal(material.state,'read');assert.equal(material.segments.map(s=>s.text).join(''),sample.expectedText);
-        assert.equal(material.archiveCompression.packedBytes,sample.packed);assert.equal(material.archiveCompression.blocks[0].members,9);
+      chatLedger.freezePrice({
+        id: "synthetic",
+        model: "synthetic",
+        currency: "CNY",
+        source: "synthetic",
+        verifiedAt: 1,
+        inputMicrosPerMillion: 1,
+        cachedMicrosPerMillion: 0,
+        outputMicrosPerMillion: 1,
+      });
+      chatLedger.grantInitial("synthetic");
+      const device = chatStore.createDevice("synthetic").deviceId;
+      chatStore.apply(
+        device,
+        {
+          id: "packet",
+          opId: "seed",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "",
+            captureDate: "2026-10-31",
+            attachments: [],
+            sources: [],
+            itemIds: ["item1"],
+            result: {
+              summary: "",
+              warnings: [],
+              items: [
+                {
+                  kind: "note",
+                  title: "合成",
+                  summary: "",
+                  facts: [],
+                  nextSteps: [],
+                  uncertainties: [],
+                  evidence: [],
+                  due: null,
+                },
+              ],
+            },
+          },
+        },
+        chatStore.epoch,
+      );
+      const receiptIntent = {
+        provider: "deepseek",
+        requestHash: "c".repeat(64),
+        model: "synthetic",
+      };
+      const provider = Object.assign(
+        async () => {
+          throw Error("unexpected organize");
+        },
+        {
+          chat: Object.assign(
+            async () => ({
+              usage: { prompt_tokens: 1, completion_tokens: 1 },
+              result: { reply: "合成回答", patch: { group: "独立包" } },
+              receipt: {
+                ...receiptIntent,
+                responseId: "release-synthetic",
+                created: 1,
+                httpStatus: 200,
+                responseHash: "d".repeat(64),
+              },
+            }),
+            { prepare: () => ({ receiptIntent }) },
+          ),
+        },
+      );
+      chatTasks = new ReadingTasks({
+        store: chatStore,
+        ledger: chatLedger,
+        account: "synthetic",
+        provider,
+        reader: () => {
+          throw Error("unexpected parser");
+        },
+        priceId: "synthetic",
+        modelVersion: "synthetic",
+        authorize: (id) => assert.equal(id, device),
+      });
+      chatTasks.enqueue({
+        id: "chat",
+        packetId: "packet",
+        deviceId: device,
+        chat: {
+          itemId: "item1",
+          instruction: "放到独立包组",
+          baseVersion: chatStore.record("packet").version,
+          epoch: chatStore.epoch,
+        },
+      });
+      for (let i = 0; i < 4 && chatTasks.get("chat").state === "queued"; i++)
+        await chatTasks.run("chat");
+      assert.equal(chatTasks.get("chat").state, "done");
+      assert.equal(
+        chatStore.record("packet").data.itemState.item1.group,
+        "独立包",
+      );
+      const receiptCall = chatLedger.db
+        .prepare("SELECT id FROM reading_calls WHERE task='chat'")
+        .get();
+      assert.equal(chatLedger.receipts.review(receiptCall.id).status, "linked");
+      chatStore.apply(
+        device,
+        {
+          id: "semantic",
+          opId: "seed-semantic",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "合成提交报告",
+            captureDate: "2026-10-31",
+            sources: [],
+            attachments: [],
+            result: null,
+          },
+        },
+        chatStore.epoch,
+      );
+      chatTasks.provider = Object.assign(
+        async (sources) => ({
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+          result: {
+            summary: "合成",
+            warnings: [],
+            items: ["提交报告", "交报告"].map((title) => ({
+              kind: "task",
+              title,
+              summary: "合成",
+              facts: [title],
+              nextSteps: [],
+              uncertainties: [],
+              due: null,
+              evidence: [{ sourceId: sources[0].id, quote: sources[0].text }],
+            })),
+          },
+        }),
+        {
+          merge: async (sources) => {
+            const items = JSON.parse(sources[0].text).items;
+            return {
+              usage: { prompt_tokens: 1, completion_tokens: 1 },
+              result: { same: [[items[0].id, items[1].id]], related: [] },
+            };
+          },
+        },
+      );
+      const { readMaterial: readReleased } = await import(
+        pathToFileURL(join(release, "server/reading/material.mjs"))
+      );
+      chatTasks.reader = readReleased;
+      chatTasks.enqueue({
+        id: "semantic-task",
+        packetId: "semantic",
+        deviceId: device,
+      });
+      for (
+        let i = 0;
+        i < 8 && chatTasks.get("semantic-task").state === "queued";
+        i++
+      )
+        await chatTasks.run("semantic-task");
+      assert.equal(chatTasks.get("semantic-task").state, "done");
+      const { encodePng: encodeReleased } = await import(
+        pathToFileURL(join(release, "server/reading/image.mjs"))
+      );
+      chatStore.apply(
+        device,
+        {
+          id: "visual",
+          opId: "seed-visual",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "",
+            captureDate: "2026-10-31",
+            attachments: [],
+            sources: [],
+            result: null,
+          },
+        },
+        chatStore.epoch,
+      );
+      const png = encodeReleased(1, 1, Buffer.from([20, 30, 40, 255]));
+      const file = chatStore.files.put("visual", "image", {
+        name: "synthetic.png",
+        body: png,
+        type: "image/png",
+        epoch: chatStore.epoch,
+      });
+      chatStore.apply(
+        device,
+        {
+          id: "visual",
+          opId: "attach-visual",
+          type: "put",
+          baseVersion: chatStore.record("visual").version,
+          data: { attachments: [file] },
+        },
+        chatStore.epoch,
+      );
+      chatTasks.provider = Object.assign(
+        async (sources) => ({
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+          result: {
+            summary: "合成",
+            warnings: [],
+            items: [
+              {
+                kind: "task",
+                title: "提交报告",
+                summary: "",
+                facts: ["格式PDF", "报告尾部写编号"],
+                nextSteps: [],
+                uncertainties: [],
+                due: null,
+                evidence: [{ sourceId: sources[0].id, quote: "格式PDF" }],
+              },
+            ],
+          },
+        }),
+        {
+          imageInput: true,
+          reviewVisual: async (sources) => ({
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+            result: {
+              claims: JSON.parse(sources[0].text).claims.map((c) => ({
+                id: c.id,
+                status: c.text.includes("尾部") ? "unsupported" : "supported",
+                reason: c.text.includes("尾部") ? "仅为页尾标记" : "",
+              })),
+            },
+          }),
+        },
+      );
+      chatTasks.reader = Object.assign((...args) => readReleased(...args), {
+        imageWindows: true,
+        pdfWindows: true,
+      });
+      chatTasks.enqueue({
+        id: "visual-task",
+        packetId: "visual",
+        deviceId: device,
+      });
+      for (
+        let i = 0;
+        i < 8 && chatTasks.get("visual-task").state === "queued";
+        i++
+      )
+        await chatTasks.run("visual-task");
+      assert.equal(chatTasks.get("visual-task").state, "done");
+      assert.deepEqual(chatStore.record("visual").data.result.items[0].facts, [
+        "格式PDF",
+      ]);
+      assert.ok(
+        chatStore
+          .record("visual")
+          .data.result.items[0].uncertainties[0].includes("报告尾部写编号"),
+      );
+      assert.equal(chatTasks.roots.stats("visual-task").calls, 2);
+      const solid = await sevenZipBytes(
+          {
+            "01.txt": Buffer.from("solid首件"),
+            "02.txt": Buffer.from("solid尾部唯一标记"),
+          },
+          ["-mx=1", "-ms=on"],
+        ),
+        solidMaterial = await readReleased({
+          id: "solid",
+          name: "release.7z",
+          body: solid,
+          size: solid.length,
+          hash: createHash("sha256").update(solid).digest("hex"),
+        });
+      assert.equal(solidMaterial.state, "read");
+      assert.equal(
+        solidMaterial.segments.map((s) => s.text).join(""),
+        "solid首件solid尾部唯一标记",
+      );
+      assert.equal(solidMaterial.archiveCompression.blocks.length, 1);
+      assert.equal(solidMaterial.archiveCompression.blocks[0].members, 2);
+      for (const version of [4, 5]) {
+        const sample = await rarSolidSample(version),
+          material = await readReleased({
+            id: "rar-solid",
+            name: "release.rar",
+            body: sample.body,
+            size: sample.body.length,
+            hash: createHash("sha256").update(sample.body).digest("hex"),
+          });
+        assert.equal(material.state, "read");
+        assert.equal(
+          material.segments.map((s) => s.text).join(""),
+          sample.expectedText,
+        );
+        assert.equal(material.archiveCompression.packedBytes, sample.packed);
+        assert.equal(material.archiveCompression.blocks[0].members, 9);
       }
-      const fontBody=fontPdfBytes({baseFont:'ZapfDingbats',text:'0123'});
-      const annotationBody=annotationPdfBytes({kind:'text'});
+      const fontBody = fontPdfBytes({ baseFont: "ZapfDingbats", text: "0123" });
+      const annotationBody = annotationPdfBytes({ kind: "text" });
       // The Windows native renderer must exit before its release DLL can be
       // removed; keep this new visual check in its own real Node process.
-      const fontChild=await promisify(execFile)(process.execPath,['--input-type=module','-e',`
-        import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/material.mjs')).href)};
-        const body=Buffer.from('${fontBody.toString('base64')}','base64');
+      const fontChild = await promisify(execFile)(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `
+        import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/material.mjs")).href)};
+        const body=Buffer.from('${fontBody.toString("base64")}','base64');
         const m=await readMaterial({id:'font',name:'font.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
-        const annotated=Buffer.from('${annotationBody.toString('base64')}','base64');
-        const a=await readMaterial({id:'annot',name:'annot.pdf',body:annotated,size:annotated.length,hash:sha256(annotated)},{pdfVisualWindow:{page:1,tile:1,offset:0}});console.log(JSON.stringify([m,a]));`],{windowsHide:true});
-      const [fontMaterial,annotationMaterial]=JSON.parse(fontChild.stdout);
-      assert.equal(fontMaterial.state,'read');assert.equal(fontMaterial.segments.find(s=>!s.image).text,'✐✑✒✓\n');assert.ok(fontMaterial.segments.some(s=>s.image));
-      assert.equal(annotationMaterial.state,'read');assert.equal(annotationMaterial.covered[0].annotation,1);assert.equal(annotationMaterial.covered[0].annotationType,'Widget');
-      assert.deepEqual(annotationMaterial.covered[0].annotationRect,[20,20,60,40]);assert.match(annotationMaterial.segments[0].text,/保存值：Alice 42/);assert.ok(annotationMaterial.segments.some(s=>s.image));
-      const plainAnnotation=await readReleased({id:'plain-annot',name:'annot.pdf',body:annotationBody,size:annotationBody.length,hash:createHash('sha256').update(annotationBody).digest('hex')},{pdfWindow:{page:1,offset:0}});
-      assert.equal(plainAnnotation.state,'partial');assert.equal(plainAnnotation.segments.some(s=>s.image),false);assert.match(plainAnnotation.segments[0].text,/保存值：Alice 42/);
-      assert.ok(plainAnnotation.reasons.includes('PDF_ANNOTATION_UNREAD'));assert.equal(plainAnnotation.covered[0].annotation,1);
-      const cmapBody=fontPdfBytes({cmap:true}),cmapMaterial=await readReleased({id:'cmap',name:'cmap.pdf',body:cmapBody,size:cmapBody.length,hash:createHash('sha256').update(cmapBody).digest('hex')});
-      assert.equal(cmapMaterial.segments.map(s=>s.text).join(''),'中文\n');
-      const animation=apngBytes({frames:[{delayNum:3,delayDen:0},{delayNum:7,delayDen:100}]}),apngMaterial=await readReleased({id:'apng',name:'release.apng',body:animation,size:animation.length,hash:createHash('sha256').update(animation).digest('hex')},{imageWindow:{tile:2}});
-      assert.equal(apngMaterial.covered[0].frame,2);assert.equal(apngMaterial.covered[0].frameStartMs,30);assert.equal(apngMaterial.covered[0].frameDurationMs,70);assert.equal(apngMaterial.imagePagination.nextTile,null);
-      const office=officeImageBytes('xlsx',{body:png}).body,descriptor={id:'office',name:'release.xlsx',body:office,size:office.length,hash:createHash('sha256').update(office).digest('hex')};
-      const firstOffice=await readReleased(descriptor,{officeWindow:{text:1,image:0,tile:1,offset:0}});
-      assert.ok(firstOffice.segments.some(s=>s.text.includes('Office尾部唯一标记')));
-      const imageOffice=await readReleased(descriptor,{officeWindow:firstOffice.officePagination.next});
-      assert.equal(imageOffice.officePagination.next,null);assert.equal(imageOffice.covered[0].cell,'B3');
-      assert.equal(imageOffice.covered[0].mediaPart,'xl/media/图像.png');
-      assert.equal(imageOffice.segments[0].image.hash,createHash('sha256').update(png).digest('hex'));
+        const annotated=Buffer.from('${annotationBody.toString("base64")}','base64');
+        const a=await readMaterial({id:'annot',name:'annot.pdf',body:annotated,size:annotated.length,hash:sha256(annotated)},{pdfVisualWindow:{page:1,tile:1,offset:0}});console.log(JSON.stringify([m,a]));`,
+        ],
+        { windowsHide: true },
+      );
+      const [fontMaterial, annotationMaterial] = JSON.parse(fontChild.stdout);
+      assert.equal(fontMaterial.state, "read");
+      assert.equal(fontMaterial.segments.find((s) => !s.image).text, "✐✑✒✓\n");
+      assert.ok(fontMaterial.segments.some((s) => s.image));
+      assert.equal(annotationMaterial.state, "read");
+      assert.equal(annotationMaterial.covered[0].annotation, 1);
+      assert.equal(annotationMaterial.covered[0].annotationType, "Widget");
+      assert.deepEqual(
+        annotationMaterial.covered[0].annotationRect,
+        [20, 20, 60, 40],
+      );
+      assert.match(annotationMaterial.segments[0].text, /保存值：Alice 42/);
+      assert.ok(annotationMaterial.segments.some((s) => s.image));
+      const plainAnnotation = await readReleased(
+        {
+          id: "plain-annot",
+          name: "annot.pdf",
+          body: annotationBody,
+          size: annotationBody.length,
+          hash: createHash("sha256").update(annotationBody).digest("hex"),
+        },
+        { pdfWindow: { page: 1, offset: 0 } },
+      );
+      assert.equal(plainAnnotation.state, "partial");
+      assert.equal(
+        plainAnnotation.segments.some((s) => s.image),
+        false,
+      );
+      assert.match(plainAnnotation.segments[0].text, /保存值：Alice 42/);
+      assert.ok(plainAnnotation.reasons.includes("PDF_ANNOTATION_UNREAD"));
+      assert.equal(plainAnnotation.covered[0].annotation, 1);
+      const cmapBody = fontPdfBytes({ cmap: true }),
+        cmapMaterial = await readReleased({
+          id: "cmap",
+          name: "cmap.pdf",
+          body: cmapBody,
+          size: cmapBody.length,
+          hash: createHash("sha256").update(cmapBody).digest("hex"),
+        });
+      assert.equal(cmapMaterial.segments.map((s) => s.text).join(""), "中文\n");
+      const animation = apngBytes({
+          frames: [
+            { delayNum: 3, delayDen: 0 },
+            { delayNum: 7, delayDen: 100 },
+          ],
+        }),
+        apngMaterial = await readReleased(
+          {
+            id: "apng",
+            name: "release.apng",
+            body: animation,
+            size: animation.length,
+            hash: createHash("sha256").update(animation).digest("hex"),
+          },
+          { imageWindow: { tile: 2 } },
+        );
+      assert.equal(apngMaterial.covered[0].frame, 2);
+      assert.equal(apngMaterial.covered[0].frameStartMs, 30);
+      assert.equal(apngMaterial.covered[0].frameDurationMs, 70);
+      assert.equal(apngMaterial.imagePagination.nextTile, null);
+      const office = officeImageBytes("xlsx", { body: png }).body,
+        descriptor = {
+          id: "office",
+          name: "release.xlsx",
+          body: office,
+          size: office.length,
+          hash: createHash("sha256").update(office).digest("hex"),
+        };
+      const firstOffice = await readReleased(descriptor, {
+        officeWindow: { text: 1, image: 0, tile: 1, offset: 0 },
+      });
+      assert.ok(
+        firstOffice.segments.some((s) => s.text.includes("Office尾部唯一标记")),
+      );
+      const imageOffice = await readReleased(descriptor, {
+        officeWindow: firstOffice.officePagination.next,
+      });
+      assert.equal(imageOffice.officePagination.next, null);
+      assert.equal(imageOffice.covered[0].cell, "B3");
+      assert.equal(imageOffice.covered[0].mediaPart, "xl/media/图像.png");
+      assert.equal(
+        imageOffice.segments[0].image.hash,
+        createHash("sha256").update(png).digest("hex"),
+      );
 
-      const savedHistory=JSON.stringify(chatStore.record('semantic'));
-      chatStore.apply(device,{id:'association',opId:'seed-association',type:'put',baseVersion:0,data:{text:'合成历史补充报告',captureDate:'2026-11-01',sources:[],attachments:[],result:null}},chatStore.epoch);
-      chatTasks.provider=Object.assign(async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'task',title:'合成历史补充报告',summary:'',facts:[],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text}]}]}}),{association:async sources=>{const rows=JSON.parse(sources[0].text).items,a=rows.find(r=>r.role==='new'),b=rows.find(r=>r.id.startsWith('semantic#'));return {usage:{prompt_tokens:1,completion_tokens:1},result:{links:[{from:a.id,target:b.id,relation:'related',title:'合成报告组',confidence:0.99,newEvidence:a.item.evidence[0],oldEvidence:b.item.evidence[0]}]}};}});
-      chatTasks.enqueue({id:'association-task',packetId:'association',deviceId:device});
-      for(let i=0;i<8&&chatTasks.get('association-task').state==='queued';i++)await chatTasks.run('association-task');
-      assert.equal(chatTasks.get('association-task').state,'done');
-      assert.equal(chatStore.record('association').data.association.links.length,1);
-      assert.ok(chatStore.record('association').data.association.links[0].target.startsWith('semantic#'));
-      assert.equal(chatTasks.roots.stats('association-task').calls,2);
-      assert.equal(JSON.stringify(chatStore.record('semantic')),savedHistory);
+      const savedHistory = JSON.stringify(chatStore.record("semantic"));
+      chatStore.apply(
+        device,
+        {
+          id: "association",
+          opId: "seed-association",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "合成历史补充报告",
+            captureDate: "2026-11-01",
+            sources: [],
+            attachments: [],
+            result: null,
+          },
+        },
+        chatStore.epoch,
+      );
+      chatTasks.provider = Object.assign(
+        async (sources) => ({
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+          result: {
+            summary: "合成",
+            warnings: [],
+            items: [
+              {
+                kind: "task",
+                title: "合成历史补充报告",
+                summary: "",
+                facts: [],
+                nextSteps: [],
+                uncertainties: [],
+                due: null,
+                evidence: [{ sourceId: sources[0].id, quote: sources[0].text }],
+              },
+            ],
+          },
+        }),
+        {
+          association: async (sources) => {
+            const rows = JSON.parse(sources[0].text).items,
+              a = rows.find((r) => r.role === "new"),
+              b = rows.find((r) => r.id.startsWith("semantic#"));
+            return {
+              usage: { prompt_tokens: 1, completion_tokens: 1 },
+              result: {
+                links: [
+                  {
+                    from: a.id,
+                    target: b.id,
+                    relation: "related",
+                    title: "合成报告组",
+                    confidence: 0.99,
+                    newEvidence: a.item.evidence[0],
+                    oldEvidence: b.item.evidence[0],
+                  },
+                ],
+              },
+            };
+          },
+        },
+      );
+      chatTasks.enqueue({
+        id: "association-task",
+        packetId: "association",
+        deviceId: device,
+      });
+      for (
+        let i = 0;
+        i < 8 && chatTasks.get("association-task").state === "queued";
+        i++
+      )
+        await chatTasks.run("association-task");
+      assert.equal(chatTasks.get("association-task").state, "done");
+      assert.equal(
+        chatStore.record("association").data.association.links.length,
+        1,
+      );
+      assert.ok(
+        chatStore
+          .record("association")
+          .data.association.links[0].target.startsWith("semantic#"),
+      );
+      assert.equal(chatTasks.roots.stats("association-task").calls, 2);
+      assert.equal(JSON.stringify(chatStore.record("semantic")), savedHistory);
 
-      chatStore.apply(device,{id:'window',opId:'seed-window',type:'put',baseVersion:0,data:{text:'',captureDate:'2026-11-01',attachments:[],sources:[],result:null}},chatStore.epoch);
-      const pdf=pdfBytes(Array.from({length:19},(_,n)=>({text:`独立发布包第${n+1}页尾部`}))), pdfFile=chatStore.files.put('window','pdf',{name:'window.pdf',body:pdf,type:'application/pdf',epoch:chatStore.epoch});
-      chatStore.apply(device,{id:'window',opId:'attach-window',type:'put',baseVersion:chatStore.record('window').version,data:{attachments:[pdfFile]}},chatStore.epoch);
-      chatTasks.provider=async sources=>({usage:{prompt_tokens:1,completion_tokens:1},result:{summary:'合成',warnings:[],items:[{kind:'note',title:'合成',summary:'',facts:[],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text.slice(0,8)}]}]}});
-      chatTasks.enqueue({id:'window-task',packetId:'window',deviceId:device});
-      for(let i=0;i<12&&chatTasks.get('window-task').state==='queued';i++)await chatTasks.run('window-task');
-      assert.equal(chatTasks.get('window-task').state,'done');
-      const trusted={...chatStore.db.prepare('SELECT * FROM reading_windows WHERE task=?').get('window-task')}, spent=chatLedger.wallet('synthetic').spent;
-      chatStore.db.prepare('UPDATE reading_windows SET next_page=9 WHERE task=?').run('window-task');
-      chatTasks.enqueue({id:'window-later',packetId:'window',deviceId:device});
-      await chatTasks.run('window-later');
-      assert.equal(chatTasks.get('window-later').reason,'WINDOW_STATE_RECONCILIATION');
-      assert.equal(chatLedger.wallet('synthetic').spent,spent);
-      const {ReadingWindowMaintenance}=await import(pathToFileURL(join(release,'server/reading/window-maintenance.mjs')));
-      const audit=new ReadingWindowMaintenance(chatTasks,({actor})=>actor==='synthetic-maintainer',({account,evidenceHash,review})=>({account,evidenceHash,rootTaskId:review.rootTaskId,generation:review.generation,watermark:review.watermark,snapshotHash:review.snapshotHash,reference:'synthetic-release-proof',final:true}));
-      audit.restoreRows('window-later',[trusted],'synthetic-maintainer');
-      const review=audit.preview('window-later','synthetic-maintainer');
-      audit.reconcile('window-later',{operationId:'release-window-audit',evidenceHash:'b'.repeat(64),expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence},'synthetic-maintainer');
-      assert.equal(chatTasks.get('window-later').state,'paused');
-      assert.equal(chatLedger.wallet('synthetic').spent,spent);
-      assert.equal(chatLedger.db.prepare("SELECT version FROM reading_schema_versions WHERE component='window-safety'").get().version,1);
+      chatStore.apply(
+        device,
+        {
+          id: "window",
+          opId: "seed-window",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "",
+            captureDate: "2026-11-01",
+            attachments: [],
+            sources: [],
+            result: null,
+          },
+        },
+        chatStore.epoch,
+      );
+      const pdf = pdfBytes(
+          Array.from({ length: 19 }, (_, n) => ({
+            text: `独立发布包第${n + 1}页尾部`,
+          })),
+        ),
+        pdfFile = chatStore.files.put("window", "pdf", {
+          name: "window.pdf",
+          body: pdf,
+          type: "application/pdf",
+          epoch: chatStore.epoch,
+        });
+      chatStore.apply(
+        device,
+        {
+          id: "window",
+          opId: "attach-window",
+          type: "put",
+          baseVersion: chatStore.record("window").version,
+          data: { attachments: [pdfFile] },
+        },
+        chatStore.epoch,
+      );
+      chatTasks.provider = async (sources) => ({
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+        result: {
+          summary: "合成",
+          warnings: [],
+          items: [
+            {
+              kind: "note",
+              title: "合成",
+              summary: "",
+              facts: [],
+              nextSteps: [],
+              uncertainties: [],
+              due: null,
+              evidence: [
+                { sourceId: sources[0].id, quote: sources[0].text.slice(0, 8) },
+              ],
+            },
+          ],
+        },
+      });
+      chatTasks.enqueue({
+        id: "window-task",
+        packetId: "window",
+        deviceId: device,
+      });
+      for (
+        let i = 0;
+        i < 12 && chatTasks.get("window-task").state === "queued";
+        i++
+      )
+        await chatTasks.run("window-task");
+      assert.equal(chatTasks.get("window-task").state, "done");
+      const trusted = {
+          ...chatStore.db
+            .prepare("SELECT * FROM reading_windows WHERE task=?")
+            .get("window-task"),
+        },
+        spent = chatLedger.wallet("synthetic").spent;
+      chatStore.db
+        .prepare("UPDATE reading_windows SET next_page=9 WHERE task=?")
+        .run("window-task");
+      chatTasks.enqueue({
+        id: "window-later",
+        packetId: "window",
+        deviceId: device,
+      });
+      await chatTasks.run("window-later");
+      assert.equal(
+        chatTasks.get("window-later").reason,
+        "WINDOW_STATE_RECONCILIATION",
+      );
+      assert.equal(chatLedger.wallet("synthetic").spent, spent);
+      const { ReadingWindowMaintenance } = await import(
+        pathToFileURL(join(release, "server/reading/window-maintenance.mjs"))
+      );
+      const audit = new ReadingWindowMaintenance(
+        chatTasks,
+        ({ actor }) => actor === "synthetic-maintainer",
+        ({ account, evidenceHash, review }) => ({
+          account,
+          evidenceHash,
+          rootTaskId: review.rootTaskId,
+          generation: review.generation,
+          watermark: review.watermark,
+          snapshotHash: review.snapshotHash,
+          reference: "synthetic-release-proof",
+          final: true,
+        }),
+      );
+      audit.restoreRows("window-later", [trusted], "synthetic-maintainer");
+      const review = audit.preview("window-later", "synthetic-maintainer");
+      audit.reconcile(
+        "window-later",
+        {
+          operationId: "release-window-audit",
+          evidenceHash: "b".repeat(64),
+          expectedGeneration: review.generation,
+          expectedWatermark: review.watermark,
+          expectedLedgerSequence: review.ledgerSequence,
+        },
+        "synthetic-maintainer",
+      );
+      assert.equal(chatTasks.get("window-later").state, "paused");
+      assert.equal(chatLedger.wallet("synthetic").spent, spent);
+      assert.equal(
+        chatLedger.db
+          .prepare(
+            "SELECT version FROM reading_schema_versions WHERE component='window-safety'",
+          )
+          .get().version,
+        1,
+      );
 
-
-      assert.equal(chatStore.record('semantic').data.result.items.length,1);
-    }finally{chatTasks?.close();chatLedger.close();chatStore.close();}
-    const {readMaterial,sha256} = await import(pathToFileURL(join(release,"server/reading/material.mjs")));
-    const {encodePng,decodePng}=await import(pathToFileURL(join(release,'server/reading/image.mjs')));
-    const webp=await readFile(new URL('../../server/reading/fixtures/webp-lossless.webp',import.meta.url));
-    const webpMaterial=await readMaterial({id:'webp',name:'synthetic.webp',body:webp,size:webp.length,hash:sha256(webp)},{imageWindow:{tile:1}});
-    assert.equal(webpMaterial.state,'read');assert.equal(webpMaterial.covered[0].frame,1);
-    const webpGoldens=JSON.parse(await readFile(new URL('../../server/reading/fixtures/webp-goldens.json',import.meta.url),'utf8'));
-    assert.equal(sha256(decodePng(Buffer.from(webpMaterial.segments[0].image.data,'base64')).pixels),webpGoldens.files['webp-lossless.webp'].frames[0].pixelsHash);
-    const {scannedPdfBytes,scanPattern}=await import('../../server/reading/pdf-visual-fixtures.mjs');
-    const scan=scanPattern(23,17),scanBody=scannedPdfBytes([scan]);
-    const expectedScan=Buffer.alloc(scan.width*scan.height*4,255);
-    for(let n=0;n<scan.width*scan.height;n++)scan.pixels.copy(expectedScan,n*4,n*3,n*3+3);
+      assert.equal(chatStore.record("semantic").data.result.items.length, 1);
+    } finally {
+      chatTasks?.close();
+      chatLedger.close();
+      chatStore.close();
+    }
+    const { readMaterial, sha256 } = await import(
+      pathToFileURL(join(release, "server/reading/material.mjs"))
+    );
+    const { encodePng, decodePng } = await import(
+      pathToFileURL(join(release, "server/reading/image.mjs"))
+    );
+    const webp = await readFile(
+      new URL(
+        "../../server/reading/fixtures/webp-lossless.webp",
+        import.meta.url,
+      ),
+    );
+    const webpMaterial = await readMaterial(
+      {
+        id: "webp",
+        name: "synthetic.webp",
+        body: webp,
+        size: webp.length,
+        hash: sha256(webp),
+      },
+      { imageWindow: { tile: 1 } },
+    );
+    assert.equal(webpMaterial.state, "read");
+    assert.equal(webpMaterial.covered[0].frame, 1);
+    const webpGoldens = JSON.parse(
+      await readFile(
+        new URL(
+          "../../server/reading/fixtures/webp-goldens.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(
+      sha256(
+        decodePng(Buffer.from(webpMaterial.segments[0].image.data, "base64"))
+          .pixels,
+      ),
+      webpGoldens.files["webp-lossless.webp"].frames[0].pixelsHash,
+    );
+    const { scannedPdfBytes, scanPattern } = await import(
+      "../../server/reading/pdf-visual-fixtures.mjs"
+    );
+    const scan = scanPattern(23, 17),
+      scanBody = scannedPdfBytes([scan]);
+    const expectedScan = Buffer.alloc(scan.width * scan.height * 4, 255);
+    for (let n = 0; n < scan.width * scan.height; n++)
+      scan.pixels.copy(expectedScan, n * 4, n * 3, n * 3 + 3);
     // A loaded .node DLL remains locked until process exit on Windows. Verify
     // the released native reader in its own process before owned-tree cleanup.
     const scanProbe=await promisify(execFile)(process.execPath,["--input-type=module","-e",`
       import assert from 'node:assert/strict';
-      import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/material.mjs')).href)};
-      import {decodePng} from ${JSON.stringify(pathToFileURL(join(release,'server/reading/image.mjs')).href)};
+      import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/material.mjs")).href)};
+      import {decodePng} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/image.mjs")).href)};
       const body=Buffer.from(process.argv[1],'base64');
       const scanned=await readMaterial({id:'scan',name:'synthetic.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
       assert.equal(scanned.state,'read');assert.equal(scanned.covered[0].page,1);assert.equal(scanned.covered[0].dpi,108);
       console.log(sha256(decodePng(Buffer.from(scanned.segments[0].image.data,'base64')).pixels));
-    `,scanBody.toString('base64')],{windowsHide:true});
-    assert.equal(scanProbe.stdout.trim(),sha256(expectedScan));
-    assert.ok((await readFile(join(release,'server/reading/generated-pdf-visual',process.platform+'-'+process.arch,'third-party.LICENSE'),'utf8')).includes('Mozilla Public License'));
-    const gif=gifBytes({width:2,height:1,frames:[{indices:Buffer.from([1,2])},{indices:Buffer.from([3,0])}]});
-    const gifTail=await readMaterial({id:'gif',name:'synthetic.gif',body:gif,size:gif.length,hash:sha256(gif)},{imageWindow:{tile:2}});
-    assert.equal(gifTail.covered[0].frame,2);assert.equal(gifTail.imagePagination.nextTile,null);
-    assert.deepEqual([...decodePng(Buffer.from(gifTail.segments[0].image.data,'base64')).pixels],[0,0,255,255,255,255,255,255]);
-    const png=encodePng(1,1,Buffer.from([10,20,30,255]));
-    const visual=await readMaterial({id:'image',name:'独立包.png',body:png,size:png.length,hash:sha256(png)},{imageWindow:{tile:1}});
-    assert.deepEqual([...decodePng(Buffer.from(visual.segments[0].image.data,'base64')).pixels],[10,20,30,255]);
-    const jpeg=jpegSample({width:2,height:3,orientation:6});
-    const photo=await readMaterial({id:'jpeg',name:'独立包.jpg',body:jpeg.body,size:jpeg.body.length,hash:sha256(jpeg.body)},{imageWindow:{tile:1}});
-    assert.deepEqual([photo.covered[0].width,photo.covered[0].height,photo.covered[0].orientation],[3,2,6]);
-    assert.equal(photo.segments[0].image.mime,'image/png');
+    `,
+        scanBody.toString("base64"),
+      ],
+      { windowsHide: true },
+    );
+    assert.equal(scanProbe.stdout.trim(), sha256(expectedScan));
+    assert.ok(
+      (
+        await readFile(
+          join(
+            release,
+            "server/reading/generated-pdf-visual",
+            process.platform + "-" + process.arch,
+            "third-party.LICENSE",
+          ),
+          "utf8",
+        )
+      ).includes("Mozilla Public License"),
+    );
+    const gif = gifBytes({
+      width: 2,
+      height: 1,
+      frames: [
+        { indices: Buffer.from([1, 2]) },
+        { indices: Buffer.from([3, 0]) },
+      ],
+    });
+    const gifTail = await readMaterial(
+      {
+        id: "gif",
+        name: "synthetic.gif",
+        body: gif,
+        size: gif.length,
+        hash: sha256(gif),
+      },
+      { imageWindow: { tile: 2 } },
+    );
+    assert.equal(gifTail.covered[0].frame, 2);
+    assert.equal(gifTail.imagePagination.nextTile, null);
+    assert.deepEqual(
+      [
+        ...decodePng(Buffer.from(gifTail.segments[0].image.data, "base64"))
+          .pixels,
+      ],
+      [0, 0, 255, 255, 255, 255, 255, 255],
+    );
+    const png = encodePng(1, 1, Buffer.from([10, 20, 30, 255]));
+    const visual = await readMaterial(
+      {
+        id: "image",
+        name: "独立包.png",
+        body: png,
+        size: png.length,
+        hash: sha256(png),
+      },
+      { imageWindow: { tile: 1 } },
+    );
+    assert.deepEqual(
+      [
+        ...decodePng(Buffer.from(visual.segments[0].image.data, "base64"))
+          .pixels,
+      ],
+      [10, 20, 30, 255],
+    );
+    const jpeg = jpegSample({ width: 2, height: 3, orientation: 6 });
+    const photo = await readMaterial(
+      {
+        id: "jpeg",
+        name: "独立包.jpg",
+        body: jpeg.body,
+        size: jpeg.body.length,
+        hash: sha256(jpeg.body),
+      },
+      { imageWindow: { tile: 1 } },
+    );
+    assert.deepEqual(
+      [
+        photo.covered[0].width,
+        photo.covered[0].height,
+        photo.covered[0].orientation,
+      ],
+      [3, 2, 6],
+    );
+    assert.equal(photo.segments[0].image.mime, "image/png");
     const original = docxBytes(paragraph("独立包DOCX原文😀"));
-    assert.equal(readMaterial({id:"docx",name:"合成.docx",body:original,size:original.length,hash:sha256(original)}).segments.map(s=>s.text).join(""),"独立包DOCX原文😀\n");
+    assert.equal(
+      readMaterial({
+        id: "docx",
+        name: "合成.docx",
+        body: original,
+        size: original.length,
+        hash: sha256(original),
+      })
+        .segments.map((s) => s.text)
+        .join(""),
+      "独立包DOCX原文😀\n",
+    );
     const accountDirectory = join(directory, "accounts");
-    const workbook=xlsxBytes();
-    assert.equal(readMaterial({id:"xlsx",name:"合成.xlsx",body:workbook,size:workbook.length,hash:sha256(workbook)}).segments.map(s=>s.text).join(""),"A1\t合成文字\n");
+    const workbook = xlsxBytes();
+    assert.equal(
+      readMaterial({
+        id: "xlsx",
+        name: "合成.xlsx",
+        body: workbook,
+        size: workbook.length,
+        hash: sha256(workbook),
+      })
+        .segments.map((s) => s.text)
+        .join(""),
+      "A1\t合成文字\n",
+    );
     const pdf = pdfBytes();
     const zip = archiveSample();
-    const rar=await nativeArchiveSample("rar");
-    assert.equal((await readMaterial({id:"rar",name:rar.name,body:rar.body,size:rar.body.length,hash:sha256(rar.body)})).segments.map(s=>s.text).join(""),rar.expectedText);
-    assert.equal((await readMaterial({id:"zip",name:zip.name,body:zip.body,size:zip.body.length,hash:sha256(zip.body)})).segments.map(s=>s.text).join(""),zip.expectedText);
-    assert.equal((await readMaterial({id:"pdf",name:"合成.pdf",body:pdf,size:pdf.length,hash:sha256(pdf)})).segments.map(s=>s.text).join(""),"中文😀PDF尾部\n");
-    const windowed=archiveWindowSample();
-    let cursor={entry:0,page:1,offset:0,base:0,expanded:0},text="";
+    const rar = await nativeArchiveSample("rar");
+    assert.equal(
+      (
+        await readMaterial({
+          id: "rar",
+          name: rar.name,
+          body: rar.body,
+          size: rar.body.length,
+          hash: sha256(rar.body),
+        })
+      ).segments
+        .map((s) => s.text)
+        .join(""),
+      rar.expectedText,
+    );
+    assert.equal(
+      (
+        await readMaterial({
+          id: "zip",
+          name: zip.name,
+          body: zip.body,
+          size: zip.body.length,
+          hash: sha256(zip.body),
+        })
+      ).segments
+        .map((s) => s.text)
+        .join(""),
+      zip.expectedText,
+    );
+    assert.equal(
+      (
+        await readMaterial({
+          id: "pdf",
+          name: "合成.pdf",
+          body: pdf,
+          size: pdf.length,
+          hash: sha256(pdf),
+        })
+      ).segments
+        .map((s) => s.text)
+        .join(""),
+      "中文😀PDF尾部\n",
+    );
+    const windowed = archiveWindowSample();
+    let cursor = { entry: 0, page: 1, offset: 0, base: 0, expanded: 0 },
+      text = "";
     do {
-      const m=await readMaterial({id:"paged",name:windowed.name,body:windowed.body,size:windowed.body.length,hash:sha256(windowed.body)},{archiveWindow:cursor});
-      text+=m.segments.map(s=>s.text).join("");cursor=m.archivePagination.next;
-    } while(cursor);
-    assert.equal(text,windowed.expectedText);
+      const m = await readMaterial(
+        {
+          id: "paged",
+          name: windowed.name,
+          body: windowed.body,
+          size: windowed.body.length,
+          hash: sha256(windowed.body),
+        },
+        { archiveWindow: cursor },
+      );
+      text += m.segments.map((s) => s.text).join("");
+      cursor = m.archivePagination.next;
+    } while (cursor);
+    assert.equal(text, windowed.expectedText);
     const secret = "synthetic-release-secret-32-characters";
-    const { stdout } = await promisify(execFile)(process.execPath, [join(current, "server/sync-admin.mjs"), "generate", "2"], {
-      env: { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret },
-    });
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [join(current, "server/sync-admin.mjs"), "generate", "2"],
+      {
+        env: {
+          ...process.env,
+          SYNC_ACCOUNT_DIR: accountDirectory,
+          SYNC_ACCOUNT_SECRET: secret,
+        },
+      },
+    );
     assert.equal(JSON.parse(stdout).length, 2);
     service = createMultiUserService({ directory: accountDirectory, secret });
     service.server.listen(0, "127.0.0.1"); await once(service.server, "listening");
     const base = `http://127.0.0.1:${service.server.address().port}`;
-    assert.equal((await (await fetch(base + "/api/v3/status")).json()).protocolVersion, 3);
+    assert.equal(
+      (await (await fetch(base + "/api/v3/status")).json()).protocolVersion,
+      3,
+    );
     assert.equal((await fetch(base + "/api/v2/changes")).status, 404);
     assert.equal((await fetch(base + "/api/v3/changes")).status, 401);
-    const env = { ...process.env, SYNC_ACCOUNT_DIR: accountDirectory, SYNC_ACCOUNT_SECRET: secret };
-    const probe = await promisify(execFile)(process.execPath, [join(current, "deploy/sync/verify-accounts.mjs"), base], { env });
+    const env = {
+      ...process.env,
+      SYNC_ACCOUNT_DIR: accountDirectory,
+      SYNC_ACCOUNT_SECRET: secret,
+    };
+    const probe = await promisify(execFile)(
+      process.execPath,
+      [join(current, "deploy/sync/verify-accounts.mjs"), base],
+      { env },
+    );
     assert.equal(JSON.parse(probe.stdout).isolatedAccounts, true);
-    const usage = await promisify(execFile)(process.execPath, ["--preserve-symlinks-main", join(current, "server/sync-admin.mjs"), "usage", "synthetic-unknown-user"], { env });
+    const usage = await promisify(execFile)(
+      process.execPath,
+      [
+        "--preserve-symlinks-main",
+        join(current, "server/sync-admin.mjs"),
+        "usage",
+        "synthetic-unknown-user",
+      ],
+      { env },
+    );
     assert.deepEqual(JSON.parse(usage.stdout), []);
-    service.server.close(); await once(service.server, "close"); service = null;
-    const snapshot = await promisify(execFile)(process.execPath, [join(current, "deploy/sync/backup-accounts.mjs"), accountDirectory, join(directory, "backups"), "--service-stopped"]);
-    assert.equal(JSON.parse(await readFile(join(snapshot.stdout.trim(), "backup.json"), "utf8")).integrity, "ok");
+    service.server.close();
+    await once(service.server, "close");
+    service = null;
+    const snapshot = await promisify(execFile)(process.execPath, [
+      join(current, "deploy/sync/backup-accounts.mjs"),
+      accountDirectory,
+      join(directory, "backups"),
+      "--service-stopped",
+    ]);
+    assert.equal(
+      JSON.parse(
+        await readFile(join(snapshot.stdout.trim(), "backup.json"), "utf8"),
+      ).integrity,
+      "ok",
+    );
   } finally {
     if (service) { service.server.close(); await once(service.server, "close"); }
     assert.ok(directory.includes("shixu-accounts-release-"));
@@ -278,17 +1209,127 @@ test("release starts independently; two devices, restart, WAL backup and restore
   const directory = await mkdtemp(join(tmpdir(), "shixu-deploy-"));
   let service;
   try {
-    const { directory: release } = await buildRelease(join(directory, "release"));
+    const { directory: release } = await buildRelease(
+      join(directory, "release"),
+    );
     const current = join(directory, "current");
-    await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
-    for (const line of (await readFile(join(release, "SHA256SUMS"), "utf8")).trim().split("\n")) {
+    await symlink(
+      release,
+      current,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    for (const line of (await readFile(join(release, "SHA256SUMS"), "utf8"))
+      .trim()
+      .split("\n")) {
       const [hash, file] = line.split("  ");
-      assert.equal(createHash("sha256").update(await readFile(join(release, file))).digest("hex"), hash);
+      assert.equal(
+        createHash("sha256")
+          .update(await readFile(join(release, file)))
+          .digest("hex"),
+        hash,
+      );
     }
-    assert.deepEqual((await readdir(release)).sort(), ["SHA256SUMS", "deploy", "release.json", "server", "shared"]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), ["account-safety.mjs", "accounts-v4.mjs", "admin-backend.mjs", "admin-service.mjs", "data-control.mjs", "data-migration.mjs", "data-versions.mjs", "database-schema.mjs", "database-schemas.mjs", "generated", "originals.mjs", "reading", "reading-runtime.mjs", "sync-accounts.mjs", "sync-admin.mjs", "sync-files.mjs", "sync-jobs.mjs", "sync-multi-user.mjs", "sync-provider.mjs", "sync-server.mjs", "sync-store.mjs", "tenant-safety.mjs"]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), ["apng.mjs", "archive-window.mjs", "archive.mjs", "association.mjs", "broker-service.mjs", "chat.mjs", "checkpoint-maintenance.mjs", "cost-maintenance.mjs", "deepseek.mjs", "docx-reader.LICENSE", "docx-reader.cjs", "docx.mjs", "generated-native", "generated-pdf-visual", "generated-webp", "gif.mjs", "image.mjs", "jpeg-reader.LICENSE", "jpeg-reader.cjs", "jpeg.mjs", "ledger.mjs", "legacy-jobs.mjs", "legacy-ledger.mjs", "linux-broker.mjs", "maintenance.mjs", "material.mjs", "merge.mjs", "native-archive.mjs", "office-images.mjs", "office-window.mjs", "office.mjs", "ooxml-xml.mjs", "ooxml-zip.mjs", "pdf-annotations.mjs", "pdf-api.mjs", "pdf-canvas.mjs", "pdf-core.mjs", "pdf-reader.LICENSE", "pdf-resource-catalog.mjs", "pdf-resources.mjs", "pdf-visual.mjs", "pdf-window.mjs", "pdf.mjs", "price-calendar.mjs", "provider-receipts.mjs", "remainders.mjs", "reuse.mjs", "root-safety.mjs", "roots.mjs", "routes.mjs", "scheduler.mjs", "schema.mjs", "tasks.mjs", "time-maintenance.mjs", "visual-review.mjs", "webp.mjs", "window-maintenance.mjs", "window-safety.mjs", "windows.mjs", "worker.mjs", "xlsx-reader.LICENSE", "xlsx-reader.cjs", "xlsx.mjs"]);
-    const { createSyncService } = await import(pathToFileURL(join(release, "server/sync-server.mjs")));
+    assert.deepEqual((await readdir(release)).sort(), [
+      "SHA256SUMS",
+      "deploy",
+      "release.json",
+      "server",
+      "shared",
+    ]);
+    assert.deepEqual((await readdir(join(release, "server"))).sort(), [
+      "account-safety.mjs",
+      "accounts-v4.mjs",
+      "admin-backend.mjs",
+      "admin-service.mjs",
+      "cloud-backup.mjs",
+      "cloud-operations.mjs",
+      "data-control.mjs",
+      "data-migration.mjs",
+      "data-versions.mjs",
+      "database-schema.mjs",
+      "database-schemas.mjs",
+      "generated",
+      "originals.mjs",
+      "reading",
+      "reading-runtime.mjs",
+      "sync-accounts.mjs",
+      "sync-admin.mjs",
+      "sync-files.mjs",
+      "sync-jobs.mjs",
+      "sync-multi-user.mjs",
+      "sync-provider.mjs",
+      "sync-server.mjs",
+      "sync-store.mjs",
+      "tenant-safety.mjs",
+    ]);
+    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), [
+      "apng.mjs",
+      "archive-window.mjs",
+      "archive.mjs",
+      "association.mjs",
+      "broker-service.mjs",
+      "chat.mjs",
+      "checkpoint-maintenance.mjs",
+      "cost-maintenance.mjs",
+      "deepseek.mjs",
+      "docx-reader.LICENSE",
+      "docx-reader.cjs",
+      "docx.mjs",
+      "generated-native",
+      "generated-pdf-visual",
+      "generated-webp",
+      "gif.mjs",
+      "image.mjs",
+      "jpeg-reader.LICENSE",
+      "jpeg-reader.cjs",
+      "jpeg.mjs",
+      "ledger.mjs",
+      "legacy-jobs.mjs",
+      "legacy-ledger.mjs",
+      "linux-broker.mjs",
+      "maintenance.mjs",
+      "material.mjs",
+      "merge.mjs",
+      "native-archive.mjs",
+      "office-images.mjs",
+      "office-window.mjs",
+      "office.mjs",
+      "ooxml-xml.mjs",
+      "ooxml-zip.mjs",
+      "pdf-annotations.mjs",
+      "pdf-api.mjs",
+      "pdf-canvas.mjs",
+      "pdf-core.mjs",
+      "pdf-reader.LICENSE",
+      "pdf-resource-catalog.mjs",
+      "pdf-resources.mjs",
+      "pdf-visual.mjs",
+      "pdf-window.mjs",
+      "pdf.mjs",
+      "price-calendar.mjs",
+      "provider-receipts.mjs",
+      "remainders.mjs",
+      "reuse.mjs",
+      "root-safety.mjs",
+      "roots.mjs",
+      "routes.mjs",
+      "scheduler.mjs",
+      "schema.mjs",
+      "tasks.mjs",
+      "time-maintenance.mjs",
+      "visual-review.mjs",
+      "webp.mjs",
+      "window-maintenance.mjs",
+      "window-safety.mjs",
+      "windows.mjs",
+      "worker.mjs",
+      "xlsx-reader.LICENSE",
+      "xlsx-reader.cjs",
+      "xlsx.mjs",
+    ]);
+    const { createSyncService } = await import(
+      pathToFileURL(join(release, "server/sync-server.mjs"))
+    );
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";
     const start = async (db) => {
@@ -312,45 +1353,84 @@ test("release starts independently; two devices, restart, WAL backup and restore
     const sequence = service.store.sequence;
     const epoch = service.store.epoch;
     const snapshot = await backupDatabase(database, join(directory, "backups"));
-    const db = new DatabaseSync(join(snapshot, "workspace.sqlite"), { readOnly: true });
+    const db = new DatabaseSync(join(snapshot, "workspace.sqlite"), {
+      readOnly: true,
+    });
     assert.equal(db.prepare("PRAGMA quick_check").get().quick_check, "ok");
-    assert.equal(Number(db.prepare("SELECT value FROM sync_meta WHERE key='sequence'").get().value), sequence);
-    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sync_devices WHERE revoked=0").get().n, 0);
+    assert.equal(
+      Number(
+        db.prepare("SELECT value FROM sync_meta WHERE key='sequence'").get()
+          .value,
+      ),
+      sequence,
+    );
+    assert.equal(
+      db.prepare("SELECT COUNT(*) AS n FROM sync_devices WHERE revoked=0").get()
+        .n,
+      0,
+    );
     db.close();
     const second = await backupDatabase(database, join(directory, "backups"));
     assert.notEqual(second, snapshot);
     const cliBackup = await promisify(execFile)(process.execPath, [
       join(current, "deploy/sync/backup.mjs"), database, join(directory, "cli-backup"),
     ]);
-    assert.equal(JSON.parse(await readFile(join(cliBackup.stdout.trim(), "backup.json"), "utf8")).integrity, "ok");
+    assert.equal(
+      JSON.parse(
+        await readFile(join(cliBackup.stdout.trim(), "backup.json"), "utf8"),
+      ).integrity,
+      "ok",
+    );
     await stop();
     base = await start(join(snapshot, "workspace.sqlite"));
     const restored = await (await fetch(`${base}/api/v2/status`)).json();
     assert.equal(restored.epoch, epoch);
     assert.equal((await verifyService(base, password)).twoDevices, true);
-    const cliProbe = await promisify(execFile)(process.execPath, [join(current, "deploy/sync/verify.mjs"), base], {
-      env: { ...process.env, SYNC_PASSWORD: password },
-    });
+    const cliProbe = await promisify(execFile)(
+      process.execPath,
+      [join(current, "deploy/sync/verify.mjs"), base],
+      {
+        env: { ...process.env, SYNC_PASSWORD: password },
+      },
+    );
     assert.equal(JSON.parse(cliProbe.stdout).testDevicesRevoked, true);
     await stop();
     // Match systemd: chdir through current, then run a relative main script.
-    const child = spawn(process.execPath, ["--preserve-symlinks-main", "server/sync-server.mjs"], {
-      cwd: current, stdio: "pipe", env: { ...process.env, SYNC_PASSWORD: password,
-        SYNC_HOST: "127.0.0.1", SYNC_PORT: String(port), SYNC_ORIGIN: `http://127.0.0.1:${port}`,
-        SYNC_DATA_DIR: join(directory, "child-data") },
-    });
+    const child = spawn(
+      process.execPath,
+      ["--preserve-symlinks-main", "server/sync-server.mjs"],
+      {
+        cwd: current,
+        stdio: "pipe",
+        env: {
+          ...process.env,
+          SYNC_PASSWORD: password,
+          SYNC_HOST: "127.0.0.1",
+          SYNC_PORT: String(port),
+          SYNC_ORIGIN: `http://127.0.0.1:${port}`,
+          SYNC_DATA_DIR: join(directory, "child-data"),
+        },
+      },
+    );
     try {
       let ready = false;
       for (let attempt = 0; attempt < 40; attempt++) {
         try {
-          const response = await fetch(`http://127.0.0.1:${port}/api/v2/status`, { signal: AbortSignal.timeout(300) });
+          const response = await fetch(
+            `http://127.0.0.1:${port}/api/v2/status`,
+            { signal: AbortSignal.timeout(300) },
+          );
           ready = response.ok;
           if (ready) break;
         } catch {}
         if (child.exitCode !== null) break;
         await new Promise((done) => setTimeout(done, 50));
       }
-      assert.equal(ready, true, "Packaged CLI must stay running through the current symlink");
+      assert.equal(
+        ready,
+        true,
+        "Packaged CLI must stay running through the current symlink",
+      );
     } finally {
       if (child.exitCode === null) { const exited = once(child, "exit"); child.kill(); await exited; }
     }

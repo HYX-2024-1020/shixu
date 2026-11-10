@@ -47,7 +47,7 @@ const note = join(
   process.env.LOCALAPPDATA,
   "Shixu/Connection/Account-Setup.txt",
 );
-if (existsSync(note))
+if (existsSync(note) && !process.argv[4])
   files.push({
     group: "connection",
     path: "Account-Setup.txt",
@@ -62,6 +62,37 @@ const data = {
   sourceRevision: source,
   files: files.map(({ source, ...f }) => f),
 };
+const clientInstaller = process.argv[4] ? resolve(process.argv[4]) : null;
+if (clientInstaller) {
+  const version = JSON.parse(readFileSync(join(root, "package.json"))).version;
+  if (
+    clientInstaller !== join(root, "release", `Shixu-Setup-${version}.exe`) ||
+    !existsSync(clientInstaller)
+  )
+    throw Error("BUILT_CLIENT_INSTALLER_REQUIRED");
+  const clientRoot = join(root, "release/win-unpacked");
+  const receipt = JSON.parse(
+    readFileSync(join(root, "release/client-build-receipt.json")),
+  );
+  if (
+    receipt.source !== source ||
+    receipt.version !== version ||
+    receipt.installerSha256 !== hash(readFileSync(clientInstaller)) ||
+    receipt.asarSha256 !==
+      hash(readFileSync(join(clientRoot, "resources/app.asar"))) ||
+    receipt.exeSha256 !== hash(readFileSync(join(clientRoot, "拾序.exe")))
+  )
+    throw Error("CLIENT_BUILD_RECEIPT_MISMATCH");
+  data.client = {
+    version,
+    source,
+    relativeRoot: "Programs/shixu",
+    exeName: "拾序.exe",
+    installerSha256: hash(readFileSync(clientInstaller)),
+    asarSha256: hash(readFileSync(join(clientRoot, "resources/app.asar"))),
+    exeSha256: hash(readFileSync(join(clientRoot, "拾序.exe"))),
+  };
+}
 const manifest = join(bundle, "native-delivery.json");
 writeFileSync(manifest, JSON.stringify(data, null, 2));
 const compiler = process.argv[3]
@@ -79,7 +110,9 @@ const lines = [
   "Unicode true",
   '!include "MUI2.nsh"',
   '!include "x64.nsh"',
-  'Name "拾序控制台安装修复"',
+  clientInstaller
+    ? 'Name "拾序客户端与控制台更新"'
+    : 'Name "拾序控制台安装修复"',
   "OutFile " + quote(exe),
   "RequestExecutionLevel user",
   "SetCompressor /SOLID lzma",
@@ -105,6 +138,17 @@ const lines = [
   "Abort",
   "${EndIf}",
 ];
+if (clientInstaller)
+  lines.push(
+    'SetOutPath "$PLUGINSDIR"',
+    "File /oname=Shixu-Setup.exe " + quote(clientInstaller),
+    "ExecWait '\"$PLUGINSDIR\\Shixu-Setup.exe\" /S /D=$LOCALAPPDATA\\Programs\\shixu' $0",
+    "${If} $0 != 0",
+    'MessageBox MB_ICONSTOP "拾序客户端安装未完成，请保留现有资料并将安装结果告诉维护者。"',
+    "Abort",
+    "${EndIf}",
+    'CreateShortCut "$DESKTOP\\拾序.lnk" "$LOCALAPPDATA\\Programs\\shixu\\拾序.exe"',
+  );
 for (const f of files) {
   const target =
     "$LOCALAPPDATA\\Shixu\\" +
@@ -130,7 +174,9 @@ lines.push(
   'MessageBox MB_ICONSTOP "安装文件检查或云连接失败，请将安装窗口中的错误发给维护者。"',
   "Abort",
   "${EndIf}",
-  'MessageBox MB_OK "安装完成。请从桌面打开拾序管理控制台。"',
+  clientInstaller
+    ? 'MessageBox MB_OK "更新完成。请从桌面打开拾序和拾序管理控制台。"'
+    : 'MessageBox MB_OK "安装完成。请从桌面打开拾序管理控制台。"',
   "SectionEnd",
 );
 const nsi = join(bundle, "native-install.nsi");

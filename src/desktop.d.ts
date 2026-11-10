@@ -13,9 +13,22 @@ interface Window {
       localSaveNotice?: string;
       materialUseNotice?: { version: number; text: string } | null;
       materialConsentAccepted?: boolean;
-      taskPreview?: { taskId: string; readOnly: boolean; published: boolean; nextOffset: number | null;
-        items: { previewKey: string; title: string; summary: string; facts?: string[]; nextSteps?: string[]; uncertainties?: string[];
-          due?: { date: string; time: string } | null; evidence?: { name: string; quote: string }[] }[] } | null;
+      taskPreview?: {
+        taskId: string;
+        readOnly: boolean;
+        published: boolean;
+        nextOffset: number | null;
+        items: {
+          previewKey: string;
+          title: string;
+          summary: string;
+          facts?: string[];
+          nextSteps?: string[];
+          uncertainties?: string[];
+          due?: { date: string; time: string } | null;
+          evidence?: { name: string; quote: string }[];
+        }[];
+      } | null;
       originalStorage?: {
         hasMore: boolean;
         nextCursor: number | null;
@@ -65,7 +78,10 @@ interface Window {
         completedAssociationBatches?: number;
         completedVisualBatches?: number;
         reusedBlocks?: number;
-        readingSummary?: {name?:string;pdfPages?:{checked:number;total:number}}[];
+        readingSummary?: {
+          name?: string;
+          pdfPages?: { checked: number; total: number };
+        }[];
         rootTaskId?: string;
         rootCalls?: number;
         rootActiveMs?: number;
@@ -76,6 +92,7 @@ interface Window {
       account?: {
         activation: string;
         authentication?: {
+          passwordChangeRequired?: boolean;
           version: number;
           claimed: boolean;
           username: string;

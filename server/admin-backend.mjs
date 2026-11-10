@@ -1,15 +1,22 @@
 import { DatabaseSync } from "node:sqlite";
 import { cpus, freemem, totalmem, hostname } from "node:os";
-import { statfsSync, readFileSync } from "node:fs";
+import { statfsSync, readFileSync, existsSync, lstatSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
+import { CloudOperations } from "./cloud-operations.mjs";
 
 const fail = (status, code) => {
   throw Object.assign(Error(code), { status, code });
 };
 const iso = (at) => new Date(at).toISOString();
-const availableMemory = () => process.platform === 'linux'
-  ? Number(readFileSync('/proc/meminfo','utf8').match(/^MemAvailable:\s+(\d+) kB/m)?.[1] || Math.floor(freemem()/1024))*1024
-  : freemem();
+const availableMemory = () =>
+  process.platform === "linux"
+    ? Number(
+        readFileSync("/proc/meminfo", "utf8").match(
+          /^MemAvailable:\s+(\d+) kB/m,
+        )?.[1] || Math.floor(freemem() / 1024),
+      ) * 1024
+    : freemem();
 
 // Separate operational state: never edits account credentials, safety records or billing.
 export class AdminBackend {
@@ -21,6 +28,7 @@ export class AdminBackend {
     directory,
     now = Date.now,
     pricingHealth = () => null,
+    credentials = null,
   }) {
     Object.assign(this, {
       registry,
@@ -29,6 +37,7 @@ export class AdminBackend {
       directory,
       now,
       pricingHealth,
+      credentials,
     });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
@@ -38,6 +47,12 @@ export class AdminBackend {
       CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
       CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,object TEXT NOT NULL,severity TEXT NOT NULL,message TEXT NOT NULL,first_at INTEGER NOT NULL,last_at INTEGER NOT NULL,recovered_at INTEGER,read_at INTEGER);
       CREATE UNIQUE INDEX IF NOT EXISTS alerts_active ON alerts(kind,object) WHERE recovered_at IS NULL;`);
+    this.db.exec(`PRAGMA synchronous=FULL;
+      CREATE TABLE IF NOT EXISTS operation_intents(operation TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,action TEXT NOT NULL,scope TEXT NOT NULL,actor TEXT NOT NULL,reason TEXT NOT NULL,at INTEGER NOT NULL);
+      CREATE TRIGGER IF NOT EXISTS intents_no_update BEFORE UPDATE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+      CREATE TRIGGER IF NOT EXISTS intents_no_delete BEFORE DELETE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`);
+    this.operations = new Map();
+    this.cloudOperations = new CloudOperations(path, { now });
     this.cpu = this.cpuTimes();
     this.sample();
     this.timer = setInterval(() => {
@@ -58,6 +73,313 @@ export class AdminBackend {
       { idle: 0, total: 0 },
     );
   }
+  async mutate(action, scope, operation, actor, input, apply) {
+    if (
+      typeof operation !== "string" ||
+      !/^[\w-]{8,90}$/.test(operation) ||
+      typeof actor !== "string" ||
+      !actor ||
+      typeof input.reason !== "string" ||
+      input.reason.length > 200
+    )
+      fail(400, "INVALID_OPERATION");
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify([action, scope, actor, input]))
+      .digest("hex");
+    const intent = this.db
+      .prepare("SELECT * FROM operation_intents WHERE operation=?")
+      .get(operation);
+    const audit = this.db
+      .prepare("SELECT * FROM audit WHERE operation=?")
+      .get(operation);
+    if (
+      (intent && intent.fingerprint !== fingerprint) ||
+      (audit && audit.fingerprint !== fingerprint)
+    )
+      fail(409, "IDEMPOTENCY_CONFLICT");
+    if (!intent)
+      this.db
+        .prepare("INSERT INTO operation_intents VALUES(?,?,?,?,?,?,?)")
+        .run(
+          operation,
+          fingerprint,
+          action,
+          scope,
+          actor,
+          input.reason,
+          this.now(),
+        );
+    if (this.operations.has(operation)) return this.operations.get(operation);
+    const pending = (async () => {
+      const result = await apply(); // Underlying coordinator must also be idempotent.
+      this.db
+        .prepare(
+          "INSERT OR IGNORE INTO audit(at,actor,action,scope,operation,fingerprint,reason) VALUES(?,?,?,?,?,?,?)",
+        )
+        .run(
+          this.now(),
+          actor,
+          action,
+          scope,
+          operation,
+          fingerprint,
+          input.reason,
+        );
+      return result;
+    })().finally(() => this.operations.delete(operation));
+    this.operations.set(operation, pending);
+    return pending;
+  }
+  topup(id, amount, note, operation, actor) {
+    this.user(id);
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      amount > 1000000000 ||
+      typeof note !== "string" ||
+      note.length > 200
+    )
+      fail(400, "INVALID_GRANT");
+    return this.mutate(
+      "quota-add",
+      id,
+      operation,
+      actor,
+      { amount, reason: note },
+      () => {
+        const w = this.ledger.grantAdditional(id, amount, operation);
+        return { grantedMicro: w.granted, availableMicro: w.available };
+      },
+    );
+  }
+  revokeDevice(id, device, operation, actor) {
+    this.user(id);
+    if (!this.credentials) fail(503, "CREDENTIALS_UNAVAILABLE");
+    return this.mutate(
+      "device-revoke",
+      id,
+      operation,
+      actor,
+      { device, reason: "" },
+      () => {
+        this.credentials.revoke(id, device, operation);
+        return this.user(id);
+      },
+    );
+  }
+  resetPassword(id, operation, actor) {
+    this.user(id);
+    if (!this.credentials) fail(503, "CREDENTIALS_UNAVAILABLE");
+    return this.mutate(
+      "password-reset",
+      id,
+      operation,
+      actor,
+      { reason: "" },
+      () => this.credentials.adminReset(id, operation, actor),
+    );
+  }
+  setAccountEnabled(id, enabled, operation, actor, reason) {
+    this.user(id);
+    if (
+      typeof enabled !== "boolean" ||
+      typeof reason !== "string" ||
+      !reason.trim() ||
+      reason.length > 200
+    )
+      fail(400, "INVALID_OPERATION");
+    return this.mutate(
+      enabled ? "account-enable" : "account-disable",
+      id,
+      operation,
+      actor,
+      { enabled, reason },
+      () => {
+        // Replays of a committed intent only read the current state; a later
+        // independent control must not be silently undone by an old HTTP retry.
+        if (!this.credentials) fail(503, "CREDENTIALS_UNAVAILABLE");
+        this.credentials.adminSetEnabled(id, enabled, operation, actor);
+        return this.user(id);
+      },
+    );
+  }
+  extendTaskLimit(ref, value, operation, actor) {
+    const [account, task, ...rest] = ref.split("~");
+    if (
+      rest.length ||
+      ![account, task].every(
+        (v) => typeof v === "string" && /^[\w-]{1,90}$/.test(v),
+      ) ||
+      !Number.isSafeInteger(value.newLimitSeconds) ||
+      value.newLimitSeconds < 1 ||
+      value.newLimitSeconds > 86400 ||
+      !Number.isSafeInteger(value.generation) ||
+      !Number.isSafeInteger(value.watermark) ||
+      typeof value.reason !== "string" ||
+      !value.reason.trim() ||
+      value.reason.length > 200
+    )
+      fail(400, "INVALID_MAINTENANCE_REQUEST");
+    this.user(account);
+    return this.mutate("task-limit-extend", ref, operation, actor, value, () =>
+      this.routes.extendExecutionLimit(
+        account,
+        task,
+        {
+          operationId: operation,
+          expectedGeneration: value.generation,
+          expectedWatermark: value.watermark,
+          newLimitMs: value.newLimitSeconds * 1000,
+          evidenceHash: createHash("sha256")
+            .update(JSON.stringify([actor, ref, value]))
+            .digest("hex"),
+        },
+        actor,
+      ),
+    );
+  }
+  budget() {
+    return this.ledger.budget();
+  }
+  storage() {
+    const root = dirname(this.registry.db.location());
+    const users = this.users(new URLSearchParams("pageSize=100")).items.map(
+      (user) => {
+        const path = join(root, "users", user.id, "workspace.sqlite");
+        if (!existsSync(path))
+          return {
+            accountId: user.id,
+            username: user.username,
+            available: false,
+            physicalBytes: 0,
+            usedBytes: 0,
+            reservedBytes: 0,
+            freePageBytes: 0,
+            originals: [],
+          };
+        if (lstatSync(path).isSymbolicLink())
+          fail(503, "STORAGE_PATH_REJECTED");
+        const db = new DatabaseSync(path, { readOnly: true });
+        try {
+          const has = db
+            .prepare("SELECT 1 FROM sqlite_master WHERE name='original_files'")
+            .get();
+          const originals = has
+            ? db
+                .prepare(
+                  "SELECT state,COUNT(*) count,COALESCE(SUM(size),0) bytes FROM original_files WHERE mode='retained' GROUP BY state",
+                )
+                .all()
+            : [];
+          const page = db.prepare("PRAGMA page_size").get().page_size;
+          return {
+            accountId: user.id,
+            username: user.username,
+            available: true,
+            physicalBytes:
+              lstatSync(path).size +
+              (existsSync(path + "-wal") ? lstatSync(path + "-wal").size : 0),
+            freePageBytes:
+              db.prepare("PRAGMA freelist_count").get().freelist_count * page,
+            autoVacuum: db.prepare("PRAGMA auto_vacuum").get().auto_vacuum,
+            usedBytes: originals
+              .filter((r) => !["deleted", "cleaned"].includes(r.state))
+              .reduce((n, r) => n + r.bytes, 0),
+            reservedBytes: has
+              ? db
+                  .prepare(
+                    "SELECT COALESCE(SUM(reserved),0) n FROM original_submissions WHERE state='uploading'",
+                  )
+                  .get().n
+              : 0,
+            originals,
+          };
+        } finally {
+          db.close();
+        }
+      },
+    );
+    return {
+      sampledAt: iso(this.now()),
+      users,
+      physicalBytes: users.reduce((n, u) => n + u.physicalBytes, 0),
+      usedBytes: users.reduce((n, u) => n + u.usedBytes, 0),
+      freePageBytes: users.reduce((n, u) => n + u.freePageBytes, 0),
+      disk: this.resources,
+      backup: this.overview().backup,
+      categories: this.cloudOperations.inventory()?.storage || null,
+    };
+  }
+  changeBudget(value, operation, actor) {
+    return this.mutate("budget-change", "site", operation, actor, value, () =>
+      this.ledger.changeBudget(
+        value.dailyMicro,
+        value.monthlyMicro,
+        value.reason,
+        operation,
+        actor,
+      ),
+    );
+  }
+  tasks(query) {
+    const page = Number(query.get("page") || 1),
+      pageSize = Number(query.get("pageSize") || 20);
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100
+    )
+      fail(400, "INVALID_PAGE");
+    const keyword = (query.get("keyword") || "").toLowerCase(),
+      status = query.get("status");
+    const rows = this.routes
+      .adminTasks()
+      .map((t) => ({ ...t, username: this.user(t.accountId).username }))
+      .filter(
+        (t) =>
+          (!status || status === "all" || status === t.status) &&
+          [t.username, t.taskId, t.errorCode || ""].some((s) =>
+            s.toLowerCase().includes(keyword),
+          ),
+      );
+    return {
+      items: rows.slice((page - 1) * pageSize, page * pageSize),
+      total: rows.length,
+      page,
+      pageSize,
+    };
+  }
+  taskAction(ref, value, operation, actor) {
+    const parts = ref.split("~");
+    if (
+      parts.length !== 2 ||
+      !parts.every((v) => /^[\w-]{1,90}$/.test(v)) ||
+      !["pause", "stop", "retry"].includes(value.action) ||
+      !Number.isSafeInteger(value.generation) ||
+      typeof value.revision !== "string" ||
+      !/^[a-f0-9]{64}$/.test(value.revision) ||
+      (value.maintenanceOperation !== null &&
+        typeof value.maintenanceOperation !== "string")
+    )
+      fail(400, "INVALID_ACTION");
+    this.user(parts[0]);
+    return this.mutate(
+      "task-" + value.action,
+      ref,
+      operation,
+      actor,
+      { ...value, reason: "" },
+      () =>
+        this.routes.adminTaskAction(parts[0], parts[1], value.action, {
+          operationId: operation,
+          expectedGeneration: value.generation,
+          expectedRevision: value.revision,
+          expectedMaintenanceOperation: value.maintenanceOperation,
+        }),
+    );
+  }
   paused(account) {
     return !!this.db
       .prepare("SELECT 1 FROM controls WHERE paused=1 AND scope IN ('site',?)")
@@ -65,8 +387,36 @@ export class AdminBackend {
   }
   assertDispatch(account) {
     this.registry.account(account);
+    if (this.cloudOperations.maintenance().paused) throw Error("MAINTENANCE");
     if (this.registry.aiPaused() || this.paused(account))
       throw Error("ADMIN_PAUSED");
+  }
+  assertUpload() {
+    if (this.cloudOperations.maintenance().paused) fail(503, "MAINTENANCE");
+    const disk = statfsSync(this.directory);
+    if (Number(disk.bavail) / Number(disk.blocks) <= 0.2)
+      fail(503, "DISK_FULL");
+  }
+  operationsStatus() {
+    return {
+      maintenance: this.cloudOperations.maintenance(),
+      jobs: this.cloudOperations.jobs(),
+      budget: this.budget(),
+      inventory: this.cloudOperations.inventory(),
+    };
+  }
+  requestOperation(value, operation, actor) {
+    if (!["kind", "args"].every((k) => Object.hasOwn(value, k)))
+      fail(400, "INVALID_OPERATION");
+    return this.mutate(
+      "ops-" + value.kind,
+      "site",
+      operation,
+      actor,
+      { ...value, reason: value.args?.reason || "" },
+      () =>
+        this.cloudOperations.request(value.kind, value.args, operation, actor),
+    );
   }
   control(scope, paused, operation, actor, reason = "") {
     if (
@@ -86,6 +436,12 @@ export class AdminBackend {
       .digest("hex");
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      if (
+        this.db
+          .prepare("SELECT 1 FROM operation_intents WHERE operation=?")
+          .get(operation)
+      )
+        fail(409, "IDEMPOTENCY_CONFLICT");
       const old = this.db
         .prepare("SELECT fingerprint FROM audit WHERE operation=?")
         .get(operation);
@@ -136,9 +492,52 @@ export class AdminBackend {
         at: iso(r.at),
         actor: r.actor,
         action: r.action,
-        detail: r.scope + (r.reason ? ` · ${r.reason}` : ''),
+        detail: r.scope + (r.reason ? ` · ${r.reason}` : ""),
         operationId: r.operation,
       }));
+  }
+  auditSearch(query) {
+    const page = Number(query.get("page") || 1),
+      pageSize = Number(query.get("pageSize") || 50),
+      keyword = query.get("keyword") || "";
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100 ||
+      keyword.length > 200
+    )
+      fail(400, "INVALID_PAGE");
+    const pattern =
+      "%" +
+      keyword
+        .replaceAll("\\", "\\\\")
+        .replaceAll("%", "\\%")
+        .replaceAll("_", "\\_") +
+      "%";
+    const where =
+      "actor LIKE ? ESCAPE '\\' OR action LIKE ? ESCAPE '\\' OR scope LIKE ? ESCAPE '\\' OR reason LIKE ? ESCAPE '\\' OR operation LIKE ? ESCAPE '\\'";
+    const params = Array(5).fill(pattern),
+      total = this.db
+        .prepare("SELECT COUNT(*) n FROM audit WHERE " + where)
+        .get(...params).n;
+    const items = this.db
+      .prepare(
+        "SELECT * FROM audit WHERE " +
+          where +
+          " ORDER BY id DESC LIMIT ? OFFSET ?",
+      )
+      .all(...params, pageSize, (page - 1) * pageSize)
+      .map((r) => ({
+        id: String(r.id),
+        at: iso(r.at),
+        actor: r.actor,
+        action: r.action,
+        detail: r.scope + (r.reason ? " · " + r.reason : ""),
+        operationId: r.operation,
+      }));
+    return { items, total, page, pageSize };
   }
   user(id) {
     const row = this.registry.db
@@ -163,14 +562,14 @@ export class AdminBackend {
     }
     const devices = this.registry.db
       .prepare(
-        "SELECT id,kind,expires FROM bindings WHERE user_id=? AND revoked=0",
+        "SELECT b.id,b.kind,b.expires,s.name,s.last_seen FROM bindings b LEFT JOIN account_device_slots s ON s.binding=b.id WHERE b.user_id=? AND b.revoked=0",
       )
       .all(id)
       .map((d) => ({
         id: d.id,
-        name: d.kind,
+        name: d.name || d.kind,
         platform: d.kind,
-        lastActiveAt: null,
+        lastActiveAt: d.last_seen ? iso(d.last_seen) : null,
       }));
     const control = this.db
       .prepare("SELECT * FROM controls WHERE scope=?")
@@ -218,7 +617,8 @@ export class AdminBackend {
         EXISTS(SELECT 1 FROM account_credentials c WHERE c.user_id=a.id) OR
         EXISTS(SELECT 1 FROM bindings b WHERE b.user_id=a.id) OR
         EXISTS(SELECT 1 FROM ai_usage u WHERE u.user_id=a.id)
-        ORDER BY created_at,id`)
+        ORDER BY created_at,id`,
+      )
       .all()
       .map((r) => this.user(r.id))
       .filter(
@@ -256,8 +656,65 @@ export class AdminBackend {
     const signals = [];
     const add = (kind, object, severity, message) =>
       signals.push({ kind, object, severity, message });
+    const maintenance = this.cloudOperations.maintenance(),
+      inventory = this.cloudOperations.inventory();
+    if (maintenance.paused)
+      add(
+        "maintenance",
+        "site",
+        "warning",
+        maintenance.reason || "维护暂停，等待执行回执",
+      );
+    const failed = this.cloudOperations
+      .jobs()
+      .find((j) => j.state === "failed");
+    if (failed && maintenance.paused)
+      add(
+        "operation-failed",
+        failed.id,
+        "critical",
+        "维护失败：" + failed.code + "；核对运维执行记录后处理",
+      );
+    if (inventory && this.now() - Date.parse(inventory.sampledAt) > 120000)
+      add(
+        "operations-worker",
+        "site",
+        "critical",
+        "运维执行器超过两分钟未更新，请核对定时备份和服务运维",
+      );
+    if (inventory && !inventory.snapshots.some((s) => s.available))
+      add(
+        "backup-missing",
+        "site",
+        "warning",
+        "当前没有通过验证且未到期的备份，请执行一致性备份",
+      );
+    const budget = this.budget();
+    if (budget.daySpentMicro + budget.riskMicro >= budget.dailyMicro)
+      add(
+        "daily-budget",
+        "site",
+        "warning",
+        "全站每日预算不足，保留进度，预算恢复后需主动继续",
+      );
+    if (
+      budget.monthlyMicro !== null &&
+      budget.monthSpentMicro + budget.riskMicro >= budget.monthlyMicro
+    )
+      add(
+        "monthly-budget",
+        "site",
+        "warning",
+        "全站月预算不足，保留进度，核对预算后需主动继续",
+      );
     const priceError = this.pricingHealth();
-    for(const failure of this.routes.snapshot().failures || [])add('task-'+failure.reason,failure.account,'warning',`${failure.count} 个任务等待处理：${failure.reason}；请核对用户任务及累计费用`);
+    for (const failure of this.routes.snapshot().failures || [])
+      add(
+        "task-" + failure.reason,
+        failure.account,
+        "warning",
+        `${failure.count} 个任务等待处理：${failure.reason}；请核对用户任务及累计费用`,
+      );
     if (priceError)
       add("tariff", "site", "critical", `模型价格验证门禁：${priceError}`);
     if (this.routes.snapshot().waiting >= 10)
@@ -341,22 +798,67 @@ export class AdminBackend {
       }));
   }
   markRead(id, operation, actor) {
-    if(!/^\d{1,20}$/.test(id)||typeof operation!=='string'||!/^[\w-]{8,120}$/.test(operation))fail(400,'INVALID_OPERATION');
-    if(!this.db.prepare('SELECT 1 FROM alerts WHERE id=?').get(id))fail(404,'ALERT_NOT_FOUND');
-    const fingerprint=createHash('sha256').update(JSON.stringify(['alert-read',id,actor])).digest('hex');
-    this.db.exec('BEGIN IMMEDIATE');
+    if (
+      !/^\d{1,20}$/.test(id) ||
+      typeof operation !== "string" ||
+      !/^[\w-]{8,120}$/.test(operation)
+    )
+      fail(400, "INVALID_OPERATION");
+    if (!this.db.prepare("SELECT 1 FROM alerts WHERE id=?").get(id))
+      fail(404, "ALERT_NOT_FOUND");
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify(["alert-read", id, actor]))
+      .digest("hex");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
-      const old=this.db.prepare('SELECT fingerprint FROM audit WHERE operation=?').get(operation);
-      if(old&&old.fingerprint!==fingerprint)fail(409,'IDEMPOTENCY_CONFLICT');
-      if(!old){
-        this.db.prepare('UPDATE alerts SET read_at=COALESCE(read_at,?) WHERE id=?').run(this.now(),id);
-        this.db.prepare('INSERT INTO audit(at,actor,action,scope,operation,fingerprint,reason) VALUES(?,?,?,?,?,?,?)').run(this.now(),actor,'alert-read','alert:'+id,operation,fingerprint,'');
+      if (
+        this.db
+          .prepare("SELECT 1 FROM operation_intents WHERE operation=?")
+          .get(operation)
+      )
+        fail(409, "IDEMPOTENCY_CONFLICT");
+      const old = this.db
+        .prepare("SELECT fingerprint FROM audit WHERE operation=?")
+        .get(operation);
+      if (old && old.fingerprint !== fingerprint)
+        fail(409, "IDEMPOTENCY_CONFLICT");
+      if (!old) {
+        this.db
+          .prepare("UPDATE alerts SET read_at=COALESCE(read_at,?) WHERE id=?")
+          .run(this.now(), id);
+        this.db
+          .prepare(
+            "INSERT INTO audit(at,actor,action,scope,operation,fingerprint,reason) VALUES(?,?,?,?,?,?,?)",
+          )
+          .run(
+            this.now(),
+            actor,
+            "alert-read",
+            "alert:" + id,
+            operation,
+            fingerprint,
+            "",
+          );
       }
-      this.db.exec('COMMIT');
-    }catch(e){this.db.exec('ROLLBACK');throw e;}
-    return this.alerts().find(a=>a.id===id);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    return this.alerts().find((a) => a.id === id);
   }
   overview() {
+    const jobs = this.cloudOperations.jobs(),
+      snapshots =
+        this.cloudOperations
+          .inventory()
+          ?.snapshots?.filter((s) => s.available) || [];
+    const backupSuccess = jobs.find(
+        (j) => j.kind === "backup" && j.state === "succeeded",
+      ),
+      backupFailure = jobs.find(
+        (j) => j.kind === "backup" && j.state === "failed",
+      );
     const sampledAt = this.resources.sampledAt,
       q = this.routes.snapshot();
     const day = iso(this.now() + 8 * 3600000).slice(0, 10);
@@ -400,21 +902,22 @@ export class AdminBackend {
         currency: "CNY",
         todayMicro: today,
         monthMicro: month,
-        siteBudgetMonthMicro: null,
-        siteDailyMicro: this.ledger.limits.siteDailyMicros,
+        siteBudgetMonthMicro: this.budget().monthlyMicro,
+        siteDailyMicro: this.budget().dailyMicro,
         reservedMicro: reserved,
         asOf: iso(this.now()),
       },
       backup: {
-        available: false,
-        lastSuccessAt: null,
-        lastFailureAt: null,
-        retainedCount: 0,
-        retentionDays: 0,
-        nextExpireAt: null,
-        maintenanceReason: null,
-        uploadsPaused: false,
-        aiPaused: this.registry.aiPaused(),
+        available: !!this.cloudOperations.inventory(),
+        lastSuccessAt: backupSuccess?.updatedAt || null,
+        lastFailureAt: backupFailure?.updatedAt || null,
+        retainedCount: snapshots.length,
+        retentionDays: 7,
+        nextExpireAt: snapshots.map((s) => s.expiresAt).sort()[0] || null,
+        maintenanceReason: this.cloudOperations.maintenance().reason,
+        uploadsPaused: this.cloudOperations.maintenance().paused,
+        aiPaused:
+          this.registry.aiPaused() || this.cloudOperations.maintenance().paused,
       },
       alerts: this.alerts().filter((a) => !a.recoveredAt),
       control: this.site(),
@@ -424,6 +927,7 @@ export class AdminBackend {
   }
   close() {
     clearInterval(this.timer);
+    this.cloudOperations.close();
     this.db.close();
   }
 }

@@ -39,14 +39,22 @@ export class AdminApiError extends Error {
 
   static network(): AdminApiError {
     return new AdminApiError(
-      { error: "无法连接管理服务，请检查 SSH 隧道或服务状态", code: "NETWORK", retryable: true },
+      {
+        error: "无法连接管理服务，请检查 SSH 隧道或服务状态",
+        code: "NETWORK",
+        retryable: true,
+      },
       null,
     );
   }
 
   static sessionExpired(): AdminApiError {
     return new AdminApiError(
-      { error: "会话已过期，请重新登录", code: "SESSION_EXPIRED", retryable: false },
+      {
+        error: "会话已过期，请重新登录",
+        code: "SESSION_EXPIRED",
+        retryable: false,
+      },
       401,
     );
   }
@@ -64,10 +72,53 @@ export class AdminApiError extends Error {
  * - 返回结果以后端为准；前端不做本地乐观推算金额。
  */
 export interface AdminApi {
-  getAlerts?(): Promise<import('./types').AlertItem[]>;
-  readAlert?(id: string, operationId: string): Promise<import('./types').AlertItem>;
-  getAudit?(): Promise<import('./types').AuditEntry[]>;
-  setSitePaused?(paused: boolean, operationId: string): Promise<{paused: boolean; safetyPaused: boolean}>;
+  queryAudit?(
+    keyword: string,
+    page: number,
+  ): Promise<{
+    items: import("./types").AuditEntry[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>;
+  setAccountEnabled?(
+    id: string,
+    enabled: boolean,
+    reason: string,
+    operationId: string,
+  ): Promise<AdminUserDetail>;
+  extendTaskLimit?(
+    id: string,
+    value: {
+      newLimitSeconds: number;
+      reason: string;
+      generation: number;
+      watermark: number;
+    },
+    operationId: string,
+  ): Promise<unknown>;
+  getStorage?(): Promise<StorageReport>;
+  getOperations?(): Promise<OperationsReport>;
+  requestOperation?(
+    kind: string,
+    args: { reason: string; snapshotId?: string; releaseId?: string },
+    operationId: string,
+  ): Promise<CloudJob>;
+  getBudget?(): Promise<Budget>;
+  changeBudget?(
+    value: { dailyMicro: number; monthlyMicro: number | null; reason: string },
+    operationId: string,
+  ): Promise<Budget>;
+  getAlerts?(): Promise<import("./types").AlertItem[]>;
+  readAlert?(
+    id: string,
+    operationId: string,
+  ): Promise<import("./types").AlertItem>;
+  getAudit?(): Promise<import("./types").AuditEntry[]>;
+  setSitePaused?(
+    paused: boolean,
+    operationId: string,
+  ): Promise<{ paused: boolean; safetyPaused: boolean }>;
   /** 数据来源标识，用于界面标明演示状态 */
   readonly source: "synthetic" | "http";
 
@@ -89,18 +140,111 @@ export interface AdminApi {
    * POST /admin/v1/users/:id/topup { amountMicro, note, operationId }
    * 追加平台额度：不清零已消费，与供应商账户充值无关。
    */
-  topupQuota(userId: string, amountMicro: number, note: string, operationId: string): Promise<TopupResult>;
+  topupQuota(
+    userId: string,
+    amountMicro: number,
+    note: string,
+    operationId: string,
+  ): Promise<TopupResult>;
   /** POST /admin/v1/users/:id/ai-pause | /ai-resume { operationId, reason? } */
-  setAiPaused(userId: string, paused: boolean, operationId: string, reason?: string): Promise<AdminUserDetail>;
+  setAiPaused(
+    userId: string,
+    paused: boolean,
+    operationId: string,
+    reason?: string,
+  ): Promise<AdminUserDetail>;
   /** POST /admin/v1/users/:id/devices/:deviceId/revoke { operationId }（设备撤销协助） */
-  revokeDevice(userId: string, deviceId: string, operationId: string): Promise<AdminUserDetail>;
+  revokeDevice(
+    userId: string,
+    deviceId: string,
+    operationId: string,
+  ): Promise<AdminUserDetail>;
   /** POST /admin/v1/users/:id/password-reset { operationId } */
-  resetPassword(userId: string, operationId: string): Promise<PasswordResetResult>;
+  resetPassword(
+    userId: string,
+    operationId: string,
+  ): Promise<PasswordResetResult>;
 
   /** GET /admin/v1/tasks（本批前端先定义，页面属下一批） */
   listTasks(query: TaskListQuery): Promise<TaskListResult>;
   /** POST /admin/v1/tasks/:id/actions { action, operationId }（retry/pause/stop） */
-  runTaskAction(taskId: string, action: TaskAction, operationId: string): Promise<void>;
+  runTaskAction(
+    taskId: string,
+    action: TaskAction,
+    operationId: string,
+    review?: {
+      generation?: number;
+      revision?: string;
+      maintenanceOperation?: string | null;
+    },
+  ): Promise<void>;
+}
+
+export interface Budget {
+  dailyMicro: number;
+  monthlyMicro: number | null;
+  daySpentMicro: number;
+  monthSpentMicro: number;
+  riskMicro: number;
+  timezone: string;
+  updatedAt: string | null;
+}
+export interface CloudJob {
+  id: string;
+  kind: string;
+  actor: string;
+  state: string;
+  code: string;
+  createdAt: string;
+  updatedAt: string;
+  result: Record<string, unknown> | null;
+}
+export interface OperationsReport {
+  maintenance: { paused: boolean; reason: string | null };
+  jobs: CloudJob[];
+  inventory: {
+    sampledAt: string;
+    releaseId: string;
+    releases: {
+      id: string;
+      source: string;
+      version: string | null;
+      ledgerCoreVersion: number;
+    }[];
+    snapshots: {
+      id: string;
+      available: boolean;
+      createdAt?: string;
+      expiresAt?: string;
+      databases?: number;
+      bytes?: number;
+      code?: string;
+    }[];
+  } | null;
+}
+export interface StorageReport {
+  categories?: {
+    dataTreeBytes: number;
+    authorityBytes: number;
+    backupBytes: number;
+    temporaryBytes: number;
+    systemJournalBytes: number;
+  } | null;
+  sampledAt: string;
+  physicalBytes: number;
+  usedBytes: number;
+  freePageBytes: number;
+  users: {
+    accountId: string;
+    username: string;
+    available: boolean;
+    physicalBytes: number;
+    usedBytes: number;
+    reservedBytes: number;
+    freePageBytes: number;
+    autoVacuum?: number;
+    originals: { state: string; count: number; bytes: number }[];
+  }[];
 }
 
 export type { AdminUserStatus };

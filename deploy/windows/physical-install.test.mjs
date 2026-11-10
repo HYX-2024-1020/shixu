@@ -13,6 +13,66 @@ import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+
+test(
+  "combined update rejects a redirected physical client directory before touching console files",
+  { skip: process.platform !== "win32" },
+  () => {
+    const directory = realpathSync.native(
+      mkdtempSync(join(tmpdir(), "shixu combined physical ")),
+    );
+    try {
+      const local = join(directory, "local"),
+        backing = join(directory, "backing");
+      mkdirSync(join(local, "Programs"), { recursive: true });
+      mkdirSync(backing);
+      writeFileSync(join(backing, "sentinel.txt"), "preserved");
+      symlinkSync(backing, join(local, "Programs/shixu"), "junction");
+      const metadata = join(directory, "delivery.json");
+      writeFileSync(
+        metadata,
+        JSON.stringify({
+          files: [],
+          client: {
+            relativeRoot: "Programs/shixu",
+            exeName: "拾序.exe",
+            version: "0.3.25",
+            source: "a".repeat(40),
+            asarSha256: "b".repeat(64),
+            exeSha256: "c".repeat(64),
+            installerSha256: "d".repeat(64),
+          },
+        }),
+      );
+      const script = fileURLToPath(
+        new URL("./verify-user-install.mjs", import.meta.url),
+      );
+      const result = spawnSync(
+        process.execPath,
+        [script, "--preflight", metadata],
+        {
+          env: { ...process.env, LOCALAPPDATA: local },
+          windowsHide: true,
+          encoding: "utf8",
+          timeout: 10000,
+        },
+      );
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /CLIENT_INSTALLATION_REDIRECTED/);
+      assert.equal(
+        readFileSync(join(backing, "sentinel.txt"), "utf8"),
+        "preserved",
+      );
+    } finally {
+      assert.ok(
+        directory
+          .toLowerCase()
+          .startsWith((realpathSync.native(tmpdir()) + sep).toLowerCase()),
+      );
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
 test(
   "native installer refuses a redirected destination before managed files change",
   { skip: process.platform !== "win32" },

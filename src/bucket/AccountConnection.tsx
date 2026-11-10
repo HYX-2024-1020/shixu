@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { walletView, reuseView, pdfProgressView, imageProgressView, mergeProgressView } from "../../shared/reading-view.mjs";
+import {
+  walletView,
+  reuseView,
+  pdfProgressView,
+  imageProgressView,
+  mergeProgressView,
+} from "../../shared/reading-view.mjs";
 type State = Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>;
 export default function AccountConnection({
   canSwitch,
@@ -261,13 +267,28 @@ export default function AccountConnection({
         <section className="connection-data">
           <h3>资料用途与保存期限</h3>
           <p>{state.materialUseNotice.text}</p>
-          <label><input type="checkbox" checked={!!state.materialConsentAccepted} disabled={busy}
-            onChange={e => void action("materialConsent", { accepted: e.target.checked })} />我已了解资料用途和保存期限</label>
+          <label>
+            <input
+              type="checkbox"
+              checked={!!state.materialConsentAccepted}
+              disabled={busy}
+              onChange={(e) =>
+                void action("materialConsent", { accepted: e.target.checked })
+              }
+            />
+            我已了解资料用途和保存期限
+          </label>
         </section>
       )}
       {!!state?.account?.authentication?.claimed && (
         <section className="connection-data">
           <h3>设备与密码</h3>
+          {state.account?.authentication?.passwordChangeRequired && (
+            <p role="alert">
+              请先将管理员签发的临时密码改为自己的新密码，再同步和使用
+              AI。临时密码只能建立一次登录；当前设备凭据已保存。
+            </p>
+          )}
           {state.devices?.map((device) => (
             <div key={device.id}>
               <p>
@@ -482,10 +503,19 @@ export default function AccountConnection({
                   } as Record<string, string>
                 )[task.state] || "需核对"}{" "}
                 · 本任务已调用 {task.calls || 0} 次
-                {reuseView(task.reusedBlocks) && ` · ${reuseView(task.reusedBlocks)}`}
-                {mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches, task.completedAssociationBatches) && ` · ${mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches, task.completedAssociationBatches)}`}
-                {pdfProgressView(task.readingSummary) && ` · ${pdfProgressView(task.readingSummary)}`}
-                {imageProgressView(task.readingSummary) && ` · ${imageProgressView(task.readingSummary)}`}
+                {reuseView(task.reusedBlocks) &&
+                  ` · ${reuseView(task.reusedBlocks)}`}
+                {mergeProgressView(
+                  task.phase,
+                  task.completedMergeBatches,
+                  task.completedVisualBatches,
+                  task.completedAssociationBatches,
+                ) &&
+                  ` · ${mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches, task.completedAssociationBatches)}`}
+                {pdfProgressView(task.readingSummary) &&
+                  ` · ${pdfProgressView(task.readingSummary)}`}
+                {imageProgressView(task.readingSummary) &&
+                  ` · ${imageProgressView(task.readingSummary)}`}
                 {typeof task.rootCalls === "number" && (
                   <>
                     {" "}
@@ -495,7 +525,14 @@ export default function AccountConnection({
                 )}
                 {task.error}
               </p>
-              {task.hasPreview && <button disabled={busy} onClick={() => void action("taskPreview", { id: task.id })}>查看已完成内容</button>}
+              {task.hasPreview && (
+                <button
+                  disabled={busy}
+                  onClick={() => void action("taskPreview", { id: task.id })}
+                >
+                  查看已完成内容
+                </button>
+              )}
               {task.actions
                 ?.filter((a) => a !== "purge")
                 .map((a) => (
@@ -537,20 +574,60 @@ export default function AccountConnection({
           ))}
         </section>
       )}
-      {state?.taskPreview && <section className="connection-data">
-        <h3>已完成内容（只读）</h3>
-        <p>{state.taskPreview.published ? "对应任务的原始整理结果；卡片中的人工修改另行保留。" : "尚未保存到世界或 DDL；可在核对后收下有效部分。"}</p>
-        {state.taskPreview.items.map(item => <div key={item.previewKey}><strong>{item.title}</strong><p>{item.summary}</p>
-          {item.due && <p>截止：{item.due.date} {item.due.time}</p>}
-          <details><summary>依据与细节</summary>
-            {item.facts?.map((text, i) => <p key={`f${i}`}>{text}</p>)}
-            {item.nextSteps?.map((text, i) => <p key={`s${i}`}>下一步：{text}</p>)}
-            {item.uncertainties?.map((text, i) => <p key={`u${i}`}>待核对：{text}</p>)}
-            {item.evidence?.map((evidence, i) => <p key={`e${i}`}>{evidence.name}：{evidence.quote || "已保留来源定位"}</p>)}
-          </details></div>)}
-        {!state.taskPreview.items.length && <p>暂无已通过依据核对的可预览内容。</p>}
-        {state.taskPreview.nextOffset !== null && <button disabled={busy} onClick={() => void action("taskPreview", { id: state.taskPreview!.taskId, offset: state.taskPreview!.nextOffset })}>下一页预览</button>}
-      </section>}
+      {state?.taskPreview && (
+        <section className="connection-data">
+          <h3>已完成内容（只读）</h3>
+          <p>
+            {state.taskPreview.published
+              ? "对应任务的原始整理结果；卡片中的人工修改另行保留。"
+              : "尚未保存到世界或 DDL；可在核对后收下有效部分。"}
+          </p>
+          {state.taskPreview.items.map((item) => (
+            <div key={item.previewKey}>
+              <strong>{item.title}</strong>
+              <p>{item.summary}</p>
+              {item.due && (
+                <p>
+                  截止：{item.due.date} {item.due.time}
+                </p>
+              )}
+              <details>
+                <summary>依据与细节</summary>
+                {item.facts?.map((text, i) => (
+                  <p key={`f${i}`}>{text}</p>
+                ))}
+                {item.nextSteps?.map((text, i) => (
+                  <p key={`s${i}`}>下一步：{text}</p>
+                ))}
+                {item.uncertainties?.map((text, i) => (
+                  <p key={`u${i}`}>待核对：{text}</p>
+                ))}
+                {item.evidence?.map((evidence, i) => (
+                  <p key={`e${i}`}>
+                    {evidence.name}：{evidence.quote || "已保留来源定位"}
+                  </p>
+                ))}
+              </details>
+            </div>
+          ))}
+          {!state.taskPreview.items.length && (
+            <p>暂无已通过依据核对的可预览内容。</p>
+          )}
+          {state.taskPreview.nextOffset !== null && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                void action("taskPreview", {
+                  id: state.taskPreview!.taskId,
+                  offset: state.taskPreview!.nextOffset,
+                })
+              }
+            >
+              下一页预览
+            </button>
+          )}
+        </section>
+      )}
       <section className="connection-data">
         <h3>本机备份</h3>
         <button

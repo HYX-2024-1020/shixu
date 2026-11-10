@@ -21,20 +21,27 @@ const files = [
   "deploy/sync/cloud-tariff.timer",
   "scripts/reading-prepare-runtime.py",
   "scripts/refresh-cloud-tariff.mjs",
+  "scripts/cloud-operations-worker.mjs",
+  "deploy/sync/cloud-operations.service",
+  "deploy/sync/cloud-operations.timer",
 ];
 for (const name of await readdir(join(root, "dist/assets")))
   if (/^[\w.-]+\.(js|css|woff2?)$/.test(name))
     files.push("dist/assets/" + name);
 let sums = await readFile(join(release.directory, "SHA256SUMS"), "utf8");
-if(process.argv[3]) {
-  if(!/^[a-f0-9]{40}$/.test(process.argv[3]))throw Error('SOURCE_REVISION_REQUIRED');
-  const manifestPath=join(release.directory,'release.json');
-  const manifest=JSON.parse(await readFile(manifestPath,'utf8'));
-  manifest.sourceRevision=process.argv[3];
-  manifest.source='committed-source-archive-plus-platform-build';
-  const bytes=JSON.stringify(manifest,null,2)+'\n';
-  await writeFile(manifestPath,bytes);
-  sums=sums.replace(/^[a-f0-9]{64}  release\.json$/m,createHash('sha256').update(bytes).digest('hex')+'  release.json');
+if (process.argv[3]) {
+  if (!/^[a-f0-9]{40}$/.test(process.argv[3]))
+    throw Error("SOURCE_REVISION_REQUIRED");
+  const manifestPath = join(release.directory, "release.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.sourceRevision = process.argv[3];
+  manifest.source = "committed-source-archive-plus-platform-build";
+  const bytes = JSON.stringify(manifest, null, 2) + "\n";
+  await writeFile(manifestPath, bytes);
+  sums = sums.replace(
+    /^[a-f0-9]{64}  release\.json$/m,
+    createHash("sha256").update(bytes).digest("hex") + "  release.json",
+  );
 }
 for (const file of files) {
   const data = await readFile(join(root, file));

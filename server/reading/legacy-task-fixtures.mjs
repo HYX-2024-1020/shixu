@@ -57,7 +57,7 @@ export function manufactureLegacyTaskTenant(f, { includeRoots = false } = {}) {
       .all()
       .map((r) => r.name);
     for (const table of [...order, ...projections]) {
-      const names = f.store.db
+      const names = legacy.db
           .prepare("PRAGMA table_info(" + table + ")")
           .all()
           .map((r) => r.name),

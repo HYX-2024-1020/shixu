@@ -1,5 +1,5 @@
-import { ensureDatabaseSchema } from './database-schema.mjs';
-import { ACCOUNTS_AUTH_SCHEMA } from './database-schemas.mjs';
+import { ensureDatabaseSchema } from "./database-schema.mjs";
+import { ACCOUNTS_AUTH_SCHEMA } from "./database-schemas.mjs";
 import {
   createHmac,
   randomBytes,
@@ -428,6 +428,16 @@ export class AccountsV4 {
         fail();
       const prior = this.receipt(value.operationId, fingerprint);
       if (prior) return prior;
+      const reset = this.passwordResetState(credential.user_id);
+      if (
+        reset &&
+        this.db
+          .prepare(
+            "SELECT 1 FROM account_v4_events WHERE account=? AND kind='password-reset-login' AND seq>? LIMIT 1",
+          )
+          .get(credential.user_id, reset.seq)
+      )
+        fail(); // Temporary password creates only one login; retry uses the same operation.
       const binding = this.binding(
         credential.user_id,
         identity,
@@ -445,6 +455,13 @@ export class AccountsV4 {
           "revoke",
           credential.user_id,
           binding.replacedBindingId,
+        );
+      if (reset)
+        this.event(
+          value.operationId + ":temporary",
+          "password-reset-login",
+          credential.user_id,
+          binding.id,
         );
       return this.save(value.operationId, fingerprint, {
         binding,
@@ -532,8 +549,113 @@ export class AccountsV4 {
       return this.save(operationId, fingerprint, { ok: true });
     });
   }
+  passwordResetState(account) {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM account_v4_events WHERE account=? AND kind IN ('password','password-reset') ORDER BY seq DESC LIMIT 1",
+      )
+      .get(account);
+    return row?.kind === "password-reset" ? row : null;
+  }
+  adminSetEnabled(account, enabled, operationId, actor) {
+    if (typeof enabled !== "boolean") fail("INVALID_OPERATION", 400);
+    const fingerprint = this.fingerprint([
+      "admin-account-enabled",
+      account,
+      enabled,
+      actor,
+    ]);
+    return this.registry.transaction(
+      () => {
+        const prior = this.receipt(operationId, fingerprint);
+        if (prior) return prior;
+        if (!this.db.prepare("SELECT 1 FROM accounts WHERE id=?").get(account))
+          fail("UNAUTHORIZED", 404);
+        this.db
+          .prepare("UPDATE accounts SET enabled=? WHERE id=?")
+          .run(Number(enabled), account);
+        this.event(
+          operationId,
+          enabled ? "admin-enable" : "admin-disable",
+          account,
+        );
+        return this.save(operationId, fingerprint, { enabled });
+      },
+      enabled ? undefined : { account, kind: "disable" },
+    );
+  }
+  async adminReset(account, operationId, actor) {
+    this.assertOpen();
+    this.registry.account(account);
+    const fingerprint = this.fingerprint([
+      "admin-password-reset",
+      account,
+      actor,
+    ]);
+    const prior = this.receipt(operationId, fingerprint);
+    const temporary = () =>
+      createHmac("sha256", this.registry.secret)
+        .update("password-reset:" + account + ":" + actor + ":" + operationId)
+        .digest("base64url");
+    if (prior) {
+      if (
+        this.db
+          .prepare("SELECT version FROM account_credentials WHERE user_id=?")
+          .get(account)?.version !== prior.credentialVersion
+      )
+        fail("STALE_CREDENTIALS", 409);
+      return { ...prior, temporaryPassword: temporary() };
+    }
+    const row = this.db
+      .prepare("SELECT version FROM account_credentials WHERE user_id=?")
+      .get(account);
+    if (!row) fail("CLAIM_REQUIRED", 409);
+    const salt = randomBytes(32).toString("hex"),
+      hash = await this.hash(temporary(), salt);
+    return this.registry.transaction(() => {
+      const replay = this.receipt(operationId, fingerprint);
+      if (replay) return { ...replay, temporaryPassword: temporary() };
+      if (
+        this.db
+          .prepare("SELECT version FROM account_credentials WHERE user_id=?")
+          .get(account)?.version !== row.version
+      )
+        fail("STALE_CREDENTIALS", 409);
+      this.db
+        .prepare(
+          "UPDATE account_credentials SET salt=?,hash=?,version=version+1 WHERE user_id=?",
+        )
+        .run(salt, hash, account);
+      for (const device of this.devices(account))
+        this.event(
+          operationId + ":revoke:" + device.id,
+          "revoke",
+          account,
+          device.id,
+        );
+      this.db
+        .prepare("UPDATE bindings SET revoked=1 WHERE user_id=?")
+        .run(account);
+      this.db
+        .prepare("DELETE FROM account_device_slots WHERE user_id=?")
+        .run(account);
+      this.event(operationId, "password-reset", account);
+      const response = {
+        method: "temporary-password",
+        credentialVersion: row.version + 1,
+        note: "临时密码只能建立一次登录；登录后先修改密码，方可同步和使用 AI。若登录设备丢失，请重新重置。",
+      };
+      this.save(operationId, fingerprint, response); // Never persist the temporary secret.
+      return { ...response, temporaryPassword: temporary() };
+    });
+  }
   async changePassword(account, value, device, ip) {
     password(value.newPassword);
+    if (
+      this.passwordResetState(account) &&
+      value.newPassword === value.oldPassword
+    )
+      fail("INVALID_PASSWORD", 400);
     if (value.revokeAll !== undefined && typeof value.revokeAll !== "boolean")
       fail("INVALID_OPERATION", 400);
     const fingerprint = this.fingerprint([

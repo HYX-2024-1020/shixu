@@ -1,7 +1,12 @@
 import { ReadingLegacyLedger } from "./legacy-ledger.mjs";
-import { ensureDatabaseSchema } from '../database-schema.mjs';
-import { LEDGER_CORE_SCHEMA, LEDGER_COST_SCHEMA, LEDGER_TIME_SCHEMA, LEDGER_CHECKPOINT_SCHEMA } from '../database-schemas.mjs';
-import {ReadingProviderReceipts} from './provider-receipts.mjs';
+import { ensureDatabaseSchema } from "../database-schema.mjs";
+import {
+  LEDGER_CORE_SCHEMA,
+  LEDGER_COST_SCHEMA,
+  LEDGER_TIME_SCHEMA,
+  LEDGER_CHECKPOINT_SCHEMA,
+} from "../database-schemas.mjs";
+import { ReadingProviderReceipts } from "./provider-receipts.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { sha256 } from "./material.mjs";
 
@@ -151,6 +156,41 @@ export class ReadingLedger {
       return this.wallet(account);
     });
   }
+  // Administrative additions never reset spent, reservations or safety gates.
+  // The grant and immutable event commit together; retry after a crash is safe.
+  grantAdditional(account, amount, operation) {
+    if (
+      !id(account) ||
+      !id(operation) ||
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      amount > 1000000000
+    )
+      throw Error("INVALID_GRANT");
+    return this.transaction(() => {
+      const key = "admin-grant:" + operation;
+      const prior = this.db
+        .prepare("SELECT * FROM reading_events WHERE operation=?")
+        .get(key);
+      if (prior) {
+        if (
+          prior.kind !== "grant" ||
+          prior.account !== account ||
+          prior.amount !== amount
+        )
+          throw Error("IDEMPOTENCY_CONFLICT");
+        return this.wallet(account);
+      }
+      const wallet = this.wallet(account);
+      if (!Number.isSafeInteger(wallet.granted + amount))
+        throw Error("COST_OVERFLOW");
+      this.db
+        .prepare("UPDATE reading_wallets SET granted=granted+? WHERE account=?")
+        .run(amount, account);
+      this.event(key, "grant", account, null, amount);
+      return this.wallet(account);
+    });
+  }
   freezePrice(price) {
     if (
       !id(price.id) ||
@@ -192,6 +232,84 @@ export class ReadingLedger {
     )
       throw Error("PRICE_ID_REUSED");
   }
+  budget() {
+    const row = this.db
+      .prepare("SELECT * FROM reading_budget_changes ORDER BY seq DESC LIMIT 1")
+      .get();
+    const day = beijingDay(this.now()),
+      month = day.slice(0, 7);
+    const sum = (prefix) =>
+      this.db
+        .prepare(
+          "SELECT COALESCE(SUM(actual),0) n FROM reading_calls WHERE state='settled' AND day LIKE ?",
+        )
+        .get(prefix + "%").n;
+    const risk =
+      this.db
+        .prepare(
+          "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE state IN ('reserved','sent','unknown')",
+        )
+        .get().n + this.legacy.risk();
+    const legacyMonth = this.db
+      .prepare("SELECT days FROM reading_legacy_settlements")
+      .all()
+      .flatMap((r) => JSON.parse(r.days))
+      .filter((d) => d.day.startsWith(month))
+      .reduce((n, d) => n + d.micros, 0);
+    return {
+      dailyMicro: row?.daily ?? this.limits.siteDailyMicros,
+      monthlyMicro: row?.monthly ?? null,
+      daySpentMicro: sum(day) + this.legacy.site(day),
+      monthSpentMicro: sum(month) + legacyMonth,
+      riskMicro: risk,
+      timezone: "Asia/Shanghai",
+      updatedAt: row ? new Date(row.at).toISOString() : null,
+    };
+  }
+  changeBudget(daily, monthly, reason, operation, actor) {
+    if (
+      !id(operation) ||
+      typeof actor !== "string" ||
+      !actor ||
+      actor.length > 64 ||
+      !Number.isSafeInteger(daily) ||
+      daily < 1 ||
+      daily > 1000000000 ||
+      (monthly !== null &&
+        (!Number.isSafeInteger(monthly) ||
+          monthly < 1 ||
+          monthly > 10000000000)) ||
+      typeof reason !== "string" ||
+      !reason.trim() ||
+      reason.length > 200
+    )
+      throw Error("INVALID_BUDGET");
+    const fingerprint = sha256(JSON.stringify([daily, monthly, reason, actor]));
+    return this.transaction(() => {
+      const prior = this.db
+        .prepare(
+          "SELECT fingerprint FROM reading_budget_changes WHERE operation=?",
+        )
+        .get(operation);
+      if (prior && prior.fingerprint !== fingerprint)
+        throw Error("IDEMPOTENCY_CONFLICT");
+      if (!prior)
+        this.db
+          .prepare(
+            "INSERT INTO reading_budget_changes(operation,actor,daily,monthly,reason,fingerprint,at) VALUES(?,?,?,?,?,?,?)",
+          )
+          .run(
+            operation,
+            actor,
+            daily,
+            monthly,
+            reason,
+            fingerprint,
+            this.now(),
+          );
+      return this.budget();
+    });
+  }
   call(callId) {
     return this.db
       .prepare("SELECT * FROM reading_calls WHERE id=?")
@@ -224,12 +342,45 @@ export class ReadingLedger {
         "SELECT operation FROM reading_time_audits WHERE account=? ORDER BY rowid DESC LIMIT 1",
       )
       .get(account)?.operation;
-    const checkpoint=this.db.prepare("SELECT operation FROM reading_checkpoint_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation;
-    const window=this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_window_audits'").get()?this.db.prepare("SELECT operation FROM reading_window_audits WHERE account=? ORDER BY rowid DESC LIMIT 1").get(account)?.operation:null;
-    const legacy=this.legacy.token(account);
-    if(legacy)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint||null,window||null,legacy]));
-    if(window)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint||null,window]));
-    if(checkpoint)return "recovery:"+sha256(JSON.stringify([cost,time||null,checkpoint]));
+    const checkpoint = this.db
+      .prepare(
+        "SELECT operation FROM reading_checkpoint_audits WHERE account=? ORDER BY rowid DESC LIMIT 1",
+      )
+      .get(account)?.operation;
+    const window = this.db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reading_window_audits'",
+      )
+      .get()
+      ? this.db
+          .prepare(
+            "SELECT operation FROM reading_window_audits WHERE account=? ORDER BY rowid DESC LIMIT 1",
+          )
+          .get(account)?.operation
+      : null;
+    const legacy = this.legacy.token(account);
+    if (legacy)
+      return (
+        "recovery:" +
+        sha256(
+          JSON.stringify([
+            cost,
+            time || null,
+            checkpoint || null,
+            window || null,
+            legacy,
+          ]),
+        )
+      );
+    if (window)
+      return (
+        "recovery:" +
+        sha256(JSON.stringify([cost, time || null, checkpoint || null, window]))
+      );
+    if (checkpoint)
+      return (
+        "recovery:" + sha256(JSON.stringify([cost, time || null, checkpoint]))
+      );
     return time ? "recovery:" + sha256(JSON.stringify([cost, time])) : cost;
   }
   price(priceId) {
@@ -281,7 +432,13 @@ export class ReadingLedger {
     return !!this.db.prepare(
       `SELECT 1 FROM reading_calls WHERE account=? AND
        (state='unknown' OR (? AND state='sent')) AND ${scope} LIMIT 1`,
-    ).get(account, Number(includeSent), task, ...(hasRoots ? [account, task] : []));
+      )
+      .get(
+        account,
+        Number(includeSent),
+        task,
+        ...(hasRoots ? [account, task] : []),
+      );
   }
   reserve({
     callId,
@@ -351,8 +508,18 @@ export class ReadingLedger {
           "SELECT COALESCE(SUM(CASE WHEN state='settled' AND day=? THEN actual WHEN state IN ('reserved','sent','unknown') THEN reserved ELSE 0 END),0) n FROM reading_calls",
         )
         .get(day).n;
-      if (site + this.legacy.risk() + this.legacy.site(day) + reserve > this.limits.siteDailyMicros)
+      const budget = this.budget();
+      if (
+        site + this.legacy.risk() + this.legacy.site(day) + reserve >
+        budget.dailyMicro
+      )
         throw Error("SITE_BUDGET");
+      if (
+        budget.monthlyMicro !== null &&
+        budget.monthSpentMicro + budget.riskMicro + reserve >
+          budget.monthlyMicro
+      )
+        throw Error("SITE_MONTH_BUDGET");
       this.db
         .prepare(
           "INSERT INTO reading_calls VALUES(?,?,?,?,?,?,?,'reserved',?,NULL,NULL,?)",
@@ -400,17 +567,45 @@ export class ReadingLedger {
       return this.call(callId);
     });
   }
-  captureUnknownReceipt(callId,receipt){if(receipt===undefined)return;try{this.captureProviderReceipt(callId,receipt);}catch{this.receipts.pause(this.call(callId),'provider-receipt-write-failed');}}
-  captureProviderReceipt(callId,receipt,usage){const normalized=usage===undefined?undefined:validateUsage(usage);return this.transaction(()=>{const call=this.call(callId);if(!call)throw Error('CALL_NOT_FOUND');return this.receipts.captureLocked(call,receipt,normalized);});}
+  captureUnknownReceipt(callId, receipt) {
+    if (receipt === undefined) return;
+    try {
+      this.captureProviderReceipt(callId, receipt);
+    } catch {
+      this.receipts.pause(this.call(callId), "provider-receipt-write-failed");
+    }
+  }
+  captureProviderReceipt(callId, receipt, usage) {
+    const normalized = usage === undefined ? undefined : validateUsage(usage);
+    return this.transaction(() => {
+      const call = this.call(callId);
+      if (!call) throw Error("CALL_NOT_FOUND");
+      return this.receipts.captureLocked(call, receipt, normalized);
+    });
+  }
   settle(callId, usage, receipt) {
     const normalized = validateUsage(usage),
       serialized = JSON.stringify(normalized);
-    let observed,receiptError;
-    if(receipt!==undefined)try{observed=this.captureProviderReceipt(callId,receipt,normalized);}catch(error){receiptError=error;}
-    const result = this.transaction(() => this.settleLocked(callId, normalized, serialized));
-    if(receiptError){this.receipts.pause(this.call(callId),'provider-receipt-write-failed');throw Error('PROVIDER_RECEIPT_WRITE_FAILED');}
-    if(this.receipts.request(callId)&&!this.receipts.latest(callId)){this.receipts.pause(this.call(callId),'provider-receipt-missing');throw Error('PROVIDER_RECEIPT_RECONCILIATION');}
-    if(observed&&['conflict','invalid'].includes(observed.status))throw Error('PROVIDER_RECEIPT_RECONCILIATION');
+    let observed, receiptError;
+    if (receipt !== undefined)
+      try {
+        observed = this.captureProviderReceipt(callId, receipt, normalized);
+      } catch (error) {
+        receiptError = error;
+      }
+    const result = this.transaction(() =>
+      this.settleLocked(callId, normalized, serialized),
+    );
+    if (receiptError) {
+      this.receipts.pause(this.call(callId), "provider-receipt-write-failed");
+      throw Error("PROVIDER_RECEIPT_WRITE_FAILED");
+    }
+    if (this.receipts.request(callId) && !this.receipts.latest(callId)) {
+      this.receipts.pause(this.call(callId), "provider-receipt-missing");
+      throw Error("PROVIDER_RECEIPT_RECONCILIATION");
+    }
+    if (observed && ["conflict", "invalid"].includes(observed.status))
+      throw Error("PROVIDER_RECEIPT_RECONCILIATION");
     if (result?.conflict) throw Error(result.conflict);
     return result;
   }

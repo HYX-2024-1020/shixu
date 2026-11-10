@@ -80,6 +80,7 @@ jobs:
       - run: node --test server/reading/*.test.mjs
       - run: npm run build
       - run: npm run test:server
+      - run: node scripts/product-load-acceptance.mjs
       - run: npm run test:sync
       - run: npm run test:sync:release
 
