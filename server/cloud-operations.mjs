@@ -1,7 +1,21 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
-import { chownSync, existsSync, lstatSync } from "node:fs";
+import { chownSync, chmodSync, existsSync, lstatSync, writeFileSync, renameSync } from "node:fs";
 import { dirname } from "node:path";
+
+export function writeHostAuthorityFloor(path, value) {
+  if (process.getuid?.() !== 0) throw Error("HOST_ADMIN_REQUIRED");
+  const parent=lstatSync(dirname(path));
+  if (!parent.isDirectory() || parent.isSymbolicLink() || parent.uid!==0 || parent.gid===0)
+    throw Error("AUTHORITY_OWNER_REQUIRED");
+  for(const file of [path,path+".tmp"])
+    if(existsSync(file) && (!lstatSync(file).isFile() || lstatSync(file).uid!==0))
+      throw Error("AUTHORITY_PATH_REJECTED");
+  writeFileSync(path+".tmp",JSON.stringify(value)+"\n",{mode:0o640});
+  chownSync(path+".tmp",0,parent.gid);
+  chmodSync(path+".tmp",0o640);
+  renameSync(path+".tmp",path);
+}
 
 // The root maintenance worker and the unprivileged application share this WAL
 // database. A cold worker must not leave root-only WAL/SHM files behind.

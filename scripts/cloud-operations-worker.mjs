@@ -1,14 +1,13 @@
 import { execFileSync } from "node:child_process";
 import {
   readFileSync,
-  writeFileSync,
-  renameSync,
   existsSync,
   mkdirSync,
   readdirSync,
   realpathSync,
   lstatSync,
   unlinkSync,
+  chmodSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,6 +15,7 @@ import {
   CloudOperations,
   isSealedCloudRelease,
   openHostCloudOperations,
+  writeHostAuthorityFloor,
 } from "../server/cloud-operations.mjs";
 import {
   takeCloudSnapshot,
@@ -47,9 +47,9 @@ function floor() {
     );
   const value = readingAuthorityFloor(configuration().ledgerPath);
   mkdirSync(dirname(FLOOR), { recursive: true, mode: 0o750 });
-  writeFileSync(FLOOR + ".tmp", JSON.stringify(value) + "\n", { mode: 0o640 });
-  renameSync(FLOOR + ".tmp", FLOOR);
-  command("/usr/bin/chown", ["root:shixu-cloud", dirname(FLOOR), FLOOR]);
+  command("/usr/bin/chown", ["root:shixu-cloud", dirname(FLOOR)]);
+  chmodSync(dirname(FLOOR), 0o750);
+  writeHostAuthorityFloor(FLOOR,value);
 }
 function configuration() {
   const runtime = JSON.parse(readFileSync(process.env.SYNC_V4_CONFIG, "utf8"));

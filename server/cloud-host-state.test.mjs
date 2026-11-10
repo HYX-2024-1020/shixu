@@ -4,7 +4,10 @@ import { mkdtempSync, mkdirSync, chmodSync, chownSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { openHostCloudOperations } from "./cloud-operations.mjs";
+import {
+  openHostCloudOperations,
+  writeHostAuthorityFloor,
+} from "./cloud-operations.mjs";
 
 test(
   "cold privileged maintenance permits the unprivileged application to share its live WAL",
@@ -36,6 +39,36 @@ test(
       assert.equal(ops.jobs()[0].actor, "synthetic-service");
     } finally {
       ops?.close();
+      process.umask(previous);
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "strict host umask keeps the authority floor readable but unmodifiable by the service group",
+  {
+    skip: process.platform !== "linux" || process.getuid?.() !== 0,
+  },
+  () => {
+    const root = mkdtempSync(join(tmpdir(), "shixu-floor-mode-")),
+      file = join(root, "latest.json");
+    chownSync(root, 0, 65534);
+    chmodSync(root, 0o750);
+    const previous = process.umask(0o077);
+    try {
+      writeHostAuthorityFloor(file, [{ synthetic: true }]);
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `import {readFileSync,writeFileSync} from 'node:fs';const file=${JSON.stringify(file)};if(!JSON.parse(readFileSync(file))[0].synthetic)throw Error('READ_FAILED');try{writeFileSync(file,'unsafe');process.exit(2);}catch(e){if(e.code!=='EACCES')throw e;}`,
+        ],
+        { uid: 65534, gid: 65534, encoding: "utf8", timeout: 10000 },
+      );
+      assert.equal(result.status, 0, result.stderr);
+    } finally {
       process.umask(previous);
       rmSync(root, { recursive: true, force: true });
     }
