@@ -147,3 +147,11 @@ it("preserves range ends through chat and includes ongoing ranges in the time wi
     "2026-10-26 至 2026-10-28训练，2026年10月30日提交",
   );
 });
+it("preserves numbered question ranges while resolving dates in the same prose", () => {
+  expect(absoluteText("明天18:00提交第1至3题，阅读2至4页", "2026-11-09")).toBe(
+    "2026年11月10日18:00提交第1至3题，阅读2至4页",
+  );
+  expect(absoluteText("26至28号完成第1-3题", day)).toBe(
+    "2026-10-26 至 2026-10-28完成第1-3题",
+  );
+});
