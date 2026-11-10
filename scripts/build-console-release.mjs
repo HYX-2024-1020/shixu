@@ -14,8 +14,17 @@ if (
   !/^[a-f0-9]{40}$/.test(revision || "")
 )
   throw Error("INSTALLATION_TARGET_REQUIRED");
-if(execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()!==revision ||
-   execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim())throw Error('CLEAN_COMMITTED_SOURCE_REQUIRED');
+if (
+  execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim() !== revision ||
+  execFileSync("git", ["status", "--porcelain"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim()
+)
+  throw Error("CLEAN_COMMITTED_SOURCE_REQUIRED");
 const mappings = [
   ["server/console-gateway.mjs", join(root, "server/console-gateway.mjs")],
   ["node.exe", process.execPath],
@@ -36,12 +45,44 @@ for (const name of await readdir(join(root, "dist/assets")))
   if (/^[\w.-]+\.(js|css|woff2?)$/.test(name))
     mappings.push(["dist/assets/" + name, join(root, "dist/assets", name)]);
 const source = `https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`;
-const response = await fetch(source, {
-  redirect: "error",
-  signal: AbortSignal.timeout(30000),
-});
-if (!response.ok) throw Error("NODE_LICENSE_UNAVAILABLE");
-const license = Buffer.from(await response.arrayBuffer());
+let license;
+// A launcher-only update need not redownload an already verified, identical
+// runtime's official license. Never reuse it for a different Node binary.
+try {
+  const current = JSON.parse(
+    await readFile(join(appRoot, "current.json"), "utf8"),
+  );
+  if (!/^cloud-[a-f0-9]{40}$/.test(current.release))
+    throw Error("INVALID_CACHE");
+  const cachedRoot = join(appRoot, "releases", current.release);
+  const manifest = JSON.parse(
+    await readFile(join(cachedRoot, "installation-manifest.json"), "utf8"),
+  );
+  const nodeFile = manifest.files.find((f) => f.path === "node.exe");
+  const notice = manifest.files.find(
+    (f) => f.path === "notices/Node-LICENSE.txt",
+  );
+  const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  if (
+    manifest.node !== process.version ||
+    manifest.nodeLicense !== source ||
+    digest(await readFile(process.execPath)) !== nodeFile?.sha256
+  )
+    throw Error("RUNTIME_CHANGED");
+  const cached = await readFile(join(cachedRoot, "notices/Node-LICENSE.txt"));
+  if (digest(cached) !== notice?.sha256) throw Error("LICENSE_CHANGED");
+  license = cached;
+} catch {
+  /* first install or changed runtime: retrieve exact official version */
+}
+if (!license) {
+  const response = await fetch(source, {
+    redirect: "error",
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw Error("NODE_LICENSE_UNAVAILABLE");
+  license = Buffer.from(await response.arrayBuffer());
+}
 if (
   license.length > 2000000 ||
   !license.toString().includes("Permission is hereby granted")
