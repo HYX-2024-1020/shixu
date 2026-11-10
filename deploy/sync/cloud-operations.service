@@ -15,4 +15,3 @@ PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
 ReadWritePaths=/var/lib/shixu-cloud /var/lib/shixu-cloud-ledger /var/lib/shixu-cloud-backups /var/lib/shixu-cloud-authority /opt/shixu-cloud
-
