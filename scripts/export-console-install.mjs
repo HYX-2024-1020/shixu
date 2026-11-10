@@ -12,11 +12,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 if (process.platform !== "win32") throw Error("WINDOWS_REQUIRED");
 const output = resolve(process.argv[2] || "");
-const publicMode = process.argv.includes("--public");
-if (
-  !output.startsWith(join(root, publicMode ? "release" : ".private") + "\\") ||
-  existsSync(output)
-)
+if (!output.startsWith(join(root, ".private") + "\\") || existsSync(output))
   throw Error("NEW_PRIVATE_OUTPUT_REQUIRED");
 if (
   execFileSync("git", ["status", "--porcelain"], {
@@ -31,25 +27,7 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
 }).trim();
 const app = join(process.env.LOCALAPPDATA, "Shixu/AdminConsole"),
   connection = join(process.env.LOCALAPPDATA, "Shixu/Connection");
-let current;
-if (publicMode) {
-  const bundle = JSON.parse(
-    execFileSync(
-      process.execPath,
-      [join(root, "scripts/build-console-release.mjs"), app, revision],
-      { cwd: root, encoding: "utf8" },
-    ),
-  );
-  current = {
-    application: "shixu-admin-console",
-    role: "local-assets-cloud-api",
-    release: bundle.release,
-    fingerprint: bundle.fingerprint,
-    assetSourceCommit: bundle.sourceRevision,
-    origin: "http://127.0.0.1:8789",
-    upstream: "http://127.0.0.1:18789",
-  };
-} else current = JSON.parse(readFileSync(join(app, "current.json")));
+const current = JSON.parse(readFileSync(join(app, "current.json")));
 if (!/^cloud-[a-f0-9]{40}$/.test(current.release))
   throw Error("INVALID_RELEASE");
 const releaseRoot = join(app, "releases", current.release);
@@ -115,11 +93,7 @@ for (const name of ["Cloud-Start.vbs", "Launch.vbs"])
 add(
   "console",
   "console-xu-v1.ico",
-  readFileSync(
-    publicMode
-      ? join(root, "public/desktop-icon.ico")
-      : join(app, "console-xu-v1.ico"),
-  ),
+  readFileSync(join(app, "console-xu-v1.ico")),
 );
 for (const name of [
   "connection.json",
@@ -127,11 +101,10 @@ for (const name of [
   "id_ed25519",
   "ssh_config",
 ])
-  if (!publicMode)
-    add("connection", name, readFileSync(join(connection, name)));
+  add("connection", name, readFileSync(join(connection, name)));
 const runtime = {};
 for (const name of ["cloud-running.json", "gateway-running.json"])
-  if (!publicMode && existsSync(join(app, name)))
+  if (existsSync(join(app, name)))
     runtime[name] = JSON.parse(
       readFileSync(join(app, name), "utf8").replace(/^\uFEFF/, ""),
     );
@@ -160,7 +133,6 @@ writeFileSync(
   JSON.stringify(
     {
       sourceRevision: revision,
-      pairingRequired: publicMode,
       release: current.release,
       fingerprint: current.fingerprint,
       files,
@@ -178,7 +150,7 @@ console.log(
     directory: output,
     files: files.length,
     sourceRevision: revision,
-    containsDedicatedConnectionKey: !publicMode,
-    private: !publicMode,
+    containsDedicatedConnectionKey: true,
+    private: true,
   }),
 );
