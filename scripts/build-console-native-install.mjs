@@ -9,6 +9,7 @@ import { join, resolve, basename, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { getMakeNsisPath } from "app-builder-lib/out/toolsets/windows.js";
 const root = fileURLToPath(new URL("../", import.meta.url)),
   bundle = resolve(process.argv[2] || "");
 if (
@@ -63,12 +64,9 @@ const data = {
 };
 const manifest = join(bundle, "native-delivery.json");
 writeFileSync(manifest, JSON.stringify(data, null, 2));
-const compiler =
-  process.argv[3] ||
-  join(
-    process.env.LOCALAPPDATA,
-    "electron-builder/Cache/nsis-3.0.4.1/nsis-3.0.4.1-1mx3n/Bin/makensis.exe",
-  );
+const compiler = process.argv[3]
+  ? { path: process.argv[3] }
+  : await getMakeNsisPath();
 const exe = join(bundle, "Install-Shixu-Console.exe");
 if (existsSync(exe)) throw Error("NEW_NATIVE_OUTPUT_REQUIRED");
 const quote = (s) =>
@@ -137,7 +135,11 @@ lines.push(
 );
 const nsi = join(bundle, "native-install.nsi");
 writeFileSync(nsi, "\ufeff" + lines.join("\r\n"));
-execFileSync(compiler, ["/V2", nsi], { stdio: "inherit", timeout: 300000 });
+execFileSync(compiler.path, ["/V2", nsi], {
+  stdio: "inherit",
+  timeout: 300000,
+  env: { ...process.env, ...compiler.env },
+});
 console.log(
   JSON.stringify({
     installer: realpathSync.native(exe),
