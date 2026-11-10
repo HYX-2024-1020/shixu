@@ -167,7 +167,9 @@ try {
     await page.getByLabel("DeepSeek API 密钥", { exact: true }).count(),
     0,
   );
-  assert.equal(await page.getByLabel("邀请码", { exact: true }).count(), 1);
+  // Capability discovery now shows an explicit loading state instead of
+  // briefly exposing the legacy invitation form before the response arrives.
+  await page.getByLabel("邀请码", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.desktop.key("read")), "");
   await page.keyboard.press("Escape");
   console.log(
