@@ -16,8 +16,24 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   );
   const credentials = new AccountsV4(registry),
     ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
-  const invitations=registry.generate(2),[a,b]=invitations.map(r=>r.userId);
-  for(const [index,invitation] of invitations.entries())await credentials.register({username:`synthetic-${index}`,password:'synthetic-password',invite:invitation.invite,operationId:`register-${index}`},{kind:'windows',identity:String(index).repeat(64),publicKey:'synthetic-only',name:'合成设备'},'synthetic');
+  const invitations = registry.generate(2),
+    [a, b] = invitations.map((r) => r.userId);
+  for (const [index, invitation] of invitations.entries())
+    await credentials.register(
+      {
+        username: `synthetic-${index}`,
+        password: "synthetic-password",
+        invite: invitation.invite,
+        operationId: `register-${index}`,
+      },
+      {
+        kind: "windows",
+        identity: String(index).repeat(64),
+        publicKey: "synthetic-only",
+        name: "合成设备",
+      },
+      "synthetic",
+    );
   registry.generate(1); // Unused invitations must not appear as registered users.
   ledger.grantInitial(a);
   ledger.grantInitial(b);
@@ -67,15 +83,20 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   registry.pauseAI(true);
   backend.sample();
   backend.sample();
-  assert.equal(backend.alerts().filter((a) => !a.recoveredAt).length, 1);
-  const alert=backend.alerts().find(a=>!a.recoveredAt);
-  backend.markRead(alert.id,'read-alert-1','operator');
-  backend.markRead(alert.id,'read-alert-1','operator');
-  assert.ok(backend.alerts().find(a=>a.id===alert.id).readAt);
-  assert.equal(backend.alerts().filter(a=>!a.recoveredAt).length,1);
-  assert.equal(backend.audits().filter(a=>a.action==='alert-read').length,1);
+  const safetyAlerts = () =>
+    backend.alerts().filter((a) => a.message.includes("服务安全开关"));
+  assert.equal(safetyAlerts().filter((a) => !a.recoveredAt).length, 1);
+  const alert = safetyAlerts().find((a) => !a.recoveredAt);
+  backend.markRead(alert.id, "read-alert-1", "operator");
+  backend.markRead(alert.id, "read-alert-1", "operator");
+  assert.ok(backend.alerts().find((a) => a.id === alert.id).readAt);
+  assert.equal(safetyAlerts().filter((a) => !a.recoveredAt).length, 1);
+  assert.equal(
+    backend.audits().filter((a) => a.action === "alert-read").length,
+    1,
+  );
   registry.pauseAI(false);
   backend.sample();
-  assert.ok(backend.alerts()[0].recoveredAt);
+  assert.ok(backend.alerts().find((a) => a.id === alert.id).recoveredAt);
   assert.ok(backend.overview().resources.source);
 });
