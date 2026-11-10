@@ -6,6 +6,7 @@ import {
   realpathSync,
   copyFileSync,
   existsSync,
+  lstatSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { createHash } from "node:crypto";
@@ -32,6 +33,14 @@ try {
     readFileSync(process.argv[3], "utf8").replace(/^\uFEFF/, ""),
   );
   if (process.argv[2] === "--preflight") {
+    try {
+      if (lstatSync(consoleRoot).isSymbolicLink()) {
+        console.error("INSTALLATION_REDIRECTED: " + consoleRoot);
+        process.exit(3);
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
     const log = join(consoleRoot, "logs");
     mkdirSync(log, { recursive: true });
     const probe = join(log, ".physical-probe-" + process.pid);

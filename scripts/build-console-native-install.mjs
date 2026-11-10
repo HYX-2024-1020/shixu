@@ -57,6 +57,7 @@ for (const f of files)
   if (hash(readFileSync(f.source)) !== f.sha256) throw Error("PAYLOAD_CHANGED");
 const data = {
   ...metadata,
+  runtime: {},
   sourceRevision: source,
   files: files.map(({ source, ...f }) => f),
 };
