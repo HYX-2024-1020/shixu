@@ -1,6 +1,6 @@
 # Windows 0.3.24：受保护的真实云连接
 
-关联 [#95](https://github.com/HYX-2024-1020/shixu/issues/95)。当前为交付实施记录，安装与最终验收见[闭环记录](../project-continuity/windows-cloud-delivery-20261109.md)，不以源码版本代表已安装。
+关联 [#95](https://github.com/HYX-2024-1020/shixu/issues/95) / [PR #96](https://github.com/HYX-2024-1020/shixu/pull/96)。2026-11-10实际安装版0.3.24已通过既有阿里云服务完成双附件真实AI任务及管理暂停/恢复验收，安装ASAR与构建校验一致。控制台原快捷方式也已更新为本机资源与云端API网关。源码、安装包校验值、5次调用结算及限制见[闭环记录](../project-continuity/windows-cloud-delivery-20261109.md)。
 
 新版复用既有 Windows 产品、账号和资料能力，新增明确安装配置的私有 SSH 连接。专用密钥仅可转发用户和管理员两个回环端口，固定主机指纹，无远程命令权限。主进程管理连接、断线与离线队列；renderer 无法改服务器地址。
 
