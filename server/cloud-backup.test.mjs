@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, appendFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  appendFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -28,6 +34,12 @@ import {
   readingAuthorityFloor,
 } from "./data-versions.mjs";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { createMultiUserService } from "./sync-multi-user.mjs";
+const require = createRequire(import.meta.url),
+  { AccountWorkspace } = require("../desktop/accounts.cjs"),
+  { DesktopStore } = require("../desktop/storage.cjs");
 const secret = "synthetic-backup-secret-".repeat(3);
 const price = {
   id: "synthetic",
@@ -215,6 +227,55 @@ test("real cross-database snapshots restore old tenant data using the live trust
   } finally {
     current.close();
   }
+  const reopenedLedger = new ReadingLedger(f.config.ledgerPath);
+  const service = createMultiUserService({
+    directory: f.config.directory,
+    secret,
+    reading: {
+      ledger: reopenedLedger,
+      enabled: false,
+      credentials: true,
+      accountSafety: true,
+      tenantSafety: true,
+      priceId: price.id,
+      modelVersion: price.model,
+      reader() {
+        throw Error("NO_MODEL");
+      },
+      provider() {
+        throw Error("NO_MODEL");
+      },
+    },
+  });
+  try {
+    await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
+    const client = new AccountWorkspace({
+      root: join(f.root, "restored-client"),
+      local: new DesktopStore(join(f.root, "restored-local")),
+      serviceOrigin: `http://127.0.0.1:${service.server.address().port}`,
+      seal: async (v) => Buffer.from(v),
+      unseal: async (v) => v.toString(),
+    });
+    await client.init();
+    await client.action("login", {
+      username: "synthetic",
+      password: "synthetic-new-password",
+    });
+    assert.equal(client.status().activation, "active");
+    assert.equal(
+      (await client.request(client.config.active, "GET", "/api/v4/wallet"))
+        .spent,
+      wallet.spent,
+    );
+    const deleted = (await client.packets()).find((p) => p.id === "packet");
+    assert.ok(
+      deleted?.deletedAt,
+      "restored data must remain in the client recycle state",
+    );
+  } finally {
+    await service.quiesce();
+    reopenedLedger.close();
+  }
 });
 test("snapshot hashes and seven-day expiry fail closed, rotation retains only two verified successes and never changes authority", async (t) => {
   const f = await fixture(t),
@@ -334,4 +395,41 @@ test("host maintenance recovery proves child death and cannot clear a live write
   assert.deepEqual(readingAuthorityFloor(f.config.ledgerPath), floor);
   const lease = acquireDataLease(f.config.directory, "runtime");
   lease.release();
+});
+
+test("protected account CLI selects the configured v4 data and its safety authority instead of creating a legacy side database", async (t) => {
+  const f = await fixture(t),
+    config = join(f.root, "runtime.json");
+  writeFileSync(
+    config,
+    JSON.stringify({
+      directory: f.config.directory,
+      ledgerPath: f.config.ledgerPath,
+      trustedAuthorityFloor: readingAuthorityFloor(f.config.ledgerPath),
+    }),
+  );
+  const path = fileURLToPath(new URL("./sync-admin.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [path, "disable", f.account], {
+    env: {
+      ...process.env,
+      SYNC_V4_CONFIG: config,
+      SYNC_ACCOUNT_SECRET: secret,
+    },
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 10000,
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const db = new DatabaseSync(join(f.config.directory, "accounts.sqlite"), {
+    readOnly: true,
+  });
+  try {
+    assert.equal(
+      db.prepare("SELECT enabled FROM accounts WHERE id=?").get(f.account)
+        .enabled,
+      0,
+    );
+  } finally {
+    db.close();
+  }
 });

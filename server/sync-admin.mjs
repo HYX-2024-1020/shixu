@@ -1,8 +1,11 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { realpathSync } from "node:fs";
+import { realpathSync, readFileSync, existsSync } from "node:fs";
 import { AccountRegistry } from "./sync-accounts.mjs";
-import {acquireDataLease,resolveDataVersion} from './data-versions.mjs';
+import {acquireDataLease,resolveDataVersion,readingAuthorityFloor} from './data-versions.mjs';
+import { ReadingLedger } from './reading/ledger.mjs';
+import { AccountsV4 } from './accounts-v4.mjs';
+import { AccountSafety } from './account-safety.mjs';
 
 // Local privileged CLI only; no administrator credential or endpoint in clients.
 // Run as the service user/root with the private environment file, never place
@@ -44,14 +47,24 @@ if (
   )
 ) {
   process.umask(0o077);
-  const lease=acquireDataLease(resolve(process.env.SYNC_ACCOUNT_DIR || "data/accounts-v3"));
+  const config=process.env.SYNC_V4_CONFIG?JSON.parse(readFileSync(process.env.SYNC_V4_CONFIG,'utf8')):null;
+  let ledger,credentials;
+  if(config){
+    const floorPath=process.env.SHIXU_AUTHORITY_FLOOR||'/var/lib/shixu-cloud-authority/latest.json';
+    const floor=existsSync(floorPath)?JSON.parse(readFileSync(floorPath,'utf8')):config.trustedAuthorityFloor;
+    if(!Array.isArray(floor))throw Error('CURRENT_AUTHORITY_FLOOR_REQUIRED');
+    readingAuthorityFloor(config.ledgerPath,floor);
+    ledger=new ReadingLedger(config.ledgerPath);ledger.audit();
+  }
+  const lease=acquireDataLease(resolve(config?.directory||process.env.SYNC_ACCOUNT_DIR || "data/accounts-v3"));
   let registry;
   try {
-    registry=new AccountRegistry(resolveDataVersion(lease).directory,process.env.SYNC_ACCOUNT_SECRET);
+    registry=new AccountRegistry(resolveDataVersion(lease,{ledgerPath:config?.ledgerPath}).directory,process.env.SYNC_ACCOUNT_SECRET);
+    if(ledger){credentials=new AccountsV4(registry);new AccountSafety(registry,ledger);}
     console.log(
       JSON.stringify(runAdmin(registry, process.argv.slice(2)), null, 2),
     );
   } finally {
-    registry?.close();lease.release();
+    credentials?.close();registry?.close();ledger?.close();lease.release();
   }
 }

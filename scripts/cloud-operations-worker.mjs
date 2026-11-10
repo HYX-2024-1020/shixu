@@ -12,7 +12,10 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CloudOperations } from "../server/cloud-operations.mjs";
+import {
+  CloudOperations,
+  isSealedCloudRelease,
+} from "../server/cloud-operations.mjs";
 import {
   takeCloudSnapshot,
   restoreCloudSnapshot,
@@ -78,9 +81,9 @@ function releases() {
       );
       return {
         id,
-        source: m.sourceRevision,
+        source: m.sourceRevision || "未密封构建",
         version: m.version || null,
-        ledgerCoreVersion: m.ledgerCoreVersion || 7,
+        ledgerCoreVersion: isSealedCloudRelease(m) ? m.ledgerCoreVersion : 0,
       };
     });
 }

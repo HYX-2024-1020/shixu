@@ -6,6 +6,27 @@ const fail = (code, status = 409) => {
   throw Object.assign(Error(code), { code, status });
 };
 const iso = (n) => new Date(n).toISOString();
+export function isSealedCloudRelease(value) {
+  return (
+    !!value &&
+    value.role === "private-v4-cloud-console" &&
+    value.protocolVersion === 4 &&
+    value.nodeMajor === 24 &&
+    value.source === "committed-source-archive-plus-platform-build" &&
+    /^[a-f0-9]{40}$/.test(value.sourceRevision || "") &&
+    Number.isSafeInteger(value.ledgerCoreVersion) &&
+    value.ledgerCoreVersion >= 8 &&
+    Array.isArray(value.files) &&
+    [
+      "server/reading-runtime.mjs",
+      "server/cloud-backup.mjs",
+      "server/cloud-operations.mjs",
+      "scripts/cloud-operations-worker.mjs",
+      "dist/admin/index.html",
+      "deploy/sync/install-cloud.sh",
+    ].every((p) => value.files.includes(p))
+  );
+}
 export class CloudOperations {
   constructor(path, { now = Date.now } = {}) {
     this.now = now;

@@ -5,6 +5,7 @@ release=$(realpath "$1")
 [[ "$release" == /opt/shixu-cloud/releases/* ]]
 cd "$release"
 sha256sum --strict -c SHA256SUMS > /dev/null
+node --input-type=module -e 'import {readFileSync} from "node:fs";import {isSealedCloudRelease} from "./server/cloud-operations.mjs";if(!isSealedCloudRelease(JSON.parse(readFileSync("release.json","utf8"))))throw Error("UNSEALED_CLOUD_RELEASE");'
 test -f /etc/shixu-cloud/service.env
 id shixu-cloud >/dev/null 2>&1 || useradd --system --home-dir /var/lib/shixu-cloud --shell /usr/sbin/nologin shixu-cloud
 install -d -m 0700 -o shixu-cloud -g shixu-cloud /var/lib/shixu-cloud /var/lib/shixu-cloud-ledger
