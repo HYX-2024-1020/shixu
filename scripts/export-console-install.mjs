@@ -105,7 +105,9 @@ for (const name of [
 const runtime = {};
 for (const name of ["cloud-running.json", "gateway-running.json"])
   if (existsSync(join(app, name)))
-    runtime[name] = JSON.parse(readFileSync(join(app, name)));
+    runtime[name] = JSON.parse(
+      readFileSync(join(app, name), "utf8").replace(/^\uFEFF/, ""),
+    );
 const next = {
   ...current,
   sourceCommit: revision,
