@@ -32,6 +32,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Launch-Console.ps1') -Destinati
 # replacing a generic Launch.ps1 left the user's shortcut on the old login chain.
 Copy-Item -LiteralPath $launcher -Destination $old
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Launch-Console.vbs') -Destination (Join-Path $console 'Launch.vbs')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Launch-Console.vbs') -Destination (Join-Path $console 'Cloud-Start.vbs')
 [IO.File]::WriteAllText((Join-Path $console 'current.json.next'),(@{application='shixu-admin-console';role='local-assets-cloud-api';release=$bundle.release;fingerprint=$bundle.fingerprint;sourceCommit=$SourceRevision;assetSourceCommit=$bundle.sourceRevision;origin='http://127.0.0.1:8789';upstream='http://127.0.0.1:18789';launcher='Launch-Cloud.ps1';launcherSha256=(Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash}|ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
 Move-Item -LiteralPath (Join-Path $console 'current.json.next') -Destination (Join-Path $console 'current.json') -Force
 $shortcutPath=Join-Path ([Environment]::GetFolderPath('Desktop')) '拾序管理控制台.lnk'
@@ -40,8 +41,8 @@ if((Test-Path -LiteralPath $shortcutPath) -and -not(Test-Path -LiteralPath $shor
 $shortcutNext=Join-Path ([Environment]::GetFolderPath('Desktop')) '拾序管理控制台.next.lnk'
 $wsh=New-Object -ComObject WScript.Shell
 $shortcut=$wsh.CreateShortcut($shortcutNext)
-$shortcut.TargetPath=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$shortcut.Arguments='-NoLogo -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "'+$launcher+'"'
+$shortcut.TargetPath=Join-Path $env:SystemRoot 'System32\wscript.exe'
+$shortcut.Arguments='"'+(Join-Path $console 'Cloud-Start.vbs')+'"'
 $shortcut.WorkingDirectory=$console
 $shortcut.WindowStyle=7
 $shortcut.Description='拾序云端管理控制台'
