@@ -1,4 +1,4 @@
-import { CloudOperations } from "../server/cloud-operations.mjs";
+import { openHostCloudOperations } from "../server/cloud-operations.mjs";
 import { randomUUID } from "node:crypto";
 // Protected host fallback; never accepts a command or destination from HTTP.
 if (
@@ -8,7 +8,7 @@ if (
 )
   throw Error("HOST_ADMIN_REQUIRED");
 process.umask(0o077);
-const ops = new CloudOperations(process.env.SHIXU_ADMIN_STATE);
+const ops = openHostCloudOperations(process.env.SHIXU_ADMIN_STATE);
 try {
   const [command, kind, target, reason] = process.argv.slice(2);
   if (command === "status")

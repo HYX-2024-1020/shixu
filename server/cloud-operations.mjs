@@ -1,5 +1,33 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
+import { chownSync, existsSync, lstatSync } from "node:fs";
+import { dirname } from "node:path";
+
+// The root maintenance worker and the unprivileged application share this WAL
+// database. A cold worker must not leave root-only WAL/SHM files behind.
+export function openHostCloudOperations(path) {
+  if (process.getuid?.() !== 0) throw Error("HOST_ADMIN_REQUIRED");
+  const owner = lstatSync(dirname(path));
+  if (!owner.isDirectory() || owner.isSymbolicLink() || owner.uid === 0)
+    throw Error("OPERATION_STATE_OWNER_REQUIRED");
+  for (const file of [path, path + "-wal", path + "-shm"])
+    if (existsSync(file) && !lstatSync(file).isFile())
+      throw Error("OPERATION_STATE_PATH_REJECTED");
+  const ops = new CloudOperations(path);
+  try {
+    for (const file of [path, path + "-wal", path + "-shm"]) {
+      if (!existsSync(file)) continue;
+      const stat = lstatSync(file);
+      if (!stat.isFile() || stat.isSymbolicLink())
+        throw Error("OPERATION_STATE_PATH_REJECTED");
+      chownSync(file, owner.uid, owner.gid);
+    }
+    return ops;
+  } catch (error) {
+    ops.close();
+    throw error;
+  }
+}
 
 const valid = (v) => typeof v === "string" && /^[\w-]{8,90}$/.test(v);
 const fail = (code, status = 409) => {

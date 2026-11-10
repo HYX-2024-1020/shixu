@@ -15,6 +15,7 @@ import { pathToFileURL } from "node:url";
 import {
   CloudOperations,
   isSealedCloudRelease,
+  openHostCloudOperations,
 } from "../server/cloud-operations.mjs";
 import {
   takeCloudSnapshot,
@@ -149,7 +150,7 @@ function offline(kind, id) {
   }
 }
 export async function tick() {
-  const ops = new CloudOperations(STATE);
+  const ops = openHostCloudOperations(STATE);
   try {
     const orphan = ops.jobs().find((j) => j.state === "running");
     if (orphan) {
