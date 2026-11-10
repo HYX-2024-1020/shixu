@@ -19,6 +19,7 @@ import {
   listCloudSnapshots,
   rotateCloudSnapshots,
   cleanCloudStorage,
+  recoverCloudMaintenance,
 } from "../server/cloud-backup.mjs";
 import { readingAuthorityFloor } from "../server/data-versions.mjs";
 
@@ -149,9 +150,28 @@ export async function tick() {
   try {
     const orphan = ops.jobs().find((j) => j.state === "running");
     if (orphan) {
+      systemctl("stop");
       ops.event(orphan.id, "failed", "OPERATION_INTERRUPTED");
       ops.setMaintenance(true, "上次维护中断，请核对后手动恢复", orphan.id);
-      systemctl("start");
+      try {
+        command(
+          "/usr/sbin/runuser",
+          [
+            "-u",
+            "shixu-cloud",
+            "--",
+            "/usr/bin/env",
+            "node",
+            "--env-file=/etc/shixu-cloud/service.env",
+            join(ROOT, "current/scripts/cloud-operations-worker.mjs"),
+            "--recover",
+            orphan.id,
+          ],
+          { timeout: 45000 },
+        );
+      } finally {
+        systemctl("start");
+      }
     }
     floor();
     const local = new Date(Date.now() + 8 * 3600000).toISOString(),
@@ -254,6 +274,22 @@ export async function tick() {
   }
 }
 async function main() {
+  if (process.argv[2] === "--recover") {
+    const config = configuration(),
+      ops = new CloudOperations(STATE),
+      id = process.argv[3];
+    try {
+      if (
+        !/^[\w-]{8,90}$/.test(id || "") ||
+        !ops.jobs().some((j) => j.id === id && j.state === "failed")
+      )
+        throw Error("RECOVERY_JOB_REQUIRED");
+      recoverCloudMaintenance(config, "recover-" + id.slice(0, 70));
+    } finally {
+      ops.close();
+    }
+    return;
+  }
   if (process.argv[2] === "--offline") {
     const [kind, id] = process.argv.slice(3),
       config = configuration(),

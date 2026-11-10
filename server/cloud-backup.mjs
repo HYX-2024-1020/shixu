@@ -27,6 +27,9 @@ import {
   readingAuthorityFloor,
   purgeRetiredData,
   purgeAbandonedShadows,
+  reviewDataWriters,
+  recoverDataWriters,
+  completeDataActivation,
 } from "./data-versions.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
 import { ReadingRootSafety } from "./reading/root-safety.mjs";
@@ -435,6 +438,8 @@ export function restoreCloudSnapshot(config, id, { now = Date.now() } = {}) {
   const snapshot = verifyCloudSnapshot(config.backupRoot, id, { now });
   // Validate the host-held current floor and the snapshot prefix against the
   // LIVE independent authority. The historical authority copies are not restored.
+  if (!Array.isArray(config.authorityFloor))
+    throw Error("CURRENT_AUTHORITY_FLOOR_REQUIRED");
   readingAuthorityFloor(config.ledgerPath, config.authorityFloor);
   readingAuthorityFloor(config.ledgerPath, snapshot.manifest.authorityFloor);
   const lease = acquireDataLease(config.directory, "maintenance");
@@ -488,6 +493,49 @@ export function restoreCloudSnapshot(config, id, { now = Date.now() } = {}) {
     };
   } finally {
     ledger?.close();
+    lease.release();
+  }
+}
+
+// Called only by the stopped-service host executor after an interrupted job.
+// Kernel identity proof recovers ownership, never time, cost or task progress.
+export function recoverCloudMaintenance(config, operationId) {
+  if (!Array.isArray(config.authorityFloor))
+    throw Error("CURRENT_AUTHORITY_FLOOR_REQUIRED");
+  readingAuthorityFloor(config.ledgerPath, config.authorityFloor);
+  const actor = "cloud-operations",
+    authorize = () => true,
+    review = reviewDataWriters(config.directory, actor, authorize);
+  if (review.pendingRecoveries.length) {
+    if (review.pendingRecoveries.length !== 1)
+      throw Error("DATA_RECOVERY_REQUIRES_REVIEW");
+    const pending = review.pendingRecoveries[0];
+    recoverDataWriters(
+      config.directory,
+      {
+        operationId: pending.operation,
+        expectedSnapshotHash: pending.snapshot_hash,
+        actor: pending.actor,
+      },
+      authorize,
+    );
+  } else if (review.registrations.length) {
+    if (!review.allTerminated) throw Error("DATA_WRITERS_ACTIVE");
+    recoverDataWriters(
+      config.directory,
+      { operationId, expectedSnapshotHash: review.snapshotHash, actor },
+      authorize,
+    );
+  }
+  const lease = acquireDataLease(config.directory, "maintenance");
+  try {
+    if (existsSync(join(config.directory, "data-version.json")))
+      completeDataActivation(lease);
+    return {
+      registrationsRecovered: review.registrations.length,
+      independentAuthorityPreserved: true,
+    };
+  } finally {
     lease.release();
   }
 }

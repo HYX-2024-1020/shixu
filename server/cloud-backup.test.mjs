@@ -20,12 +20,14 @@ import {
   verifyCloudSnapshot,
   rotateCloudSnapshots,
   cleanCloudStorage,
+  recoverCloudMaintenance,
 } from "./cloud-backup.mjs";
 import {
   acquireDataLease,
   resolveDataVersion,
   readingAuthorityFloor,
 } from "./data-versions.mjs";
+import { spawnSync } from "node:child_process";
 const secret = "synthetic-backup-secret-".repeat(3);
 const price = {
   id: "synthetic",
@@ -301,4 +303,35 @@ test("offline maintenance refuses a live writer; page reclamation preserves curr
   } finally {
     db.close();
   }
+});
+
+test("host maintenance recovery proves child death and cannot clear a live writer or change billing", async (t) => {
+  const f = await fixture(t),
+    floor = readingAuthorityFloor(f.config.ledgerPath),
+    config = { ...f.config, authorityFloor: floor };
+  const alive = acquireDataLease(f.config.directory, "runtime");
+  try {
+    assert.throws(
+      () => recoverCloudMaintenance(config, "recover-alive"),
+      /DATA_WRITERS_ACTIVE/,
+    );
+  } finally {
+    alive.release();
+  }
+  const module = new URL("./data-versions.mjs", import.meta.url).href;
+  const child = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {acquireDataLease} from ${JSON.stringify(module)};acquireDataLease(${JSON.stringify(f.config.directory)},'maintenance');`,
+    ],
+    { encoding: "utf8", windowsHide: true, timeout: 10000 },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  const result = recoverCloudMaintenance(config, "recover-dead-maintenance");
+  assert.equal(result.registrationsRecovered, 1);
+  assert.deepEqual(readingAuthorityFloor(f.config.ledgerPath), floor);
+  const lease = acquireDataLease(f.config.directory, "runtime");
+  lease.release();
 });
