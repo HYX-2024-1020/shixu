@@ -25,7 +25,6 @@ import { ReadingRemainders } from "./remainders.mjs";
 import { sourceLocation } from "../../shared/reading-view.mjs";
 
 const active = ["queued", "running", "applying"];
-const occupies = [...active, "paused", "interrupted", "error", "conflict"];
 const validId = (v) => typeof v === "string" && /^[\w-]{1,90}$/.test(v);
 const error = (code) =>
   new SyncError(
@@ -41,6 +40,8 @@ const error = (code) =>
         ? "累计24次调用未取得新增有效块，需核对后继续"
       : code === "CHECKPOINT_RECONCILIATION"
         ? "历史任务的累计调用检查点待核对，已完成进度保留"
+      : code === "TASK_SLOT_FULL"
+        ? "还有一项任务正在处理，请等它完成或暂停后重试；本次资料已保留"
       : code === "STALE_TASK"
         ? "任务状态已变化，请刷新后再操作"
       : code === "EXECUTION_LIMIT"
@@ -170,12 +171,11 @@ export function inputRevision(store, packetId) {
 // device authorization and an independently reconciled ledger.
 export class ReadingTasks {
   slotOccupied(except = "") {
-    const rows = this.db.prepare(
-      `SELECT id,state FROM reading_tasks WHERE id!=? AND state IN (${occupies.map(() => "?").join(",")})`,
-    ).all(except, ...occupies);
-    return rows.some(({ id, state }) =>
-      active.includes(state) || !this.ledger.taskHasUnresolvedCost(this.account, id),
-    );
+    // A retained task needs explicit continuation, not exclusive ownership of
+    // the account. Keep the slot until any in-flight execution has drained.
+    return [...this.executions.keys()].some(id => id !== except) || !!this.db.prepare(
+      `SELECT 1 FROM reading_tasks WHERE id!=? AND state IN (${active.map(() => "?").join(",")}) LIMIT 1`,
+    ).get(except, ...active);
   }
 
   constructor({
