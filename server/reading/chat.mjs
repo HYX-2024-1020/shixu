@@ -420,7 +420,7 @@ export class ReadingChat {
       request.instruction,
       request.day,
     );
-    if (request.readAttachments) {
+    if (request.readAttachments || request.scope === "account") {
       if (certified) {
         if (typeof raw.readScope !== "string" || raw.readScope.length > 8000)
           fail("SAFETY_RECONCILIATION");
@@ -429,16 +429,22 @@ export class ReadingChat {
         const material = this.engine.materials.get(task.id)?.[0];
         if (!material?.segments?.[0]?.text) fail("SAFETY_RECONCILIATION");
         const read = JSON.parse(material.segments[0].text);
-        validated.readScope =
-          "\n\n本轮附件读取：" +
-          (read.attachmentContent || [])
-            .map(
-              (f) =>
-                `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（" + f.missing.join("、") + "）" : ""}`,
-            )
-            .join("；");
+        validated.readScope = request.readAttachments
+          ? "\n\n本轮附件读取：" +
+            (read.attachmentContent || [])
+              .map(
+                (f) =>
+                  `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（" + f.missing.join("、") + "）" : ""}`,
+              )
+              .join("；")
+          : "";
         if (read.omittedAttachments)
           validated.readScope += `；另${read.omittedAttachments}份附件未读，不能据此断言不存在。`;
+        if ((read.attachmentContent || []).some((f) => !f.contentComplete))
+          validated.readScope +=
+            "。本轮仍有未读范围，答复不表示未读范围内不存在所查内容。";
+        if (request.scope === "account")
+          validated.readScope += `\n\n本轮跨卡片范围：当前账号最近100份可访问投递内的${context.relatedItems.length}个其他事项摘要，未重读其他卡片附件。${context.omittedPackets || context.omittedItems ? "还有卡片或事项未纳入，不能据此断言整个账号不存在所查内容。" : ""}修改建议尚未执行，须确认后保存。`;
       }
     }
     if (raw.proposals !== undefined) {

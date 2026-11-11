@@ -302,6 +302,10 @@ test("account-scoped chat proposes bounded changes without mutating another card
   );
   const p = f.store.record("packet").data;
   assert.equal(p.itemState.item2.starred, true);
+  assert.match(
+    p.itemState.item1.chat.at(-1).text,
+    /本轮跨卡片范围.*未重读其他卡片附件/,
+  );
   assert.equal(p.itemState.item1.chatProposals.items[0].patch.starred, false);
   invalid = true;
   f.input.id = "chat2";
