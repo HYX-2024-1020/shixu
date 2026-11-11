@@ -58,6 +58,29 @@ test("manual pause blocks later paid steps, preserves settled progress and requi
   assert.equal(f.calls(),2);
 });
 
+for (const state of ["paused", "interrupted", "error", "conflict"]) {
+  test(`retained ${state} task permits unrelated feeding without resuming old work`, async (t) => {
+    const f = fixture(t);
+    f.enqueue();
+    f.store.apply(f.windows.deviceId, {
+      id: "new-packet", opId: crypto.randomUUID(), type: "put", baseVersion: 0,
+      data: { text: "合成测试：明天整理书架", attachments: [], captureDate: "2026-11-11", status: "pending", result: null },
+    }, f.store.epoch);
+    const enqueueNew = () => f.tasks.enqueue({ id: "new-task", packetId: "new-packet", deviceId: f.windows.deviceId });
+    assert.throws(enqueueNew, (e) => e.code === "TASK_SLOT_FULL" && e.message.includes("正在处理"));
+    // Synthetic retained state: the old task remains available for explicit continuation.
+    f.store.db.prepare("UPDATE reading_tasks SET state=?,reason='ADMIN_PAUSED' WHERE id='task'").run(state);
+    const old = f.tasks.get("task");
+    const spent = f.ledger.wallet("synthetic").spent;
+    assert.equal(enqueueNew().state, "queued");
+    assert.equal(f.ledger.wallet("synthetic").spent, spent);
+    assert.throws(() => f.action("continue"), (e) => e.code === (state === "conflict" ? "INVALID_TASK_TRANSITION" : "TASK_SLOT_FULL"));
+    assert.equal((await finish(f.tasks, "new-task")).state, "done");
+    assert.deepEqual(f.tasks.get("task"), old);
+    assert.equal(f.calls(), 1);
+  });
+}
+
 test("older tenant timing cannot rewind the independent root watermark or resume paid work", async (t) => {
   const f = fixture(t);
   f.enqueue();
@@ -1532,6 +1555,12 @@ test("stop retains completed paid block, rejects stale action, and settles but d
   const prior = f.tasks.get("task");
   f.action("stop", "stop");
   assert.equal(f.tasks.get("task").state, "cancelled");
+  f.store.apply(f.windows.deviceId, {
+    id: "draining-other-packet", opId: crypto.randomUUID(), type: "put", baseVersion: 0,
+    data: { text: "合成的另一项投递", attachments: [], captureDate: "2026-11-11", status: "pending", result: null },
+  }, f.store.epoch);
+  assert.throws(() => f.tasks.enqueue({ id: "draining-other-task", packetId: "draining-other-packet", deviceId: f.windows.deviceId }),
+    (e) => e.code === "TASK_SLOT_FULL");
   assert.throws(
     () => f.action("continue", "too-early"),
     (e) => e.code === "UNKNOWN_COST",
