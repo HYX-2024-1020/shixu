@@ -337,6 +337,7 @@ it("recovers opening hours below a date heading without crossing the next event"
   const item = {
     kind: "event",
     title: "合成办理",
+    sourceIds: ["input"],
     summary: "",
     facts: [],
     nextSteps: [],
