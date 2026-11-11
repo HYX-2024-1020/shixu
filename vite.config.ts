@@ -6,12 +6,40 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   build: {
     rollupOptions: {
-      input: { main: "index.html", admin: "admin-test/index.html", console: "admin/index.html" },
+      input: {
+        main: "index.html",
+        admin: "admin-test/index.html",
+        console: "admin/index.html",
+      },
     },
   },
   test: { include: ["src/**/*.test.{ts,js}"] },
   // Evidence copies and browser traces can hold Windows file locks. They are
   // not application sources and must not bring down the HMR file watcher.
-  server: { port: 5173, strictPort: true, watch: { ignored: ["**/.private/**", "**/data/**", "**/docs/**", "**/test-results/**", "**/playwright-report/**"] } },
+  server: {
+    port: 5173,
+    strictPort: true,
+    watch: {
+      ignored: [
+        "**/.private/**",
+        "**/release/**",
+        "**/data/**",
+        "**/docs/**",
+        "**/test-results/**",
+        "**/playwright-report/**",
+      ],
+    },
+    fs: {
+      deny: [
+        ".env",
+        ".env.*",
+        "*.{crt,pem}",
+        "**/.git/**",
+        "**/.private/**",
+        "**/release/**",
+        "**/data/**",
+      ],
+    },
+  },
   preview: { port: 4173, strictPort: true },
 }));

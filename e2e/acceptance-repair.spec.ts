@@ -1,4 +1,25 @@
 import { test, expect } from "@playwright/test";
+import { mkdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
+
+test("development server refuses private delivery and release files", async ({
+  request,
+}) => {
+  const name = "synthetic-access-probe-" + randomUUID() + ".txt";
+  for (const directory of [".private", "release", "data"]) {
+    mkdirSync(directory, { recursive: true });
+    const path = join(directory, name);
+    writeFileSync(path, "synthetic probe only", { flag: "wx" });
+    try {
+      expect((await request.get("/" + directory + "/" + name)).status()).toBe(
+        403,
+      );
+    } finally {
+      unlinkSync(path);
+    }
+  }
+});
 
 test("failed organization keeps usable original material and retry after reload", async ({
   page,
