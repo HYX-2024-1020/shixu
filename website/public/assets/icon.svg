@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="23" y="23" width="220" height="220" rx="12" fill="#111"/>
+  <rect x="10" y="10" width="220" height="220" rx="12" fill="#ffd43b" stroke="#111" stroke-width="10"/>
+  <text x="120" y="174" fill="#111" text-anchor="middle" font-size="153" font-weight="900" font-family="Microsoft YaHei, sans-serif">拾</text>
+</svg>

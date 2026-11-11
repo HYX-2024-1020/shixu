@@ -16,6 +16,7 @@
   "type": "module",
   "scripts": {
     "workspace:check": "node scripts/check-development-base.mjs",
+    "site:check": "node scripts/check-public-site.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build && node scripts/build-sw.mjs",
     "preview": "vite preview --host 0.0.0.0",
