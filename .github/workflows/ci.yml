@@ -86,7 +86,11 @@ jobs:
 
   browser:
     name: Browser E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Official browsers/dependencies avoid runtime apt downloads. Match package-lock.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+      options: --ipc=host
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -97,15 +101,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Use official Ubuntu mirror for browser dependencies
-        shell: bash
+      - name: Verify matching preinstalled browser runtime
         run: |
-          # Hosted runner's Azure mirror timed out before browser tests started.
-          # Keep the Ubuntu suite and signed indexes; change only this runner's mirror list.
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            echo 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt
-          fi
-      - run: npx playwright install --with-deps chromium webkit
+          node -e 'const fs = require("node:fs"); const pw = require("playwright"); if (require("playwright/package.json").version !== "1.64.1") throw new Error("Update the pinned Playwright image with package-lock.json"); for (const browser of [pw.chromium, pw.webkit]) fs.accessSync(browser.executablePath(), fs.constants.X_OK);'
       - run: npm run build
       - run: npm run test:e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
