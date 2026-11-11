@@ -234,7 +234,8 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
   } finally {
     release();
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await gateway.close();
     await service.close();
     backend.close();
@@ -362,7 +363,8 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
     await page.getByRole("link", { name: "运维与审计", exact: true }).click();
     await expect(page.locator(".audit-row")).toHaveCount(4);
   } finally {
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await gateway.close();
     await service.close();
     backend.close();
@@ -532,7 +534,8 @@ test("真实回环服务登录、明确显示数据待接入，退出失败后�
       page.getByRole("button", { name: "登录", exact: true }),
     ).toBeVisible();
   } finally {
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await service.close();
   }
 });

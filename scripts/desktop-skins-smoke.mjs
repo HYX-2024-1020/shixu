@@ -19,9 +19,19 @@ const errors = [];
 async function pageForApp() {
   const page = await app.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
-  await expect(
-    page.getByLabel("往桶里放入内容", { exact: true }),
-  ).toBeEnabled();
+  const startupAt = Date.now();
+  try {
+    await expect(
+      page.getByLabel("往桶里放入内容", { exact: true }),
+    ).toBeEnabled({ timeout: 12000 });
+  } catch (error) {
+    console.error(
+      "Synthetic skin startup state:",
+      await page.locator("body").innerText(),
+    );
+    throw error;
+  }
+  console.log("Synthetic skin profile hydration (ms):", Date.now() - startupAt);
   return page;
 }
 try {
