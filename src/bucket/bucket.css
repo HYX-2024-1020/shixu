@@ -924,6 +924,17 @@ button:hover:not(:disabled) {
   display: grid;
   gap: 14px;
 }
+.bucket-dialog .account-access form {
+  padding: 10px 0 0;
+  gap: 12px;
+}
+.bucket-dialog .account-access label {
+  margin-bottom: 0;
+  gap: 6px;
+}
+.connection-data > p {
+  margin: 0;
+}
 .account-modes {
   display: flex;
   gap: 12px;
@@ -2171,4 +2182,12 @@ button:hover:not(:disabled) {
 }
 .star-filter[aria-pressed="true"] {
   background: #ffd43b;
+}
+.startup-error {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  padding: 14px;
+  color: #7e291c;
+  border: 2px solid #b54d38;
+  background: #fff4e9;
 }

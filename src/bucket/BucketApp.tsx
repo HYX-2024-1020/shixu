@@ -169,6 +169,8 @@ export default function BucketApp() {
     return () => cancelAnimationFrame(frame);
   }, [currentCaptureId]);
   const [draftStatus, setDraftStatus] = useState("正在恢复本机资料…");
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [dropVisible, setDropVisible] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
@@ -534,6 +536,7 @@ export default function BucketApp() {
   useEffect(() => {
     let active = true;
     (async () => {
+      setLoadError("");
       if (window.desktop) {
         await upgradeDesktopProfile();
       }
@@ -614,11 +617,14 @@ export default function BucketApp() {
       setText(draft.text);
       setAttachments(draft.attachments);
       setLoaded(true);
-    })().catch((error) => notify(message(error)));
+    })().catch((error) => {
+      if (active) setLoadError(message(error));
+      notify(message(error));
+    });
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, loadAttempt]);
   useEffect(() => {
     if (!loaded) return;
     if (ADMIN_TEST) {
@@ -1975,6 +1981,17 @@ export default function BucketApp() {
               >
                 <ArrowDown size={25} />
                 <span>松手，放进桶里。</span>
+              </div>
+            )}
+            {loadError && (
+              <div className="startup-error" role="alert">
+                <p>本机资料暂未读入，原有内容保留。{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => setLoadAttempt((value) => value + 1)}
+                >
+                  重新读取本机资料
+                </button>
               </div>
             )}
             <textarea

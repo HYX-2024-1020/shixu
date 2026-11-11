@@ -436,14 +436,15 @@ export default function AccountConnection({
             </button>
           </form>
         )}
-        {!state?.base && (
-          <button
-            disabled={busy}
-            onClick={() => void action("resume", undefined, true)}
-          >
-            返回已激活账号
-          </button>
-        )}
+        {!state?.base &&
+          (showMore || !state?.capabilities?.features.registration) && (
+            <button
+              disabled={busy}
+              onClick={() => void action("resume", undefined, true)}
+            >
+              返回已激活账号
+            </button>
+          )}
         {!!state &&
           !connectionFailed &&
           !discovering &&

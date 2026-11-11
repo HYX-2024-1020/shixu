@@ -24,7 +24,28 @@ try {
   await input.waitFor();
   // Visible markup precedes profile upgrade/IPC hydration on slower runners.
   // Seed only after the actual application load barrier has opened.
-  await expect(input).toBeEnabled();
+  try {
+    await expect(input).toBeEnabled();
+  } catch (error) {
+    // Retain the actual startup state instead of disguising it as a motion failure.
+    await writeFile(
+      "release/motion-startup-failure.json",
+      JSON.stringify(
+        await page.evaluate(() => ({
+          readyState: document.readyState,
+          hasBridge: !!window.desktop,
+          body: document.body.innerText.slice(0, 4000),
+        })),
+        null,
+        2,
+      ),
+    );
+    console.error(
+      "Synthetic startup state:",
+      await page.locator("body").innerText(),
+    );
+    throw error;
+  }
   await page.evaluate(async () => {
     const now = new Date().toISOString();
     await window.desktop.store("savePackets", [

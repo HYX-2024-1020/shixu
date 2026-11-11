@@ -49,3 +49,49 @@ test("failed organization keeps usable original material and retry after reload"
     "synthetic-report",
   );
 });
+
+test("startup read failure stays visible and retries without replacing the saved draft", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("shixu-native-store-v1", "complete");
+    let failed = true;
+    (window as any).allowSyntheticRead = () => {
+      failed = false;
+    };
+    window.desktop = {
+      key: async () => "",
+      cloud: async () => ({
+        base: "",
+        pending: 0,
+        conflicts: [],
+        jobs: [],
+        devices: [],
+        error: "",
+        activation: "local",
+        capabilities: { features: { registration: true } },
+      }),
+      store: async (method: string) => {
+        if (method === "packets") {
+          if (failed) throw Error("合成本机读取失败");
+          return [];
+        }
+        if (method === "usage") return [];
+        if (method === "draft")
+          return { text: "合成已保存草稿，不能覆盖", attachments: [] };
+        return {};
+      },
+    } as any;
+  });
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "往桶里放入内容" });
+  await expect(page.locator(".startup-error")).toContainText(
+    "合成本机读取失败",
+  );
+  await expect(input).toBeDisabled();
+  await page.evaluate(() => (window as any).allowSyntheticRead());
+  await page.getByRole("button", { name: "重新读取本机资料" }).click();
+  await expect(input).toBeEnabled();
+  await expect(input).toHaveValue("合成已保存草稿，不能覆盖");
+  await expect(page.locator(".startup-error")).toHaveCount(0);
+});
