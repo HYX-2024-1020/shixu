@@ -170,6 +170,12 @@ export interface UserListResult {
 }
 
 export type TaskStatus =
+  | "applying"
+  | "interrupted"
+  | "error"
+  | "conflict"
+  | "cancelled"
+  | "partial"
   | "queued"
   | "running"
   | "paused"
@@ -180,18 +186,28 @@ export type TaskStatus =
 export type TaskAction = "retry" | "pause" | "stop";
 
 export interface AdminTask {
+  accountId?: string;
+  taskId?: string;
+  generation?: number;
+  revision?: string;
+  maintenanceOperation?: string | null;
+  calls?: number;
+  activeSeconds?: number;
+  completedBlocks?: number;
+  limitSeconds?: number;
+  limitReview?: { generation: number; watermark: number } | null;
   id: string;
   /** 所属账号 */
   username: string;
   stage: string;
   stageLabel: string;
   /** 0-100 */
-  progress: number;
+  progress: number | null;
   status: TaskStatus;
   errorCode: string | null;
   /** 该任务已产生费用；无费用为 null */
   costMicro: MicroYuan | null;
-  updatedAt: string;
+  updatedAt: string | null;
   actions: TaskAction[];
 }
 

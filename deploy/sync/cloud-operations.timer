@@ -1,0 +1,11 @@
+[Unit]
+Description=Shixu maintenance queue and daily 04:00 Beijing backup
+
+[Timer]
+OnBootSec=20
+OnUnitInactiveSec=15
+AccuracySec=1
+Unit=shixu-cloud-operations.service
+
+[Install]
+WantedBy=timers.target

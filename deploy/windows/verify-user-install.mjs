@@ -32,6 +32,27 @@ try {
   const metadata = JSON.parse(
     readFileSync(process.argv[3], "utf8").replace(/^\uFEFF/, ""),
   );
+  let client;
+  if (metadata.client) {
+    const c = metadata.client;
+    if (
+      c.relativeRoot !== "Programs/shixu" ||
+      c.exeName !== "拾序.exe" ||
+      !/^\d+\.\d+\.\d+$/.test(c.version) ||
+      !/^[a-f0-9]{40}$/.test(c.source) ||
+      ![c.asarSha256, c.exeSha256, c.installerSha256].every((h) =>
+        /^[a-f0-9]{64}$/.test(h),
+      )
+    )
+      throw Error("INVALID_CLIENT_DELIVERY");
+    const root = join(process.env.LOCALAPPDATA, "Programs/shixu");
+    if (
+      existsSync(root) &&
+      realpathSync.native(root).toLowerCase() !== resolve(root).toLowerCase()
+    )
+      throw Error("CLIENT_INSTALLATION_REDIRECTED");
+    client = { ...c, physicalRoot: root };
+  }
   if (process.argv[2] === "--preflight") {
     try {
       if (lstatSync(consoleRoot).isSymbolicLink()) {
@@ -99,6 +120,20 @@ try {
     }
     console.log("Physical user installation directory verified");
   } else if (process.argv[2] === "--verify") {
+    if (client) {
+      for (const [name, expected] of [
+        ["拾序.exe", client.exeSha256],
+        ["resources/app.asar", client.asarSha256],
+      ]) {
+        const target = join(client.physicalRoot, name);
+        if (
+          realpathSync.native(target).toLowerCase() !==
+            resolve(target).toLowerCase() ||
+          digest(target) !== expected
+        )
+          throw Error("CLIENT_PHYSICAL_INSTALL_VERIFICATION_FAILED");
+      }
+    }
     for (const f of metadata.files) {
       const target = destination(f);
       if (
@@ -129,6 +164,7 @@ try {
           source: metadata.sourceRevision,
           files: metadata.files.length,
           gatewayPID: launch.gatewayPID,
+          ...(client ? { client } : {}),
           at: new Date().toISOString(),
         },
         null,

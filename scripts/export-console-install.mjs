@@ -28,6 +28,19 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
 const app = join(process.env.LOCALAPPDATA, "Shixu/AdminConsole"),
   connection = join(process.env.LOCALAPPDATA, "Shixu/Connection");
 const current = JSON.parse(readFileSync(join(app, "current.json")));
+// Select a newly built immutable package without changing the user's active
+// pointer. Only the native user-session installer activates this staged release.
+if (process.argv[3]) {
+  if (!/^cloud-[a-f0-9]{40}$/.test(process.argv[3]))
+    throw Error("INVALID_RELEASE");
+  current.release = process.argv[3];
+  const staged = JSON.parse(
+    readFileSync(
+      join(app, "releases", current.release, "installation-manifest.json"),
+    ),
+  );
+  current.fingerprint = staged.fingerprint;
+}
 if (!/^cloud-[a-f0-9]{40}$/.test(current.release))
   throw Error("INVALID_RELEASE");
 const releaseRoot = join(app, "releases", current.release);

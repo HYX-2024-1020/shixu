@@ -4,9 +4,23 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 
 const profile = await mkdtemp(path.join(tmpdir(), "shixu-desktop-test-"));
 const testEnv = { ...process.env, SHIXU_DATA_DIR: profile };
+// Keep this scenario deterministic: local recording must remain usable when
+// account capability discovery receives a real unavailable-service response.
+const unavailable = createServer((_request, response) => {
+  response.writeHead(503, { "Content-Type": "application/json" });
+  response.end(
+    JSON.stringify({
+      code: "SERVICE_UNAVAILABLE",
+      error: "合成账号服务暂不可用",
+    }),
+  );
+});
+await new Promise((resolve) => unavailable.listen(0, "127.0.0.1", resolve));
+testEnv.SHIXU_TEST_SERVICE_ORIGIN = `http://127.0.0.1:${unavailable.address().port}`;
 delete testEnv.ELECTRON_RUN_AS_NODE;
 const launch = () =>
   electron.launch({
@@ -167,7 +181,18 @@ try {
     await page.getByLabel("DeepSeek API 密钥", { exact: true }).count(),
     0,
   );
-  assert.equal(await page.getByLabel("邀请码", { exact: true }).count(), 1);
+  await page
+    .getByRole("button", { name: "重试连接方式", exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", {
+        name: "备份全部资料（含草稿、最近删除与原件）",
+        exact: true,
+      })
+      .isEnabled(),
+    true,
+  );
   assert.equal(await page.evaluate(() => window.desktop.key("read")), "");
   await page.keyboard.press("Escape");
   console.log(
@@ -176,4 +201,5 @@ try {
   console.log("Isolated test profile:", profile);
 } finally {
   await app?.close();
+  await new Promise((resolve) => unavailable.close(resolve));
 }

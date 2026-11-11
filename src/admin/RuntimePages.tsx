@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import type { AdminApi } from "./api";
 import { formatBeijingTime, newOperationId } from "./format";
 import { Button, ErrorState, useAsyncData } from "./ui";
+import { BudgetPanel } from "./ManagementPages";
+import { OperationsPanel } from "./OperationsPages";
 
 export function SiteControl({
   api,
@@ -71,8 +73,9 @@ export function SiteControl({
 }
 
 export function AlertsPage({ api }: { api: AdminApi }) {
-  const [busy,setBusy]=useState(''),[error,setError]=useState('');
-  const operations=useRef<Record<string,string>>({});
+  const [busy, setBusy] = useState(""),
+    [error, setError] = useState("");
+  const operations = useRef<Record<string, string>>({});
   const { state, retry } = useAsyncData(
     () => (api.getAlerts ? api.getAlerts() : Promise.resolve([])),
     [],
@@ -107,12 +110,33 @@ export function AlertsPage({ api }: { api: AdminApi }) {
               </p>
               {a.recoveredAt && <p>恢复：{formatBeijingTime(a.recoveredAt)}</p>}
               <p>{a.suggestion}</p>
-              <p>{a.readAt ? `已读 · ${formatBeijingTime(a.readAt)}` : '未读'}</p>
-              {!a.readAt && api.readAlert && <Button busy={busy===a.id} disabled={!!busy} onClick={async()=>{
-                operations.current[a.id] ||= newOperationId();setBusy(a.id);setError('');
-                try{await api.readAlert!(a.id,operations.current[a.id]);retry();}catch(e){setError(e instanceof Error?e.message:'标记失败，请重试');}finally{setBusy('');}
-              }}>标为已读</Button>}
-              {error&&<p role="alert">{error}</p>}
+              <p>
+                {a.readAt ? `已读 · ${formatBeijingTime(a.readAt)}` : "未读"}
+              </p>
+              {!a.readAt && api.readAlert && (
+                <Button
+                  busy={busy === a.id}
+                  disabled={!!busy}
+                  onClick={async () => {
+                    operations.current[a.id] ||= newOperationId();
+                    setBusy(a.id);
+                    setError("");
+                    try {
+                      await api.readAlert!(a.id, operations.current[a.id]);
+                      retry();
+                    } catch (e) {
+                      setError(
+                        e instanceof Error ? e.message : "标记失败，请重试",
+                      );
+                    } finally {
+                      setBusy("");
+                    }
+                  }}
+                >
+                  标为已读
+                </Button>
+              )}
+              {error && <p role="alert">{error}</p>}
               <a href={a.actionHref}>{a.actionLabel}</a>
             </div>
           </article>
@@ -122,27 +146,68 @@ export function AlertsPage({ api }: { api: AdminApi }) {
 }
 
 export function AuditPage({ api }: { api: AdminApi }) {
+  const [keyword, setKeyword] = useState(""),
+    [page, setPage] = useState(1);
   const { state, retry } = useAsyncData(
-    () => (api.getAudit ? api.getAudit() : Promise.resolve([])),
-    [],
+    () =>
+      api.queryAudit
+        ? api.queryAudit(keyword, page)
+        : api.getAudit
+          ? api
+              .getAudit()
+              .then((items) => ({
+                items,
+                total: items.length,
+                page: 1,
+                pageSize: 200,
+              }))
+          : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 200 }),
+    [api, keyword, page],
   );
   return (
     <section className="panel">
+      {api.getBudget && <BudgetPanel api={api} />}
+      <OperationsPanel api={api} />
       <h1>运维与审计</h1>
-      <p>
-        管理控制审计只读，保留操作对象、时间和幂等编号。服务重启、备份恢复尚未开放。
-      </p>
-      <Button onClick={retry}>刷新审计</Button>
+      <p>管理控制审计只读，保留操作对象、时间和幂等编号。</p>
+      <div className="toolbar">
+        <input
+          aria-label="筛选审计"
+          maxLength={200}
+          placeholder="操作者、动作、对象或操作编号"
+          value={keyword}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Button onClick={retry}>刷新审计</Button>
+      </div>
       {state.phase === "error" && (
         <ErrorState error={state.error} onRetry={retry} />
       )}
       {state.phase === "ready" &&
-        state.data.map((a) => (
+        state.data.items.map((a) => (
           <div className="audit-row" key={a.id}>
             {formatBeijingTime(a.at)} · {a.actor} · {a.action} · {a.detail} ·{" "}
             {a.operationId}
           </div>
         ))}
+      {state.phase === "ready" && (
+        <p>
+          共 {state.data.total} 条{" "}
+          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+            上一页
+          </Button>{" "}
+          第 {page} 页{" "}
+          <Button
+            disabled={page * state.data.pageSize >= state.data.total}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            下一页
+          </Button>
+        </p>
+      )}
     </section>
   );
 }

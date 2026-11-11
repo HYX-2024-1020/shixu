@@ -195,6 +195,16 @@ const reading = {
   },
 };
 const fixture = await accountUIFixture({}, { reading });
+// Only this isolated synthetic server is observed; never log bodies or credentials.
+const requestTrace = [];
+fixture.service.server.prependListener("request", (request, response) => {
+  const entry = { method: request.method, route: new URL(request.url, "http://fixture").pathname, started: performance.now() };
+  requestTrace.push(entry);
+  response.once("finish", () => {
+    entry.status = response.statusCode;
+    entry.ms = Math.round(performance.now() - entry.started);
+  });
+});
 registerSyntheticTenantWriter(fixture.service,fixture.root);
 ledger.grantInitial(fixture.invitation.userId);
 const remote = process.env.SHIXU_SYNTHETIC_REMOTE_ORIGIN;
@@ -605,6 +615,11 @@ scenario: try {
       }),
     );
   }
+} catch (error) {
+  console.error(JSON.stringify({synthetic:true,stage:"native-task-failure",calls,
+    requests:requestTrace.slice(-24).map(({started,...entry})=>({...entry,...(!entry.status?{pendingMs:Math.round(performance.now()-started)}:{})})),
+    queue:fixture.service.readingRoutes.snapshot()}));
+  throw error;
 } finally {
   await app?.close();
   await fixture.close();

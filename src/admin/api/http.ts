@@ -48,16 +48,35 @@ export function createHttpApi(): AdminApi {
       });
       if (response.status === 401 && path !== "/login") {
         if (revision !== sessionRevision)
-          throw new AdminApiError({ error: "请求所属会话已变化", code: "STALE_SESSION", retryable: false }, 401);
+          throw new AdminApiError(
+            {
+              error: "请求所属会话已变化",
+              code: "STALE_SESSION",
+              retryable: false,
+            },
+            401,
+          );
         csrfToken = "";
         throw AdminApiError.sessionExpired();
       }
       if (!response.ok) {
-        let body = { error: "服务异常", code: "INTERNAL", retryable: response.status >= 500 };
+        let body = {
+          error: "服务异常",
+          code: "INTERNAL",
+          retryable: response.status >= 500,
+        };
         try {
           const value = await response.json();
-          if (typeof value.error === "string" && typeof value.code === "string" && typeof value.retryable === "boolean")
-            body = { error: value.error, code: value.code, retryable: value.retryable };
+          if (
+            typeof value.error === "string" &&
+            typeof value.code === "string" &&
+            typeof value.retryable === "boolean"
+          )
+            body = {
+              error: value.error,
+              code: value.code,
+              retryable: value.retryable,
+            };
         } catch {
           if (controller.signal.aborted) throw AdminApiError.timeout();
         }
@@ -65,7 +84,7 @@ export function createHttpApi(): AdminApi {
       }
       if (response.status === 204) return undefined as T;
       try {
-        return await response.json() as T;
+        return (await response.json()) as T;
       } catch {
         if (controller.signal.aborted) throw AdminApiError.timeout();
         throw invalidResponse();
@@ -86,14 +105,52 @@ export function createHttpApi(): AdminApi {
   });
 
   return {
-    getAlerts: () => request('/alerts'),
-    readAlert: (id,operationId) => post(`/alerts/${encodeURIComponent(id)}/read`,{},operationId) as Promise<import('./types').AlertItem>,
-    getAudit: () => request('/audit'),
-    setSitePaused: (paused, operationId) => post(`/site/${paused?'ai-pause':'ai-resume'}`, {}, operationId) as Promise<{paused:boolean;safetyPaused:boolean}>,
+    queryAudit: (keyword, page) =>
+      request(
+        `/audit/search?${new URLSearchParams({ keyword, page: String(page) })}`,
+      ),
+    setAccountEnabled: (id, enabled, reason, operationId) =>
+      post(
+        `/users/${encodeURIComponent(id)}/enabled`,
+        { enabled, reason },
+        operationId,
+      ) as Promise<AdminUserDetail>,
+    extendTaskLimit: (id, value, operationId) =>
+      post(
+        `/tasks/${encodeURIComponent(id)}/execution-limit`,
+        value,
+        operationId,
+      ),
+    getStorage: () => request("/storage"),
+    getOperations: () => request("/operations"),
+    requestOperation: (kind, args, operationId) =>
+      post("/operations", { kind, args }, operationId) as Promise<
+        import("./client").CloudJob
+      >,
+    getBudget: () => request("/budget"),
+    changeBudget: (value, operationId) =>
+      post("/budget", value, operationId) as Promise<import("./client").Budget>,
+    getAlerts: () => request("/alerts"),
+    readAlert: (id, operationId) =>
+      post(
+        `/alerts/${encodeURIComponent(id)}/read`,
+        {},
+        operationId,
+      ) as Promise<import("./types").AlertItem>,
+    getAudit: () => request("/audit"),
+    setSitePaused: (paused, operationId) =>
+      post(
+        `/site/${paused ? "ai-pause" : "ai-resume"}`,
+        {},
+        operationId,
+      ) as Promise<{ paused: boolean; safetyPaused: boolean }>,
     source: "http",
     login: async (username, password) => {
       sessionRevision += 1;
-      const session = await post("/login", { username, password }) as AdminSession;
+      const session = (await post("/login", {
+        username,
+        password,
+      })) as AdminSession;
       if (!session) throw invalidResponse();
       rememberSession(session);
       return session;
@@ -120,7 +177,11 @@ export function createHttpApi(): AdminApi {
     },
     getUserDetail: (id: string) => request<AdminUserDetail>(`/users/${encodeURIComponent(id)}`),
     topupQuota: (userId, amountMicro, note, operationId) =>
-      post(`/users/${encodeURIComponent(userId)}/topup`, { amountMicro, note }, operationId) as Promise<TopupResult>,
+      post(
+        `/users/${encodeURIComponent(userId)}/topup`,
+        { amountMicro, note },
+        operationId,
+      ) as Promise<TopupResult>,
     setAiPaused: (userId, paused, operationId, reason) =>
       post(
         `/users/${encodeURIComponent(userId)}/${paused ? "ai-pause" : "ai-resume"}`,
@@ -134,7 +195,11 @@ export function createHttpApi(): AdminApi {
         operationId,
       ) as Promise<AdminUserDetail>,
     resetPassword: (userId, operationId) =>
-      post(`/users/${encodeURIComponent(userId)}/password-reset`, {}, operationId) as Promise<PasswordResetResult>,
+      post(
+        `/users/${encodeURIComponent(userId)}/password-reset`,
+        {},
+        operationId,
+      ) as Promise<PasswordResetResult>,
     listTasks: (query: TaskListQuery) => {
       const params = new URLSearchParams();
       if (query.keyword) params.set("keyword", query.keyword);
@@ -143,7 +208,16 @@ export function createHttpApi(): AdminApi {
       params.set("pageSize", String(query.pageSize));
       return request<TaskListResult>(`/tasks?${params.toString()}`);
     },
-    runTaskAction: (taskId, action, operationId) =>
-      post(`/tasks/${encodeURIComponent(taskId)}/actions`, { action }, operationId) as Promise<void>,
+    runTaskAction: (taskId, action, operationId, review) =>
+      post(
+        `/tasks/${encodeURIComponent(taskId)}/actions`,
+        {
+          action,
+          generation: review?.generation,
+          revision: review?.revision,
+          maintenanceOperation: review?.maintenanceOperation ?? null,
+        },
+        operationId,
+      ) as Promise<void>,
   };
 }

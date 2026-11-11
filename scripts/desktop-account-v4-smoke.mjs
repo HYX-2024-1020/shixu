@@ -47,8 +47,9 @@ try {
     page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
   ).toBeEnabled();
   await page.locator(".bucket-settings").click();
+  await page.getByRole("button", { name: "首次注册", exact: true }).click();
   await page.getByLabel("账号名称", { exact: true }).fill("ui-tester");
-  await page.getByLabel("登录密码", { exact: true }).fill("synthetic-password");
+  await page.getByLabel("注册密码", { exact: true }).fill("synthetic-password");
   await page
     .getByLabel("注册邀请码", { exact: true })
     .fill(fixture.invitation.invite);
@@ -62,7 +63,7 @@ try {
   await expect(
     page.getByRole("heading", { name: "设备与密码", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("登录密码", { exact: true }).fill("synthetic-password");
+  await page.getByLabel("当前密码", { exact: true }).fill("synthetic-password");
   await page
     .getByLabel("新密码", { exact: true })
     .fill("new-synthetic-password");

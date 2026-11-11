@@ -23,10 +23,21 @@ export const TENANT_SYNC_SCHEMA = [
   { version: 2, sql: "" },
   { version: 3, sql: "" },
   { version: 4, sql: "" },
-  { version: 5, sql: `${["INSERT", "UPDATE", "DELETE"].map(action =>
-    `CREATE TRIGGER tenant_safety_records_${action.toLowerCase()} BEFORE ${action} ON sync_records WHEN EXISTS(SELECT 1 FROM sync_meta WHERE key='tenant_safety') AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`).join('\n')}
-    ${["INSERT", "UPDATE", "DELETE"].map(action =>
-    `CREATE TRIGGER tenant_safety_meta_${action.toLowerCase()} BEFORE ${action} ON sync_meta WHEN ${action === 'INSERT' ? 'NEW' : 'OLD'}.key='tenant_safety' AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`).join('\n')}` },
+  {
+    version: 5,
+    sql: `${["INSERT", "UPDATE", "DELETE"]
+      .map(
+        (action) =>
+          `CREATE TRIGGER tenant_safety_records_${action.toLowerCase()} BEFORE ${action} ON sync_records WHEN EXISTS(SELECT 1 FROM sync_meta WHERE key='tenant_safety') AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`,
+      )
+      .join("\n")}
+    ${["INSERT", "UPDATE", "DELETE"]
+      .map(
+        (action) =>
+          `CREATE TRIGGER tenant_safety_meta_${action.toLowerCase()} BEFORE ${action} ON sync_meta WHEN ${action === "INSERT" ? "NEW" : "OLD"}.key='tenant_safety' AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`,
+      )
+      .join("\n")}`,
+  },
 ];
 export const TENANT_ATTACHMENTS_SCHEMA = [
   {
@@ -37,8 +48,15 @@ export const TENANT_ATTACHMENTS_SCHEMA = [
   },
   { version: 2, sql: "" },
 ];
-const safetyGuards = (tables) => tables.flatMap(table => ["INSERT", "UPDATE", "DELETE"].map(action =>
-  `CREATE TRIGGER safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`)).join("\n");
+const safetyGuards = (tables) =>
+  tables
+    .flatMap((table) =>
+      ["INSERT", "UPDATE", "DELETE"].map(
+        (action) =>
+          `CREATE TRIGGER safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`,
+      ),
+    )
+    .join("\n");
 export const ACCOUNTS_CORE_SCHEMA = [
   {
     version: 1,
@@ -58,8 +76,11 @@ export const ACCOUNTS_CORE_SCHEMA = [
   { version: 2, sql: "" },
   { version: 3, sql: "" },
   { version: 4, sql: "" },
-  { version: 5, sql: `CREATE TABLE account_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
-${safetyGuards(["accounts", "bindings", "account_safety_checkpoint"])}` },
+  {
+    version: 5,
+    sql: `CREATE TABLE account_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+${safetyGuards(["accounts", "bindings", "account_safety_checkpoint"])}`,
+  },
 ];
 export const ACCOUNTS_AUTH_SCHEMA = [
   {
@@ -76,29 +97,56 @@ export const ACCOUNTS_AUTH_SCHEMA = [
         CREATE TABLE IF NOT EXISTS account_grant_intents(account TEXT PRIMARY KEY REFERENCES accounts(id),operation TEXT UNIQUE NOT NULL);`,
   },
   { version: 2, sql: "" },
-  { version: 3, sql: `${safetyGuards(["account_credentials", "account_grant_intents", "account_v4_events"])}
-${["INSERT", "UPDATE OF binding,user_id,kind,slot", "DELETE"].map((action,i) =>
-  `CREATE TRIGGER safety_slots_${i} BEFORE ${action} ON account_device_slots WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`).join("\n")}` },
+  {
+    version: 3,
+    sql: `${safetyGuards(["account_credentials", "account_grant_intents", "account_v4_events"])}
+${["INSERT", "UPDATE OF binding,user_id,kind,slot", "DELETE"]
+  .map(
+    (action, i) =>
+      `CREATE TRIGGER safety_slots_${i} BEFORE ${action} ON account_device_slots WHEN EXISTS(SELECT 1 FROM account_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'ACCOUNT_SAFETY_WRITER_REQUIRED'); END;`,
+  )
+  .join("\n")}`,
+  },
 ];
 export const LEDGER_ACCOUNT_SAFETY_SCHEMA = [{ version: 1, sql: `
 CREATE TABLE account_safety_intents(seq INTEGER PRIMARY KEY,token TEXT UNIQUE NOT NULL,previous TEXT NOT NULL,state_hash TEXT NOT NULL,at INTEGER NOT NULL);
 CREATE TABLE account_safety_decisions(token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),decision TEXT NOT NULL CHECK(decision IN ('committed','aborted')));
-${["account_safety_intents", "account_safety_decisions"].flatMap(table => ["UPDATE", "DELETE"].map(action =>
-  `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`)).join("\n")}
-` }, { version: 2, sql: `
+${["account_safety_intents", "account_safety_decisions"]
+  .flatMap((table) =>
+    ["UPDATE", "DELETE"].map(
+      (action) =>
+        `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`,
+    ),
+  )
+  .join("\n")}
+`,
+  },
+  {
+    version: 2,
+    sql: `
 CREATE TABLE account_safety_revocations(token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),
   event_seq INTEGER NOT NULL,operation TEXT NOT NULL,account TEXT NOT NULL,binding TEXT NOT NULL,
   at INTEGER NOT NULL);
-${["UPDATE", "DELETE"].map(action =>
-  `CREATE TRIGGER account_safety_revocations_no_${action.toLowerCase()} BEFORE ${action} ON account_safety_revocations BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`).join("\n")}
-` }, { version: 3, sql: `
+${["UPDATE", "DELETE"]
+  .map(
+    (action) =>
+      `CREATE TRIGGER account_safety_revocations_no_${action.toLowerCase()} BEFORE ${action} ON account_safety_revocations BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;`,
+  )
+  .join("\n")}
+`,
+  },
+  {
+    version: 3,
+    sql: `
 CREATE TABLE account_safety_restrictions(
   token TEXT PRIMARY KEY REFERENCES account_safety_intents(token),
   account TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('disable','revoke-windows','revoke-wechat'))
 );
 CREATE TRIGGER account_safety_restrictions_no_update BEFORE UPDATE ON account_safety_restrictions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 CREATE TRIGGER account_safety_restrictions_no_delete BEFORE DELETE ON account_safety_restrictions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
-` }];
+`,
+  },
+];
 export const TENANT_ORIGINALS_SCHEMA = [
   {
     version: 1,
@@ -110,17 +158,34 @@ export const TENANT_ORIGINALS_SCHEMA = [
       CREATE TABLE IF NOT EXISTS original_trash(packet TEXT PRIMARY KEY,cleanup INTEGER NOT NULL);`,
   },
   { version: 2, sql: "" },
-  { version: 3, sql: `CREATE TABLE original_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
-${["original_files", "original_trash", "original_safety_checkpoint"].flatMap(table => ["INSERT", "UPDATE", "DELETE"].map(action =>
-  `CREATE TRIGGER tenant_safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM original_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`)).join('\n')}` },
+  {
+    version: 3,
+    sql: `CREATE TABLE original_safety_checkpoint(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+${["original_files", "original_trash", "original_safety_checkpoint"]
+  .flatMap((table) =>
+    ["INSERT", "UPDATE", "DELETE"].map(
+      (action) =>
+        `CREATE TRIGGER tenant_safety_${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} WHEN EXISTS(SELECT 1 FROM original_safety_checkpoint) AND service_write_authority()!=1 BEGIN SELECT RAISE(ABORT,'TENANT_SAFETY_WRITER_REQUIRED');END;`,
+    ),
+  )
+  .join("\n")}`,
+  },
 ];
 export const LEDGER_TENANT_SAFETY_SCHEMA = [{version: 1, sql: `
 CREATE TABLE tenant_safety_intents(seq INTEGER PRIMARY KEY,account TEXT NOT NULL,token TEXT UNIQUE NOT NULL,previous TEXT NOT NULL,base_token TEXT NOT NULL,base_hash TEXT NOT NULL,state_hash TEXT NOT NULL,state TEXT NOT NULL,at INTEGER NOT NULL);
 CREATE INDEX tenant_safety_account ON tenant_safety_intents(account,seq);
 CREATE TABLE tenant_safety_decisions(token TEXT PRIMARY KEY REFERENCES tenant_safety_intents(token),decision TEXT NOT NULL CHECK(decision IN ('committed','aborted')));
-${['tenant_safety_intents','tenant_safety_decisions'].flatMap(table => ['UPDATE','DELETE'].map(action =>
-  `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`)).join('\n')}
-`}];
+${["tenant_safety_intents", "tenant_safety_decisions"]
+  .flatMap((table) =>
+    ["UPDATE", "DELETE"].map(
+      (action) =>
+        `CREATE TRIGGER ${table}_no_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`,
+    ),
+  )
+  .join("\n")}
+`,
+  },
+];
 export const LEDGER_CORE_SCHEMA = [
   {
     version: 1,
@@ -150,6 +215,12 @@ export const LEDGER_CORE_SCHEMA = [
   { version: 5, sql: "" },
   { version: 6, sql: "" },
   { version: 7, sql: "" },
+  {
+    version: 8,
+    sql: `CREATE TABLE reading_budget_changes(seq INTEGER PRIMARY KEY,operation TEXT UNIQUE NOT NULL,actor TEXT NOT NULL,daily INTEGER NOT NULL,monthly INTEGER,reason TEXT NOT NULL,fingerprint TEXT NOT NULL,at INTEGER NOT NULL);
+CREATE TRIGGER reading_budget_changes_no_update BEFORE UPDATE ON reading_budget_changes BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
+CREATE TRIGGER reading_budget_changes_no_delete BEFORE DELETE ON reading_budget_changes BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`,
+  },
 ];
 export const LEDGER_COST_SCHEMA = [
   {
@@ -229,7 +300,9 @@ CREATE TRIGGER legacy_job_disposals_no_update BEFORE UPDATE ON legacy_job_dispos
 CREATE TRIGGER legacy_job_disposals_no_delete BEFORE DELETE ON legacy_job_disposals BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
 CREATE TRIGGER legacy_source_cleanup_no_update BEFORE UPDATE ON legacy_source_cleanup BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
 CREATE TRIGGER legacy_source_cleanup_no_delete BEFORE DELETE ON legacy_source_cleanup BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
-`}];
+`,
+  },
+];
 
 export const READING_TASKS_SCHEMA = [
   {
@@ -250,6 +323,12 @@ export const READING_TASKS_SCHEMA = [
     sql: "CREATE INDEX IF NOT EXISTS reading_tasks_packet ON reading_tasks(packet);",
   },
   { version: 3, sql: "" },
+  {
+    version: 4,
+    sql: `ALTER TABLE reading_tasks ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;
+CREATE TRIGGER reading_tasks_timestamp_insert AFTER INSERT ON reading_tasks WHEN NEW.updated_at=0 BEGIN UPDATE reading_tasks SET updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id=NEW.id;END;
+CREATE TRIGGER reading_tasks_timestamp_update AFTER UPDATE OF packet,device,input_revision,base_version,generation,state,reason,coverage,calls,active_ms ON reading_tasks BEGIN UPDATE reading_tasks SET updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id=NEW.id;END;`,
+  },
 ];
 
 export const READING_ROOTS_SCHEMA = [
@@ -428,12 +507,19 @@ export const LEDGER_MERGE_SCHEMA = [
 
 export const READING_REMAINDERS_SCHEMA = [{ version: 1, sql: `
 CREATE TABLE reading_remainders(task TEXT PRIMARY KEY,parent TEXT UNIQUE NOT NULL,context TEXT NOT NULL);
-` }];
-export const LEDGER_REMAINDERS_SCHEMA = [{ version: 1, sql: `
+`,
+  },
+];
+export const LEDGER_REMAINDERS_SCHEMA = [
+  {
+    version: 1,
+    sql: `
 CREATE TABLE reading_remaining_intents(account TEXT NOT NULL,task TEXT NOT NULL,parent TEXT NOT NULL,context_hash TEXT NOT NULL,PRIMARY KEY(account,task),UNIQUE(account,parent));
 CREATE TRIGGER reading_remaining_intents_no_update BEFORE UPDATE ON reading_remaining_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_REMAINDER');END;
 CREATE TRIGGER reading_remaining_intents_no_delete BEFORE DELETE ON reading_remaining_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_REMAINDER');END;
-` }];
+`,
+  },
+];
 
 export const READING_REGISTRY_SCHEMA = [
   {
@@ -450,4 +536,20 @@ CREATE TABLE reading_legacy_usage(account TEXT NOT NULL REFERENCES reading_legac
 CREATE TABLE reading_legacy_intakes(operation TEXT PRIMARY KEY,source_hash TEXT NOT NULL,request_hash TEXT NOT NULL,actor TEXT NOT NULL,accounts INTEGER NOT NULL,usages INTEGER NOT NULL,at INTEGER NOT NULL);
 CREATE TABLE reading_legacy_work(account TEXT NOT NULL REFERENCES reading_legacy_accounts(account),task TEXT NOT NULL,generation INTEGER NOT NULL CHECK(generation>=1),operation TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(account,task,generation));
 CREATE TABLE reading_legacy_settlements(account TEXT PRIMARY KEY REFERENCES reading_legacy_accounts(account),source_hash TEXT NOT NULL,evidence_hash TEXT NOT NULL,proof_id_hash TEXT UNIQUE NOT NULL,spent INTEGER NOT NULL CHECK(spent>=0),days TEXT NOT NULL,actor TEXT NOT NULL,operation TEXT UNIQUE NOT NULL,request_hash TEXT NOT NULL,proof_hash TEXT NOT NULL,at INTEGER NOT NULL);
-`+['reading_legacy_accounts','reading_legacy_usage','reading_legacy_intakes','reading_legacy_settlements','reading_legacy_work'].flatMap(table=>['UPDATE','DELETE'].map(action=>`CREATE TRIGGER ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'IMMUTABLE_LEGACY_LEDGER');END;`)).join('')}];
+` +
+      [
+        "reading_legacy_accounts",
+        "reading_legacy_usage",
+        "reading_legacy_intakes",
+        "reading_legacy_settlements",
+        "reading_legacy_work",
+      ]
+        .flatMap((table) =>
+          ["UPDATE", "DELETE"].map(
+            (action) =>
+              `CREATE TRIGGER ${table}_${action.toLowerCase()} BEFORE ${action} ON ${table} BEGIN SELECT RAISE(ABORT,'IMMUTABLE_LEGACY_LEDGER');END;`,
+          ),
+        )
+        .join(""),
+  },
+];

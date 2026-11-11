@@ -7,7 +7,10 @@ import { PDF_RESOURCE_CATALOG } from "../server/reading/pdf-resource-catalog.mjs
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
-  "server/admin-service.mjs", "server/admin-backend.mjs",
+  "server/admin-service.mjs",
+  "server/admin-backend.mjs",
+  "server/cloud-operations.mjs",
+  "server/cloud-backup.mjs",
   "server/reading/price-calendar.mjs",
   "server/reading-runtime.mjs", "server/account-safety.mjs", "server/tenant-safety.mjs", "server/reading/deepseek.mjs", "server/reading/broker-service.mjs", "server/reading/linux-broker.mjs", "server/reading/worker.mjs",
   "shared/reading-view.mjs", "shared/bucket-engine.mjs", "shared/deadline-date.mjs", "shared/deadline-time.mjs", "shared/deadlines.mjs", "shared/usage.mjs",
@@ -42,19 +45,77 @@ const hash = (data) => createHash("sha256").update(data).digest("hex");
 // Explicit file allowlist keeps personal profiles, .env, SSH keys and the
 // independently evolving desktop/miniprogram builds out of the server release.
 export async function buildRelease(output) {
-  const native="server/reading/generated-native/";
-  const visual="server/reading/generated-pdf-visual/"+process.platform+"-"+process.arch+"/";
-  const releaseFiles=[...files,...["manifest.json","canvas.cjs","skia.node",...(process.platform==="win32"?["icudtl.dat"]:[]),"sbom.cdx.json","canvas.LICENSE","pdf.LICENSE","third-party.LICENSE","api.mjs","core.mjs","source/build-reading-pdf-visual.mjs","source/build-pdf-resources.mjs","source/patch-pdf-fonts.mjs","source/patch-pdf-compat.mjs","source/pdf-number.mjs",...Object.keys(PDF_RESOURCE_CATALOG.files).map(n=>"resources/"+n),"source/cssparser-0.38.0.crate","source/cssparser-macros-0.7.0.crate","source/dtoa-short-0.3.5.crate","source/selectors-0.41.0.crate","source/provenance.json","source/upstream-notices.json","source/canvas-1.0.13.tgz","source/canvas-"+(process.platform==="win32"?"win32-x64-msvc":"linux-x64-gnu")+"-1.0.13.tgz"].map(f=>visual+f),...["manifest.json","License.txt","source/7z2605-src.tar.xz","source/build-reading-archive.mjs",
-    "reading-7zz"+(process.platform === "win32"?".exe":"")].map(f=>native+f),
-    ...["manifest.json","COPYING","PATENTS","AUTHORS","source/libwebp-1.6.0.tar.gz","source/build-reading-webp.mjs","source/patch-reading-webp.mjs","source/webp-reader.c",
-      "reading-webp"+(process.platform==="win32"?".exe":"")].map(f=>"server/reading/generated-webp/"+f)];
-  const content = await Promise.all(releaseFiles.map(async (file) => [file, await readFile(join(root, file))]));
-  const checksums = content.map(([file, data]) => `${hash(data)}  ${file}`).join("\n") + "\n";
+  const native = "server/reading/generated-native/";
+  const visual =
+    "server/reading/generated-pdf-visual/" +
+    process.platform +
+    "-" +
+    process.arch +
+    "/";
+  const releaseFiles = [
+    ...files,
+    ...[
+      "manifest.json",
+      "canvas.cjs",
+      "skia.node",
+      ...(process.platform === "win32" ? ["icudtl.dat"] : []),
+      "sbom.cdx.json",
+      "canvas.LICENSE",
+      "pdf.LICENSE",
+      "third-party.LICENSE",
+      "api.mjs",
+      "core.mjs",
+      "source/build-reading-pdf-visual.mjs",
+      "source/build-pdf-resources.mjs",
+      "source/patch-pdf-fonts.mjs",
+      "source/patch-pdf-compat.mjs",
+      "source/pdf-number.mjs",
+      ...Object.keys(PDF_RESOURCE_CATALOG.files).map((n) => "resources/" + n),
+      "source/cssparser-0.38.0.crate",
+      "source/cssparser-macros-0.7.0.crate",
+      "source/dtoa-short-0.3.5.crate",
+      "source/selectors-0.41.0.crate",
+      "source/provenance.json",
+      "source/upstream-notices.json",
+      "source/canvas-1.0.13.tgz",
+      "source/canvas-" +
+        (process.platform === "win32" ? "win32-x64-msvc" : "linux-x64-gnu") +
+        "-1.0.13.tgz",
+    ].map((f) => visual + f),
+    ...[
+      "manifest.json",
+      "License.txt",
+      "source/7z2605-src.tar.xz",
+      "source/build-reading-archive.mjs",
+      "reading-7zz" + (process.platform === "win32" ? ".exe" : ""),
+    ].map((f) => native + f),
+    ...[
+      "manifest.json",
+      "COPYING",
+      "PATENTS",
+      "AUTHORS",
+      "source/libwebp-1.6.0.tar.gz",
+      "source/build-reading-webp.mjs",
+      "source/patch-reading-webp.mjs",
+      "source/webp-reader.c",
+      "reading-webp" + (process.platform === "win32" ? ".exe" : ""),
+    ].map((f) => "server/reading/generated-webp/" + f),
+  ];
+  const content = await Promise.all(
+    releaseFiles.map(async (file) => [file, await readFile(join(root, file))]),
+  );
+  const checksums =
+    content.map(([file, data]) => `${hash(data)}  ${file}`).join("\n") + "\n";
   const fingerprint = hash(checksums);
   const releaseId = `sync-${new Date().toISOString().replace(/\D/g, "")}-${fingerprint.slice(0, 12)}`;
   const destination = resolve(output || join(root, "release", releaseId));
   let revision = null;
-  try { revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(); } catch {}
+  try {
+    revision = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+  } catch {}
   // A fresh folder is mandatory; stale files must never enter a release.
   await mkdir(dirname(destination), { recursive: true });
   await mkdir(destination);
@@ -63,16 +124,37 @@ export async function buildRelease(output) {
     await writeFile(join(destination, file), data, { flag: "wx" });
     if (file === native+"reading-7zz" || file === "server/reading/generated-webp/reading-webp") await chmod(join(destination,file),0o755);
   }
-  const manifest = JSON.stringify({
-    releaseId, createdAt: new Date().toISOString(), sourceRevision: revision,
-    sourceFingerprint: fingerprint, source: "working-tree-snapshot", nodeMajor: 24,
-    application: "shixu-sync", protocolVersion: 2, schemaVersion: 1,
-    supportedProtocols: [2, 3, 4], accountEntry: "server/sync-multi-user.mjs",
-    readingEntry: "server/reading-runtime.mjs", readingOptIn: true,
-    stage: "private-text-sync", files:releaseFiles,
-  }, null, 2) + "\n";
+  const manifest =
+    JSON.stringify(
+      {
+        version: JSON.parse(await readFile(join(root, "package.json"), "utf8"))
+          .version,
+        ledgerCoreVersion: 8,
+        releaseId,
+        createdAt: new Date().toISOString(),
+        sourceRevision: revision,
+        sourceFingerprint: fingerprint,
+        source: "working-tree-snapshot",
+        nodeMajor: 24,
+        application: "shixu-sync",
+        protocolVersion: 2,
+        schemaVersion: 1,
+        supportedProtocols: [2, 3, 4],
+        accountEntry: "server/sync-multi-user.mjs",
+        readingEntry: "server/reading-runtime.mjs",
+        readingOptIn: true,
+        stage: "private-text-sync",
+        files: releaseFiles,
+      },
+      null,
+      2,
+    ) + "\n";
   await writeFile(join(destination, "release.json"), manifest, { flag: "wx" });
-  await writeFile(join(destination, "SHA256SUMS"), checksums + `${hash(manifest)}  release.json\n`, { flag: "wx" });
+  await writeFile(
+    join(destination, "SHA256SUMS"),
+    checksums + `${hash(manifest)}  release.json\n`,
+    { flag: "wx" },
+  );
   return { directory: destination, releaseId, fingerprint };
 }
 

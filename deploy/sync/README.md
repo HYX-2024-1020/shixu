@@ -79,3 +79,7 @@ sudo node /opt/shixu-sync/current/deploy/sync/backup.mjs /var/lib/shixu-sync/wor
 - 正式使用前增加定时备份、异机副本、容量监控与恢复验收。
 
 不把“SSH 已连接”“服务已运行”视为电脑或手机已同步；各阶段分别记录证据。
+
+## v4 统一控制台完整运维接线
+
+0.3.25候选的受限维护执行器、一致备份/安全恢复、预算和审计语义见[运维接线](../../docs/e-admin-ui/operations.md)；实际部署及验收状态见[完整成品交付](../../docs/project-continuity/product-delivery-20261111.md)。不要用旧v3备份工具或源码构建成功冒充完整v4生产备份交付。

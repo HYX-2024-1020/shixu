@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AdminApiError, createAdminApi, getSyntheticControls, type AdminApi } from "./api";
+import {
+  AdminApiError,
+  createAdminApi,
+  getSyntheticControls,
+  type AdminApi,
+} from "./api";
 import { formatBeijingTime } from "./format";
 import { LoginPage } from "./LoginPage";
 import { OverviewPage } from "./OverviewPage";
 import { UsersPage } from "./UsersPage";
 import { AlertsPage, AuditPage } from "./RuntimePages";
+import { TasksPage } from "./ManagementPages";
+import { StoragePage } from "./OperationsPages";
 import { Button, ToastProvider } from "./ui";
 
 type Route = "overview" | "users" | "tasks" | "storage" | "ops" | "alerts";
@@ -12,8 +19,8 @@ type Route = "overview" | "users" | "tasks" | "storage" | "ops" | "alerts";
 const NAV: Array<{ route: Route; label: string; ready: boolean }> = [
   { route: "overview", label: "服务总览", ready: true },
   { route: "users", label: "用户管理", ready: true },
-  { route: "tasks", label: "任务管理", ready: false },
-  { route: "storage", label: "存储与备份", ready: false },
+  { route: "tasks", label: "任务管理", ready: true },
+  { route: "storage", label: "存储与备份", ready: true },
   { route: "ops", label: "运维与审计", ready: true },
   { route: "alerts", label: "告警中心", ready: true },
 ];
@@ -80,20 +87,34 @@ function DemoConsole() {
 
 export function AdminApp() {
   const api: AdminApi = useMemo(() => createAdminApi(), []);
-  const [session, setSession] = useState<{ username: string; expiresAt: string } | null>(null);
+  const [session, setSession] = useState<{
+    username: string;
+    expiresAt: string;
+  } | null>(null);
   const [booting, setBooting] = useState(true);
   const [route, setRoute] = useState<Route>(routeFromHash());
   const [expiredNotice, setExpiredNotice] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [alertCount,setAlertCount]=useState<number|null>(null);
-  useEffect(()=>{
-    if(!session||!api.getAlerts)return;
-    let active=true;
-    const poll=()=>api.getAlerts!().then(rows=>{if(active)setAlertCount(rows.filter(a=>!a.recoveredAt).length);}).catch(()=>{if(active)setAlertCount(null);});
-    void poll();const timer=setInterval(()=>void poll(),15_000);
-    return ()=>{active=false;clearInterval(timer);};
-  },[api,session]);
+  const [alertCount, setAlertCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!session || !api.getAlerts) return;
+    let active = true;
+    const poll = () =>
+      api.getAlerts!()
+        .then((rows) => {
+          if (active) setAlertCount(rows.filter((a) => !a.recoveredAt).length);
+        })
+        .catch(() => {
+          if (active) setAlertCount(null);
+        });
+    void poll();
+    const timer = setInterval(() => void poll(), 15_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [api, session]);
 
   useEffect(() => {
     let active = true;
@@ -175,7 +196,9 @@ export function AdminApp() {
             n.ready ? (
               <a key={n.route} className={`nav-item ${route === n.route ? "active" : ""}`} href={`#/${n.route}`}>
                 {n.label}
-                {n.route === "alerts" && <span className="nav-tag">{alertCount ?? "待连接"}</span>}
+                {n.route === "alerts" && (
+                  <span className="nav-tag">{alertCount ?? "待连接"}</span>
+                )}
               </a>
             ) : (
               <span key={n.route} className="nav-item disabled" title="下一批交付">
@@ -193,7 +216,9 @@ export function AdminApp() {
           <header className="topbar">
             <span className="crumb">{activeNav.label}</span>
             <span className="spacer" />
-            {api.source === "synthetic" && <span className="demo-badge">演示数据 · 未连接后端</span>}
+            {api.source === "synthetic" && (
+              <span className="demo-badge">演示数据 · 未连接后端</span>
+            )}
             <BeijingClock />
             <span className="sub" style={{ margin: 0 }}>
               {session.username}
@@ -203,12 +228,18 @@ export function AdminApp() {
             </Button>
           </header>
           <main className="content">
-            {logoutError && <p className="login-notice" role="alert">{logoutError}</p>}
+            {logoutError && (
+              <p className="login-notice" role="alert">
+                {logoutError}
+              </p>
+            )}
             {api.source === "synthetic" && <DemoConsole />}
             {route === "overview" && <OverviewPage api={api} />}
             {route === "users" && <UsersPage api={api} />}
             {route === "alerts" && <AlertsPage api={api} />}
             {route === "ops" && <AuditPage api={api} />}
+            {route === "tasks" && <TasksPage api={api} />}
+            {route === "storage" && <StoragePage api={api} />}
             {!activeNav.ready && (
               <section className="panel">
                 <h1>{activeNav.label}</h1>

@@ -10,9 +10,15 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
-  READING_TASK_FAILED: "处理结果未通过核对，资料与累计费用保留；不会自动重试，主动继续可能再次计费",
-  NO_READABLE_MATERIAL: "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
+  MAINTENANCE: "服务器维护中，进度与费用保留；维护完成后请主动继续",
+  SITE_MONTH_BUDGET:
+    "全站月预算不足，进度保留；维护者调整预算或下月恢复后请主动继续",
+  READING_TASK_FAILED:
+    "处理结果未通过核对，资料与累计费用保留；不会自动重试，主动继续可能再次计费",
+  NO_READABLE_MATERIAL:
+    "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
   ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
+  ACCOUNT_DISABLED: "账号已停用，任务与费用保留；恢复账号及设备授权后请主动继续",
   RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
   ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
   ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
@@ -134,27 +140,75 @@ export function createReadingRoutes({
     inflight.set(key, pending);
   }
   const view = (e, t, roots) => {
-    const info=e.chat.publicInfo(t.id);
-    const savedRoot=roots?.get(t.packet)||e.roots.stats(t.id);
-    const root={...savedRoot,reason:savedRoot.reason||info.chatSafetyReason||""};
+    const info = e.chat.publicInfo(t.id);
+    const savedRoot = roots?.get(t.packet) || e.roots.stats(t.id);
+    const root = {
+      ...savedRoot,
+      reason: savedRoot.reason || info.chatSafetyReason || "",
+    };
     roots?.set(t.packet, root);
     const wallet=(()=>{try{return ledger.wallet(e.account);}catch{return {available:0,pausedReason:"RECONCILIATION_REQUIRED"};}})();
     const taskCostUnresolved = ledger.taskHasUnresolvedCost(e.account, t.id);
-    const auditedCostAvailable=recoverable.includes(t.state) && ["UNKNOWN_COST","SHUTDOWN_TIMEOUT",""].includes(t.reason) && e.auditedCostAvailable(t.id,root,wallet);
-    const auditedTimeAvailable=t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
-    const checkpointAudited=e.roots.safety.lastCheckpointAudit(root.id) && !t.reason && recoverable.includes(t.state);
-    const windowAudited=e.windows.safety.lastAudit(root.id)&&!t.reason&&recoverable.includes(t.state);
-    const displayReason=root.reason || (wallet.pausedReason==="LEDGER_PAUSED" ? "LEDGER_PAUSED" : windowAudited ? "WINDOW_STATE_AUDITED" : checkpointAudited ? "CHECKPOINT_AUDITED" : auditedTimeAvailable ? "EXECUTION_LIMIT_AUDITED" : auditedCostAvailable ? "COST_RECONCILIATION_AUDITED" : (e.roots.safety.lastTimeAudit(root.id) && !t.reason && recoverable.includes(t.state) ? "ACTIVE_TIME_AUDITED" : t.reason));
+    const auditedCostAvailable =
+      recoverable.includes(t.state) &&
+      ["UNKNOWN_COST", "SHUTDOWN_TIMEOUT", ""].includes(t.reason) &&
+      e.auditedCostAvailable(t.id, root, wallet);
+    const auditedTimeAvailable =
+      t.reason === "EXECUTION_LIMIT" && e.auditedTimeAvailable(t.id);
+    const checkpointAudited =
+      e.roots.safety.lastCheckpointAudit(root.id) &&
+      !t.reason &&
+      recoverable.includes(t.state);
+    const windowAudited =
+      e.windows.safety.lastAudit(root.id) &&
+      !t.reason &&
+      recoverable.includes(t.state);
+    const displayReason =
+      root.reason ||
+      (wallet.pausedReason === "LEDGER_PAUSED"
+        ? "LEDGER_PAUSED"
+        : windowAudited
+          ? "WINDOW_STATE_AUDITED"
+          : checkpointAudited
+            ? "CHECKPOINT_AUDITED"
+            : auditedTimeAvailable
+              ? "EXECUTION_LIMIT_AUDITED"
+              : auditedCostAvailable
+                ? "COST_RECONCILIATION_AUDITED"
+                : e.roots.safety.lastTimeAudit(root.id) &&
+                    !t.reason &&
+                    recoverable.includes(t.state)
+                  ? "ACTIVE_TIME_AUDITED"
+                  : t.reason);
     return {
       contractVersion: 1,
       ...info,
       id: t.id,
       packetId: t.packet,
       state: t.state,
-      phase: info.kind!=="chat" && (e.association.active(t.id)||["ASSOCIATION_INPUT_CHANGED","ASSOCIATION_CONTEXT_LIMIT"].includes(t.reason)) ? "associating" : info.kind!=="chat" && e.visual.active(t.id) ? "verifying" : info.kind!=="chat" && e.merge.active(t.id) ? "merging" : "reading",
-      completedVisualBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_visual_results WHERE task=?").get(t.id).n,
-      completedAssociationBatches:e.db.prepare("SELECT COUNT(*) n FROM reading_association_results WHERE task=?").get(t.id).n,
-      completedMergeBatches: e.db.prepare("SELECT COUNT(*) n FROM reading_merge_results WHERE task=?").get(t.id).n,
+      phase:
+        info.kind !== "chat" &&
+        (e.association.active(t.id) ||
+          ["ASSOCIATION_INPUT_CHANGED", "ASSOCIATION_CONTEXT_LIMIT"].includes(
+            t.reason,
+          ))
+          ? "associating"
+          : info.kind !== "chat" && e.visual.active(t.id)
+            ? "verifying"
+            : info.kind !== "chat" && e.merge.active(t.id)
+              ? "merging"
+              : "reading",
+      completedVisualBatches: e.db
+        .prepare("SELECT COUNT(*) n FROM reading_visual_results WHERE task=?")
+        .get(t.id).n,
+      completedAssociationBatches: e.db
+        .prepare(
+          "SELECT COUNT(*) n FROM reading_association_results WHERE task=?",
+        )
+        .get(t.id).n,
+      completedMergeBatches: e.db
+        .prepare("SELECT COUNT(*) n FROM reading_merge_results WHERE task=?")
+        .get(t.id).n,
       generation: t.generation,
       maintenanceOperation: e.maintenanceOperation(t.id),
       inputRevision: t.input_revision,
@@ -196,9 +250,10 @@ export function createReadingRoutes({
               ].includes(root.reason)
                 ? ["continue"]
                 : []),
-              ...(root.reason!=="WINDOW_STATE_RECONCILIATION" && info.kind!=="chat" && e.visual.publishable(t) && ["paused", "interrupted", "error", "conflict"].includes(
-                t.state,
-              )
+              ...(root.reason !== "WINDOW_STATE_RECONCILIATION" &&
+              info.kind !== "chat" &&
+              e.visual.publishable(t) &&
+              ["paused", "interrupted", "error", "conflict"].includes(t.state)
                 ? ["accept-partial"]
                 : []),
               "purge",
@@ -207,18 +262,30 @@ export function createReadingRoutes({
         attachmentId: c.attachmentId,
         name: c.name,
         state: c.state,
-        archivePdfPages:c.archivePdfPages,
-        archiveImageTiles:c.archiveImageTiles,
-        officeImageParts:c.officeImageParts,
-        archivePdfVisualPages:c.archivePdfVisualPages,
-        pdfVisual:c.pdfVisualPagination,
-        imageTiles:c.imagePagination ? {checked:c.covered?.filter(r=>r.kind==="image").length||0,total:c.imagePagination.totalTiles}:undefined,
+        archivePdfPages: c.archivePdfPages,
+        archiveImageTiles: c.archiveImageTiles,
+        officeImageParts: c.officeImageParts,
+        archivePdfVisualPages: c.archivePdfVisualPages,
+        pdfVisual: c.pdfVisualPagination,
+        imageTiles: c.imagePagination
+          ? {
+              checked: c.covered?.filter((r) => r.kind === "image").length || 0,
+              total: c.imagePagination.totalTiles,
+            }
+          : undefined,
         readRanges: c.covered?.length || 0,
         unreadRanges: c.uncovered?.length || 0,
-        ...(c.pagination ? {pdfPages:{
-          checked:c.pagination.nextPage === null ? c.pagination.totalPages : c.pagination.nextPage - 1,
-          total:c.pagination.totalPages,
-        }} : {}),
+        ...(c.pagination
+          ? {
+              pdfPages: {
+                checked:
+                  c.pagination.nextPage === null
+                    ? c.pagination.totalPages
+                    : c.pagination.nextPage - 1,
+                total: c.pagination.totalPages,
+              },
+            }
+          : {}),
       })),
       completedBlocks: e.db
         .prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task=?")
@@ -239,8 +306,84 @@ export function createReadingRoutes({
       : record;
   };
   return {
-    attach(account, store) {
+    // Host-only adapter. The public dispatcher below cannot supply this authority
+    // or inspect another tenant. Never return the full user view to management.
+    adminTasks() {
+      if (closed) fail(503, "SERVICE_CLOSING");
+      return [...engines.values()].flatMap((e) =>
+        e.db
+          .prepare(
+            "SELECT * FROM reading_tasks WHERE state!='purged' ORDER BY rowid DESC",
+          )
+          .all()
+          .map((t) => {
+            const v = view(e, t);
+            return {
+              id: e.account + "~" + t.id,
+              accountId: e.account,
+              taskId: t.id,
+              status: t.state,
+              stage: v.phase,
+              stageLabel: v.phase,
+              progress: ["done", "partial"].includes(t.state) ? 100 : null,
+              errorCode: v.reason || null,
+              costMicro: v.rootSpent,
+              calls: v.rootCalls,
+              activeSeconds: v.rootActiveSeconds,
+              completedBlocks: v.completedBlocks,
+              generation: t.generation,
+              revision: t.input_revision,
+              maintenanceOperation: v.maintenanceOperation,
+              limitSeconds: Math.ceil(e.executionLimit(t.id) / 1000),
+              limitReview:
+                recoverable.includes(t.state) &&
+                v.rootActiveMs >= e.executionLimit(t.id) &&
+                !e.roots.stats(t.id).reason
+                  ? {
+                      generation: t.generation,
+                      watermark: e.roots.safety.latest(v.rootTaskId).seq,
+                    }
+                  : null,
+              actions: [
+                ...(active.includes(t.state) ? ["pause", "stop"] : []),
+                ...(v.actions.includes("continue") ? ["retry"] : []),
+              ],
+              updatedAt: t.updated_at
+                ? new Date(t.updated_at).toISOString()
+                : null,
+            };
+          }),
+      );
+    },
+    adminTaskAction(account, id, action, request) {
+      if (closed) fail(503, "SERVICE_CLOSING");
+      const e = engines.get(account),
+        task = e?.get(id);
+      if (!task) fail(404, "TASK_NOT_FOUND");
+      if (!["pause", "stop", "retry"].includes(action))
+        fail(400, "INVALID_ACTION");
+      if (action === "retry") {
+        if (!enabled()) fail(503, "AI_DISABLED");
+        ledger.dispatchGuard?.(account);
+        // Keep all normal device, cost, input, time and checkpoint gates.
+        authorize(account, task.device);
+      }
+      const result = e.action(
+        id,
+        request,
+        action === "retry" ? "continue" : action,
+        undefined,
+        true,
+      );
+      if (result.state === "queued") schedule(e, result.id);
+      return { state: result.state, generation: result.generation };
+    },
+    attach(account, store, { resume = true } = {}) {
       const e = engine(account, store);
+      if (!resume) {
+        e.db.prepare("UPDATE reading_tasks SET state='paused',reason='ACCOUNT_DISABLED' WHERE state='queued'").run();
+        return;
+      }
       for (const task of e.db
         .prepare("SELECT * FROM reading_tasks WHERE state='queued'")
         .all()) {
@@ -273,23 +416,42 @@ export function createReadingRoutes({
         authRequired: true,
         timezone: "Asia/Shanghai",
         serverTime: new Date().toISOString(),
-        materialUseNotice: materialNoticeRequired ? { version: 1,
-          text: "连接账号后资料同步至拾序服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。云端原件通常保存30天，到期后7天待清理，可下载、续期或删除；临时整理不长期保存原件，清理后继续需补传。云端删除不删除已下载的本机副本。备份恢复仍有独立验收，尚未开放；后续备份副本最长保留7天，删除不等于立即从已有备份消失。" } : null,
+        materialUseNotice: materialNoticeRequired
+          ? {
+              version: 2,
+              text: "连接账号后资料同步至拾序服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。云端原件通常保存30天，到期后7天待清理，可下载、续期或删除；临时整理不长期保存原件，清理后继续需补传。云端删除不删除已下载的本机副本。服务器每天一致性备份，最近两份成功备份各自最长保留7天；删除不等于立即从已有备份消失，恢复仍须通过费用与安全记录核对。",
+            }
+          : null,
         features: {
           readingTasks: true,
           remainingTasks: true,
           readingEnabled: enabled(),
-          formats: ["txt", "csv", "docx", "xlsx", "pdf", ...(reader.imageWindows===true && provider.imageInput===true ? ["png","apng","jpg","jpeg","gif","webp"] : [])],
-          imageTiles:reader.imageWindows===true && provider.imageInput===true,
-          officeImageAssets:reader.officeWindows===true&&provider.imageInput===true,
-          windowProgressProofs:true,
-          solid7z:reader.archiveWindows===true,
-          animatedPng:reader.imageWindows===true&&provider.imageInput===true,
-          visualFactReview:typeof provider.reviewVisual==='function',
-          historyAssociation:typeof provider.association==="function",
-          itemChat:typeof provider.chat==='function',
-          pdfPageVisual:reader.pdfVisualWindows===true && provider.imageInput===true,
-          pdfTextOnly: !(reader.pdfVisualWindows===true && provider.imageInput===true),
+          formats: [
+            "txt",
+            "csv",
+            "docx",
+            "xlsx",
+            "pdf",
+            ...(reader.imageWindows === true && provider.imageInput === true
+              ? ["png", "apng", "jpg", "jpeg", "gif", "webp"]
+              : []),
+          ],
+          imageTiles:
+            reader.imageWindows === true && provider.imageInput === true,
+          officeImageAssets:
+            reader.officeWindows === true && provider.imageInput === true,
+          windowProgressProofs: true,
+          solid7z: reader.archiveWindows === true,
+          animatedPng:
+            reader.imageWindows === true && provider.imageInput === true,
+          visualFactReview: typeof provider.reviewVisual === "function",
+          historyAssociation: typeof provider.association === "function",
+          itemChat: typeof provider.chat === "function",
+          pdfPageVisual:
+            reader.pdfVisualWindows === true && provider.imageInput === true,
+          pdfTextOnly: !(
+            reader.pdfVisualWindows === true && provider.imageInput === true
+          ),
           registration,
           originalLifecycle: true,
           originalReverification: true,
@@ -314,37 +476,74 @@ export function createReadingRoutes({
     extendExecutionLimit(account, id, request, actor) {
       const e=engines.get(account);
       if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingMaintenance(e,maintenanceAuthorize).extend(id,request,actor);
+      return new ReadingMaintenance(e, maintenanceAuthorize).extend(
+        id,
+        request,
+        actor,
+      );
     },
-    windowMaintenanceReview(account,id,actor) {
-      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
-      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).preview(id,actor);
+    windowMaintenanceReview(account, id, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyWindow,
+      ).preview(id, actor);
     },
-    windowMaintenanceRestore(account,id,rows,actor) {
-      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
-      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).restoreRows(id,rows,actor);
+    windowMaintenanceRestore(account, id, rows, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyWindow,
+      ).restoreRows(id, rows, actor);
     },
-    windowMaintenanceRestoreCoverage(account,id,coverage,actor) {
-      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
-      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).restoreCoverage(id,coverage,actor);
+    windowMaintenanceRestoreCoverage(account, id, coverage, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyWindow,
+      ).restoreCoverage(id, coverage, actor);
     },
-    windowMaintenanceResetInitial(account,id,attachment,actor) {
-      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
-      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).resetInitial(id,attachment,actor);
+    windowMaintenanceResetInitial(account, id, attachment, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyWindow,
+      ).resetInitial(id, attachment, actor);
     },
-    reconcileWindowState(account,id,request,actor) {
-      const e=engines.get(account);if(!e)throw Error("ACCOUNT_ENGINE_REQUIRED");
-      return new ReadingWindowMaintenance(e,maintenanceAuthorize,maintenanceVerifyWindow).reconcile(id,request,actor);
+    reconcileWindowState(account, id, request, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("ACCOUNT_ENGINE_REQUIRED");
+      return new ReadingWindowMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyWindow,
+      ).reconcile(id, request, actor);
     },
-    checkpointMaintenanceReview(account,id,actor) {
-      const e=engines.get(account);
-      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingCheckpointMaintenance(e,maintenanceAuthorize,maintenanceVerifyCheckpoint).preview(id,actor);
+    checkpointMaintenanceReview(account, id, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCheckpointMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyCheckpoint,
+      ).preview(id, actor);
     },
-    reconcileRootCheckpoint(account,id,request,actor) {
-      const e=engines.get(account);
-      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingCheckpointMaintenance(e,maintenanceAuthorize,maintenanceVerifyCheckpoint).reconcile(id,request,actor);
+    reconcileRootCheckpoint(account, id, request, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCheckpointMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyCheckpoint,
+      ).reconcile(id, request, actor);
     },
     timeMaintenanceReview(account, id, actor) {
       const e = engines.get(account);
@@ -364,15 +563,23 @@ export function createReadingRoutes({
         maintenanceVerifyTime,
       ).reconcile(id, request, actor);
     },
-    costMaintenanceReview(account,id,actor) {
-      const e=engines.get(account);
-      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingCostMaintenance(e,maintenanceAuthorize,maintenanceVerifyCost).preview(id,actor);
+    costMaintenanceReview(account, id, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCostMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyCost,
+      ).preview(id, actor);
     },
-    reconcileCallCost(account,id,request,actor) {
-      const e=engines.get(account);
-      if(!e)throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingCostMaintenance(e,maintenanceAuthorize,maintenanceVerifyCost).reconcile(id,request,actor);
+    reconcileCallCost(account, id, request, actor) {
+      const e = engines.get(account);
+      if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
+      return new ReadingCostMaintenance(
+        e,
+        maintenanceAuthorize,
+        maintenanceVerifyCost,
+      ).reconcile(id, request, actor);
     },
     async handle({
       account,
@@ -534,8 +741,17 @@ export function createReadingRoutes({
           id: value.id,
           packetId: value.packetId,
           deviceId: device,
-          expectedCostOperation:value.expectedCostOperation ?? null,
-          ...(value.kind==='chat' ? {chat:{itemId:value.itemId,instruction:value.instruction,baseVersion:value.baseVersion,epoch:value.epoch}} : {}),
+          expectedCostOperation: value.expectedCostOperation ?? null,
+          ...(value.kind === "chat"
+            ? {
+                chat: {
+                  itemId: value.itemId,
+                  instruction: value.instruction,
+                  baseVersion: value.baseVersion,
+                  epoch: value.epoch,
+                },
+              }
+            : {}),
         });
         if (task.state === "queued") schedule(e, task.id);
         return view(e, task);
@@ -560,11 +776,21 @@ export function createReadingRoutes({
         const wallet = ledger.wallet(account), root = e.roots.stats(task.id);
         if (wallet.pausedReason) fail(503, wallet.pausedReason);
         if (root.reason) fail(409, root.reason);
-        if (root.activeMs >= e.executionLimit(task.id)) fail(409, "EXECUTION_LIMIT");
-        const child = e.enqueue({ id: value.operationId, packetId: task.packet, deviceId: device,
-          expectedCostOperation: value.expectedCostOperation ?? null, remainingOf: task.id,
-          remainingReview: { expectedGeneration: value.expectedGeneration, expectedRevision: value.expectedRevision,
-            expectedMaintenanceOperation: value.expectedMaintenanceOperation ?? null } });
+        if (root.activeMs >= e.executionLimit(task.id))
+          fail(409, "EXECUTION_LIMIT");
+        const child = e.enqueue({
+          id: value.operationId,
+          packetId: task.packet,
+          deviceId: device,
+          expectedCostOperation: value.expectedCostOperation ?? null,
+          remainingOf: task.id,
+          remainingReview: {
+            expectedGeneration: value.expectedGeneration,
+            expectedRevision: value.expectedRevision,
+            expectedMaintenanceOperation:
+              value.expectedMaintenanceOperation ?? null,
+          },
+        });
         if (child.state === "queued") schedule(e, child.id);
         return view(e, child);
       }
@@ -594,7 +820,30 @@ export function createReadingRoutes({
       scheduler.close();
       for (const e of engines.values()) e.finalizeShutdown();
     },
-    snapshot: () => ({ ...scheduler.snapshot(), waitingUser: closed ? 0 : [...engines.values()].reduce((n,e)=>n+e.db.prepare("SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')").get().n,0),
-      failures: closed ? [] : [...engines.values()].flatMap(e=>e.db.prepare("SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason").all().map(r=>({account:e.account,...r}))) }),
+    snapshot: () => ({
+      ...scheduler.snapshot(),
+      waitingUser: closed
+        ? 0
+        : [...engines.values()].reduce(
+            (n, e) =>
+              n +
+              e.db
+                .prepare(
+                  "SELECT COUNT(*) n FROM reading_tasks WHERE state IN ('paused','interrupted','error')",
+                )
+                .get().n,
+            0,
+          ),
+      failures: closed
+        ? []
+        : [...engines.values()].flatMap((e) =>
+            e.db
+              .prepare(
+                "SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason",
+              )
+              .all()
+              .map((r) => ({ account: e.account, ...r })),
+          ),
+    }),
   };
 }

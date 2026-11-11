@@ -5,9 +5,12 @@ release=$(realpath "$1")
 [[ "$release" == /opt/shixu-cloud/releases/* ]]
 cd "$release"
 sha256sum --strict -c SHA256SUMS > /dev/null
+node --input-type=module -e 'import {readFileSync} from "node:fs";import {isSealedCloudRelease} from "./server/cloud-operations.mjs";if(!isSealedCloudRelease(JSON.parse(readFileSync("release.json","utf8"))))throw Error("UNSEALED_CLOUD_RELEASE");'
 test -f /etc/shixu-cloud/service.env
 id shixu-cloud >/dev/null 2>&1 || useradd --system --home-dir /var/lib/shixu-cloud --shell /usr/sbin/nologin shixu-cloud
 install -d -m 0700 -o shixu-cloud -g shixu-cloud /var/lib/shixu-cloud /var/lib/shixu-cloud-ledger
+install -d -m 0700 -o shixu-cloud -g shixu-cloud /var/lib/shixu-cloud-backups
+install -d -m 0750 -o root -g shixu-cloud /var/lib/shixu-cloud-authority
 chown root:shixu-cloud /etc/shixu-cloud/service.env
 chown root:shixu-cloud /etc/shixu-cloud /etc/shixu-cloud/runtime.json
 chmod 0750 /etc/shixu-cloud
@@ -42,8 +45,9 @@ Requires=shixu-cloud-reader.service
 Type=simple
 User=shixu-cloud
 Group=shixu-cloud
-WorkingDirectory=$release
-ExecStart=/usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env $release/server/reading-runtime.mjs
+WorkingDirectory=/opt/shixu-cloud/current
+Environment=SHIXU_AUTHORITY_FLOOR=/var/lib/shixu-cloud-authority/latest.json
+ExecStart=/bin/sh -c 'exec /usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env "\$(/usr/bin/readlink -f /opt/shixu-cloud/current/server/reading-runtime.mjs)"'
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=yes
@@ -59,6 +63,12 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
 systemctl enable shixu-cloud-reader shixu-cloud >/dev/null
+previous=$(readlink -f /opt/shixu-cloud/current || true)
+systemctl stop shixu-cloud-operations.timer 2>/dev/null || true
+systemctl stop shixu-cloud-operations.service 2>/dev/null || true
+systemctl stop shixu-cloud
+ln -sfn "$release" /opt/shixu-cloud/current
+node --env-file=/etc/shixu-cloud/service.env "$release/scripts/cloud-operations-worker.mjs" --seal-floor
 systemctl restart shixu-cloud-reader
 systemctl restart shixu-cloud
 for attempt in $(seq 1 20); do
@@ -68,9 +78,19 @@ for attempt in $(seq 1 20); do
     cp "$release/deploy/sync/cloud-tariff.timer" /etc/systemd/system/shixu-cloud-tariff.timer
     systemctl daemon-reload
     systemctl enable --now shixu-cloud-tariff.timer >/dev/null
+    cp "$release/deploy/sync/cloud-operations.service" /etc/systemd/system/shixu-cloud-operations.service
+    cp "$release/deploy/sync/cloud-operations.timer" /etc/systemd/system/shixu-cloud-operations.timer
+    systemctl daemon-reload
+    systemctl enable --now shixu-cloud-operations.timer >/dev/null
     echo 'cloud-ready'; exit 0
   fi
   sleep 1
 done
+if [ -n "$previous" ] && [ "$previous" != "$release" ]; then
+  # The ledger writer floor rejects incompatible old binaries. Never restore an
+  # old database or remove guards to force a rollback.
+  ln -sfn "$previous" /opt/shixu-cloud/current
+  systemctl restart shixu-cloud || true
+fi
 echo 'cloud-start-failed; inspect protected service journal' >&2
 exit 1

@@ -1,0 +1,17 @@
+[Unit]
+Description=Shixu protected application maintenance executor
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/shixu-cloud/service.env
+ExecStart=/usr/bin/env node /opt/shixu-cloud/current/scripts/cloud-operations-worker.mjs --tick
+TimeoutStartSec=330
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/shixu-cloud /var/lib/shixu-cloud-ledger /var/lib/shixu-cloud-backups /var/lib/shixu-cloud-authority /opt/shixu-cloud
