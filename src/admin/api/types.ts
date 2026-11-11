@@ -85,6 +85,10 @@ export interface BackupStatus {
 export type AlertSeverity = "critical" | "warning";
 
 export interface AlertItem {
+  title?: string;
+  technicalMessage?: string;
+  kind?: string;
+  followup?: { state: string; actor: string; note: string; at: string } | null;
   object?: string;
   firstAt?: string;
   lastAt?: string;
@@ -186,7 +190,21 @@ export type TaskStatus =
 export type TaskAction = "retry" | "pause" | "stop";
 
 export interface AdminTask {
-  diagnostic?: { id: string; at: number; taskId: string; generation: number; version: string; phase: string; code: string; calls: {id: string; state: string; reserved: number; actual: number | null}[] } | null;
+  diagnostic?: {
+    id: string;
+    at: number;
+    taskId: string;
+    generation: number;
+    version: string;
+    phase: string;
+    code: string;
+    calls: {
+      id: string;
+      state: string;
+      reserved: number;
+      actual: number | null;
+    }[];
+  } | null;
   accountId?: string;
   taskId?: string;
   generation?: number;

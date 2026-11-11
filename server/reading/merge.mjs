@@ -1,5 +1,9 @@
-import {ensureDatabaseSchema}from '../database-schema.mjs';
-import {READING_MERGE_RESULTS_SCHEMA,READING_ASSOCIATION_RESULTS_SCHEMA,LEDGER_MERGE_SCHEMA}from '../database-schemas.mjs';
+import { ensureDatabaseSchema } from "../database-schema.mjs";
+import {
+  READING_MERGE_RESULTS_SCHEMA,
+  READING_ASSOCIATION_RESULTS_SCHEMA,
+  LEDGER_MERGE_SCHEMA,
+} from "../database-schemas.mjs";
 import { applyReadingMigrations, assertReadingSchema } from "./schema.mjs";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./material.mjs";
@@ -28,6 +32,15 @@ const compatibleKinds = (items) => {
 // Models propose only equivalence/related edges. All actual content and evidence
 // is assembled from certified paid items; no rewritten facts or citations enter.
 export function validateMerge(value, items) {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length > 0 &&
+    Object.keys(value).every((k) => ["same", "related"].includes(k))
+  ) {
+    value = { same: [], related: [], ...value };
+  }
   if (!value || Object.keys(value).sort().join(",") !== "related,same")
     throw Error("INVALID_MERGE_OUTPUT");
   const ids = new Map(items.map((row) => [row.id, row.item]));
@@ -140,7 +153,13 @@ export class ReadingMerge {
     this.e = engine;
     this.db = engine.db;
     this.ledger = engine.ledger;
-    ensureDatabaseSchema(this.db,'tenant-'+namespace+'-results',namespace==='association'?READING_ASSOCIATION_RESULTS_SCHEMA:READING_MERGE_RESULTS_SCHEMA);
+    ensureDatabaseSchema(
+      this.db,
+      "tenant-" + namespace + "-results",
+      namespace === "association"
+        ? READING_ASSOCIATION_RESULTS_SCHEMA
+        : READING_MERGE_RESULTS_SCHEMA,
+    );
     const schema = `CREATE TABLE IF NOT EXISTS reading_${this.namespace}_intents(account TEXT NOT NULL,task TEXT NOT NULL,packet TEXT NOT NULL,dependency_hash TEXT NOT NULL,PRIMARY KEY(account,task));
       CREATE TABLE IF NOT EXISTS reading_${this.namespace}_proofs(account TEXT NOT NULL,task TEXT NOT NULL,fingerprint TEXT NOT NULL,call_id TEXT NOT NULL,result_hash TEXT NOT NULL,PRIMARY KEY(account,task,fingerprint));
       CREATE TRIGGER IF NOT EXISTS reading_${this.namespace}_intents_no_update BEFORE UPDATE ON reading_${this.namespace}_intents BEGIN SELECT RAISE(ABORT,'IMMUTABLE_MERGE_INTENT'); END;
@@ -152,7 +171,13 @@ export class ReadingMerge {
         { version: 1, sql: schema },
       ]);
       assertReadingSchema(this.ledger, schema);
-    } else ensureDatabaseSchema(this.ledger.db,'ledger-merge',LEDGER_MERGE_SCHEMA,{now:this.ledger.now});
+    } else
+      ensureDatabaseSchema(
+        this.ledger.db,
+        "ledger-merge",
+        LEDGER_MERGE_SCHEMA,
+        { now: this.ledger.now },
+      );
   }
   validate(value, items) {
     return validateMerge(value, items);
@@ -268,12 +293,13 @@ export class ReadingMerge {
       }
   }
   proof(task, fingerprint) {
-    const proof=this.ledger.db
+    const proof = this.ledger.db
       .prepare(
         `SELECT * FROM reading_${this.namespace}_proofs WHERE account=? AND task=? AND fingerprint=?`,
       )
       .get(this.e.account, task, fingerprint);
-    if(proof)this.ledger.receipts.assertUsable(proof.call_id);return proof;
+    if (proof) this.ledger.receipts.assertUsable(proof.call_id);
+    return proof;
   }
   certify(task, fingerprint, callId, result) {
     this.ledger.receipts.assertUsable(callId);
@@ -326,9 +352,26 @@ export class ReadingMerge {
       }
       decisions.push(this.verify(task, pair, row));
     }
+    const warning =
+      "部分合并建议与事项类型或截止时间冲突；已保留各项已核对内容，可能存在重复，请人工核对。不会为此自动重新计费。";
     try {
-      return assembleMerge(plan.items, decisions);
+      const assembled = assembleMerge(plan.items, decisions);
+      const conservative =
+        this.namespace === "merge" &&
+        this.e.diagnostics.has(task.id, "INVALID_MERGE_CONFLICT");
+      return conservative
+        ? { ...assembled, complete: false, warnings: [warning] }
+        : assembled;
     } catch (error) {
+      if (
+        this.namespace === "merge" &&
+        error.message === "INVALID_MERGE_CONFLICT"
+      )
+        return {
+          ...assembleMerge(plan.items, []),
+          complete: false,
+          warnings: [warning],
+        };
       if (partial && error.message === "INVALID_MERGE_CONFLICT")
         return assembleMerge(plan.items, []);
       throw error;
@@ -376,7 +419,10 @@ export class ReadingMerge {
           const sources = [
             {
               id: this.namespace,
-              name:this.namespace==="association"?"本次事项与已保存历史事项.json":"已校验付费事项.json",
+              name:
+                this.namespace === "association"
+                  ? "本次事项与已保存历史事项.json"
+                  : "已校验付费事项.json",
               text: JSON.stringify({
                 schema: this.version,
                 items: pair.items,
@@ -401,7 +447,7 @@ export class ReadingMerge {
             maxOutputTokens:
               prepared?.maxOutputTokens || this.e.maxOutputTokens,
           });
-          this.ledger.sent(callId,prepared?.receiptIntent);
+          this.ledger.sent(callId, prepared?.receiptIntent);
           this.db
             .prepare("UPDATE reading_tasks SET calls=calls+1 WHERE id=?")
             .run(task.id);
@@ -420,7 +466,7 @@ export class ReadingMerge {
             );
           } catch (error) {
             if (this.e.finalSnapshots) return this.e.get(task.id);
-            this.ledger.captureUnknownReceipt(callId,error?.receipt);
+            this.ledger.captureUnknownReceipt(callId, error?.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
@@ -428,19 +474,30 @@ export class ReadingMerge {
           try {
             validateUsage(response.usage);
           } catch {
-            this.ledger.captureUnknownReceipt(callId,response.receipt);
+            this.ledger.captureUnknownReceipt(callId, response.receipt);
             this.ledger.unknown(callId);
             throw Error("UNKNOWN_COST");
           }
           if (!this.e.current(task)) {
-            this.ledger.settle(callId, response.usage,response.receipt);
+            this.ledger.settle(callId, response.usage, response.receipt);
             return this.e.get(task.id);
           }
           try {
             result = this.validate(response.result, pair.items);
           } catch (error) {
-            this.ledger.settle(callId, response.usage,response.receipt);
-            throw error;
+            if (
+              this.namespace === "merge" &&
+              error.message === "INVALID_MERGE_CONFLICT"
+            ) {
+              // Reject the conflicting proposal, retain every certified input.
+              // A no-op decision cannot introduce facts, citations or dates.
+              this.ledger.settle(callId, response.usage, response.receipt);
+              this.e.diagnostics.record(task, error);
+              result = { same: [], related: [] };
+            } else {
+              this.ledger.settle(callId, response.usage, response.receipt);
+              throw error;
+            }
           }
           this.ledger.saveEnvelope(
             callId,
@@ -448,7 +505,7 @@ export class ReadingMerge {
             result,
             response.usage,
           );
-          this.ledger.settle(callId, response.usage,response.receipt);
+          this.ledger.settle(callId, response.usage, response.receipt);
         }
       }
       this.certify(task, pair.fingerprint, callId, result);

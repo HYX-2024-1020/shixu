@@ -1,5 +1,8 @@
-import {ensureDatabaseSchema}from '../database-schema.mjs';
-import {READING_CHAT_REQUESTS_SCHEMA,LEDGER_CHAT_SCHEMA}from '../database-schemas.mjs';
+import { ensureDatabaseSchema } from "../database-schema.mjs";
+import {
+  READING_CHAT_REQUESTS_SCHEMA,
+  LEDGER_CHAT_SCHEMA,
+} from "../database-schemas.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { SyncError } from "../sync-store.mjs";
 import { absoluteItem, validateChatUpdate } from "../generated/ai-core.mjs";
@@ -39,8 +42,10 @@ export class ReadingChat {
     this.db = engine.db;
     this.ledger = engine.ledger;
     this.account = engine.account;
-    ensureDatabaseSchema(this.db,'tenant-chat',READING_CHAT_REQUESTS_SCHEMA);
-    ensureDatabaseSchema(this.ledger.db,'ledger-chat',LEDGER_CHAT_SCHEMA,{now:this.ledger.now});
+    ensureDatabaseSchema(this.db, "tenant-chat", READING_CHAT_REQUESTS_SCHEMA);
+    ensureDatabaseSchema(this.ledger.db, "ledger-chat", LEDGER_CHAT_SCHEMA, {
+      now: this.ledger.now,
+    });
   }
   intent(id) {
     return this.ledger.db
@@ -64,7 +69,11 @@ export class ReadingChat {
       return {
         kind: "chat",
         itemId: request.itemId,
-        contextScope: "已保存事项与本轮指令；没有重新读取原件",
+        contextScope: request.readAttachments
+          ? "当前事项、本轮指令与附件实际读取范围；未读边界另列"
+          : request.scope === "account"
+            ? "当前账号可访问事项；跨卡片修改待用户确认"
+            : "已保存事项与本轮指令；没有重新读取原件",
       };
     } catch {
       return {
@@ -127,6 +136,8 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
+      ...(chat.scope === "account" ? { scope: "account" } : {}),
+      ...(chat.readAttachments === true ? { readAttachments: true } : {}),
       day: intent?.day || beijingDay(this.ledger.now()),
     };
     const requestHash = this.requestHash(request),
@@ -151,6 +162,8 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
+      ...(chat.scope === "account" ? { scope: "account" } : {}),
+      ...(chat.readAttachments === true ? { readAttachments: true } : {}),
     };
     return this.requestHash(request) === intent.request_hash;
   }
@@ -211,6 +224,72 @@ export class ReadingChat {
       previousNotes: meta.additions || [],
       instruction: request.instruction,
     };
+    if (request.scope === "account") {
+      const records = this.db
+        .prepare(
+          "SELECT id,version,data FROM sync_records WHERE purged=0 AND deleted_at IS NULL ORDER BY version DESC LIMIT 101",
+        )
+        .all();
+      context.relatedItems = records.slice(0, 100).flatMap((row) => {
+        const p = JSON.parse(row.data);
+        return (p.itemIds || []).flatMap((itemId, i) => {
+          const meta = p.itemState?.[itemId] || {};
+          if (
+            !p.result?.items[i] ||
+            meta.deletedAt ||
+            meta.purgedAt ||
+            (row.id === request.packetId && itemId === request.itemId)
+          )
+            return [];
+          const item = { ...p.result.items[i] };
+          for (const field of contentFields)
+            if (field in meta) item[field] = meta[field];
+          return [
+            {
+              packetId: row.id,
+              itemId,
+              baseVersion: row.version,
+              item: absoluteItem(item, p.captureDate),
+              state: {
+                status: meta.status,
+                starred: meta.starred,
+                group: meta.group,
+                pinned: meta.pinned,
+                importance: meta.importance,
+              },
+            },
+          ];
+        });
+      });
+      context.omittedPackets = records.length > 100;
+      if (context.relatedItems.length > 200) {
+        context.relatedItems = context.relatedItems.slice(0, 200);
+        context.omittedItems = true;
+      }
+      context.scope =
+        "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行";
+    }
+    if (request.readAttachments) {
+      context.originals = (packet.attachments || [])
+        .filter((f) => !f.deletedAt)
+        .map((f) => {
+          try {
+            const actual = this.engine.store.files.get(request.packetId, f.id, {
+              forReading: true,
+            });
+            return {
+              id: actual.id,
+              name: actual.name,
+              hash: actual.hash,
+              size: actual.size,
+              available: true,
+            };
+          } catch {
+            return { id: f.id, name: f.name, available: false };
+          }
+        });
+      context.scope += "；本轮明确请求核对当前卡片附件，读取覆盖另列";
+    }
     const json = JSON.stringify(context);
     if (Buffer.byteLength(json) > 512 * 1024 || [...json].length > 120000)
       fail("CHAT_CONTEXT_LIMIT");
@@ -224,13 +303,76 @@ export class ReadingChat {
         )
       : base;
   }
-  material(task) {
+  async material(task, read) {
     const request = this.request(task.id),
-      text = JSON.stringify(this.context(request)),
+      context = this.context(request),
       sourceId = task.id + "_chat";
+    const imageSegments = [];
+    if (request.readAttachments) {
+      const originals = context.originals || [];
+      context.attachmentContent = [];
+      let units = 0;
+      for (const descriptor of originals.slice(0, 8)) {
+        const entry = {
+          id: descriptor.id,
+          name: descriptor.name,
+          contentComplete: false,
+          sources: [],
+          missing: [],
+        };
+        if (!descriptor.available) entry.missing.push("ORIGINAL_UNAVAILABLE");
+        else {
+          const file = this.engine.store.files.get(
+            request.packetId,
+            descriptor.id,
+            { forReading: true },
+          );
+          const material = await read(file);
+          entry.missing = (material.uncovered || []).map(
+            (r) => r.code || "UNREAD_RANGE",
+          );
+          for (const segment of material.segments || []) {
+            if (segment.image) {
+              if (
+                this.engine.provider.imageInput === true &&
+                imageSegments.length < 2
+              ) {
+                imageSegments.push(segment);
+                entry.sources.push({
+                  id: segment.sourceId,
+                  range: segment.range,
+                  imageProvided: true,
+                });
+                entry.missing.push("VISUAL_CONTENT_REQUIRES_USER_CHECK");
+              } else entry.missing.push("IMAGE_SCOPE_LIMIT");
+              continue;
+            }
+            if (units + [...segment.text].length > 90000) {
+              entry.missing.push("CHAT_CONTEXT_LIMIT");
+              break;
+            }
+            units += [...segment.text].length;
+            entry.sources.push({
+              id: segment.sourceId,
+              text: segment.text,
+              range: segment.range,
+            });
+          }
+          entry.contentComplete =
+            ["read", "partial"].includes(material.state) &&
+            !entry.missing.some((code) => code !== "XLSX_VISUAL_LAYOUT");
+        }
+        context.attachmentContent.push(entry);
+      }
+      context.omittedAttachments = Math.max(0, originals.length - 8);
+    }
+    const text = JSON.stringify(context);
+    if ([...text].length > 120000) fail("CHAT_CONTEXT_LIMIT");
     const range = {
       sourceId,
-      name: "已保存事项与本轮指令",
+      name: request.readAttachments
+        ? "已保存事项、本轮指令与附件读取依据"
+        : "已保存事项与本轮指令",
       kind: "item-chat",
       itemId: request.itemId,
       start: 0,
@@ -243,16 +385,26 @@ export class ReadingChat {
       readerVersion: "saved-item/1",
       normalizationVersion: "json/1",
       state: "read",
-      covered: [range],
+      covered: [range, ...imageSegments.map((s) => s.range)],
       uncovered: [],
       reasons: [],
-      segments: [{ sourceId, range, text }],
+      segments: [{ sourceId, range, text }, ...imageSegments],
     };
   }
-  validate(task, raw) {
+  validate(task, raw, { certified = false } = {}) {
     if (
       !raw ||
-      Object.keys(raw).sort().join(",") !== "patch,reply" ||
+      !Object.hasOwn(raw, "reply") ||
+      !Object.hasOwn(raw, "patch") ||
+      Object.keys(raw).some(
+        (key) =>
+          ![
+            "patch",
+            "reply",
+            "proposals",
+            ...(certified ? ["readScope"] : []),
+          ].includes(key),
+      ) ||
       typeof raw.reply !== "string" ||
       raw.reply.length > 3000 ||
       Buffer.byteLength(JSON.stringify(raw)) > 128000
@@ -262,17 +414,74 @@ export class ReadingChat {
       context = this.context(request);
     if (sha256(JSON.stringify(context)) !== this.intent(task.id)?.context_hash)
       fail("INPUT_CHANGED");
-    return validateChatUpdate(
+    const validated = validateChatUpdate(
       raw,
       context.currentItem,
       request.instruction,
       request.day,
     );
+    if (request.readAttachments) {
+      if (certified) {
+        if (typeof raw.readScope !== "string" || raw.readScope.length > 8000)
+          fail("SAFETY_RECONCILIATION");
+        validated.readScope = raw.readScope;
+      } else {
+        const material = this.engine.materials.get(task.id)?.[0];
+        if (!material?.segments?.[0]?.text) fail("SAFETY_RECONCILIATION");
+        const read = JSON.parse(material.segments[0].text);
+        validated.readScope =
+          "\n\n本轮附件读取：" +
+          (read.attachmentContent || [])
+            .map(
+              (f) =>
+                `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（" + f.missing.join("、") + "）" : ""}`,
+            )
+            .join("；");
+        if (read.omittedAttachments)
+          validated.readScope += `；另${read.omittedAttachments}份附件未读，不能据此断言不存在。`;
+      }
+    }
+    if (raw.proposals !== undefined) {
+      if (
+        request.scope !== "account" ||
+        !Array.isArray(raw.proposals) ||
+        raw.proposals.length > 10
+      )
+        fail("INVALID_CHAT");
+      const seen = new Set();
+      validated.proposals = raw.proposals.map((proposal) => {
+        const target = context.relatedItems.find(
+          (i) =>
+            i.packetId === proposal.packetId && i.itemId === proposal.itemId,
+        );
+        const key = proposal.packetId + "#" + proposal.itemId;
+        if (!target || seen.has(key)) fail("INVALID_CHAT");
+        seen.add(key);
+        const patch = { ...proposal.patch };
+        if (certified) delete patch.dueCleared;
+        const update = validateChatUpdate(
+          { reply: "待用户确认", patch },
+          target.item,
+          request.instruction,
+          request.day,
+        );
+        return {
+          packetId: target.packetId,
+          itemId: target.itemId,
+          baseVersion: target.baseVersion,
+          patch: update.patch,
+          title: target.item.title,
+          beforeItem: target.item,
+          beforeState: target.state,
+        };
+      });
+    }
+    return JSON.parse(JSON.stringify(validated));
   }
   normalized(task, value) {
     const raw = structuredClone(value);
     if (raw.patch && typeof raw.patch === "object") delete raw.patch.dueCleared;
-    const normalized = this.validate(task, raw);
+    const normalized = this.validate(task, raw, { certified: true });
     if (!isDeepStrictEqual(normalized, value)) fail("SAFETY_RECONCILIATION");
     return normalized;
   }
@@ -396,7 +605,7 @@ export class ReadingChat {
             {
               id: task.id + "_assistant",
               role: "assistant",
-              text: output.reply,
+              text: output.reply + (output.readScope || ""),
               at,
             },
           ],
@@ -415,6 +624,9 @@ export class ReadingChat {
               source: "AI 对话",
             })),
           ],
+          chatProposals: output.proposals
+            ? { id: task.id, items: output.proposals }
+            : null,
         },
       },
     };

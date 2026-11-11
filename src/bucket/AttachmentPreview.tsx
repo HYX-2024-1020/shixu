@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Attachment, Packet } from "./types";
 import { apiUrl } from "./service";
 import LinkText from "./LinkText";
+import { readableFileName } from "./file-display";
 
 export default function AttachmentPreview({
   attachment,
@@ -144,10 +145,12 @@ export default function AttachmentPreview({
   return (
     <div
       className={`attachment-preview ${zoom ? "preview-zoomed" : ""}`}
-      aria-label={`预览 ${attachment.name}`}
+      aria-label={`预览 ${readableFileName(attachment, packet)}`}
     >
       <header className="preview-toolbar">
-        <strong>{attachment.name}</strong>
+        <strong title={attachment.name}>
+          {readableFileName(attachment, packet)}
+        </strong>
         {image && (
           <button onClick={() => setZoom((v) => !v)}>
             {zoom ? "适应窗口" : "放大原图"}

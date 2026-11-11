@@ -52,13 +52,13 @@ try {
     };
   });
   await page
-    .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
+    .getByRole("button", { name: "播放小鲸鱼的演出", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
+    .getByRole("button", { name: "暂停小鲸鱼的演出", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "和小鲸鱼打个招呼", exact: true })
+    .getByRole("button", { name: "播放小鲸鱼的演出", exact: true })
     .waitFor();
   assert.equal(await page.evaluate(() => typeof window.require), "undefined");
   await waitForPageState(

@@ -12,6 +12,7 @@ import { apiUrl } from "./service";
 import AttachmentPreview from "./AttachmentPreview";
 import LinkText from "./LinkText";
 import { readingView, processingView } from "../../shared/reading-view.mjs";
+import { readableFileName } from "./file-display";
 
 function Original({
   attachment: a,
@@ -52,7 +53,7 @@ function Original({
         ) : (
           <FileText size={20} />
         )}
-        {a.name}
+        <span title={a.name}>{readableFileName(a, packet)}</span>
         {!a.deletedAt && (
           <span className="preview-hint">
             <Eye size={16} />
@@ -173,7 +174,13 @@ export default function DeliverySources({
       {readingView(packet.readingCoverage).map((row) => (
         <details key={row.id} open={row.state !== "read"}>
           <summary>
-            {row.name} · {row.label}
+            {packet.attachments.find((a) => a.id === row.id)
+              ? readableFileName(
+                  packet.attachments.find((a) => a.id === row.id)!,
+                  packet,
+                )
+              : row.name}{" "}
+            · {row.label}
           </summary>
           <p>{row.covered}</p>
           {row.missing && <p>{row.missing}</p>}

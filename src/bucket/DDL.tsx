@@ -218,8 +218,22 @@ export default function DDL({
       clock,
       row.done,
     );
-    const daysLeft = row.date ? (Date.parse(row.date) - Date.parse(day)) / 86400000 : Infinity;
-    const tone = row.done ? "done" : daysLeft <= 1 ? "urgent" : daysLeft <= 3 ? "near" : daysLeft <= 7 ? "week" : daysLeft <= 14 ? "fortnight" : daysLeft <= 30 ? "month" : "later";
+    const daysLeft = row.date
+      ? (Date.parse(row.date) - Date.parse(day)) / 86400000
+      : Infinity;
+    const tone = row.done
+      ? "done"
+      : daysLeft <= 1
+        ? "urgent"
+        : daysLeft <= 3
+          ? "near"
+          : daysLeft <= 7
+            ? "week"
+            : daysLeft <= 14
+              ? "fortnight"
+              : daysLeft <= 30
+                ? "month"
+                : "later";
     return (
       <article
         className={"ddl-item urgency-" + urgency}
@@ -291,7 +305,11 @@ export default function DDL({
               </small>
             </button>
           </div>
-          <CardFiles attachments={p.attachments} onOpen={() => setOpen(id)} />
+          <CardFiles
+            attachments={p.attachments}
+            packet={p}
+            onOpen={() => setOpen(id)}
+          />
           {open === id && (
             <div className="ddl-panel">
               <h4>完整要求 · 时间依据</h4>

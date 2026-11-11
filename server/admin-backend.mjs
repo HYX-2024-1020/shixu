@@ -340,7 +340,7 @@ export class AdminBackend {
       .filter(
         (t) =>
           (!status || status === "all" || status === t.status) &&
-          [t.username, t.taskId, t.errorCode || ""].some((s) =>
+          [t.username, t.accountId, t.taskId, t.errorCode || ""].some((s) =>
             s.toLowerCase().includes(keyword),
           ),
       );
@@ -613,7 +613,8 @@ export class AdminBackend {
     const keyword = (query.get("keyword") || "").toLowerCase(),
       status = query.get("status");
     const items = this.registry.db
-      .prepare(`SELECT id FROM accounts a WHERE
+      .prepare(
+        `SELECT id FROM accounts a WHERE
         EXISTS(SELECT 1 FROM account_credentials c WHERE c.user_id=a.id) OR
         EXISTS(SELECT 1 FROM bindings b WHERE b.user_id=a.id) OR
         EXISTS(SELECT 1 FROM ai_usage u WHERE u.user_id=a.id)
@@ -783,19 +784,110 @@ export class AdminBackend {
     return this.db
       .prepare("SELECT * FROM alerts ORDER BY id DESC LIMIT 200")
       .all()
-      .map((r) => ({
-        id: String(r.id),
-        severity: r.severity,
-        message: r.message,
-        object: r.object,
-        firstAt: iso(r.first_at),
-        lastAt: iso(r.last_at),
-        recoveredAt: r.recovered_at ? iso(r.recovered_at) : null,
-        readAt: r.read_at ? iso(r.read_at) : null,
-        actionLabel: "核对运行与审计",
-        actionHref: "#/ops",
-        suggestion: "检查对应服务、队列或费用门禁；已读不会解除故障。",
-      }));
+      .map((r) => {
+        const taskFailure = r.kind.startsWith("task-");
+        const userIssue = ["unknown-cost", "ledger"].includes(r.kind);
+        const friendlyMessage = taskFailure
+          ? `${r.message.match(/^\d+/)?.[0] || "部分"} 个任务尚未完成，资料与累计费用保留；请查看具体任务的处理报告。`
+          : r.kind === "operation-failed"
+            ? "最近的维护操作未完成，维护权限仍暂停；请核对执行回执并修复原因。"
+            : r.kind === "operation-pending"
+              ? "维护请求已入队，等待后台执行；请查看后续执行回执。"
+              : r.kind === "maintenance"
+                ? "服务维护中，新增上传和AI暂停，已保存资料继续保留。"
+                : r.message;
+        const titles = {
+          "daily-budget": "全站今日预算已用尽",
+          "monthly-budget": "全站本月预算已用尽",
+          "backup-missing": "缺少可恢复的备份",
+          "operation-failed": "维护操作未完成",
+          maintenance: "服务维护中",
+          "operations-worker": "运维执行器未及时回应",
+          tariff: "模型计价依据需要核对",
+          disk: "服务器空间不足",
+          cpu: "服务器处理繁忙",
+          memory: "服务器内存紧张",
+          "unknown-cost": "有调用费用需要核对",
+          ledger: "账号费用门禁尚未解除",
+          backlog: "新任务正在排队",
+          safety: "AI安全开关已关闭",
+        };
+        const followup = this.db
+          .prepare(
+            "SELECT action,actor,reason,at FROM audit WHERE scope=? AND action LIKE 'alert-followup-%' ORDER BY id DESC LIMIT 1",
+          )
+          .get("alert:" + r.id);
+        return {
+          id: String(r.id),
+          title: taskFailure
+            ? "有整理任务需要跟进"
+            : titles[r.kind] || "服务状态需要核对",
+          kind: r.kind,
+          technicalMessage: r.message,
+          severity: r.severity,
+          message: friendlyMessage,
+          object: r.object,
+          firstAt: iso(r.first_at),
+          lastAt: iso(r.last_at),
+          recoveredAt: r.recovered_at ? iso(r.recovered_at) : null,
+          readAt: r.read_at ? iso(r.read_at) : null,
+          actionLabel: taskFailure
+            ? "定位受影响任务"
+            : userIssue
+              ? "查看账号与费用"
+              : ["backup-missing", "operation-failed"].includes(r.kind)
+                ? "查看备份与维护回执"
+                : "核对运行与审计",
+          actionHref: taskFailure
+            ? "#/tasks?account=" + encodeURIComponent(r.object)
+            : userIssue
+              ? "#/users"
+              : ["backup-missing", "operation-failed"].includes(r.kind)
+                ? "#/storage"
+                : "#/ops",
+          suggestion: taskFailure
+            ? "查看任务报告和费用；管理员可暂停或停止在途任务。核对失败需开发修复，恢复权限后原任务仍需用户主动继续。不得通过清账或强制放行结果处理。"
+            : userIssue
+              ? "核对该账号的费用和权限；费用不明需可信收据，不能清除预留来强行恢复。"
+              : r.kind === "backup-missing"
+                ? "在存储与备份页发起一致备份，再查看实际执行回执；提交请求还不代表备份成功。"
+                : ["daily-budget", "monthly-budget"].includes(r.kind)
+                  ? "在运维页核对并调整预算，或等待预算周期更新；费用和风险保留。"
+                  : "查看对应维护或服务回执；权限或主机故障需维护者按具体报告修复。",
+          followup: followup
+            ? {
+                state: followup.action.slice("alert-followup-".length),
+                actor: followup.actor,
+                note: followup.reason,
+                at: iso(followup.at),
+              }
+            : null,
+        };
+      });
+  }
+  followAlert(id, state, note, operation, actor) {
+    if (
+      !/^\d{1,20}$/.test(id) ||
+      !["following", "developer", "user-action", "reviewed"].includes(state) ||
+      typeof note !== "string" ||
+      !note.trim() ||
+      note.length > 200
+    )
+      fail(400, "INVALID_OPERATION");
+    const alert = this.db
+      .prepare("SELECT recovered_at FROM alerts WHERE id=?")
+      .get(id);
+    if (!alert) fail(404, "ALERT_NOT_FOUND");
+    if (state === "reviewed" && !alert.recovered_at)
+      fail(409, "ALERT_NOT_RECOVERED");
+    return this.mutate(
+      "alert-followup-" + state,
+      "alert:" + id,
+      operation,
+      actor,
+      { reason: note },
+      () => ({ accepted: true, recovered: !!alert.recovered_at }),
+    );
   }
   markRead(id, operation, actor) {
     if (

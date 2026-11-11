@@ -6,30 +6,265 @@ const path = require("node:path");
 const { AccountWorkspace } = require("./accounts.cjs");
 const { DesktopStore } = require("./storage.cjs");
 
-test("installed account status follows independent AI gates after refresh and restart", async t => {
-  const { accountUIFixture } = await import("../scripts/account-ui-fixture.mjs");
+test("installed protocol reads XLSX cells, retains cross-card proposals after restart and saves only after confirmation", async (t) => {
+  const { accountUIFixture, fixtureItem } = await import(
+    "../scripts/account-ui-fixture.mjs"
+  );
+  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+  const { readMaterial } = await import("../server/reading/material.mjs");
+  const { xlsxBytes, inline } = await import(
+    "../server/reading/xlsx-fixtures.mjs"
+  );
+  const { applyChatProposals } = await import(
+    "../src/bucket/chat-proposals.ts"
+  );
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-chat-client-")),
+    ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+  ledger.freezePrice({
+    id: "fixture",
+    model: "fixture",
+    currency: "CNY",
+    source: "synthetic",
+    verifiedAt: 1,
+    inputMicrosPerMillion: 1,
+    cachedMicrosPerMillion: 0,
+    outputMicrosPerMillion: 1,
+  });
+  let chats = 0;
+  const provider = Object.assign(
+    async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        summary: "合成名单",
+        warnings: [],
+        items: ["核对名单", "另一项合成事项"].map((title) => ({
+          ...fixtureItem(title),
+          evidence: [
+            { sourceId: sources[0].id, quote: sources[0].text.slice(0, 8) },
+          ],
+        })),
+      },
+    }),
+    {
+      chat: async (sources) => {
+        chats++;
+        const context = JSON.parse(sources[0].text);
+        assert.ok(
+          context.attachmentContent[0].sources.some((s) =>
+            s.text.includes("林合成测试"),
+          ),
+        );
+        const target = context.relatedItems[0];
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            reply: "合成名单包含林合成测试，星标建议等待确认。",
+            patch: {},
+            proposals: [
+              {
+                packetId: target.packetId,
+                itemId: target.itemId,
+                patch: { starred: true },
+              },
+            ],
+          },
+        };
+      },
+    },
+  );
+  const f = await accountUIFixture(
+    {},
+    {
+      reading: {
+        ledger,
+        enabled: true,
+        priceId: "fixture",
+        modelVersion: "fixture",
+        reader: readMaterial,
+        provider,
+      },
+    },
+  );
+  t.after(async () => {
+    await f.close();
+    ledger.close();
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  ledger.grantInitial(f.invitation.userId);
+  const options = {
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: f.base,
+    seal: async (s) => Buffer.from(s),
+    unseal: async (b) => b.toString(),
+  };
+  let client = new AccountWorkspace(options);
+  await client.init();
+  await client.action("activate", { invite: f.invitation.invite });
+  const bytes = xlsxBytes([
+    {
+      name: "名单",
+      xml:
+        '<row r="1">' +
+        inline("A1", "姓名") +
+        '</row><row r="43">' +
+        inline("A43", "林合成测试") +
+        "</row>",
+    },
+  ]);
+  await client.call(
+    "savePackets",
+    [
+      {
+        id: "packet",
+        text: "",
+        sources: [],
+        attachments: [
+          {
+            id: "roster",
+            name: "合成名单.xlsx",
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            bytes,
+          },
+        ],
+        doneIds: [],
+        captureDate: "2026-11-11",
+        capturedAt: "2026-11-11T00:00:00Z",
+        updatedAt: "2026-11-11T00:00:00Z",
+        result: null,
+        status: "pending",
+      },
+    ],
+    client.config.active,
+  );
+  await client.action("sync");
+  const finish = async (job) => {
+    const deadline = Date.now() + 10000;
+    for (;;) {
+      const state = await client.action("sync", { force: true });
+      const row = state.jobs.find((j) => j.id === job);
+      if (["done", "paused", "error"].includes(row?.state)) {
+        assert.equal(row.state, "done", JSON.stringify(row));
+        return;
+      }
+      assert.ok(Date.now() < deadline);
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  };
+  await finish(
+    (await client.action("ai", { kind: "organize", packetId: "packet" })).job,
+  );
+  let packet = (await client.packets())[0],
+    [owner, target] = packet.itemIds;
+  await finish(
+    (
+      await client.action("ai", {
+        kind: "chat",
+        packetId: "packet",
+        itemId: owner,
+        instruction: "核对名单并给另一事项添加星标，先列建议",
+        readAttachments: true,
+        scope: "account",
+      })
+    ).job,
+  );
+  packet = (await client.packets())[0];
+  assert.notEqual(packet.itemState[target]?.starred, true);
+  assert.ok(packet.itemState[owner].chatProposals.items.length);
+  client = new AccountWorkspace(options);
+  await client.init();
+  await client.action("sync", { force: true });
+  const before = ledger.wallet(f.invitation.userId).spent;
+  await client.call(
+    "savePackets",
+    applyChatProposals(await client.packets(), "packet", owner),
+    client.config.active,
+  );
+  await client.action("sync", { force: true });
+  packet = (await client.packets())[0];
+  assert.equal(packet.itemState[target].starred, true);
+  assert.equal(packet.itemState[owner].chatProposals, null);
+  assert.equal(chats, 1);
+  assert.equal(ledger.wallet(f.invitation.userId).spent, before);
+});
+
+test("installed account status follows independent AI gates after refresh and restart", async (t) => {
+  const { accountUIFixture } = await import(
+    "../scripts/account-ui-fixture.mjs"
+  );
   const { ReadingLedger } = await import("../server/reading/ledger.mjs");
   const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-status-gates-"));
   const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
-  ledger.freezePrice({ id: "synthetic", model: "synthetic", currency: "CNY", source: "synthetic test", verifiedAt: 1, inputMicrosPerMillion: 1, cachedMicrosPerMillion: 0, outputMicrosPerMillion: 1 });
-  let paused = false, maintenance = false;
-  ledger.dispatchGuard = () => { if (maintenance) throw Error("MAINTENANCE"); if (paused) throw Error("ADMIN_PAUSED"); };
-  const f = await accountUIFixture({}, { reading: { credentials: true, ledger, enabled: true, priceId: "synthetic", modelVersion: "synthetic", reader() {}, provider() {} } });
-  const options = { root: path.join(root, "client"), local: new DesktopStore(path.join(root, "local")), serviceOrigin: f.base, seal: async s => Buffer.from(s), unseal: async b => b.toString() };
+  ledger.freezePrice({
+    id: "synthetic",
+    model: "synthetic",
+    currency: "CNY",
+    source: "synthetic test",
+    verifiedAt: 1,
+    inputMicrosPerMillion: 1,
+    cachedMicrosPerMillion: 0,
+    outputMicrosPerMillion: 1,
+  });
+  let paused = false,
+    maintenance = false;
+  ledger.dispatchGuard = () => {
+    if (maintenance) throw Error("MAINTENANCE");
+    if (paused) throw Error("ADMIN_PAUSED");
+  };
+  const f = await accountUIFixture(
+    {},
+    {
+      reading: {
+        credentials: true,
+        ledger,
+        enabled: true,
+        priceId: "synthetic",
+        modelVersion: "synthetic",
+        reader() {},
+        provider() {},
+      },
+    },
+  );
+  const options = {
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: f.base,
+    seal: async (s) => Buffer.from(s),
+    unseal: async (b) => b.toString(),
+  };
   try {
-    let client = new AccountWorkspace(options); await client.init();
-    await client.action("register", { username: "status-owner", password: "synthetic-password", invite: f.invitation.invite, deviceName: "合成状态测试" });
+    let client = new AccountWorkspace(options);
+    await client.init();
+    await client.action("register", {
+      username: "status-owner",
+      password: "synthetic-password",
+      invite: f.invitation.invite,
+      deviceName: "合成状态测试",
+    });
     assert.equal(client.status().account.aiAvailability.available, true);
-    paused = true; await client.action("sync", { force: true });
-    assert.deepEqual(client.status().account.aiAvailability, { available: false, reason: "ADMIN_PAUSED" });
-    client = new AccountWorkspace(options); await client.init(); await client.action("sync", { force: true });
+    paused = true;
+    await client.action("sync", { force: true });
+    assert.deepEqual(client.status().account.aiAvailability, {
+      available: false,
+      reason: "ADMIN_PAUSED",
+    });
+    client = new AccountWorkspace(options);
+    await client.init();
+    await client.action("sync", { force: true });
     assert.equal(client.status().account.aiAvailability.reason, "ADMIN_PAUSED");
-    paused = false; maintenance = true; await client.action("sync", { force: true });
+    paused = false;
+    maintenance = true;
+    await client.action("sync", { force: true });
     assert.equal(client.status().account.aiAvailability.reason, "MAINTENANCE");
-    maintenance = false; await client.action("sync", { force: true });
+    maintenance = false;
+    await client.action("sync", { force: true });
     assert.equal(client.status().account.aiAvailability.available, true);
     assert.equal(client.status().account.usageSummary.daySpentMicro, 0);
-  } finally { await f.close(); ledger.close(); await fs.rm(root, { recursive: true, force: true }); }
+  } finally {
+    await f.close();
+    ledger.close();
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 for (const scenario of ["stop", "settlement"])

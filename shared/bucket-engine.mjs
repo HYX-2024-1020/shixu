@@ -143,7 +143,7 @@ export function validateResult(value, sources, today) {
         kind: item.kind,
         title: clean(item.title, 150),
         summary: clean(item.summary, 2000),
-        facts: list(item.facts, 12),
+        facts: list(item.facts, 40),
         nextSteps: list(item.nextSteps, 8),
         uncertainties: [...new Set(uncertainties)],
         evidence,

@@ -26,8 +26,10 @@ const NAV: Array<{ route: Route; label: string; ready: boolean }> = [
 ];
 
 function routeFromHash(): Route {
-  const h = window.location.hash.replace(/^#\//, "");
-  return (["overview", "users", "tasks", "storage", "ops", "alerts"] as Route[]).includes(h as Route)
+  const h = window.location.hash.replace(/^#\//, "").split("?")[0];
+  return (
+    ["overview", "users", "tasks", "storage", "ops", "alerts"] as Route[]
+  ).includes(h as Route)
     ? (h as Route)
     : "overview";
 }
@@ -65,19 +67,35 @@ function DemoConsole() {
       <summary>演示控制台（仅演示数据模式）</summary>
       <div className="controls">
         <label>
-          <input type="checkbox" checked={flags.failReads} onChange={toggle("failReads")} />
+          <input
+            type="checkbox"
+            checked={flags.failReads}
+            onChange={toggle("failReads")}
+          />
           读取持续失败
         </label>
         <label>
-          <input type="checkbox" checked={flags.failWrites} onChange={toggle("failWrites")} />
+          <input
+            type="checkbox"
+            checked={flags.failWrites}
+            onChange={toggle("failWrites")}
+          />
           下一次操作失败
         </label>
         <label>
-          <input type="checkbox" checked={flags.timeoutAll} onChange={toggle("timeoutAll")} />
+          <input
+            type="checkbox"
+            checked={flags.timeoutAll}
+            onChange={toggle("timeoutAll")}
+          />
           全部请求超时
         </label>
         <label>
-          <input type="checkbox" checked={flags.sessionExpired} onChange={toggle("sessionExpired")} />
+          <input
+            type="checkbox"
+            checked={flags.sessionExpired}
+            onChange={toggle("sessionExpired")}
+          />
           模拟会话过期
         </label>
       </div>
@@ -120,10 +138,18 @@ export function AdminApp() {
     let active = true;
     api
       .getSession()
-      .then((s) => { if (active) setSession(s); })
-      .catch(() => { if (active) setSession(null); })
-      .finally(() => { if (active) setBooting(false); });
-    return () => { active = false; };
+      .then((s) => {
+        if (active) setSession(s);
+      })
+      .catch(() => {
+        if (active) setSession(null);
+      })
+      .finally(() => {
+        if (active) setBooting(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [api]);
 
   useEffect(() => {
@@ -148,7 +174,9 @@ export function AdminApp() {
     try {
       await api.logout();
     } catch (error) {
-      if (!(error instanceof AdminApiError && error.code === "SESSION_EXPIRED")) {
+      if (
+        !(error instanceof AdminApiError && error.code === "SESSION_EXPIRED")
+      ) {
         setLogoutError("退出未完成，请重试。管理会话仍可能有效。");
         return;
       }
@@ -194,14 +222,27 @@ export function AdminApp() {
           </div>
           {NAV.map((n) =>
             n.ready ? (
-              <a key={n.route} className={`nav-item ${route === n.route ? "active" : ""}`} href={`#/${n.route}`}>
+              <a
+                key={n.route}
+                className={`nav-item ${route === n.route ? "active" : ""}`}
+                href={`#/${n.route}`}
+              >
                 {n.label}
                 {n.route === "alerts" && (
-                  <span className="nav-tag">{alertCount ?? "待连接"}</span>
+                  <span
+                    className="nav-tag"
+                    title="未恢复的故障数；包含已读但尚未恢复的条目"
+                  >
+                    {alertCount ?? "待连接"}
+                  </span>
                 )}
               </a>
             ) : (
-              <span key={n.route} className="nav-item disabled" title="下一批交付">
+              <span
+                key={n.route}
+                className="nav-item disabled"
+                title="下一批交付"
+              >
                 {n.label}
                 <span className="nav-tag">下批</span>
               </span>
@@ -244,7 +285,9 @@ export function AdminApp() {
               <section className="panel">
                 <h1>{activeNav.label}</h1>
                 <p>此页面待后续实现，当前可使用服务总览和用户管理。</p>
-                <a className="btn btn-ghost" href="#/overview">返回服务总览</a>
+                <a className="btn btn-ghost" href="#/overview">
+                  返回服务总览
+                </a>
               </section>
             )}
           </main>

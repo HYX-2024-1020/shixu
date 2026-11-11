@@ -174,9 +174,16 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
       .filter({ hasText: "product-owner" })
       .getByRole("button", { name: "查看与处置" })
       .click();
-    await expect(page.getByRole("article", { name: "任务详情" })).toBeInViewport();
-    await page.getByRole("article", { name: "任务详情" }).getByText("技术编号", { exact: true }).click();
-    await expect(page.getByRole("article", { name: "任务详情" })).toContainText(task.job!);
+    await expect(
+      page.getByRole("article", { name: "任务详情" }),
+    ).toBeInViewport();
+    await page
+      .getByRole("article", { name: "任务详情" })
+      .getByText("技术编号", { exact: true })
+      .click();
+    await expect(page.getByRole("article", { name: "任务详情" })).toContainText(
+      task.job!,
+    );
     await page.getByRole("button", { name: "暂停任务", exact: true }).click();
     await page
       .locator(".inline-confirm")
@@ -341,8 +348,19 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       safetyAlert.getByRole("button", { name: "标为已读", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
+    await safetyAlert.getByRole("button", { name: "记录处置进展" }).click();
+    await safetyAlert.getByLabel("处置状态").selectOption("developer");
+    await safetyAlert
+      .getByLabel("处置说明")
+      .fill("已定位安全配置，等待维护者按证据修复。");
+    await safetyAlert.getByRole("button", { name: "保存处置记录" }).click();
+    await expect(safetyAlert).toContainText("待开发修复");
+    await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
+    await page.reload();
+    await expect(safetyAlert).toContainText("已定位安全配置");
+    expect(ledger.wallet(userId).spent).toBe(0);
     await page.getByRole("link", { name: "运维与审计", exact: true }).click();
-    await expect(page.locator(".audit-row")).toHaveCount(3);
+    await expect(page.locator(".audit-row")).toHaveCount(4);
   } finally {
     await page.goto("about:blank");
     await gateway.close();

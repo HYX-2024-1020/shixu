@@ -4,29 +4,179 @@ import { mergeFixture, finishMerge } from "./merge-fixtures.mjs";
 import { validateMerge, assembleMerge } from "./merge.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 
-test("a notice that restates the same action can merge while retaining the action kind and every fact/source",()=>{
-  const items=[{id:"notice",item:{kind:"notice",title:"报告通知",summary:"通知背景",facts:["PDF"],evidence:[{sourceId:"a",quote:"合成报告"}],due:null}},
-    {id:"action",item:{kind:"task",title:"提交报告",summary:"提交实验报告",facts:["UTF-8源代码"],evidence:[{sourceId:"b",quote:"另附源代码"}],due:null}}];
-  const decision=validateMerge({same:[["notice","action"]],related:[]},items);
-  const merged=assembleMerge(items,[decision]);assert.equal(merged.items.length,1);assert.equal(merged.items[0].kind,"task");
-  assert.equal(merged.items[0].title,"提交报告");assert.equal(merged.items[0].evidence.length,2);
-  assert.ok(merged.items[0].facts.includes("PDF"));assert.ok(merged.items[0].facts.includes("UTF-8源代码"));
-  assert.throws(()=>validateMerge({same:[["notice","action"]],related:[]},[{...items[0],item:{...items[0].item,kind:"idea"}},items[1]]),/INVALID_MERGE_CONFLICT/);
+test("omitted empty merge list is conservative while unknown IDs and malformed lists stay rejected", () => {
+  const items = [
+    { id: "a", item: { kind: "task" } },
+    { id: "b", item: { kind: "task" } },
+  ];
+  assert.deepEqual(validateMerge({ related: [["a", "b"]] }, items), {
+    same: [],
+    related: [["a", "b"]],
+  });
+  assert.throws(
+    () => validateMerge({ same: [["a", "unknown"]] }, items),
+    /INVALID_MERGE_SOURCE/,
+  );
+  assert.throws(
+    () => validateMerge({ same: "empty" }, items),
+    /INVALID_MERGE_OUTPUT/,
+  );
 });
 
-test("bounded semantic pairs visit distant chunk members without truncating any item",async t=>{
-  let mergeCalls=0;
-  const provider=Object.assign(async sources=>({usage:{prompt_tokens:10,completion_tokens:10},result:{summary:"合成40项",warnings:[],items:Array.from({length:40},(_,i)=>({kind:"task",title:"独立合成事项"+i,summary:"保留"+i,facts:["尾部要求"+i],nextSteps:[],uncertainties:[],due:null,evidence:[{sourceId:sources[0].id,quote:sources[0].text.slice(0,8)}]}))}}),{merge:async sources=>{
-    mergeCalls++;const items=JSON.parse(sources[0].text).items;
-    assert.ok(items.length<=32);assert.ok(Buffer.byteLength(sources[0].text)<120000);
-    const ids=items.map(row=>row.id);
-    return {usage:{prompt_tokens:10,completion_tokens:10},result:{same:ids.includes("b0i0")&&ids.includes("b0i39")?[["b0i0","b0i39"]]:[],related:[]}};
-  }});
-  const f=mergeFixture(t,{provider,sourceText:"合成短文本"});f.enqueue();
-  assert.equal((await finishMerge(f.tasks)).state,"done");assert.equal(mergeCalls,6);
-  const items=f.store.record("packet").data.result.items;
-  assert.equal(items.length,39);
-  for(let i=0;i<40;i++)assert.ok(items.some(item=>item.facts.includes("尾部要求"+i)));
+test("conflicting semantic suggestions preserve every certified item and settle once instead of blocking use", async (t) => {
+  const provider = Object.assign(
+    async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        summary: "合成事项",
+        warnings: [],
+        items: ["task", "habit"].map((kind) => ({
+          kind,
+          title: "合成" + kind,
+          summary: "合成要求",
+          facts: [kind + "保留"],
+          nextSteps: [],
+          uncertainties: [],
+          due: null,
+          evidence: [
+            { sourceId: sources[0].id, quote: sources[0].text.slice(0, 8) },
+          ],
+        })),
+      },
+    }),
+    {
+      merge: async (sources) => {
+        const rows = JSON.parse(sources[0].text).items;
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: { same: [[rows[0].id, rows[1].id]], related: [] },
+        };
+      },
+    },
+  );
+  const f = mergeFixture(t, {
+    provider,
+    sourceText: "合成材料需要按时交作业，也希望培养习惯。",
+  });
+  f.enqueue();
+  assert.equal((await finishMerge(f.tasks)).state, "done");
+  const p = f.store.record("packet").data;
+  assert.equal(p.result.items.length, 2);
+  assert.equal(p.semanticMerge.complete, false);
+  assert.ok(p.result.warnings.some((w) => w.includes("冲突")));
+  assert.equal(
+    f.tasks.diagnostics.latest("task").code,
+    "INVALID_MERGE_CONFLICT",
+  );
+  f.tasks.diagnostics.record(
+    f.tasks.get("task"),
+    Error("later unrelated failure"),
+  );
+  assert.equal(
+    f.tasks.merge.result(f.tasks.get("task")).complete,
+    false,
+    "a later report must not erase the conservative merge disclosure",
+  );
+  assert.equal(f.tasks.get("task").calls, 2);
+  assert.equal(f.ledger.wallet("synthetic").unknownRisk, 0);
+});
+
+test("a notice that restates the same action can merge while retaining the action kind and every fact/source", () => {
+  const items = [
+    {
+      id: "notice",
+      item: {
+        kind: "notice",
+        title: "报告通知",
+        summary: "通知背景",
+        facts: ["PDF"],
+        evidence: [{ sourceId: "a", quote: "合成报告" }],
+        due: null,
+      },
+    },
+    {
+      id: "action",
+      item: {
+        kind: "task",
+        title: "提交报告",
+        summary: "提交实验报告",
+        facts: ["UTF-8源代码"],
+        evidence: [{ sourceId: "b", quote: "另附源代码" }],
+        due: null,
+      },
+    },
+  ];
+  const decision = validateMerge(
+    { same: [["notice", "action"]], related: [] },
+    items,
+  );
+  const merged = assembleMerge(items, [decision]);
+  assert.equal(merged.items.length, 1);
+  assert.equal(merged.items[0].kind, "task");
+  assert.equal(merged.items[0].title, "提交报告");
+  assert.equal(merged.items[0].evidence.length, 2);
+  assert.ok(merged.items[0].facts.includes("PDF"));
+  assert.ok(merged.items[0].facts.includes("UTF-8源代码"));
+  assert.throws(
+    () =>
+      validateMerge({ same: [["notice", "action"]], related: [] }, [
+        { ...items[0], item: { ...items[0].item, kind: "idea" } },
+        items[1],
+      ]),
+    /INVALID_MERGE_CONFLICT/,
+  );
+});
+
+test("bounded semantic pairs visit distant chunk members without truncating any item", async (t) => {
+  let mergeCalls = 0;
+  const provider = Object.assign(
+    async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        summary: "合成40项",
+        warnings: [],
+        items: Array.from({ length: 40 }, (_, i) => ({
+          kind: "task",
+          title: "独立合成事项" + i,
+          summary: "保留" + i,
+          facts: ["尾部要求" + i],
+          nextSteps: [],
+          uncertainties: [],
+          due: null,
+          evidence: [
+            { sourceId: sources[0].id, quote: sources[0].text.slice(0, 8) },
+          ],
+        })),
+      },
+    }),
+    {
+      merge: async (sources) => {
+        mergeCalls++;
+        const items = JSON.parse(sources[0].text).items;
+        assert.ok(items.length <= 32);
+        assert.ok(Buffer.byteLength(sources[0].text) < 120000);
+        const ids = items.map((row) => row.id);
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            same:
+              ids.includes("b0i0") && ids.includes("b0i39")
+                ? [["b0i0", "b0i39"]]
+                : [],
+            related: [],
+          },
+        };
+      },
+    },
+  );
+  const f = mergeFixture(t, { provider, sourceText: "合成短文本" });
+  f.enqueue();
+  assert.equal((await finishMerge(f.tasks)).state, "done");
+  assert.equal(mergeCalls, 6);
+  const items = f.store.record("packet").data.result.items;
+  assert.equal(items.length, 39);
+  for (let i = 0; i < 40; i++)
+    assert.ok(items.some((item) => item.facts.includes("尾部要求" + i)));
 });
 
 test("semantic grouping crosses paid blocks, keeps all facts, evidence, order and shared root costs", async (t) => {

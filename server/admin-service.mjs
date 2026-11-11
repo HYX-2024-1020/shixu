@@ -27,7 +27,11 @@ async function passwordKey(password, salt) {
 
 // Provisioning helper. Passwords are never accepted through CLI arguments.
 export async function hashAdminPassword(password) {
-  if (typeof password !== "string" || [...password].length < 12 || [...password].length > 128)
+  if (
+    typeof password !== "string" ||
+    [...password].length < 12 ||
+    [...password].length > 128
+  )
     throw Error("ADMIN_PASSWORD_POLICY");
   const salt = randomBytes(16).toString("hex");
   return `${SCHEME}:${salt}:${(await passwordKey(password, salt)).toString("hex")}`;
@@ -51,7 +55,8 @@ function readJson(req) {
       if (bytes > MAX_BODY) return;
       try {
         const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        if (!value || typeof value !== "object" || Array.isArray(value)) throw Error();
+        if (!value || typeof value !== "object" || Array.isArray(value))
+          throw Error();
         done(value);
       } catch {
         reject(failure(400, "INVALID_JSON", "请求内容无效"));
@@ -65,16 +70,23 @@ function readJson(req) {
 }
 
 function sessionCookie(req) {
-  const values = (req.headers.cookie ?? "").split(";")
-    .map((part) => part.trim()).filter((part) => part.startsWith(`${COOKIE}=`));
+  const values = (req.headers.cookie ?? "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith(`${COOKIE}=`));
   // Ambiguous cookies cannot choose an authenticated identity.
   return values.length === 1 ? values[0].slice(COOKIE.length + 1) : "";
 }
 
 function localOrigin(value) {
   const url = new URL(value);
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
-      url.origin !== value || url.username || url.password)
+  if (
+    url.protocol !== "http:" ||
+    !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
+    url.origin !== value ||
+    url.username ||
+    url.password
+  )
     throw Error("INVALID_ADMIN_ORIGIN");
   return value;
 }
@@ -99,13 +111,22 @@ export function createAdminService({
   audit = (event) => console.info(JSON.stringify(event)),
   backend = null,
 } = {}) {
-  if (typeof username !== "string" || !/^[\w.-]{3,64}$/.test(username) ||
-      typeof passwordHash !== "string" || !HASH_PATTERN.test(passwordHash) ||
-      !Number.isSafeInteger(sessionTtlMs) || sessionTtlMs < 1000 || sessionTtlMs > 8 * 3600_000 ||
-      typeof now !== "function" || typeof audit !== "function")
+  if (
+    typeof username !== "string" ||
+    !/^[\w.-]{3,64}$/.test(username) ||
+    typeof passwordHash !== "string" ||
+    !HASH_PATTERN.test(passwordHash) ||
+    !Number.isSafeInteger(sessionTtlMs) ||
+    sessionTtlMs < 1000 ||
+    sessionTtlMs > 8 * 3600_000 ||
+    typeof now !== "function" ||
+    typeof audit !== "function"
+  )
     throw Error("INVALID_ADMIN_CONFIG");
   const configuredOrigin = origin === undefined ? null : localOrigin(origin);
-  const root = staticDirectory ? realpathSync.native(resolve(staticDirectory)) : null;
+  const root = staticDirectory
+    ? realpathSync.native(resolve(staticDirectory))
+    : null;
   const [, , , , , salt, expectedHash] = passwordHash.split(":");
   const expectedUsername = digest(username);
   const sessions = new Map();
@@ -129,7 +150,8 @@ export function createAdminService({
   const readAsset = async (path) => {
     const file = await realpath(resolve(root, path));
     const inside = relative(root, file);
-    if (inside.startsWith("..") || isAbsolute(inside)) throw failure(404, "NOT_FOUND", "页面不存在");
+    if (inside.startsWith("..") || isAbsolute(inside))
+      throw failure(404, "NOT_FOUND", "页面不存在");
     return readFile(file);
   };
 
@@ -168,7 +190,8 @@ export function createAdminService({
       const path = url.pathname;
       if (req.method === "POST" && req.headers.origin !== expectedOrigin)
         throw failure(403, "ORIGIN_REJECTED", "请求来源无效，请重新打开管理台");
-      for (const [token, session] of sessions) if (session.expires <= now()) sessions.delete(token);
+      for (const [token, session] of sessions)
+        if (session.expires <= now()) sessions.delete(token);
       const token = sessionCookie(req);
       const session = sessions.get(token);
 
@@ -184,13 +207,18 @@ export function createAdminService({
           );
         }
         attempts.push(now());
-        if (loginBusy) throw failure(503, "LOGIN_BUSY", "登录服务正忙，请稍后重试", true);
+        if (loginBusy)
+          throw failure(503, "LOGIN_BUSY", "登录服务正忙，请稍后重试", true);
         loginBusy = true;
         try {
           const body = await readJson(req);
-          if (Object.keys(body).sort().join(",") !== "password,username" ||
-              typeof body.username !== "string" || body.username.length > 64 ||
-              typeof body.password !== "string" || Buffer.byteLength(body.password) > 1024)
+          if (
+            Object.keys(body).sort().join(",") !== "password,username" ||
+            typeof body.username !== "string" ||
+            body.username.length > 64 ||
+            typeof body.password !== "string" ||
+            Buffer.byteLength(body.password) > 1024
+          )
             throw failure(400, "INVALID_LOGIN", "登录请求无效");
           const derived = await passwordKey(body.password, salt);
           const passwordMatches = timingSafeEqual(
@@ -205,9 +233,11 @@ export function createAdminService({
             await record("login-failed");
             throw failure(401, "UNAUTHORIZED", "账号或密码不正确");
           }
-          if (closed) throw failure(503, "SERVICE_CLOSING", "管理服务正在关闭", true);
+          if (closed)
+            throw failure(503, "SERVICE_CLOSING", "管理服务正在关闭", true);
           await record("login-success");
-          if (closed) throw failure(503, "SERVICE_CLOSING", "管理服务正在关闭", true);
+          if (closed)
+            throw failure(503, "SERVICE_CLOSING", "管理服务正在关闭", true);
           // Reauthentication rotates the cookie. Sessions disappear on restart.
           sessions.delete(token);
           if (sessions.size >= 8) sessions.delete(sessions.keys().next().value);
@@ -219,7 +249,9 @@ export function createAdminService({
             cookie(nextToken, Math.ceil(sessionTtlMs / 1000)),
           );
           json(200, publicSession(nextSession));
-        } finally { loginBusy = false; }
+        } finally {
+          loginBusy = false;
+        }
         return;
       }
       if (path === "/admin/v1/session" && req.method === "GET") {
@@ -227,12 +259,17 @@ export function createAdminService({
         return;
       }
       if (path.startsWith("/admin/v1/")) {
-        if (!session) throw failure(401, "SESSION_EXPIRED", "会话已过期，请重新登录");
-        if (req.method === "POST" && req.headers["x-csrf-token"] !== session.csrf)
+        if (!session)
+          throw failure(401, "SESSION_EXPIRED", "会话已过期，请重新登录");
+        if (
+          req.method === "POST" &&
+          req.headers["x-csrf-token"] !== session.csrf
+        )
           throw failure(403, "CSRF_REJECTED", "操作凭据无效，请重新登录");
         if (path === "/admin/v1/logout" && req.method === "POST") {
           const body = await readJson(req);
-          if (Object.keys(body).length) throw failure(400, "INVALID_REQUEST", "退出请求无效");
+          if (Object.keys(body).length)
+            throw failure(400, "INVALID_REQUEST", "退出请求无效");
           await record("logout");
           sessions.delete(token);
           res.setHeader("Set-Cookie", cookie("", 0));
@@ -352,6 +389,24 @@ export function createAdminService({
           const readAlert = /^\/admin\/v1\/alerts\/(\d{1,20})\/read$/.exec(
             path,
           );
+          const followAlert =
+            /^\/admin\/v1\/alerts\/(\d{1,20})\/followup$/.exec(path);
+          if (req.method === "POST" && followAlert) {
+            const value = await readJson(req);
+            if (Object.keys(value).sort().join(",") !== "note,state")
+              throw failure(400, "INVALID_OPERATION", "操作内容无效");
+            json(
+              200,
+              await backend.followAlert(
+                followAlert[1],
+                value.state,
+                value.note,
+                req.headers["x-operation-id"],
+                username,
+              ),
+            );
+            return;
+          }
           if (req.method === "POST" && readAlert) {
             const value = await readJson(req);
             if (Object.keys(value).length)
@@ -491,6 +546,7 @@ export function createAdminService({
             "/fonts/NotoSansSC.ttf",
             "/fonts/SpaceGrotesk.ttf",
             "/desktop-icon.svg",
+            "/console-icon.svg",
           ].includes(path))
       ) {
         const bytes = await readAsset(`.${path}`);
@@ -502,11 +558,20 @@ export function createAdminService({
     } catch (error) {
       req.resume();
       const status = error.status ?? (error.code === "ENOENT" ? 404 : 503);
-      if (!res.headersSent) json(status, {
-        error: error.status ? error.message : status === 404 ? "页面不存在" : "管理服务暂时不可用",
-        code: error.status ? error.code : status === 404 ? "NOT_FOUND" : "ADMIN_UNAVAILABLE",
-        retryable: error.retryable ?? status >= 500,
-      });
+      if (!res.headersSent)
+        json(status, {
+          error: error.status
+            ? error.message
+            : status === 404
+              ? "页面不存在"
+              : "管理服务暂时不可用",
+          code: error.status
+            ? error.code
+            : status === 404
+              ? "NOT_FOUND"
+              : "ADMIN_UNAVAILABLE",
+          retryable: error.retryable ?? status >= 500,
+        });
       else res.end();
     }
   });
@@ -519,7 +584,10 @@ export function createAdminService({
       if (closed) throw Error("ADMIN_SERVICE_CLOSED");
       await new Promise((done, reject) => {
         server.once("error", reject);
-        server.listen(port, "127.0.0.1", () => { server.removeListener("error", reject); done(); });
+        server.listen(port, "127.0.0.1", () => {
+          server.removeListener("error", reject);
+          done();
+        });
       });
       return configuredOrigin ?? `http://127.0.0.1:${server.address().port}`;
     },
@@ -537,7 +605,10 @@ export function createAdminService({
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   const service = createAdminService({
     username: process.env.SHIXU_ADMIN_USERNAME,
     passwordHash: process.env.SHIXU_ADMIN_PASSWORD_HASH,
@@ -548,7 +619,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     ),
   });
   await service.listen(Number(process.env.SHIXU_ADMIN_PORT || 8789));
-  const stop = () => { service.close().catch(() => { process.exitCode = 1; }); };
+  const stop = () => {
+    service.close().catch(() => {
+      process.exitCode = 1;
+    });
+  };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
 }

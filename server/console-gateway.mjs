@@ -141,6 +141,7 @@ export function createConsoleGateway({
             "/fonts/NotoSansSC.ttf",
             "/fonts/SpaceGrotesk.ttf",
             "/desktop-icon.svg",
+            "/console-icon.svg",
           ].includes(path))
       ) {
         asset = "." + path;

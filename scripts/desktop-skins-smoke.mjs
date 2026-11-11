@@ -36,7 +36,7 @@ try {
     ).toBeEnabled();
   }
   // Use the actual bundled MP3 and Chromium media pipeline. A greeting must
-  // restart on every click and continue beyond the previous 3.2s cutoff.
+  // toggle pause/resume on one click and continue beyond the old 3.2s cutoff.
   await page.evaluate(() => {
     window.__mediaPlays = 0;
     if (window.__syntheticAudio) return;
@@ -60,13 +60,20 @@ try {
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(0.15);
-  for (let i = 0; i < 3; i++) await whale.click();
-  assert.equal(await page.evaluate(() => window.__mediaPlays), 4);
-  assert.equal(
-    await page.evaluate(() => window.__greetingAudio.currentTime < 0.5),
-    true,
-    "each tap restarts from the beginning",
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  const pausedAt = await page.evaluate(
+    () => window.__greetingAudio.currentTime,
   );
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__mediaPlays), 2);
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+    .toBeGreaterThan(pausedAt);
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__mediaPlays), 3);
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(3.3);
@@ -183,7 +190,16 @@ try {
   await media.evaluate((v) => v.play());
   await page.screenshot({ path: "release/desktop-bunny-market.png" });
   await bunny.click();
-  assert.ok(await media.evaluate((v) => v.currentTime < 0.5));
+  const foxPausedAt = await media.evaluate((v) => v.currentTime);
+  assert.equal(await media.evaluate((v) => v.paused), true);
+  await page.waitForTimeout(300);
+  assert.ok(
+    Math.abs((await media.evaluate((v) => v.currentTime)) - foxPausedAt) < 0.05,
+  );
+  await bunny.click();
+  await expect
+    .poll(() => media.evaluate((v) => v.currentTime))
+    .toBeGreaterThan(foxPausedAt);
   await expect
     .poll(() => page.evaluate(() => window.__foxEnded), {
       timeout: 12000,

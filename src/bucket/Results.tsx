@@ -51,11 +51,15 @@ function Results({
   purge,
   onChat,
   onRecords,
+  onRetry,
+  onApplyProposals,
 }: {
   skin: Skin;
   compact?: boolean;
   reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
+  onRetry?: (packet: Packet) => Promise<void>;
+  onApplyProposals?: (packetId: string, itemId: string) => Promise<void>;
   packets: Packet[];
   save: (p: Packet) => Promise<void>;
   focusPacket: string;
@@ -66,17 +70,18 @@ function Results({
     packetId: string,
     itemId: string,
     text: string,
+    options?: { scope: "item" | "account"; readAttachments: boolean },
   ) => Promise<ItemState>;
 }) {
   const [query, setQuery] = useState(""),
     [scope, setScope] = useState("active"),
     [kind, setKind] = useState("all");
-  const [sort, setSort] = useState(
-      () => {
-        const saved = localStorage.getItem("shixu.card-sort") || "due";
-        return ["due", "created", "category", "custom"].includes(saved) ? saved : "due";
-      },
-    ),
+  const [sort, setSort] = useState(() => {
+      const saved = localStorage.getItem("shixu.card-sort") || "due";
+      return ["due", "created", "category", "custom"].includes(saved)
+        ? saved
+        : "due";
+    }),
     [dateFilter, setDateFilter] = useState("all"),
     [starOnly, setStarOnly] = useState(false);
   const [day, setDay] = useState(localDate()),
@@ -401,8 +406,13 @@ function Results({
                 </select>
               </div>
             </details>
-            <button className="star-filter" aria-pressed={starOnly} onClick={() => setStarOnly(!starOnly)}>
-              <Star size={17} fill={starOnly ? "currentColor" : "none"} /> 只展示星标
+            <button
+              className="star-filter"
+              aria-pressed={starOnly}
+              onClick={() => setStarOnly(!starOnly)}
+            >
+              <Star size={17} fill={starOnly ? "currentColor" : "none"} />{" "}
+              只展示星标
             </button>
           </div>
           {onlyPacket && (
@@ -449,13 +459,59 @@ function Results({
           )}
         </>
       )}
-      {!filtered.length && (
-        <div className="result-empty">
-          {compact
-            ? "这次的事情都处理好了。"
-            : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
-        </div>
-      )}
+      {!filtered.length &&
+        !packets.some(
+          (p) =>
+            !p.deletedAt &&
+            !p.result &&
+            p.status === "error" &&
+            scope === "active" &&
+            !starOnly &&
+            ["all", "note"].includes(kind),
+        ) && (
+          <div className="result-empty">
+            {compact
+              ? "这次的事情都处理好了。"
+              : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
+          </div>
+        )}
+      {scope === "active" &&
+        !starOnly &&
+        ["all", "note"].includes(kind) &&
+        packets
+          .filter(
+            (p) =>
+              !p.deletedAt &&
+              !p.result &&
+              p.status === "error" &&
+              (!onlyPacket || p.id === onlyPacket) &&
+              `${p.text} ${p.attachments.map((a) => a.name).join(" ")}`
+                .toLowerCase()
+                .includes(searchTerm),
+          )
+          .map((p) => (
+            <article className="result-card raw-material-card" key={p.id}>
+              <h2>原样保存 · AI尚未完成整理</h2>
+              <p>
+                {p.text.slice(0, 160) || "文件材料已保留，可打开查看原件。"}
+              </p>
+              <p className="quiet">
+                {p.error || "本次未得到通过核对的整理结果。"}{" "}
+                原始资料仍可使用，后续可主动再整理。
+              </p>
+              <CardFiles
+                attachments={p.attachments}
+                packet={p}
+                onOpen={() => setMaterials(p.id)}
+              />
+              <div className="result-actions">
+                <button onClick={() => setMaterials(p.id)}>查看原样材料</button>
+                {onRetry && (
+                  <button onClick={() => void onRetry(p)}>后续再整理</button>
+                )}
+              </div>
+            </article>
+          ))}
       {(grouped ? groups : [""]).map((group) => (
         <section className="result-group" key={group}>
           {grouped && group && (
@@ -636,6 +692,7 @@ function Results({
                   </div>
                   <CardFiles
                     attachments={p.attachments}
+                    packet={p}
                     onOpen={() => {
                       materialOrigin.current = id;
                       setMaterials(p.id);
@@ -950,8 +1007,18 @@ function Results({
                           {!deleted && (
                             <ItemChat
                               meta={meta}
-                              send={async (text) => {
-                                const next = await onChat(p.id, id, text);
+                              applyProposals={
+                                onApplyProposals
+                                  ? () => onApplyProposals(p.id, id)
+                                  : undefined
+                              }
+                              send={async (text, options) => {
+                                const next = await onChat(
+                                  p.id,
+                                  id,
+                                  text,
+                                  options,
+                                );
                                 setKind("all");
                                 setDateFilter("all");
                                 setStarOnly(false);

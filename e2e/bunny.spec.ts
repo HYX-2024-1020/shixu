@@ -157,9 +157,18 @@ test("fox uses one audible video clock through buffering, restart and completion
     .locator(".skin-market")
     .screenshot({ path: info.outputPath("bunny-market.png") });
   await mascot.click();
+  await expect
+    .poll(() => media.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(true);
+  const pausedAt = await media.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await page.waitForTimeout(250);
   expect(
     await media.evaluate((v: HTMLVideoElement) => v.currentTime),
-  ).toBeLessThan(0.5);
+  ).toBeCloseTo(pausedAt, 1);
+  await mascot.click();
+  await expect
+    .poll(() => media.evaluate((v: HTMLVideoElement) => v.currentTime))
+    .toBeGreaterThan(pausedAt);
   await expect
     .poll(() => page.evaluate(() => (window as any).__foxEnded), {
       timeout: 12000,

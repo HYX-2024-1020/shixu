@@ -15,6 +15,10 @@ test("installed assets proxy real authentication, CSRF, controls and failure wit
     "<html>synthetic installed console</html>",
   );
   await writeFile(join(root, "assets/a.js"), "// synthetic asset");
+  await writeFile(
+    join(root, "console-icon.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg"><text>序</text></svg>',
+  );
   let writes = 0;
   const password = "synthetic-admin-password",
     service = createAdminService({
@@ -36,6 +40,10 @@ test("installed assets proxy real authentication, CSRF, controls and failure wit
       release: "synthetic",
     }),
     origin = await gateway.listen(0);
+  const icon = await fetch(origin + "/console-icon.svg");
+  assert.equal(icon.status, 200);
+  assert.match(icon.headers.get("content-type"), /image\/svg/);
+  assert.match(await icon.text(), /序/);
   t.after(async () => {
     await gateway.close();
     await service.close();

@@ -95,8 +95,58 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
     backend.audits().filter((a) => a.action === "alert-read").length,
     1,
   );
+  assert.throws(
+    () =>
+      backend.followAlert(
+        alert.id,
+        "reviewed",
+        "尚未恢复",
+        "follow-review-1",
+        "operator",
+      ),
+    (e) => e.code === "ALERT_NOT_RECOVERED",
+  );
+  await backend.followAlert(
+    alert.id,
+    "developer",
+    "已定位安全配置，等待维护修复",
+    "follow-developer-1",
+    "operator",
+  );
+  await backend.followAlert(
+    alert.id,
+    "developer",
+    "已定位安全配置，等待维护修复",
+    "follow-developer-1",
+    "operator",
+  );
+  assert.equal(
+    backend.alerts().find((a) => a.id === alert.id).followup.state,
+    "developer",
+  );
+  assert.equal(
+    backend.audits().filter((a) => a.action === "alert-followup-developer")
+      .length,
+    1,
+  );
+  assert.equal(
+    backend.alerts().find((a) => a.id === alert.id).recoveredAt,
+    null,
+  );
+  assert.deepEqual(ledger.wallet(a), wallet);
   registry.pauseAI(false);
   backend.sample();
   assert.ok(backend.alerts().find((a) => a.id === alert.id).recoveredAt);
+  await backend.followAlert(
+    alert.id,
+    "reviewed",
+    "实际恢复已核对",
+    "follow-reviewed-1",
+    "operator",
+  );
+  assert.equal(
+    backend.alerts().find((a) => a.id === alert.id).followup.state,
+    "reviewed",
+  );
   assert.ok(backend.overview().resources.source);
 });

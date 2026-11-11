@@ -540,6 +540,38 @@ test("real administration HTTP enforces session/CSRF for new quota, account, bud
   );
   assert.equal(op.status, 202);
   assert.equal((await op.json()).state, "queued");
+  backend.sample();
+  const alert = backend.alerts().find((a) => !a.recoveredAt);
+  assert.ok(alert);
+  assert.equal(
+    (
+      await request(
+        `/alerts/${alert.id}/followup`,
+        { state: "following", note: "已收到，正在核对实际回执" },
+        "follow-http-1",
+        false,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await request(
+        `/alerts/${alert.id}/followup`,
+        { state: "following", note: "已收到，正在核对实际回执" },
+        "follow-http-1",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    backend.alerts().find((a) => a.id === alert.id).followup.state,
+    "following",
+  );
+  assert.equal(
+    backend.alerts().find((a) => a.id === alert.id).recoveredAt,
+    null,
+  );
   assert.equal(
     (await (await request("/operations")).json()).maintenance.paused,
     true,

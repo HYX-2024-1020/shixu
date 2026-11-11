@@ -51,6 +51,18 @@ export interface Packet {
   association?: Association;
 }
 export interface ItemState {
+  chatProposals?: {
+    id: string;
+    items: {
+      packetId: string;
+      itemId: string;
+      title: string;
+      baseVersion: number;
+      patch: Record<string, unknown>;
+      beforeItem: import("../../shared/bucket-engine.mjs").BucketItem;
+      beforeState: Record<string, unknown>;
+    }[];
+  } | null;
   chat?: { id: string; role: "user" | "assistant"; text: string; at: string }[];
   additions?: { id: string; text: string; at: string }[];
   history?: {

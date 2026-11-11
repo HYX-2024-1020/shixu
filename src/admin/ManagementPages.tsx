@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { AdminApi } from "./api";
 import type { AdminTask, TaskAction, TaskStatus } from "./api/types";
 import { formatBeijingTime, formatMicroYuan, newOperationId } from "./format";
-import { Button, ConfirmDialog, ErrorState, Field, useAsyncData } from "./ui";
+import {
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  Field,
+  StatusBadge,
+  useAsyncData,
+} from "./ui";
 
 const statusLabels: Record<string, string> = {
   queued: "排队",
@@ -24,12 +31,20 @@ const actionLabels = {
   stop: "停止任务",
 };
 const stageLabels: Record<string, string> = {
-  reading: "读取与整理材料", merging: "核对重复事项", associating: "关联已有事项", verifying: "核对图像依据", chat: "回答卡片问题",
+  reading: "读取与整理材料",
+  merging: "核对重复事项",
+  associating: "关联已有事项",
+  verifying: "核对图像依据",
+  chat: "回答卡片问题",
 };
 
 export function TasksPage({ api }: { api: AdminApi }) {
   const detail = useRef<HTMLElement>(null);
-  const [keyword, setKeyword] = useState(""),
+  const [keyword, setKeyword] = useState(
+      () =>
+        new URLSearchParams(location.hash.split("?")[1] || "").get("account") ||
+        "",
+    ),
     [status, setStatus] = useState<TaskStatus | "all">("all"),
     [page, setPage] = useState(1);
   const [selected, setSelected] = useState<AdminTask | null>(null),
@@ -58,8 +73,12 @@ export function TasksPage({ api }: { api: AdminApi }) {
   return (
     <section className="panel">
       <h1>任务管理</h1>
-      <p>每次整理或卡片对话是一项任务。在这里定位失败、核对费用并按状态处置；不展示用户正文或原文件。</p>
-      <p>暂停和失败的任务保留进度，等待主动继续，并不代表仍在排队。继续可能产生新费用，安全门禁仍生效。</p>
+      <p>
+        每次整理或卡片对话是一项任务。在这里定位失败、核对费用并按状态处置；不展示用户正文或原文件。
+      </p>
+      <p>
+        暂停和失败的任务保留进度，等待主动继续，并不代表仍在排队。继续可能产生新费用，安全门禁仍生效。
+      </p>
       <div className="toolbar">
         <input
           aria-label="搜索任务"
@@ -116,7 +135,23 @@ export function TasksPage({ api }: { api: AdminApi }) {
                       <small>任务 {String(t.taskId || t.id).slice(0, 8)}</small>
                     </td>
                     <td>
-                      {statusLabels[t.status] || t.status} · {stageLabels[t.stage] || t.stageLabel}
+                      <StatusBadge
+                        tone={
+                          [
+                            "paused",
+                            "error",
+                            "conflict",
+                            "interrupted",
+                          ].includes(t.status)
+                            ? "warn"
+                            : ["done", "partial"].includes(t.status)
+                              ? "ok"
+                              : "info"
+                        }
+                      >
+                        {statusLabels[t.status] || t.status}
+                      </StatusBadge>{" "}
+                      · {stageLabels[t.stage] || t.stageLabel}
                       <br />
                       {t.errorCode}
                     </td>
@@ -157,25 +192,57 @@ export function TasksPage({ api }: { api: AdminApi }) {
         </>
       )}
       {selected && (
-        <article className="panel task-detail" ref={detail} tabIndex={-1} aria-label="任务详情">
+        <article
+          className="panel task-detail"
+          ref={detail}
+          tabIndex={-1}
+          aria-label="任务详情"
+        >
           <h2>{selected.username} · 任务详情</h2>
           <Button onClick={() => setSelected(null)}>关闭详情</Button>
-          <details><summary>技术编号</summary><p>
-            <code>{selected.taskId || selected.id}</code>
-          </p></details>
+          <details>
+            <summary>技术编号</summary>
+            <p>
+              <code>{selected.taskId || selected.id}</code>
+            </p>
+          </details>
           <p>
-            {statusLabels[selected.status]} · {stageLabels[selected.stage] || selected.stageLabel} ·{" "}
+            {statusLabels[selected.status]} ·{" "}
+            {stageLabels[selected.stage] || selected.stageLabel} ·{" "}
             {selected.errorCode || "无错误码"}
           </p>
-          {selected.diagnostic && <section className="diagnostic-report">
-            <h3>本次处理报告</h3>
-            <p>报告 {selected.diagnostic.id} · {formatBeijingTime(new Date(selected.diagnostic.at).toISOString())}</p>
-            <p>发生在{stageLabels[selected.diagnostic.phase] || selected.diagnostic.phase}。资料及已结算费用保留。核对失败需要修复处理规则；管理员不能通过解除费用或安全门禁强行发布结果。</p>
-            <details><summary>诊断和调用费用</summary>
-              <p>版本 {selected.diagnostic.version} · 错误 {selected.diagnostic.code} · 执行批次 {selected.diagnostic.generation}</p>
-              {selected.diagnostic.calls.map(call => <p key={call.id}>{call.id} · {call.state} · {formatMicroYuan(call.actual ?? call.reserved)}{call.actual === null ? "（预留或待核对）" : "（已结算）"}</p>)}
-            </details>
-          </section>}
+          {selected.diagnostic && (
+            <section className="diagnostic-report">
+              <h3>本次处理报告</h3>
+              <p>
+                报告 {selected.diagnostic.id} ·{" "}
+                {formatBeijingTime(
+                  new Date(selected.diagnostic.at).toISOString(),
+                )}
+              </p>
+              <p>
+                发生在
+                {stageLabels[selected.diagnostic.phase] ||
+                  selected.diagnostic.phase}
+                。资料及已结算费用保留。核对失败需要修复处理规则；管理员不能通过解除费用或安全门禁强行发布结果。
+              </p>
+              <details>
+                <summary>诊断和调用费用</summary>
+                <p>
+                  版本 {selected.diagnostic.version} · 错误{" "}
+                  {selected.diagnostic.code} · 执行批次{" "}
+                  {selected.diagnostic.generation}
+                </p>
+                {selected.diagnostic.calls.map((call) => (
+                  <p key={call.id}>
+                    {call.id} · {call.state} ·{" "}
+                    {formatMicroYuan(call.actual ?? call.reserved)}
+                    {call.actual === null ? "（预留或待核对）" : "（已结算）"}
+                  </p>
+                ))}
+              </details>
+            </section>
+          )}
           <p>
             累计 {selected.calls ?? "未采集"} 次调用 · 活跃{" "}
             {selected.activeSeconds ?? "未采集"} 秒 / 上限{" "}

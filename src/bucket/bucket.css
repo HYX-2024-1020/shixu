@@ -2100,8 +2100,75 @@ button:hover:not(:disabled) {
   font-weight: 700;
   cursor: pointer;
 }
-.consent-check input[type="checkbox"] { width: 20px !important; height: 20px; flex: 0 0 20px; margin: 2px 0 0; }
-.connection-data button { cursor: pointer; }
-.connection-data button:disabled { cursor: not-allowed; }
-.star-filter { display: inline-flex; align-items: center; gap: 6px; }
-.star-filter[aria-pressed="true"] { background: #ffd43b; }
+.consent-check input[type="checkbox"] {
+  width: 20px !important;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 2px 0 0;
+}
+.connection-data button {
+  cursor: pointer;
+  border: 2px solid #171717;
+  border-radius: 4px;
+  background: #fff9e6;
+  color: #171717;
+  padding: 8px 13px;
+  margin: 5px 8px 5px 0;
+  font-size: 14px;
+  font-weight: 650;
+  min-height: 40px;
+}
+.connection-data button:hover:not(:disabled) {
+  background: #ffe783;
+}
+.connection-data button[aria-pressed="true"],
+.account-access button[type="submit"] {
+  background: #ffd43b;
+}
+.connection-data button:disabled {
+  cursor: not-allowed;
+}
+.connection-data {
+  margin: 20px 0;
+  padding: 18px;
+  border: 2px solid #ddd8bf;
+  background: #fffdf4;
+  border-radius: 6px;
+}
+.connection-data h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 19px;
+}
+.connection-data p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.connection-data > div:has(> p) {
+  padding: 12px 0;
+  border-bottom: 1px solid #e2dfcc;
+}
+.chat-scope-controls {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+.chat-proposals {
+  border: 2px solid #6f58b6;
+  padding: 16px;
+  background: #f5f0ff;
+  margin: 16px 0;
+}
+.raw-material-card {
+  padding: 20px;
+  margin: 20px 0;
+  background: #fff7dc;
+}
+.star-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.star-filter[aria-pressed="true"] {
+  background: #ffd43b;
+}

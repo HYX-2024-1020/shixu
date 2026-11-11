@@ -1,4 +1,4 @@
-import {ReadingWindowMaintenance} from "./window-maintenance.mjs";
+import { ReadingWindowMaintenance } from "./window-maintenance.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { createReadingScheduler } from "./scheduler.mjs";
 import { SyncError } from "../sync-store.mjs";
@@ -18,15 +18,20 @@ const shutdownMessages = {
   NO_READABLE_MATERIAL:
     "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
   ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
-  ACCOUNT_DISABLED: "账号已停用，任务与费用保留；恢复账号及设备授权后请主动继续",
+  ACCOUNT_DISABLED:
+    "账号已停用，任务与费用保留；恢复账号及设备授权后请主动继续",
   RECONCILIATION_REQUIRED: "历史费用待核对，AI暂不可用；记录和同步仍可用",
-  ASSOCIATION_CONTEXT_LIMIT:"历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
-  ASSOCIATION_INPUT_CHANGED:"历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
-  WINDOW_STATE_RECONCILIATION:"读取进度与独立记录不一致，已暂停；请联系维护者核对",
-  WINDOW_STATE_AUDITED:"读取进度已核对，累计调用、费用和时间保留；请主动继续",
+  ASSOCIATION_CONTEXT_LIMIT:
+    "历史关联内容超过当前安全容量，已读取结果保留，可收下部分结果",
+  ASSOCIATION_INPUT_CHANGED:
+    "历史事项已变化，已付费进度保留；可收下本次结果或清除任务后重新整理",
+  WINDOW_STATE_RECONCILIATION:
+    "读取进度与独立记录不一致，已暂停；请联系维护者核对",
+  WINDOW_STATE_AUDITED: "读取进度已核对，累计调用、费用和时间保留；请主动继续",
   VISUAL_REVIEW_REQUIRED: "图像事项尚待依据核对，已识别进度保留",
   VISUAL_REVIEW_NOT_READY: "图像核对服务尚未就绪，不能直接收下未经核对的结果",
-  VISUAL_REVIEW_CONTEXT_LIMIT: "图像依据核对内容超过本窗安全范围，进度保留待处理",
+  VISUAL_REVIEW_CONTEXT_LIMIT:
+    "图像依据核对内容超过本窗安全范围，进度保留待处理",
   SHUTDOWN: "服务关闭，进度已保留；重新连接后可继续",
   SHUTDOWN_TIMEOUT: "关闭等待已结束，有调用费用待核对；已完成进度保留",
   SHUTDOWN_TIME_UNCERTAIN:
@@ -36,14 +41,20 @@ const shutdownMessages = {
   SERVICE_CLOSING: "服务正在关闭，请稍后重试",
   CHECKPOINT_NO_PROGRESS: "累计24次调用未取得新增有效块，需核对后继续",
   CHECKPOINT_RECONCILIATION: "历史任务的累计调用检查点待核对，已完成进度保留",
-  SAFETY_RECONCILIATION: "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留",
+  SAFETY_RECONCILIATION:
+    "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留",
   STALE_COST_REVIEW: "费用核对状态已变化，请刷新后重新发起整理",
-  COST_RECONCILIATION_AUDITED: "费用已核对，累计费用与进度保留；缺失结果继续整理可能再次计费",
-  UNKNOWN_COST: "这份材料的调用费用暂按预留估算，核对前不会重复发起；可继续整理其他材料",
+  COST_RECONCILIATION_AUDITED:
+    "费用已核对，累计费用与进度保留；缺失结果继续整理可能再次计费",
+  UNKNOWN_COST:
+    "这份材料的调用费用暂按预留估算，核对前不会重复发起；可继续整理其他材料",
   LEDGER_PAUSED: "费用账本待核对，AI已暂停；已完成进度保留",
-  CHECKPOINT_AUDITED: "调用检查点已核对，累计调用、费用、时间与进度保留；请主动继续",
-  ACTIVE_TIME_AUDITED: "活跃时间已核对并保守补计，累计费用与进度保留；请主动继续",
-  EXECUTION_LIMIT_AUDITED: "维护核对已延长本投递时限，累计费用与时间保留；可继续",
+  CHECKPOINT_AUDITED:
+    "调用检查点已核对，累计调用、费用、时间与进度保留；请主动继续",
+  ACTIVE_TIME_AUDITED:
+    "活跃时间已核对并保守补计，累计费用与进度保留；请主动继续",
+  EXECUTION_LIMIT_AUDITED:
+    "维护核对已延长本投递时限，累计费用与时间保留；可继续",
   EXECUTION_LIMIT: "该投递累计活跃时间已用尽，请联系维护者核对",
   REUPLOAD_REQUIRED: "原件已清理，请从保留本机副本的设备重传核对后继续",
   READING_TIMEOUT: "单步读取超时，已完成进度保留；可稍后继续",
@@ -148,7 +159,13 @@ export function createReadingRoutes({
       reason: savedRoot.reason || info.chatSafetyReason || "",
     };
     roots?.set(t.packet, root);
-    const wallet=(()=>{try{return ledger.wallet(e.account);}catch{return {available:0,pausedReason:"RECONCILIATION_REQUIRED"};}})();
+    const wallet = (() => {
+      try {
+        return ledger.wallet(e.account);
+      } catch {
+        return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
+      }
+    })();
     const taskCostUnresolved = ledger.taskHasUnresolvedCost(e.account, t.id);
     const auditedCostAvailable =
       recoverable.includes(t.state) &&
@@ -215,7 +232,12 @@ export function createReadingRoutes({
       maintenanceOperation: e.maintenanceOperation(t.id),
       inputRevision: t.input_revision,
       calls: t.calls,
-      hasPreview: info.kind !== "chat" && t.state !== "purged" && !!e.db.prepare("SELECT 1 FROM reading_blocks WHERE task=? LIMIT 1").get(t.id),
+      hasPreview:
+        info.kind !== "chat" &&
+        t.state !== "purged" &&
+        !!e.db
+          .prepare("SELECT 1 FROM reading_blocks WHERE task=? LIMIT 1")
+          .get(t.id),
       reusedBlocks: e.reuse.count(t.id),
       remainingOf: e.remainders.info(t)?.parent || null,
       activeMs: t.active_ms,
@@ -227,7 +249,8 @@ export function createReadingRoutes({
       rootSpent: root.spent,
       checkpointCalls: root.checkpointCalls,
       nextCheckpointCalls: root.nextCheckpointCalls,
-      error: (shutdownMessages[displayReason] || displayReason || "") +
+      error:
+        (shutdownMessages[displayReason] || displayReason || "") +
         (displayReason && diagnostic ? `；报告编号 ${diagnostic.id}` : ""),
       protocol: 4,
       actions:
@@ -235,13 +258,20 @@ export function createReadingRoutes({
           ? []
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
-              ...(t.state === "partial" && !e.remainders.child(t.id) && !root.reason &&
-                  !wallet.pausedReason && !taskCostUnresolved && root.activeMs < e.executionLimit(t.id) ? ["remaining"] : []),
+              ...(t.state === "partial" &&
+              !e.remainders.child(t.id) &&
+              !root.reason &&
+              !wallet.pausedReason &&
+              !taskCostUnresolved &&
+              root.activeMs < e.executionLimit(t.id)
+                ? ["remaining"]
+                : []),
               ...(recoverable.includes(t.state) &&
-              t.reason!=="ASSOCIATION_INPUT_CHANGED" &&
+              t.reason !== "ASSOCIATION_INPUT_CHANGED" &&
               (t.reason !== "EXECUTION_LIMIT" || auditedTimeAvailable) &&
               root.activeMs < e.executionLimit(t.id) &&
-              !wallet.pausedReason && !taskCostUnresolved &&
+              !wallet.pausedReason &&
+              !taskCostUnresolved &&
               ![
                 "ACTIVE_TIME_RECONCILIATION",
                 "CHECKPOINT_RECONCILIATION",
@@ -383,7 +413,11 @@ export function createReadingRoutes({
     attach(account, store, { resume = true } = {}) {
       const e = engine(account, store);
       if (!resume) {
-        e.db.prepare("UPDATE reading_tasks SET state='paused',reason='ACCOUNT_DISABLED' WHERE state='queued'").run();
+        e.db
+          .prepare(
+            "UPDATE reading_tasks SET state='paused',reason='ACCOUNT_DISABLED' WHERE state='queued'",
+          )
+          .run();
         return;
       }
       for (const task of e.db
@@ -449,6 +483,8 @@ export function createReadingRoutes({
           visualFactReview: typeof provider.reviewVisual === "function",
           historyAssociation: typeof provider.association === "function",
           itemChat: typeof provider.chat === "function",
+          attachmentChat: typeof provider.chat === "function",
+          accountChatProposals: typeof provider.chat === "function",
           pdfPageVisual:
             reader.pdfVisualWindows === true && provider.imageInput === true,
           pdfTextOnly: !(
@@ -471,12 +507,12 @@ export function createReadingRoutes({
       };
     },
     maintenanceReview(account, id, actor) {
-      const e=engines.get(account);
+      const e = engines.get(account);
       if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
-      return new ReadingMaintenance(e,maintenanceAuthorize).preview(id,actor);
+      return new ReadingMaintenance(e, maintenanceAuthorize).preview(id, actor);
     },
     extendExecutionLimit(account, id, request, actor) {
-      const e=engines.get(account);
+      const e = engines.get(account);
       if (!e) throw Error("MAINTENANCE_ACCOUNT_NOT_ATTACHED");
       return new ReadingMaintenance(e, maintenanceAuthorize).extend(
         id,
@@ -723,7 +759,10 @@ export function createReadingRoutes({
       }
       if (url.pathname === "/api/v4/tasks" && method === "POST") {
         if (!enabled()) fail(503, "AI_DISABLED");
-        if (value.contractVersion !== 1 || !["organize","chat"].includes(value.kind))
+        if (
+          value.contractVersion !== 1 ||
+          !["organize", "chat"].includes(value.kind)
+        )
           fail(426, "CLIENT_UPGRADE_REQUIRED");
         if (value.epoch !== store.epoch) fail(409, "RESET_REQUIRED");
         try {
@@ -732,8 +771,14 @@ export function createReadingRoutes({
           fail(503, "RECONCILIATION_REQUIRED");
         } // Reconcile before queue mutation.
         const prior = e.get(value.id);
-        if(!prior && (value.expectedCostOperation ?? null)!==ledger.recoveryOperation(account))fail(409,"STALE_COST_REVIEW");
-        if(!prior && ledger.wallet(account).pausedReason)fail(503,ledger.wallet(account).pausedReason);
+        if (
+          !prior &&
+          (value.expectedCostOperation ?? null) !==
+            ledger.recoveryOperation(account)
+        )
+          fail(409, "STALE_COST_REVIEW");
+        if (!prior && ledger.wallet(account).pausedReason)
+          fail(503, ledger.wallet(account).pausedReason);
         if (
           !prior &&
           store.record(value.packetId)?.version !== value.baseVersion
@@ -749,6 +794,8 @@ export function createReadingRoutes({
                 chat: {
                   itemId: value.itemId,
                   instruction: value.instruction,
+                  scope: value.scope,
+                  readAttachments: value.readAttachments,
                   baseVersion: value.baseVersion,
                   epoch: value.epoch,
                 },
@@ -775,7 +822,8 @@ export function createReadingRoutes({
       if (value.contractVersion !== 1) fail(426, "CLIENT_UPGRADE_REQUIRED");
       if (match[2] === "remaining") {
         if (!enabled()) fail(503, "AI_DISABLED");
-        const wallet = ledger.wallet(account), root = e.roots.stats(task.id);
+        const wallet = ledger.wallet(account),
+          root = e.roots.stats(task.id);
         if (wallet.pausedReason) fail(503, wallet.pausedReason);
         if (root.reason) fail(409, root.reason);
         if (root.activeMs >= e.executionLimit(task.id))
