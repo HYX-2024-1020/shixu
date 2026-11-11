@@ -48,6 +48,10 @@ export function normalizeDateText(value) {
 
 // Infer omitted calendar components once from the saved capture day.
 function point(text, today, inherited, end = false) {
+  text = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#",
+  );
   const [year, month] = today.split("-").map(Number);
   let date = "",
     inferred = false;

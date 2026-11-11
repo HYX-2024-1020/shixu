@@ -23,6 +23,25 @@ test("omitted empty merge list is conservative while unknown IDs and malformed l
   );
 });
 
+test("different opening starts cannot merge merely because their end times match", () => {
+  const items = ["09:00", "10:00"].map((startTime, index) => ({
+    id: String(index),
+    item: {
+      kind: "event",
+      due: {
+        date: "2026-11-04",
+        time: "11:30",
+        startDate: "2026-11-04",
+        startTime,
+      },
+    },
+  }));
+  assert.throws(
+    () => validateMerge({ same: [["0", "1"]], related: [] }, items),
+    /INVALID_MERGE_CONFLICT/,
+  );
+});
+
 test("conflicting semantic suggestions preserve every certified item and settle once instead of blocking use", async (t) => {
   const provider = Object.assign(
     async (sources) => ({

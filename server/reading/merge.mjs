@@ -18,7 +18,16 @@ const unique = (values) => [
   ...new Map(values.map((v) => [JSON.stringify(v), v])).values(),
 ];
 const dueKey = (due) =>
-  due ? JSON.stringify([due.date, due.time, due.endDate, due.endTime]) : null;
+  due
+    ? JSON.stringify([
+        due.date,
+        due.time,
+        due.startDate,
+        due.startTime,
+        due.endDate,
+        due.endTime,
+      ])
+    : null;
 const compatibleKinds = (items) => {
   const kinds = new Set(items.map((item) => item.kind));
   return (

@@ -14,6 +14,22 @@ export function absoluteText(text, day) {
   let previousWeek = "",
     previousEnd = 0;
   return text.replace(relative, (token, offset) => {
+    // The minute/hour substring of 9:30-11:30 is not a short date range.
+    if (
+      /^\d/.test(token) &&
+      /[-~～至到—–]/.test(token) &&
+      (/[:：点时]$/.test(text.slice(0, offset)) ||
+        /^[:：点时]/.test(text.slice(offset + token.length)))
+    )
+      return token;
+    // Numbered windows and rooms are identifiers, not calendar days.
+    if (
+      /^\d+号$/.test(token) &&
+      /^(?:窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/.test(
+        text.slice(offset + token.length),
+      )
+    )
+      return token;
     // Question/page/quantity ranges in prose are not abbreviated calendar dates.
     if (
       /^\d/.test(token) &&

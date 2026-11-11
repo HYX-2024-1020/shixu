@@ -155,3 +155,16 @@ it("preserves numbered question ranges while resolving dates in the same prose",
     "2026-10-26 至 2026-10-28完成第1-3题",
   );
 });
+
+it("keeps numbered service windows out of dates while preserving an actual day", () => {
+  expect(
+    absoluteText("11月4日上午9:30-11:30；下午14:00-16:30", "2026-10-31"),
+  ).toBe("2026年11月04日上午9:30-11:30；下午14:00-16:30");
+  expect(
+    absoluteText("北校区师生服务大厅23号窗口，11月4日办理", "2026-10-31"),
+  ).toBe("北校区师生服务大厅23号窗口，2026年11月04日办理");
+  expect(parseDateExpression("师生服务大厅23号窗口", "2026-10-31")).toBeNull();
+  expect(parseDeadline("23号前往窗口办理", "2026-10-31").date).toBe(
+    "2026-11-23",
+  );
+});

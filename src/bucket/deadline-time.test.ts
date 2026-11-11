@@ -14,18 +14,37 @@ import { validateChat } from "./item-chat";
 it("normalizes tonight midnight exactly once through model validation and reload", () => {
   const text = "2026年11月11日晚上12点前完成高数作业";
   const item: BucketItem = {
-    kind: "task", title: "完成高数作业", summary: text,
-    facts: [], nextSteps: [], uncertainties: [], sourceIds: ["input"],
+    kind: "task",
+    title: "完成高数作业",
+    summary: text,
+    facts: [],
+    nextSteps: [],
+    uncertainties: [],
+    sourceIds: ["input"],
     evidence: [{ sourceId: "input", quote: text }],
     due: { date: "2026-11-13", time: "00:00", anchor: text, sourceId: "input" },
   };
   const sources = [{ id: "input", name: "合成通知", text }];
-  const out = validateResult({ summary: "合成作业", warnings: [], items: [item] }, sources, "2026-11-11");
+  const out = validateResult(
+    { summary: "合成作业", warnings: [], items: [item] },
+    sources,
+    "2026-11-11",
+  );
   expect(out.items[0].due).toMatchObject({ date: "2026-11-12", time: "00:00" });
-  expect(absoluteItem(JSON.parse(JSON.stringify(out.items[0])), "2026-11-11", sources).due)
-    .toMatchObject({ date: "2026-11-12", time: "00:00" });
-  expect(validateChat({ reply: "已核对", patch: { due: { anchor: text } } }, text, "2026-11-11").patch.due)
-    .toMatchObject({ date: "2026-11-12", time: "00:00" });
+  expect(
+    absoluteItem(
+      JSON.parse(JSON.stringify(out.items[0])),
+      "2026-11-11",
+      sources,
+    ).due,
+  ).toMatchObject({ date: "2026-11-12", time: "00:00" });
+  expect(
+    validateChat(
+      { reply: "已核对", patch: { due: { anchor: text } } },
+      text,
+      "2026-11-11",
+    ).patch.due,
+  ).toMatchObject({ date: "2026-11-12", time: "00:00" });
 });
 
 it("retains Chinese minutes, full width clocks, quarters and AM/PM", () => {
@@ -307,4 +326,44 @@ it("recovers a card's own stated clock when a legacy manual date has no clock", 
   expect(
     itemDeadlineTime({ ...item, summary: "明天下午三点还有另一场活动" }),
   ).toMatchObject({ time: "23:59", timeInferred: true });
+});
+
+it("recovers opening hours below a date heading without crossing the next event", () => {
+  const source = {
+    id: "input",
+    name: "合成通知",
+    text: "11月4日\n上午：9:30-11:30；下午：14:00-16:30。\n11月18日\n上午：9:00-11:30；下午：14:00-16:30。",
+  };
+  const item = {
+    kind: "event",
+    title: "合成办理",
+    summary: "",
+    facts: [],
+    nextSteps: [],
+    uncertainties: [],
+    due: {
+      date: "2026-11-04",
+      time: "23:59",
+      timeInferred: true,
+      anchor: "11月4日",
+      sourceId: "input",
+    },
+    evidence: [{ sourceId: "input", quote: "11月4日" }],
+  } as BucketItem;
+  expect(absoluteItem(item, "2026-10-31", [source]).due?.time).toBe("09:30");
+  expect(
+    absoluteItem(
+      {
+        ...item,
+        due: { ...item.due!, date: "2026-11-18", anchor: "11月18日" },
+      },
+      "2026-10-31",
+      [source],
+    ).due?.time,
+  ).toBe("09:00");
+  expect(
+    absoluteItem(item, "2026-10-31", [
+      { ...source, text: "11月4日\n11月18日上午9:00" },
+    ]).due?.time,
+  ).toBe("23:59");
 });
