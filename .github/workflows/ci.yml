@@ -104,6 +104,7 @@ jobs:
       - name: Verify matching preinstalled browser runtime
         run: |
           node -e 'const fs = require("node:fs"); const pw = require("playwright"); if (require("playwright/package.json").version !== "1.64.1") throw new Error("Update the pinned Playwright image with package-lock.json"); for (const browser of [pw.chromium, pw.webkit]) fs.accessSync(browser.executablePath(), fs.constants.X_OK);'
+      - run: npm run site:check
       - run: npm run build
       - run: npm run test:e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
