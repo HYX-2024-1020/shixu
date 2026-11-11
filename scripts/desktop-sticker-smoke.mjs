@@ -158,9 +158,10 @@ try {
   const ddl = page.locator(".ddl-item").filter({ hasText: "完成品牌提案" });
   await expect(ddl.locator(".ddl-countdown")).toHaveText("还剩 2 天");
   await expect(ddl.locator(".card-file")).toHaveCount(2);
+  await expect(ddl).toHaveAttribute("data-urgency", "near");
   await expect(ddl.locator(".ddl-footer")).toHaveCSS(
     "background-color",
-    "rgb(195, 176, 255)",
+    "rgb(255, 223, 176)",
   );
   await page.screenshot({
     path: `release/cel-evidence/sticker-${label}-ddl.png`,
@@ -169,8 +170,10 @@ try {
   await ddl.getByRole("button", { name: /标记完成：/ }).click();
   await page.getByText(/已完成 · 1 项/).click();
   await expect(ddl.locator(".ddl-countdown")).toHaveText("已完成");
+  await expect(ddl).toHaveAttribute("data-urgency", "done");
   await ddl.getByRole("button", { name: /撤销完成：/ }).click();
   await expect(ddl.locator(".ddl-countdown")).toHaveText("还剩 2 天");
+  await expect(ddl).toHaveAttribute("data-urgency", "near");
   console.log(
     "PASS: sticker world/details, stable semantic colors, star, DDL countdown/footer, completion and undo (isolated synthetic profile).",
   );

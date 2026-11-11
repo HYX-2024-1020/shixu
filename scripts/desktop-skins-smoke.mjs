@@ -316,11 +316,11 @@ try {
       "one-tap skin selection, home voice controls and plain ice artwork",
       "settings dismisses on the second header-position click and Escape",
       audioClock
-        ? "real MP3 decoded; playback clock adapter verifies every-click restart, no 3.2s cutoff and natural-duration completion"
-        : "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
+        ? "real MP3 decoded; playback clock adapter verifies one-click pause/resume, no 3.2s cutoff and natural-duration completion"
+        : "actual whale MP3 pauses/resumes on one click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
       "both ice voices contain non-silent decoded PCM and play to natural completion",
-      "bunny audio contains non-silent decoded PCM; original timeline plays once, restarts and stops on skin switch",
+      "bunny audio contains non-silent decoded PCM; original timeline pauses/resumes, completes naturally and stops on skin switch",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",
       "custom edit/delete restores whale",
