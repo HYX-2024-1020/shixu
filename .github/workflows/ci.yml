@@ -86,7 +86,8 @@ jobs:
 
   browser:
     name: Browser E2E
-    runs-on: ubuntu-latest
+    # Keep browser OS dependencies reproducible while ubuntu-latest migrates to 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
