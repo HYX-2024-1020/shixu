@@ -1073,3 +1073,5 @@ th.num {
     font-size: 13.5px;
   }
 }
+.task-detail { scroll-margin-top: 90px; outline: none; border-left: 5px solid #287362; }
+.diagnostic-report { margin: 20px 0; padding: 18px; background: #fff4d6; border: 1px solid #ba9650; border-radius: 8px; overflow-wrap: anywhere; }

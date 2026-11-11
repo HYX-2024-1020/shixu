@@ -71,6 +71,12 @@ export default function SkinMascot({
   }, [state, suspended]);
   function greet() {
     if (suspended || state !== "idle") return;
+    if ((skin.art === "whale" || skin.art === "bunny") && happy) {
+      audio.current?.pause();
+      clearTimeout(timer.current);
+      setHappy(false);
+      return;
+    }
     setPlaySignal((value) => value + 1);
     setHappy(true);
     clearTimeout(timer.current);

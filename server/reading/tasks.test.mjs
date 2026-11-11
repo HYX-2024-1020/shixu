@@ -37,6 +37,32 @@ const result = (sources) => ({
   ],
 });
 
+test("invalid paid output leaves a durable safe report with settled cost and no business text", async t => {
+  const secret = "private-business-sentinel-DO-NOT-LOG";
+  const f = fixture(t, { provider: async sources => {
+    const value = result(sources);
+    value.items[0].evidence[0].quote = secret;
+    return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: value };
+  } });
+  f.enqueue();
+  const failed = await f.tasks.run("task");
+  assert.equal(failed.state, "paused");
+  assert.equal(failed.reason, "READING_TASK_FAILED");
+  const report = f.tasks.diagnostics.latest("task");
+  assert.equal(report.code, "INVALID_MODEL_SOURCE");
+  assert.equal(report.phase, "reading");
+  assert.equal(report.calls[0].state, "settled");
+  assert.ok(report.calls[0].actual > 0);
+  assert.ok(!JSON.stringify(report).includes(secret));
+  assert.ok(!JSON.stringify(report).includes("原件实际内容"));
+  f.tasks.close();
+  const restarted = new ReadingTasks(f.taskArgs);
+  try {
+    assert.deepEqual(restarted.diagnostics.latest("task"), report);
+    assert.throws(() => f.ledger.db.prepare("DELETE FROM reading_diagnostics").run(), /APPEND_ONLY/);
+  } finally { restarted.close(); }
+});
+
 test("manual pause blocks later paid steps, preserves settled progress and requires explicit continue", async t => {
   let paused=false;
   const f=fixture(t,{text:'合成材料'.repeat(50000),provider:async sources=>{

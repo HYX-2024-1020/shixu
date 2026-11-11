@@ -141,6 +141,7 @@ export function createReadingRoutes({
   }
   const view = (e, t, roots) => {
     const info = e.chat.publicInfo(t.id);
+    const diagnostic = e.diagnostics.latest(t.id);
     const savedRoot = roots?.get(t.packet) || e.roots.stats(t.id);
     const root = {
       ...savedRoot,
@@ -182,6 +183,7 @@ export function createReadingRoutes({
                   : t.reason);
     return {
       contractVersion: 1,
+      diagnostic,
       ...info,
       id: t.id,
       packetId: t.packet,
@@ -225,9 +227,8 @@ export function createReadingRoutes({
       rootSpent: root.spent,
       checkpointCalls: root.checkpointCalls,
       nextCheckpointCalls: root.nextCheckpointCalls,
-      error:
-        shutdownMessages[displayReason] || displayReason ||
-        "",
+      error: (shutdownMessages[displayReason] || displayReason || "") +
+        (displayReason && diagnostic ? `；报告编号 ${diagnostic.id}` : ""),
       protocol: 4,
       actions:
         t.state === "purged"
@@ -327,6 +328,7 @@ export function createReadingRoutes({
               stageLabel: v.phase,
               progress: ["done", "partial"].includes(t.state) ? 100 : null,
               errorCode: v.reason || null,
+              diagnostic: v.diagnostic,
               costMicro: v.rootSpent,
               calls: v.rootCalls,
               activeSeconds: v.rootActiveSeconds,

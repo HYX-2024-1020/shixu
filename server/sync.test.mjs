@@ -83,6 +83,22 @@ async function fixture(t, ai = null) {
   };
 }
 let nameCounter = 0;
+
+test("restoring one deleted item survives JSON transport, another client and service restart", async t => {
+  const f = await fixture(t), a = await f.device("restore-owner"), b = await f.device("restore-peer");
+  const first = f.client(a.token).instance, second = f.client(b.token).instance;
+  const data = { text: "合成恢复事项", attachments: [], itemState: {
+    one: { deletedAt: "2026-11-11T00:00:00Z", starred: true },
+    two: { deletedAt: "2026-11-11T00:00:00Z" },
+  } };
+  first.put("restore-packet", data); await first.sync();
+  first.put("restore-packet", { itemState: { one: { deletedAt: "" } } });
+  await first.sync(); await f.restart(); await second.sync();
+  const saved = second.records().find(r => r.id === "restore-packet");
+  assert.equal(saved.data.itemState.one.deletedAt, "");
+  assert.equal(saved.data.itemState.one.starred, true);
+  assert.equal(saved.data.itemState.two.deletedAt, "2026-11-11T00:00:00Z");
+});
 const packet = (id, text = "明天交课程报告") => ({
   id,
   text,

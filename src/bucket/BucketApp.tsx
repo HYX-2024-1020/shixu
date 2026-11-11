@@ -151,6 +151,7 @@ export default function BucketApp() {
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudActive, setCloudActive] = useState(false);
+  const [cloudUsage, setCloudUsage] = useState<NonNullable<Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>["account"]>["usageSummary"]>(null);
   const [currentCaptureId, setCurrentCaptureId] = useState("");
   useEffect(() => {
     if (!currentCaptureId) return;
@@ -215,12 +216,16 @@ export default function BucketApp() {
         setCloudActive(!!state.base);
         if (!state.base) return;
         const updated = await window.desktop!.cloud("sync");
+        if (stopped) return;
+        setCloudUsage(updated.account?.usageSummary || null);
         const ai = updated.account?.ai;
         const used =
           ai?.usage.find((u) => u.day === new Date().toISOString().slice(0, 10))
             ?.requests || 0;
         setCloudReady(
-          updated.account?.reading
+          updated.account?.aiAvailability
+            ? updated.account.aiAvailability.available
+            : updated.account?.reading
             ? !!updated.account.reading.features.readingEnabled &&
                 !updated.account.wallet?.pausedReason &&
                 (updated.account.wallet?.available || 0) > 0
@@ -232,6 +237,7 @@ export default function BucketApp() {
           setPackets(rows);
         }
       } catch {
+        setCloudUsage(null);
         setCloudReady(
           false,
         ); /* Persistent queue and last error are visible in cloud settings. */
@@ -242,10 +248,12 @@ export default function BucketApp() {
     void refresh();
     const timer = setInterval(() => void refresh(), 8000);
     window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
       stopped = true;
       clearInterval(timer);
       window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
     };
   }, [loaded]);
   const purgePacket = useCallback(
@@ -1315,7 +1323,8 @@ export default function BucketApp() {
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
-  const currentCapture = visible.find((p) => p.id === currentCaptureId);
+  const currentCapture = visible.find((p) => p.id === currentCaptureId) ||
+    visible.find(p => !p.result && ["error", "processing", "pending"].includes(p.status));
   const receipts = useMemo(
     () => (
       <section className="delivery-receipts" aria-label="整理回执">
@@ -1764,6 +1773,9 @@ export default function BucketApp() {
               .toUpperCase()}{" "}
             · {apiKey || health?.modelReady || cloudReady ? "AI ON" : "AI OFF"}
           </span>
+          {cloudActive && <small className="header-quota" title={cloudUsage ? `北京时间当日账本已结算用量；个人为累计钱包余额，全站为日/月预算较小可用额，已扣在途与费用不明预留，并非供应商余额。更新于${new Date(cloudUsage.sampledAt).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai" })}。` : "无法读取真实账本，请联网后刷新"}>
+            {cloudUsage ? `今日已用 ¥${(cloudUsage.daySpentMicro / 1000000).toFixed(4)} · 个人剩余 ¥${(cloudUsage.personalRemainingMicro / 1000000).toFixed(2)} · 全站可用 ¥${(cloudUsage.siteRemainingMicro / 1000000).toFixed(2)}` : "额度暂不可用"}
+          </small>}
         </button>
         <nav className="workspace-nav" aria-label="主工作区">
           <button

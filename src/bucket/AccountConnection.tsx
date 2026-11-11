@@ -26,6 +26,7 @@ export default function AccountConnection({
     [showAccountForm, setShowAccountForm] = useState(false),
     [authMode, setAuthMode] = useState<"login" | "register">("login"),
     [lastAction, setLastAction] = useState(""),
+    [actionReceipt, setActionReceipt] = useState(""),
     [deviceName, setDeviceName] = useState("这台 Windows"),
     [state, setState] = useState<State | null>(null),
     [discovering, setDiscovering] = useState(true),
@@ -72,6 +73,7 @@ export default function AccountConnection({
     setBusy(true);
     setLastAction(name);
     setError("");
+    setActionReceipt("");
     try {
       if (
         !online &&
@@ -99,6 +101,12 @@ export default function AccountConnection({
         setCurrentPassword("");
       }
       if (reload) location.reload();
+      setActionReceipt(({
+        downloadOriginal: "原件已校验并保存到本机，可从材料面板打开或另存。",
+        renewOriginal: "已续期30天，下方到期时间已更新。",
+        deleteOriginal: "云端原件已删除，本机副本保留。",
+        materialConsent: "资料用途确认已保存。",
+      } as Record<string, string>)[name] || "");
     } catch (e) {
       setError((e as Error).message);
       try {
@@ -416,7 +424,7 @@ export default function AccountConnection({
         <section className="connection-data">
           <h3>资料用途与保存期限</h3>
           <p>{state.materialUseNotice.text}</p>
-          <label>
+          <label className="consent-check">
             <input
               type="checkbox"
               checked={!!state.materialConsentAccepted}
@@ -427,6 +435,8 @@ export default function AccountConnection({
             />
             我已了解资料用途和保存期限
           </label>
+          <p className="quiet">确认后才能发送资料进行AI整理或对话；查看和手动管理本机资料不受影响。</p>
+          {lastAction === "materialConsent" && <p role="status">{busy ? "正在保存确认…" : error || actionReceipt}</p>}
         </section>
       )}
       {!!state?.account?.authentication?.claimed && (
@@ -555,6 +565,7 @@ export default function AccountConnection({
       {state?.originalStorage && (
         <section className="connection-data">
           <h3>云端原件</h3>
+          {["downloadOriginal", "renewOriginal", "deleteOriginal"].includes(lastAction) && <p role={error ? "alert" : "status"}>{busy ? "正在处理原件，请稍候…" : error || actionReceipt}</p>}
           {!online && (
             <p role="status">离线，云端原件操作已暂停；本机副本仍可使用。</p>
           )}
@@ -710,6 +721,11 @@ export default function AccountConnection({
                 )}
                 {task.error}
               </p>
+              {task.diagnostic && <details>
+                <summary>处理报告 · {task.diagnostic.id}</summary>
+                <p>{new Date(task.diagnostic.at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}（北京时间） · 版本 {task.diagnostic.version}</p>
+                <p>阶段 {task.diagnostic.phase} · 错误 {task.diagnostic.code}。资料和累计费用保留，可将报告编号提供给管理员。</p>
+              </details>}
               {task.hasPreview && (
                 <button
                   disabled={busy}

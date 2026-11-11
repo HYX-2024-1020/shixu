@@ -171,9 +171,12 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
     await page.getByRole("link", { name: "任务管理", exact: true }).click();
     await page
       .locator("tbody tr")
-      .filter({ hasText: task.job })
+      .filter({ hasText: "product-owner" })
       .getByRole("button", { name: "查看与处置" })
       .click();
+    await expect(page.getByRole("article", { name: "任务详情" })).toBeInViewport();
+    await page.getByRole("article", { name: "任务详情" }).getByText("技术编号", { exact: true }).click();
+    await expect(page.getByRole("article", { name: "任务详情" })).toContainText(task.job!);
     await page.getByRole("button", { name: "暂停任务", exact: true }).click();
     await page
       .locator(".inline-confirm")

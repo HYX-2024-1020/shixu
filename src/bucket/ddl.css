@@ -150,6 +150,13 @@
   padding: 18px 14px;
   text-align: left;
 }
+.ddl-item[data-urgency="urgent"] { --deadline-tone: #ffc9c9; }
+.ddl-item[data-urgency="near"] { --deadline-tone: #ffdfb0; }
+.ddl-item[data-urgency="week"] { --deadline-tone: #fff1ad; }
+.ddl-item[data-urgency="fortnight"] { --deadline-tone: #ddedc8; }
+.ddl-item[data-urgency="month"] { --deadline-tone: #dcecf2; }
+.ddl-item[data-urgency="later"], .ddl-item[data-urgency="done"] { --deadline-tone: #eef0ef; }
+.ddl-item[data-urgency] .time-rail, .ddl-item[data-urgency] .ddl-footer { background: var(--deadline-tone); }
 .time-rail span {
   font-weight: 800;
   font-size: 14px;

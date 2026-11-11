@@ -18,6 +18,7 @@ import { ReadingReuse } from "./reuse.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { ReadingAssociation } from "./association.mjs";
 import { ReadingChat } from "./chat.mjs";
+import { ReadingDiagnostics } from "./diagnostics.mjs";
 import { ReadingVisualReview } from "./visual-review.mjs";
 import { ReadingMerge, MERGE_VERSION } from "./merge.mjs";
 import { isImageName } from "./image.mjs";
@@ -230,6 +231,7 @@ export class ReadingTasks {
     this.visual = new ReadingVisualReview(this);
     this.merge = new ReadingMerge(this);
     this.association = new ReadingAssociation(this);
+    this.diagnostics = new ReadingDiagnostics(this);
     this.roots = new ReadingRoots(store, ledger, account, executorIdentity);
     this.remainders = new ReadingRemainders(this);
     this.db
@@ -1669,6 +1671,7 @@ export class ReadingTasks {
       return this.publish(task, coverage);
     } catch (e) {
       const reason = e.code || e.message;
+      if (!this.finalSnapshots) this.diagnostics.record(task, e);
       if (
         ["SAFETY_RECONCILIATION", "WINDOW_STATE_RECONCILIATION"].includes(
           reason,

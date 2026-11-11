@@ -11,6 +11,23 @@ import {
 import { absoluteItem, parseDeadline } from "../../shared/deadlines.mjs";
 import { validateChat } from "./item-chat";
 
+it("normalizes tonight midnight exactly once through model validation and reload", () => {
+  const text = "2026年11月11日晚上12点前完成高数作业";
+  const item: BucketItem = {
+    kind: "task", title: "完成高数作业", summary: text,
+    facts: [], nextSteps: [], uncertainties: [], sourceIds: ["input"],
+    evidence: [{ sourceId: "input", quote: text }],
+    due: { date: "2026-11-13", time: "00:00", anchor: text, sourceId: "input" },
+  };
+  const sources = [{ id: "input", name: "合成通知", text }];
+  const out = validateResult({ summary: "合成作业", warnings: [], items: [item] }, sources, "2026-11-11");
+  expect(out.items[0].due).toMatchObject({ date: "2026-11-12", time: "00:00" });
+  expect(absoluteItem(JSON.parse(JSON.stringify(out.items[0])), "2026-11-11", sources).due)
+    .toMatchObject({ date: "2026-11-12", time: "00:00" });
+  expect(validateChat({ reply: "已核对", patch: { due: { anchor: text } } }, text, "2026-11-11").patch.due)
+    .toMatchObject({ date: "2026-11-12", time: "00:00" });
+});
+
 it("retains Chinese minutes, full width clocks, quarters and AM/PM", () => {
   for (const [text, time] of [
     ["下午三点十分", "15:10"],

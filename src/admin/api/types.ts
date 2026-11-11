@@ -186,6 +186,7 @@ export type TaskStatus =
 export type TaskAction = "retry" | "pause" | "stop";
 
 export interface AdminTask {
+  diagnostic?: { id: string; at: number; taskId: string; generation: number; version: string; phase: string; code: string; calls: {id: string; state: string; reserved: number; actual: number | null}[] } | null;
   accountId?: string;
   taskId?: string;
   generation?: number;

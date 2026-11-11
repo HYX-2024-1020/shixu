@@ -6,6 +6,32 @@ const path = require("node:path");
 const { AccountWorkspace } = require("./accounts.cjs");
 const { DesktopStore } = require("./storage.cjs");
 
+test("installed account status follows independent AI gates after refresh and restart", async t => {
+  const { accountUIFixture } = await import("../scripts/account-ui-fixture.mjs");
+  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-status-gates-"));
+  const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+  ledger.freezePrice({ id: "synthetic", model: "synthetic", currency: "CNY", source: "synthetic test", verifiedAt: 1, inputMicrosPerMillion: 1, cachedMicrosPerMillion: 0, outputMicrosPerMillion: 1 });
+  let paused = false, maintenance = false;
+  ledger.dispatchGuard = () => { if (maintenance) throw Error("MAINTENANCE"); if (paused) throw Error("ADMIN_PAUSED"); };
+  const f = await accountUIFixture({}, { reading: { credentials: true, ledger, enabled: true, priceId: "synthetic", modelVersion: "synthetic", reader() {}, provider() {} } });
+  const options = { root: path.join(root, "client"), local: new DesktopStore(path.join(root, "local")), serviceOrigin: f.base, seal: async s => Buffer.from(s), unseal: async b => b.toString() };
+  try {
+    let client = new AccountWorkspace(options); await client.init();
+    await client.action("register", { username: "status-owner", password: "synthetic-password", invite: f.invitation.invite, deviceName: "合成状态测试" });
+    assert.equal(client.status().account.aiAvailability.available, true);
+    paused = true; await client.action("sync", { force: true });
+    assert.deepEqual(client.status().account.aiAvailability, { available: false, reason: "ADMIN_PAUSED" });
+    client = new AccountWorkspace(options); await client.init(); await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.reason, "ADMIN_PAUSED");
+    paused = false; maintenance = true; await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.reason, "MAINTENANCE");
+    maintenance = false; await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.available, true);
+    assert.equal(client.status().account.usageSummary.daySpentMicro, 0);
+  } finally { await f.close(); ledger.close(); await fs.rm(root, { recursive: true, force: true }); }
+});
+
 for (const scenario of ["stop", "settlement"])
   test(`installed XLSX adapter ${scenario === "stop" ? "stops without waiting for the provider" : "returns a settled wallet with a task completed during polling"}`, async (t) => {
     const { accountUIFixture } = await import(

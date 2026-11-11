@@ -72,7 +72,10 @@ function Results({
     [scope, setScope] = useState("active"),
     [kind, setKind] = useState("all");
   const [sort, setSort] = useState(
-      () => localStorage.getItem("shixu.card-sort") || "priority",
+      () => {
+        const saved = localStorage.getItem("shixu.card-sort") || "due";
+        return ["due", "created", "category", "custom"].includes(saved) ? saved : "due";
+      },
     ),
     [dateFilter, setDateFilter] = useState("all"),
     [starOnly, setStarOnly] = useState(false);
@@ -267,6 +270,8 @@ function Results({
     const rank = (r: typeof a) => ({
       id: r.id,
       date: r.item.due?.date,
+      time: r.item.due?.time,
+      kind: r.item.kind,
       importance: r.meta.importance ?? r.item.importance ?? 1,
       pinned: !!r.meta.pinned,
       createdAt: r.p.capturedAt,
@@ -379,10 +384,9 @@ function Results({
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                 >
-                  <option value="priority">默认顺序</option>
-                  <option value="due">截止时间</option>
-                  <option value="importance">重要程度</option>
-                  <option value="created">创建时间</option>
+                  <option value="due">截止时间 · 最早优先</option>
+                  <option value="category">同类别集中 · 截止时间</option>
+                  <option value="created">创建时间 · 最新优先</option>
                   <option value="custom">自定义顺序</option>
                 </select>
                 <select
@@ -395,16 +399,11 @@ function Results({
                   <option value="soon">未来 7 天</option>
                   <option value="overdue">逾期</option>
                 </select>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={starOnly}
-                    onChange={(e) => setStarOnly(e.target.checked)}
-                  />
-                  仅星标
-                </label>
               </div>
             </details>
+            <button className="star-filter" aria-pressed={starOnly} onClick={() => setStarOnly(!starOnly)}>
+              <Star size={17} fill={starOnly ? "currentColor" : "none"} /> 只展示星标
+            </button>
           </div>
           {onlyPacket && (
             <button onClick={() => setOnlyPacket("")}>
@@ -1039,7 +1038,7 @@ function Results({
                                     notify("已恢复整次投递及其分组");
                                   } else
                                     await update(p, id, {
-                                      deletedAt: undefined,
+                                      deletedAt: "",
                                     });
                                 }}
                               >

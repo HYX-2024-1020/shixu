@@ -648,7 +648,9 @@ function validateResult(value, sources, today) {
           {
             ...parsed,
             date: definite,
-            time: parsed?.startDate ? parsed.time : "",
+            // The date parser already applies midnight's next-day boundary.
+            // Preserve its clock so time recovery cannot apply that shift twice.
+            time: parsed.time,
             anchor,
             sourceId: source.id
           },
@@ -922,7 +924,7 @@ function validateChat(value, instruction, today, currentDue) {
         {
           ...parsed,
           date,
-          time: parsed?.startDate ? parsed.time : "",
+          time: parsed?.time || "",
           anchor,
           sourceId: "item-chat"
         },

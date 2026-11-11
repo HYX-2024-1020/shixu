@@ -218,9 +218,12 @@ export default function DDL({
       clock,
       row.done,
     );
+    const daysLeft = row.date ? (Date.parse(row.date) - Date.parse(day)) / 86400000 : Infinity;
+    const tone = row.done ? "done" : daysLeft <= 1 ? "urgent" : daysLeft <= 3 ? "near" : daysLeft <= 7 ? "week" : daysLeft <= 14 ? "fortnight" : daysLeft <= 30 ? "month" : "later";
     return (
       <article
         className={"ddl-item urgency-" + urgency}
+        data-urgency={tone}
         key={id}
         data-motion-id={id}
         onPointerDown={drag.onPointerDown}

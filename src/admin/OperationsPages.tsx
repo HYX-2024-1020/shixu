@@ -57,6 +57,13 @@ export function OperationsPanel({
     setError("");
     setSubmitted("");
   };
+  const snapshotLabel = (id: string) => {
+    const rows = state.phase === "ready" ? state.data.inventory?.snapshots || [] : [];
+    const snapshot = rows.find(s => s.id === id);
+    if (!snapshot?.createdAt) return "时间待核对的备份";
+    const sameTime = rows.filter(s => s.createdAt === snapshot.createdAt);
+    return formatBeijingTime(snapshot.createdAt) + "（北京时间）" + (sameTime.length > 1 ? ` · 第${sameTime.findIndex(s => s.id === id) + 1}份` : "");
+  };
   return (
     <section className="panel">
       <h2>{storage ? "备份与恢复" : "服务运维"}</h2>
@@ -107,7 +114,8 @@ export function OperationsPanel({
                         {state.data.inventory.snapshots.map((s) => (
                           <tr key={s.id}>
                             <td>
-                              <code>{s.id}</code>
+                              {snapshotLabel(s.id)}
+                              <details><summary>技术编号</summary><code>{s.id}</code></details>
                             </td>
                             <td>
                               {s.createdAt
@@ -144,7 +152,7 @@ export function OperationsPanel({
                           .filter((s) => s.available)
                           .map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.id}
+                              {snapshotLabel(s.id)}
                             </option>
                           ))}
                       </select>
@@ -264,7 +272,7 @@ export function OperationsPanel({
         inline
         open={!!pending}
         title={pending ? labels[pending.kind] : ""}
-        subject={pending?.target || "当前拾序云服务"}
+        subject={pending?.kind === "restore" && pending.target ? snapshotLabel(pending.target) : pending?.target || "当前拾序云服务"}
         impact={
           pending?.kind === "resume"
             ? "重新开放维护权限；费用、账号暂停和安全门禁仍独立生效。"
@@ -343,7 +351,8 @@ export function StoragePage({ api }: { api: AdminApi }) {
         <p>
           逻辑原件额度、空闲页和物理磁盘占用分别统计。管理端不展示用户正文、文件名或下载入口。
         </p>
-        <Button onClick={retry}>刷新存储</Button>
+        <Button onClick={retry}>更新存储统计</Button>
+        <p>重新读取服务器空间占用，不删除资料；清理到期资料和回收空闲页需在下方另行确认。</p>
         {state.phase === "loading" && <p>正在读取存储…</p>}
         {state.phase === "error" && (
           <ErrorState error={state.error} onRetry={retry} />

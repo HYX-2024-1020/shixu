@@ -12,6 +12,8 @@ export interface RankedItem {
   pinned: boolean;
   createdAt: string;
   order: number;
+  kind?: string;
+  time?: string;
 }
 export function compareItems(
   a: RankedItem,
@@ -22,6 +24,12 @@ export function compareItems(
   if (sort === "custom") return a.order - b.order || a.id.localeCompare(b.id);
   if (sort === "created")
     return b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
+  if (sort === "category" && a.kind !== b.kind)
+    return (a.kind || "").localeCompare(b.kind || "");
+  if (sort === "due" || sort === "category")
+    return (a.date || "9999").localeCompare(b.date || "9999") ||
+      (a.time || "23:59").localeCompare(b.time || "23:59") ||
+      a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   if (sort === "importance")
     return b.importance - a.importance || a.id.localeCompare(b.id);
   if (sort === "priority") {

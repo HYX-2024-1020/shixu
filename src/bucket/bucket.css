@@ -2092,3 +2092,16 @@ button:hover:not(:disabled) {
 .cloud-connection > button {
   width: auto;
 }
+.consent-check {
+  display: flex !important;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.consent-check input[type="checkbox"] { width: 20px !important; height: 20px; flex: 0 0 20px; margin: 2px 0 0; }
+.connection-data button { cursor: pointer; }
+.connection-data button:disabled { cursor: not-allowed; }
+.star-filter { display: inline-flex; align-items: center; gap: 6px; }
+.star-filter[aria-pressed="true"] { background: #ffd43b; }

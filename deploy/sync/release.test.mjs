@@ -1272,6 +1272,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       "checkpoint-maintenance.mjs",
       "cost-maintenance.mjs",
       "deepseek.mjs",
+      "diagnostics.mjs",
       "docx-reader.LICENSE",
       "docx-reader.cjs",
       "docx.mjs",

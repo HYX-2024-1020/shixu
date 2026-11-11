@@ -266,6 +266,19 @@ export class ReadingLedger {
       updatedAt: row ? new Date(row.at).toISOString() : null,
     };
   }
+  usageSummary(account) {
+    const wallet = this.wallet(account), budget = this.budget(), day = beijingDay(this.now());
+    const legacy = this.legacy.settlement(account);
+    const legacyDay = legacy ? JSON.parse(legacy.days).filter(d => d.day === day).reduce((n, d) => n + d.micros, 0) : 0;
+    const daySpentMicro = this.db.prepare("SELECT COALESCE(SUM(actual),0) n FROM reading_calls WHERE account=? AND day=? AND state='settled'").get(account, day).n + legacyDay;
+    const daily = Math.max(0, budget.dailyMicro - budget.daySpentMicro - budget.riskMicro);
+    const monthly = budget.monthlyMicro === null ? null : Math.max(0, budget.monthlyMicro - budget.monthSpentMicro - budget.riskMicro);
+    return { day, timezone: "Asia/Shanghai", sampledAt: this.now(), daySpentMicro,
+      personalRemainingMicro: wallet.available,
+      siteRemainingMicro: monthly === null ? daily : Math.min(daily, monthly),
+      siteDailyRemainingMicro: daily, siteMonthlyRemainingMicro: monthly,
+      riskIncluded: true, source: "platform-ledger" };
+  }
   changeBudget(daily, monthly, reason, operation, actor) {
     if (
       !id(operation) ||

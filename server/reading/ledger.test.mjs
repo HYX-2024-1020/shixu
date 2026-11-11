@@ -46,6 +46,25 @@ const request = (n, extra = {}) => ({
   maxOutputTokens: 250000,
   ...extra,
 });
+test("public usage separates this account's day from site budgets and carries unsettled risk across midnight", t => {
+  let now = Date.parse("2026-11-11T15:59:59Z");
+  const { ledger } = fixture(t, { now: () => now });
+  ledger.grantInitial("other");
+  ledger.reserve(request(1)); ledger.sent("call:1");
+  ledger.settle("call:1", { prompt_tokens: 10, completion_tokens: 2 });
+  ledger.reserve(request(2, { account: "other" })); ledger.sent("call:2"); ledger.unknown("call:2");
+  const before = ledger.usageSummary("account");
+  assert.equal(before.day, "2026-11-11");
+  assert.equal(before.daySpentMicro, 14);
+  assert.equal(ledger.usageSummary("other").daySpentMicro, 0);
+  assert.equal(before.siteRemainingMicro, ledger.budget().dailyMicro - 14 - ledger.wallet("other").unknownRisk);
+  assert.ok(!JSON.stringify(before).includes("other"));
+  now += 2000;
+  const after = ledger.usageSummary("account");
+  assert.equal(after.day, "2026-11-12");
+  assert.equal(after.daySpentMicro, 0);
+  assert.equal(after.siteRemainingMicro, ledger.budget().dailyMicro - ledger.wallet("other").unknownRisk);
+});
 test("initial cumulative grant is exactly once and does not reset across Beijing midnight", (t) => {
   let now = Date.parse("2026-10-28T15:59:59Z");
   const { ledger } = fixture(t, { now: () => now });
