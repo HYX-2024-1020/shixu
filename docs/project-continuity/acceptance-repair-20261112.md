@@ -4,21 +4,23 @@
 
 ## 本轮实际交付状态
 
-三端运行包产品源码均为 `5d7b42cd8fdd9d4d27588a354cfa708b4d0ac068`，版本 **0.3.26**。后续 `2473645bab0609563000ee03799260c50d4325c4` 只补验证脚本和本记录，产品代码无差异，不改写已封装包来源。
+三端运行包产品源码均为 `5d7b42cd8fdd9d4d27588a354cfa708b4d0ac068`，版本 **0.3.26**。后续提交仅补验证脚本和交付记录，产品代码无差异，不改写已封装包来源。
 
 | 层次 | 实际状态与证据 |
 | --- | --- |
-| 必需CI | [Verify43139473301](https://github.com/HYX-2024-1020/shixu/actions/runs/43139473301)：Core、Browser、Windows、Secret scan、PR policy、Required checks全部成功；浏览器保留原断言复跑通过，见下方历史与限制 |
+| 必需CI | 产品验证头2473645的[Verify43139473301](https://github.com/HYX-2024-1020/shixu/actions/runs/43139473301)全部成功；交付记录头3e4b354的[Verify43142297342](https://github.com/HYX-2024-1020/shixu/actions/runs/43142297342)六项全部成功、无需复跑。最终安装记录提交仍按PR最新头检查后收尾 |
 | 原ECS | 北京时间2026-11-12 10:25原位激活 `/opt/shixu-cloud/releases/deploy-5d7b42cd8fdd9d4d27588a354cfa708b4d0ac068`；`current`实际指向该目录，云服务、真实Linux reader和两个运维计时器正常 |
 | 切换保护 | 10:00:25成功备份5库，`snapshot-6a390963-88f7-4fd7-99df-8b14179fe375`；切换前无在途任务，钱包、调用记录和历史任务状态摘要前后一致，原暂停任务未自动继续；旧同步服务与公开网站内容保持一致 |
 | 真实服务冒烟 | 专用合成账号通过签名Windows源适配器、原ECS、真实Linux broker和真实模型完成整理、附件第43行查询、跨卡片建议确认、无额外调用的保存、重启及删除恢复；新增4次真实调用、估算11,455微元，无预留或费用不明；不称用户安装版测试 |
-| Windows运行包 | ASAR `9272a7e03fd5619f79cc7ab0c208f2853b89b97365e46e916d041c9331af5301`；客户端安装包SHA256 `6d4b340b1adefc93c2c7a9652a93668ad1e46592f790141bf5dab11b950b329a`；等待用户原生安装回执 |
-| 原本地控制台包 | 31个封装资源逐份核验，指纹 `e1c0a2afc687cb3af468b6687be60cb0a9555877838fc6372e07c2eb158d50a4`；原生联合更新器43个受管文件，含专用连接材料，仅本机私有交付，等待用户安装 |
-| 用户验收 | 尚未取得本轮用户验收，不以自动化、模型完成、部署或安装替代 |
+| Windows实际安装 | 用户13:43:36在普通Windows会话完成联合更新，原生回执版本0.3.26/源码5d7b42c；真实EXE和ASAR哈希、原路径进程核验通过。ASAR `9272a7e03fd5619f79cc7ab0c208f2853b89b97365e46e916d041c9331af5301`，客户端安装包SHA256 `6d4b340b1adefc93c2c7a9652a93668ad1e46592f790141bf5dab11b950b329a` |
+| 原本地控制台实际安装 | 原生回执43个受管文件，真实物理文件逐份哈希核验通过；运行网关指纹 `e1c0a2afc687cb3af468b6687be60cb0a9555877838fc6372e07c2eb158d50a4`，与31资源封装包一致。联合更新器含专用连接材料，仅私有交付 |
+| 用户确认 | 用户明确回复“已更新，两个原入口均已打开”；原两个桌面快捷方式目标、控制台图标文件与运行进程已核对。这是安装/入口确认，尚不等于C01—C28集中复验或总体验收 |
 
 封装后headless验证使用实际ASAR与实际控制台资源，核对登录、原样材料可查看、资源哈希、“序”图标和原ECS匿名会话接口可达；其中客户端桥接为合成夹具，明确不替代原生安装。物理安装目标沿用 `%LOCALAPPDATA%/Programs/shixu` 与 `%LOCALAPPDATA%/Shixu/AdminConsole`，原两个桌面入口保留。
 
-私有证据均在工作区外层 `outputs/acceptance-feedback-20261111/`：`cloud-activation-5d7b42c.log`、两份 `ledger-activation-*-5d7b42c.json`、`infra-*-5d7b42c.json`、`real-service-after-smoke.json`、`repair-package-smoke.json`及本轮回归日志。原文、原件、原截图、密钥和完整业务答复不提交公共仓库。复验见[普通用户指南](../guides/product-acceptance-0.3.26.md)。
+原生安装后13:48另行完成无包身份命令行只读核验：`GetCurrentPackageFullName`返回15700，读取真实用户回执、43个文件、客户端EXE/ASAR、网关健康指纹、进程和原快捷方式全部通过。MSIX代理进程中的普通路径及卷GUID读取仍命中过一份旧指针阴影，不能作为安装失败结论；交叉核验使用独立隐藏的只读命令行进程，未重跑安装器、未写用户安装回执，也未操作本机桌面UI。
+
+私有证据均在工作区外层 `outputs/acceptance-feedback-20261111/`：`cloud-activation-5d7b42c.log`、两份 `ledger-activation-*-5d7b42c.json`、`infra-*-5d7b42c.json`、`real-service-after-smoke.json`、`repair-package-smoke.json`、`user-native-install-5d7b42c.json`、`user-native-install-verified-5d7b42c.json`、`user-native-verifier-context.json`及本轮回归日志；校验索引为`repair-evidence-index-20261112.json`。原文、原件、原截图、密钥和完整业务答复不提交公共仓库。复验见[普通用户指南](../guides/product-acceptance-0.3.26.md)。
 
 ## 已知问题与验证边界
 
