@@ -19,9 +19,19 @@ const errors = [];
 async function pageForApp() {
   const page = await app.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
-  await expect(
-    page.getByLabel("往桶里放入内容", { exact: true }),
-  ).toBeEnabled();
+  const startupAt = Date.now();
+  try {
+    await expect(
+      page.getByLabel("往桶里放入内容", { exact: true }),
+    ).toBeEnabled({ timeout: 12000 });
+  } catch (error) {
+    console.error(
+      "Synthetic skin startup state:",
+      await page.locator("body").innerText(),
+    );
+    throw error;
+  }
+  console.log("Synthetic skin profile hydration (ms):", Date.now() - startupAt);
   return page;
 }
 try {
@@ -36,7 +46,7 @@ try {
     ).toBeEnabled();
   }
   // Use the actual bundled MP3 and Chromium media pipeline. A greeting must
-  // restart on every click and continue beyond the previous 3.2s cutoff.
+  // toggle pause/resume on one click and continue beyond the old 3.2s cutoff.
   await page.evaluate(() => {
     window.__mediaPlays = 0;
     if (window.__syntheticAudio) return;
@@ -60,13 +70,20 @@ try {
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(0.15);
-  for (let i = 0; i < 3; i++) await whale.click();
-  assert.equal(await page.evaluate(() => window.__mediaPlays), 4);
-  assert.equal(
-    await page.evaluate(() => window.__greetingAudio.currentTime < 0.5),
-    true,
-    "each tap restarts from the beginning",
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  const pausedAt = await page.evaluate(
+    () => window.__greetingAudio.currentTime,
   );
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__mediaPlays), 2);
+  await expect
+    .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
+    .toBeGreaterThan(pausedAt);
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
+  await whale.click();
+  assert.equal(await page.evaluate(() => window.__mediaPlays), 3);
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
     .toBeGreaterThan(3.3);
@@ -183,7 +200,16 @@ try {
   await media.evaluate((v) => v.play());
   await page.screenshot({ path: "release/desktop-bunny-market.png" });
   await bunny.click();
-  assert.ok(await media.evaluate((v) => v.currentTime < 0.5));
+  const foxPausedAt = await media.evaluate((v) => v.currentTime);
+  assert.equal(await media.evaluate((v) => v.paused), true);
+  await page.waitForTimeout(300);
+  assert.ok(
+    Math.abs((await media.evaluate((v) => v.currentTime)) - foxPausedAt) < 0.05,
+  );
+  await bunny.click();
+  await expect
+    .poll(() => media.evaluate((v) => v.currentTime))
+    .toBeGreaterThan(foxPausedAt);
   await expect
     .poll(() => page.evaluate(() => window.__foxEnded), {
       timeout: 12000,
@@ -290,11 +316,11 @@ try {
       "one-tap skin selection, home voice controls and plain ice artwork",
       "settings dismisses on the second header-position click and Escape",
       audioClock
-        ? "real MP3 decoded; playback clock adapter verifies every-click restart, no 3.2s cutoff and natural-duration completion"
-        : "actual whale MP3 restarts on every click and plays through its natural end beyond 3.2 seconds",
+        ? "real MP3 decoded; playback clock adapter verifies one-click pause/resume, no 3.2s cutoff and natural-duration completion"
+        : "actual whale MP3 pauses/resumes on one click and plays through its natural end beyond 3.2 seconds",
       "home/world share the applied preset",
       "both ice voices contain non-silent decoded PCM and play to natural completion",
-      "bunny audio contains non-silent decoded PCM; original timeline plays once, restarts and stops on skin switch",
+      "bunny audio contains non-silent decoded PCM; original timeline pauses/resumes, completes naturally and stops on skin switch",
       "preset and draft survive process restart",
       "synthetic custom image survives process restart",
       "custom edit/delete restores whale",

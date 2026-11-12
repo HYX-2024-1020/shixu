@@ -92,9 +92,15 @@ function inferred(time, reason) {
 function anchorContext(text, anchor) {
   const compact2 = (t) => normalize(t).replace(/\s+/g, "");
   const pieces = String(text || "").split(/[。；;\n！？]/);
-  for (const piece of pieces) {
+  for (let index = 0; index < pieces.length; index++) {
+    let piece = pieces[index];
     const at = compact2(piece).indexOf(compact2(anchor));
     if (!anchor || at < 0) continue;
+    const next = pieces.slice(index + 1).find((p) => p.trim());
+    const continuedLine = !!(!clock(piece, true) && next && !/(?:\d+[年月日号]|今天|明天|后天|周[一二三四五六日天])/.test(
+      normalize(next)
+    ) && clock(next, true));
+    if (continuedLine) piece += "\n" + next;
     const value = compact2(piece), key = compact2(anchor);
     const left = Math.max(
       value.lastIndexOf("，", at),
@@ -110,7 +116,7 @@ function anchorContext(text, anchor) {
       ))
         context += "，" + adjacent;
     }
-    return context;
+    return (continuedLine ? "\n" : "") + context;
   }
   return "";
 }
@@ -152,14 +158,20 @@ function resolveDeadlineTime(due, evidence = [], sources = []) {
     const exact = clock(text);
     if (exact) {
       const { timeInferred, timeReason, ...rest } = due;
-      return applyClock(rest, exact);
+      return {
+        ...applyClock(rest, exact),
+        ...text.includes("\n") ? {
+          timeInferred: true,
+          timeReason: "从同一日期标题下一行的时刻推定，可手动修改；全部开放时段见原文"
+        } : {}
+      };
     }
   }
   for (const source of sources.filter((s) => s.id === due.sourceId)) {
     const text = normalize(source.text);
     const clocks = text.match(/\b\d{1,2}(?::\d{2})?\s*[ap]m\b|\d{1,2}\s*(?:[:点时])/gi) || [];
     const dates = text.match(
-      /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g
+      /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}[日号]|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g
     ) || [];
     const parsed = clock(text);
     if (anchor !== "人工确认" && clocks.length === 1 && dates.length <= 1 && parsed && text.replace(/\s+/g, "").includes(normalize(anchor).replace(/\s+/g, ""))) {
@@ -271,6 +283,10 @@ function normalizeDateText(value) {
   ).replace(/\s+/g, "");
 }
 function point(text, today, inherited, end = false) {
+  text = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#"
+  );
   const [year, month] = today.split("-").map(Number);
   let date = "", inferred2 = false;
   const full = text.match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})(?:日|号)?/);
@@ -432,7 +448,10 @@ function parseDateExpression(value, today) {
       } : {}
     };
   }
-  const dateTokens = text.match(
+  const dateTokens = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#"
+  ).match(
     /20\d{2}[年/-]\d{1,2}[月/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}(?:日|号)|今天|明天|后天|昨天|前天|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天]/g
   ) || [];
   if (new Set(
@@ -453,6 +472,12 @@ function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "", previousEnd = 0;
   return text.replace(relative, (token, offset) => {
+    if (/^\d/.test(token) && /[-~～至到—–]/.test(token) && (/[:：点时]$/.test(text.slice(0, offset)) || /^[:：点时]/.test(text.slice(offset + token.length))))
+      return token;
+    if (/^\d+号$/.test(token) && /^(?:窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/.test(
+      text.slice(offset + token.length)
+    ))
+      return token;
     if (/^\d/.test(token) && /[-~～至到—–]/.test(token) && (/第\s*$/.test(text.slice(0, offset)) || /^\s*(?:题|章|节|条|项|页|册|元|人|次|个|%)/.test(
       text.slice(offset + token.length)
     )))
@@ -648,7 +673,9 @@ function validateResult(value, sources, today) {
           {
             ...parsed,
             date: definite,
-            time: parsed?.startDate ? parsed.time : "",
+            // The date parser already applies midnight's next-day boundary.
+            // Preserve its clock so time recovery cannot apply that shift twice.
+            time: parsed.time,
             anchor,
             sourceId: source.id
           },
@@ -666,7 +693,7 @@ function validateResult(value, sources, today) {
         kind: item.kind,
         title: clean(item.title, 150),
         summary: clean(item.summary, 2e3),
-        facts: list(item.facts, 12),
+        facts: list(item.facts, 40),
         nextSteps: list(item.nextSteps, 8),
         uncertainties: [...new Set(uncertainties)],
         evidence,
@@ -701,6 +728,7 @@ var SYSTEM = `你是一个只服务一位大学生的“收纳桶”。用户只
 链接只作为用户提供的链接文字处理；当前没有抓取网页，不得假装读过 URL 指向的正文。
 灵感可以丰满：把推测、可尝试方向和小步验证放到nextSteps，绝不能把你补充的建议当成原文事实。习惯同理：没有明确频率时可以建议一个轻量起点，但不得编造用户已承诺的频率。facts只收录原文事实。
 日期以提供的captureDate为基准。尽力提取各种常用时间说法：年月日、无年份的月日、26号、26-28、10月26日至28日、今天/明天/后天、周几、月底、几天后，以及日期/时刻区间，都填写due的完整原文anchor。省略年月由程序按captureDate推定，区间必须保留起止全文。尽快、开学前等缺少可推算日期或与附件冲突时才放到uncertainties，due为null。date是YYYY-MM-DD。sourceId和anchor必须精确指向原文；anchor须包含日期和时刻，例如“明天下午三点前”，程序会确定性解析时刻。允许依据captureDate推定省略的年月，不要编造没有依据的日期。时刻要保留原文明确说法，anchor尽量同时包含日期与时刻；未给具体时刻也必须安排一个时间，程序将按时段或当天23:59推定并标注依据。
+多地点、多天且上午下午分段办理的通知，要保留每个地点、每个日期和各个开放时段；独立场次可分别列event，不能把不同日期合成连续开放区间或擅自选月底作为统一截止日。同一段给出并列日期并共用时段时，每个日期都适用该时段。due.anchor只取能精确落到该场次的连续原文日期/时段，地点与另一个时段保留在facts及evidence；若日期和时刻不连续，可用确切日期作anchor并在facts保留全部时段，不能拼接假原文。没有提交截止要求的办理通知不要编造“月底前提交”等额外期限。
 每一条必须至少有一个evidence，quote必须是该来源的连续原文摘录，不得自己概括。涉及附件要求的任务必须引用附件的相应原文，必要时同时引用输入文字。若依据不足，少输出，不胡编。
 卡片文案：title用简短的动作与对象抓住核心，通常12至24个汉字，不加“待办”“需要确认”“根据原文”等前缀；summary用一至两句概括最重要的要求或信息，通常24至50个汉字，不重复标题，不堆文件名，不罗列缺失信息，不催促用户补充。完整的格式、材料、地点、评分要求仍必须保留在facts中，不能为了缩短卡片删掉事实。缺少信息只在uncertainties中客观记录，不凭空新增核对任务。
 只返回JSON对象，不使用Markdown围栏。输出示例结构：
@@ -922,7 +950,7 @@ function validateChat(value, instruction, today, currentDue) {
         {
           ...parsed,
           date,
-          time: parsed?.startDate ? parsed.time : "",
+          time: parsed?.time || "",
           anchor,
           sourceId: "item-chat"
         },

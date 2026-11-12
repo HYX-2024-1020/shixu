@@ -8,6 +8,8 @@ import { createAttachmentStore } from "../sync-files.mjs";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { readMaterial } from "./material.mjs";
+import { xlsxBytes, inline } from "./xlsx-fixtures.mjs";
+import { encodePng } from "./image.mjs";
 
 function fixture(t, { chatProvider, ledgerOptions } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "shixu-chat-ledger-"));
@@ -168,6 +170,150 @@ async function finish(tasks, id = "chat1") {
     await tasks.run(id);
   return tasks.get(id);
 }
+
+test("explicit attachment chat reads actual cells including final rows and discloses layout coverage", async (t) => {
+  const f = fixture(t, {
+    chatProvider: async (sources) => {
+      const context = JSON.parse(sources[0].text);
+      assert.equal(context.attachmentContent.length, 1);
+      assert.equal(context.attachmentContent[0].contentComplete, true);
+      assert.ok(
+        context.attachmentContent[0].sources.some((s) =>
+          s.text.includes("林合成测试"),
+        ),
+      );
+      return {
+        usage: { prompt_tokens: 20, completion_tokens: 10 },
+        result: {
+          reply: "名单最后一行含林合成测试，请核对原表末行。",
+          patch: {},
+        },
+      };
+    },
+  });
+  const body = xlsxBytes([
+    {
+      name: "名单",
+      xml:
+        '<row r="1">' +
+        inline("A1", "姓名") +
+        '</row><row r="43">' +
+        inline("A43", "林合成测试") +
+        "</row>",
+    },
+  ]);
+  const original = f.store.files.put("packet", "roster", {
+    name: "合成名单.xlsx",
+    body,
+    epoch: f.store.epoch,
+  });
+  f.put({ attachments: [original] });
+  f.input.chat = {
+    ...f.input.chat,
+    baseVersion: f.store.record("packet").version,
+    instruction: "核对附件名单中是否有林合成测试",
+    readAttachments: true,
+  };
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  const reply = f.store.record("packet").data.itemState.item1.chat.at(-1).text;
+  assert.match(reply, /林合成测试/);
+  assert.match(reply, /本轮附件读取/);
+  assert.match(reply, /文本内容已覆盖/);
+  assert.equal(f.calls().chat, 1);
+  assert.equal(f.ledger.wallet("synthetic").unknownRisk, 0);
+  assert.ok(
+    !f.store.db
+      .prepare("SELECT body FROM reading_chat_requests")
+      .get()
+      .body.includes("A43"),
+  );
+});
+
+test("attachment chat supplies actual image bytes and never certifies visual content as fully read", async (t) => {
+  const f = fixture(t, {
+    chatProvider: async (sources) => {
+      const context = JSON.parse(sources[0].text);
+      assert.equal(sources.length, 2);
+      assert.ok(sources[1].image.data);
+      assert.equal(context.attachmentContent[0].contentComplete, false);
+      assert.ok(context.attachmentContent[0].sources[0].imageProvided);
+      return {
+        usage: { prompt_tokens: 20, completion_tokens: 10 },
+        result: { reply: "已核对本轮图片，仍请对照原图。", patch: {} },
+      };
+    },
+  });
+  f.args.provider.imageInput = true;
+  const body = encodePng(1, 1, Buffer.from([20, 40, 60, 255]));
+  const original = f.store.files.put("packet", "picture", {
+    name: "合成.png",
+    body,
+    epoch: f.store.epoch,
+  });
+  f.put({ attachments: [original] });
+  f.input.chat = {
+    ...f.input.chat,
+    baseVersion: f.store.record("packet").version,
+    readAttachments: true,
+  };
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.match(
+    f.store.record("packet").data.itemState.item1.chat.at(-1).text,
+    /仍有未读内容/,
+  );
+  assert.equal(f.calls().chat, 1);
+});
+
+test("account-scoped chat proposes bounded changes without mutating another card or granting arbitrary targets", async (t) => {
+  let invalid = false;
+  const f = fixture(t, {
+    chatProvider: async (sources) => {
+      const context = JSON.parse(sources[0].text);
+      assert.ok(context.relatedItems.some((i) => i.itemId === "item2"));
+      return {
+        usage: { prompt_tokens: 20, completion_tokens: 10 },
+        result: {
+          reply: "已列出星标建议，等待你确认。",
+          patch: {},
+          proposals: [
+            {
+              packetId: invalid ? "other-account-packet" : "packet",
+              itemId: "item2",
+              patch: { starred: false },
+            },
+          ],
+        },
+      };
+    },
+  });
+  f.input.chat = {
+    ...f.input.chat,
+    scope: "account",
+    instruction: "取消其他事项的星标",
+  };
+  f.enqueue();
+  const done = await finish(f.tasks);
+  assert.equal(
+    done.state,
+    "done",
+    JSON.stringify({ done, report: f.tasks.diagnostics.latest("chat1") }),
+  );
+  const p = f.store.record("packet").data;
+  assert.equal(p.itemState.item2.starred, true);
+  assert.match(
+    p.itemState.item1.chat.at(-1).text,
+    /本轮跨卡片范围.*未重读其他卡片附件/,
+  );
+  assert.equal(p.itemState.item1.chatProposals.items[0].patch.starred, false);
+  invalid = true;
+  f.input.id = "chat2";
+  f.input.chat.baseVersion = f.store.record("packet").version;
+  f.tasks.enqueue(f.input);
+  assert.equal((await finish(f.tasks, "chat2")).state, "paused");
+  assert.equal(f.store.record("packet").data.itemState.item2.starred, true);
+});
 
 test("item chat shares the ledger and kernel, changes only its target and preserves reading evidence", async (t) => {
   const f = fixture(t);

@@ -100,7 +100,7 @@ export function validateChat(
         {
           ...parsed,
           date,
-          time: parsed?.startDate ? parsed.time : "",
+          time: parsed?.time || "",
           anchor,
           sourceId: "item-chat",
         },

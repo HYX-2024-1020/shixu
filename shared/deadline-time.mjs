@@ -115,9 +115,22 @@ function inferred(time, reason) {
 function anchorContext(text, anchor) {
   const compact = (t) => normalize(t).replace(/\s+/g, "");
   const pieces = String(text || "").split(/[。；;\n！？]/);
-  for (const piece of pieces) {
+  for (let index = 0; index < pieces.length; index++) {
+    let piece = pieces[index];
     const at = compact(piece).indexOf(compact(anchor));
     if (!anchor || at < 0) continue;
+    // A date heading may be followed by its opening hours on the next line.
+    // Never cross another date heading or attach another appointment's hours.
+    const next = pieces.slice(index + 1).find((p) => p.trim());
+    const continuedLine = !!(
+      !clock(piece, true) &&
+      next &&
+      !/(?:\d+[年月日号]|今天|明天|后天|周[一二三四五六日天])/.test(
+        normalize(next),
+      ) &&
+      clock(next, true)
+    );
+    if (continuedLine) piece += "\n" + next;
     const value = compact(piece),
       key = compact(anchor);
     const left = Math.max(
@@ -136,7 +149,7 @@ function anchorContext(text, anchor) {
       )
         context += "，" + adjacent;
     }
-    return context;
+    return (continuedLine ? "\n" : "") + context;
   }
   return "";
 }
@@ -192,7 +205,16 @@ export function resolveDeadlineTime(due, evidence = [], sources = []) {
     const exact = clock(text);
     if (exact) {
       const { timeInferred, timeReason, ...rest } = due;
-      return applyClock(rest, exact);
+      return {
+        ...applyClock(rest, exact),
+        ...(text.includes("\n")
+          ? {
+              timeInferred: true,
+              timeReason:
+                "从同一日期标题下一行的时刻推定，可手动修改；全部开放时段见原文",
+            }
+          : {}),
+      };
     }
   }
   for (const source of sources.filter((s) => s.id === due.sourceId)) {
@@ -202,7 +224,7 @@ export function resolveDeadlineTime(due, evidence = [], sources = []) {
       [];
     const dates =
       text.match(
-        /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g,
+        /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}[日号]|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g,
       ) || [];
     const parsed = clock(text);
     if (

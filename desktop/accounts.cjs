@@ -51,8 +51,11 @@ class AccountWorkspace extends CloudWorkspace {
       path.join(this.root, "account.enc"),
       await this.seal(JSON.stringify(next)),
     );
-    if (`${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}` !==
-        `${next.active}#${next.devices[next.active]?.userId || ""}`) this.taskPreview = null;
+    if (
+      `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}` !==
+      `${next.active}#${next.devices[next.active]?.userId || ""}`
+    )
+      this.taskPreview = null;
     this.config = next;
     this.lastError = "";
   }
@@ -246,7 +249,8 @@ class AccountWorkspace extends CloudWorkspace {
     for (const job of this.readJobs()) {
       if (job.pendingAction) {
         const { action, ...request } = job.pendingAction;
-        if (["continue", "remaining"].includes(action)) this.requireMaterialConsent();
+        if (["continue", "remaining"].includes(action))
+          this.requireMaterialConsent();
         let task;
         try {
           if (["continue", "accept-partial", "remaining"].includes(action))
@@ -286,7 +290,8 @@ class AccountWorkspace extends CloudWorkspace {
           this.writeJobs(latest);
           continue;
         }
-        if (action === "purge" && this.taskPreview?.taskId === job.id) this.taskPreview = null;
+        if (action === "purge" && this.taskPreview?.taskId === job.id)
+          this.taskPreview = null;
         this.writeJobs(
           this.readJobs().map((j) =>
             j.id === job.id ? { ...j, ...task, pendingAction: null } : j,
@@ -308,7 +313,8 @@ class AccountWorkspace extends CloudWorkspace {
       )
         continue;
       let result;
-      if (job.state === "submitting" && job.protocol === 4) this.requireMaterialConsent();
+      if (job.state === "submitting" && job.protocol === 4)
+        this.requireMaterialConsent();
       try {
         result = await this.request(
           this.config.active,
@@ -325,7 +331,11 @@ class AccountWorkspace extends CloudWorkspace {
         // A temporary read/rate failure is not a terminal server task result.
         // Preserve ID, paid progress and action state; the next bounded poll
         // obtains the authoritative result without creating a replacement job.
-        if(error.status===429 || (job.state!=="submitting" && error.status===503))throw error;
+        if (
+          error.status === 429 ||
+          (job.state !== "submitting" && error.status === 503)
+        )
+          throw error;
         if (![400, 403, 404, 409, 413, 422, 429, 503].includes(error.status))
           throw error;
         result = { state: "error", error: error.message };
@@ -336,10 +346,10 @@ class AccountWorkspace extends CloudWorkspace {
       this.writeJobs(jobs);
     }
   }
-  async sync({force=false} = {}) {
+  async sync({ force = false } = {}) {
     if (!this.config.active) return this.status();
-    if(this.retryBase===this.config.active && this.retryUntil>Date.now()){
-      this.lastError=`请求较多，${Math.ceil((this.retryUntil-Date.now())/1000)}秒后自动重试；资料和任务进度保留`;
+    if (this.retryBase === this.config.active && this.retryUntil > Date.now()) {
+      this.lastError = `请求较多，${Math.ceil((this.retryUntil - Date.now()) / 1000)}秒后自动重试；资料和任务进度保留`;
       return this.status();
     }
     if (
@@ -354,7 +364,10 @@ class AccountWorkspace extends CloudWorkspace {
       // A new/temporary login must pass its password gate before material sync.
       // For an established space, refresh the wallet after polling: the last
       // call may settle while that poll publishes the completed task.
-      if (!this.accountState || this.accountState.authentication?.passwordChangeRequired)
+      if (
+        !this.accountState ||
+        this.accountState.authentication?.passwordChangeRequired
+      )
         this.accountState = await this.request(
           this.config.active,
           "GET",
@@ -383,8 +396,8 @@ class AccountWorkspace extends CloudWorkspace {
         "GET",
         "/api/v3/account",
       );
-      this.readSyncBase=this.config.active;
-      this.nextReadAt=Date.now()+this.minimumReadIntervalMs;
+      this.readSyncBase = this.config.active;
+      this.nextReadAt = Date.now() + this.minimumReadIntervalMs;
       return { ...status, ...this.status() };
     } catch (error) {
       this.lastError = error.message;
@@ -420,8 +433,26 @@ class AccountWorkspace extends CloudWorkspace {
       throw Error("请先完成这次投递的同步");
     const jobs = this.readJobs();
     const v4 = !!this.accountState?.reading;
-    if (v4 && value.kind === "chat" && !this.accountState?.reading?.features?.itemChat)
+    if (
+      v4 &&
+      value.kind === "chat" &&
+      !this.accountState?.reading?.features?.itemChat
+    )
       throw Error("事项对话尚未接入累计账本，暂不可用");
+    if (
+      v4 &&
+      value.kind === "chat" &&
+      value.readAttachments &&
+      !this.accountState.reading.features.attachmentChat
+    )
+      throw Error("当前服务尚未支持附件对话，请更新服务后再核对原件");
+    if (
+      v4 &&
+      value.kind === "chat" &&
+      value.scope === "account" &&
+      !this.accountState.reading.features.accountChatProposals
+    )
+      throw Error("当前服务尚未支持跨卡片查询与修改建议");
     if (v4) await this.reuploadTemporary(value.packetId);
     let saved = jobs.find(
       (j) =>
@@ -440,6 +471,8 @@ class AccountWorkspace extends CloudWorkspace {
       saved &&
       (saved.request.kind !== value.kind ||
         saved.request.instruction !== value.instruction ||
+        saved.request.scope !== value.scope ||
+        saved.request.readAttachments !== value.readAttachments ||
         saved.request.itemId !== value.itemId)
     )
       throw Error("这次投递已有其他 AI 任务，请等待完成");
@@ -450,12 +483,20 @@ class AccountWorkspace extends CloudWorkspace {
         kind: value.kind,
         epoch: row ? this.config.devices[this.config.active].epoch : null,
         baseVersion: row.version,
-        ...(v4 ? {
-          contractVersion: 1,
-          expectedCostOperation: this.accountState?.wallet?.costAuditOperation || null,
-        } : {}),
+        ...(v4
+          ? {
+              contractVersion: 1,
+              expectedCostOperation:
+                this.accountState?.wallet?.costAuditOperation || null,
+            }
+          : {}),
         ...(value.kind === "chat"
-          ? { itemId: value.itemId, instruction: value.instruction }
+          ? {
+              itemId: value.itemId,
+              instruction: value.instruction,
+              scope: value.scope,
+              readAttachments: value.readAttachments,
+            }
           : {}),
       };
       saved = {
@@ -641,7 +682,8 @@ class AccountWorkspace extends CloudWorkspace {
     );
   }
   requireMaterialConsent() {
-    if (!this.materialConsentAccepted()) throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
+    if (!this.materialConsentAccepted())
+      throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
   }
   action(action, value) {
     if (action === "sync" && value?.force)
@@ -799,7 +841,8 @@ class AccountWorkspace extends CloudWorkspace {
           !task.actions?.includes(value.action)
         )
           throw Error("任务状态已变化，请刷新");
-        if (["continue", "remaining"].includes(value.action)) this.requireMaterialConsent();
+        if (["continue", "remaining"].includes(value.action))
+          this.requireMaterialConsent();
         if (!task.pendingAction)
           task.pendingAction = {
             action: value.action,

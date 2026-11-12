@@ -14,9 +14,12 @@ import type {
 /** 同源管理接口。会话签发操作凭据，所有写操作携带 CSRF token。 */
 const BASE = "/admin/v1";
 const TIMEOUT_MS = 10_000;
-const invalidResponse = () => new AdminApiError({
-  error: "管理服务响应无效，请重试", code: "INVALID_RESPONSE", retryable: true,
-});
+const invalidResponse = () =>
+  new AdminApiError({
+    error: "管理服务响应无效，请重试",
+    code: "INVALID_RESPONSE",
+    retryable: true,
+  });
 
 export function createHttpApi(): AdminApi {
   let csrfToken = "";
@@ -27,9 +30,14 @@ export function createHttpApi(): AdminApi {
       csrfToken = "";
       return;
     }
-    if (!session || typeof session.username !== "string" || typeof session.expiresAt !== "string" ||
-        !Number.isFinite(Date.parse(session.expiresAt)) ||
-        typeof session.csrfToken !== "string" || !/^[\w-]{32,128}$/.test(session.csrfToken))
+    if (
+      !session ||
+      typeof session.username !== "string" ||
+      typeof session.expiresAt !== "string" ||
+      !Number.isFinite(Date.parse(session.expiresAt)) ||
+      typeof session.csrfToken !== "string" ||
+      !/^[\w-]{32,128}$/.test(session.csrfToken)
+    )
       throw invalidResponse();
     csrfToken = session.csrfToken;
   }
@@ -39,12 +47,17 @@ export function createHttpApi(): AdminApi {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     const headers = new Headers(init.headers);
-    if (init.body !== undefined) headers.set("Content-Type", "application/json");
+    if (init.body !== undefined)
+      headers.set("Content-Type", "application/json");
     if (init.method === "POST" && path !== "/login" && csrfToken)
       headers.set("X-CSRF-Token", csrfToken);
     try {
       const response = await fetch(`${BASE}${path}`, {
-        ...init, headers, credentials: "same-origin", redirect: "error", signal: controller.signal,
+        ...init,
+        headers,
+        credentials: "same-origin",
+        redirect: "error",
+        signal: controller.signal,
       });
       if (response.status === 401 && path !== "/login") {
         if (revision !== sessionRevision)
@@ -98,11 +111,12 @@ export function createHttpApi(): AdminApi {
     }
   }
 
-  const post = (path: string, body: unknown, operationId?: string) => request(path, {
-    method: "POST",
-    body: JSON.stringify(body),
-    headers: operationId ? { "X-Operation-Id": operationId } : undefined,
-  });
+  const post = (path: string, body: unknown, operationId?: string) =>
+    request(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: operationId ? { "X-Operation-Id": operationId } : undefined,
+    });
 
   return {
     queryAudit: (keyword, page) =>
@@ -131,6 +145,12 @@ export function createHttpApi(): AdminApi {
     changeBudget: (value, operationId) =>
       post("/budget", value, operationId) as Promise<import("./client").Budget>,
     getAlerts: () => request("/alerts"),
+    followAlert: (id, state, note, operationId) =>
+      post(
+        `/alerts/${encodeURIComponent(id)}/followup`,
+        { state, note },
+        operationId,
+      ) as Promise<{ accepted: boolean; recovered: boolean }>,
     readAlert: (id, operationId) =>
       post(
         `/alerts/${encodeURIComponent(id)}/read`,
@@ -170,12 +190,14 @@ export function createHttpApi(): AdminApi {
     listUsers: (query: UserListQuery) => {
       const params = new URLSearchParams();
       if (query.keyword) params.set("keyword", query.keyword);
-      if (query.status && query.status !== "all") params.set("status", query.status);
+      if (query.status && query.status !== "all")
+        params.set("status", query.status);
       params.set("page", String(query.page));
       params.set("pageSize", String(query.pageSize));
       return request<UserListResult>(`/users?${params.toString()}`);
     },
-    getUserDetail: (id: string) => request<AdminUserDetail>(`/users/${encodeURIComponent(id)}`),
+    getUserDetail: (id: string) =>
+      request<AdminUserDetail>(`/users/${encodeURIComponent(id)}`),
     topupQuota: (userId, amountMicro, note, operationId) =>
       post(
         `/users/${encodeURIComponent(userId)}/topup`,
@@ -203,7 +225,8 @@ export function createHttpApi(): AdminApi {
     listTasks: (query: TaskListQuery) => {
       const params = new URLSearchParams();
       if (query.keyword) params.set("keyword", query.keyword);
-      if (query.status && query.status !== "all") params.set("status", query.status);
+      if (query.status && query.status !== "all")
+        params.set("status", query.status);
       params.set("page", String(query.page));
       params.set("pageSize", String(query.pageSize));
       return request<TaskListResult>(`/tasks?${params.toString()}`);

@@ -8,6 +8,13 @@ const item = (id: string, extras: Partial<RankedItem> = {}): RankedItem => ({
   order: 0,
   ...extras,
 });
+it("objective deadline and category sorts ignore subjective importance and compare clocks", () => {
+  const morning = item("morning", { date: "2026-11-12", time: "08:00", importance: 0, kind: "task" });
+  const evening = item("evening", { date: "2026-11-12", time: "20:00", importance: 2, kind: "task" });
+  expect(compareItems(morning, evening, "due", "2026-11-11")).toBeLessThan(0);
+  expect(compareItems(morning, evening, "category", "2026-11-11")).toBeLessThan(0);
+  expect(compareItems(item("a", { kind: "event" }), evening, "category", "2026-11-11")).toBeLessThan(0);
+});
 it("promotes deadlines as local days advance without changing dates", () => {
   const upcoming = item("upcoming", { date: "2026-10-31" }),
     important = item("important", { importance: 2 });

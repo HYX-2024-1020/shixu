@@ -300,7 +300,11 @@ select {
 
 .alert-slip.critical {
   border-left-color: var(--danger);
-  background: linear-gradient(to right, var(--danger-bg), var(--panel-raise) 55%);
+  background: linear-gradient(
+    to right,
+    var(--danger-bg),
+    var(--panel-raise) 55%
+  );
 }
 
 .alert-slip.warning {
@@ -348,11 +352,26 @@ select {
   background: currentColor;
 }
 
-.badge-ok { color: var(--ok); background: var(--ok-bg); }
-.badge-warn { color: var(--warn); background: var(--warn-bg); }
-.badge-danger { color: var(--danger); background: var(--danger-bg); }
-.badge-muted { color: var(--muted); background: var(--paper-deep); }
-.badge-info { color: var(--info); background: var(--info-bg); }
+.badge-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.badge-warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+.badge-danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.badge-muted {
+  color: var(--muted);
+  background: var(--paper-deep);
+}
+.badge-info {
+  color: var(--info);
+  background: var(--info-bg);
+}
 
 /* ---------- 服务状态列表 ---------- */
 
@@ -533,7 +552,10 @@ th.num {
   background: var(--panel-raise);
   cursor: pointer;
   font-size: 14.5px;
-  transition: transform 80ms ease, box-shadow 80ms ease, background 120ms ease;
+  transition:
+    transform 80ms ease,
+    box-shadow 80ms ease,
+    background 120ms ease;
 }
 
 .btn:hover:not(:disabled) {
@@ -601,7 +623,12 @@ th.num {
 
 .skeleton-row {
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--paper-deep) 25%, var(--panel-raise) 50%, var(--paper-deep) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--paper-deep) 25%,
+    var(--panel-raise) 50%,
+    var(--paper-deep) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.2s infinite;
 }
@@ -1072,4 +1099,65 @@ th.num {
   table.data {
     font-size: 13.5px;
   }
+}
+.task-detail {
+  scroll-margin-top: 90px;
+  outline: none;
+  border-left: 5px solid #287362;
+}
+.diagnostic-report {
+  margin: 20px 0;
+  padding: 18px;
+  background: #fff4d6;
+  border: 1px solid #ba9650;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.content > .panel + .panel,
+.content > section + section {
+  margin-top: 24px;
+}
+.content .panel > h2,
+.content .panel > h3 {
+  margin-top: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #d8dfd5;
+}
+.content .toolbar {
+  margin: 18px 0;
+  gap: 12px;
+}
+.content table.data th {
+  background: #eef3ec;
+}
+.content table.data td {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  vertical-align: middle;
+}
+.content .panel > p {
+  line-height: 1.8;
+  max-width: 90ch;
+}
+.alert-slip {
+  margin: 18px 0;
+  padding: 20px;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+.alert-slip.critical {
+  border-left: 5px solid #b65245;
+  background: #fff1ee;
+}
+.alert-slip.recovered {
+  border-left: 5px solid #5a8475;
+  background: #f1f6f1;
+}
+.alert-slip .btn,
+.alert-slip a {
+  margin: 8px 12px 4px 0;
+}
+.alert-slip details {
+  margin-top: 16px;
+  color: #55675d;
 }

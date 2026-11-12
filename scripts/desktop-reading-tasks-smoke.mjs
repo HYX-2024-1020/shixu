@@ -321,7 +321,7 @@ scenario: try {
     );
     await page.getByRole("button", { name: "立即同步", exact: true }).click();
     await expect(
-      page.getByText(
+      page.locator(".bucket-dialog[open]").getByText(
         readFailure === "EXECUTION_LIMIT"
           ? /累计活跃时间已用尽/
           : /任务活跃时间待核对/,
@@ -343,7 +343,7 @@ scenario: try {
         ...(auditUnknownTime ? {expectedLedgerSequence:review.ledgerSequence} : {newLimitMs:3600000}),evidenceHash:"a".repeat(64),
       },"synthetic-maintainer");
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
-      await expect(page.getByText(auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长本投递时限/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长本投递时限/)).toBeVisible();
       await page.getByRole("button",{name:"继续",exact:true}).click();
       try {
         await waitForPageState(page,async()=>{
@@ -404,7 +404,7 @@ scenario: try {
         callId:call.id,evidenceHash},"synthetic-maintainer");
       assert.equal(calls,2);
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
-      await expect(page.getByText(/缺失结果继续整理可能再次计费/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(/缺失结果继续整理可能再次计费/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toBeVisible();
     } else {
     if (!remote)
@@ -420,14 +420,14 @@ scenario: try {
       const db=openSyntheticTenantWriter(fixture.service,fixture.invitation.userId);
       try {db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id);} finally {db.close();}
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
-      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       const after=await page.evaluate(()=>window.desktop.cloud("status"));
       assert.ok(after.jobs[0].rootActiveMs >= task.rootActiveMs);
       assert.equal(calls,1);assert.equal(after.account.wallet.spent,before.account.wallet.spent);
       await page.reload();
       await page.locator(".bucket-settings").click();
-      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,safetyRollback:true,
         sameTimeFloor:true,noContinue:true,reloadGatePreserved:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent}));

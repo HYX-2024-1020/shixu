@@ -66,6 +66,7 @@ interface Window {
       }[];
       job?: string;
       jobs?: {
+          diagnostic?: { id: string; at: number; code: string; phase: string; version: string } | null;
         id: string;
         packetId?: string;
         state: string;
@@ -90,6 +91,8 @@ interface Window {
         hasPreview?: boolean;
       }[];
       account?: {
+        aiAvailability?: { available: boolean; reason: string };
+        usageSummary?: { day: string; timezone: string; sampledAt: number; daySpentMicro: number; personalRemainingMicro: number; siteRemainingMicro: number } | null;
         activation: string;
         authentication?: {
           passwordChangeRequired?: boolean;

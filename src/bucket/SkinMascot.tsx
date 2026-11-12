@@ -71,13 +71,19 @@ export default function SkinMascot({
   }, [state, suspended]);
   function greet() {
     if (suspended || state !== "idle") return;
+    if ((skin.art === "whale" || skin.art === "bunny") && happy) {
+      audio.current?.pause();
+      clearTimeout(timer.current);
+      setHappy(false);
+      return;
+    }
     setPlaySignal((value) => value + 1);
     setHappy(true);
     clearTimeout(timer.current);
     if (skin.art === "bunny") return;
     if (audio.current) {
       const sound = audio.current;
-      sound.currentTime = 0;
+      if (skin.art !== "whale" || sound.ended) sound.currentTime = 0;
       sound.onended = () => {
         setHappy(false);
       };
@@ -108,7 +114,14 @@ export default function SkinMascot({
         !plain && !suspended && (happy || feeding) ? skin.motion : "idle"
       }
       data-skin={skin.id}
-      aria-label={`和${skin.name}打个招呼`}
+      aria-label={
+        skin.art === "whale" || skin.art === "bunny"
+          ? `${happy ? "暂停" : "播放"}${skin.name}的演出`
+          : `和${skin.name}打个招呼`
+      }
+      aria-pressed={
+        skin.art === "whale" || skin.art === "bunny" ? happy : undefined
+      }
       onClick={greet}
     >
       {!plain && (

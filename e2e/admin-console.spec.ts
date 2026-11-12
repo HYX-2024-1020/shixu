@@ -169,11 +169,30 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
     ).toContainText("25.00");
     await drawer.getByRole("button", { name: "关闭", exact: true }).click();
     await page.getByRole("link", { name: "任务管理", exact: true }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await page.evaluate(() => {
+      location.hash = "#/tasks?account=synthetic-unrelated-account";
+    });
+    await expect(page.locator("tbody tr")).toHaveCount(0);
+    await page.evaluate((id) => {
+      location.hash = "#/tasks?account=" + encodeURIComponent(id);
+    }, account);
+    await expect(page.locator("tbody tr")).toHaveCount(1);
     await page
       .locator("tbody tr")
-      .filter({ hasText: task.job })
+      .filter({ hasText: "product-owner" })
       .getByRole("button", { name: "查看与处置" })
       .click();
+    await expect(
+      page.getByRole("article", { name: "任务详情" }),
+    ).toBeInViewport();
+    await page
+      .getByRole("article", { name: "任务详情" })
+      .getByText("技术编号", { exact: true })
+      .click();
+    await expect(page.getByRole("article", { name: "任务详情" })).toContainText(
+      task.job!,
+    );
     await page.getByRole("button", { name: "暂停任务", exact: true }).click();
     await page
       .locator(".inline-confirm")
@@ -224,7 +243,8 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
   } finally {
     release();
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await gateway.close();
     await service.close();
     backend.close();
@@ -319,6 +339,16 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       .locator(".drawer")
       .getByRole("button", { name: "关闭", exact: true })
       .click();
+    // Change the query while UsersPage stays mounted: consecutive hash changes
+    // can be batched, so a mount-only query initializer is insufficient.
+    await page.evaluate((id) => {
+      location.hash = "#/users?account=" + encodeURIComponent(id);
+    }, userId);
+    await expect(page.getByText("仅查看这条告警关联的账号")).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText("fixture-owner");
+    await page.getByRole("button", { name: "显示全部账号" }).click();
+    await expect(page).toHaveURL(/#\/users$/);
     await page.getByRole("link", { name: /告警中心/ }).click();
     await expect(
       page.getByRole("heading", { name: "告警中心", exact: true }),
@@ -338,10 +368,22 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       safetyAlert.getByRole("button", { name: "标为已读", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
+    await safetyAlert.getByRole("button", { name: "记录处置进展" }).click();
+    await safetyAlert.getByLabel("处置状态").selectOption("developer");
+    await safetyAlert
+      .getByLabel("处置说明")
+      .fill("已定位安全配置，等待维护者按证据修复。");
+    await safetyAlert.getByRole("button", { name: "保存处置记录" }).click();
+    await expect(safetyAlert).toContainText("待开发修复");
+    await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
+    await page.reload();
+    await expect(safetyAlert).toContainText("已定位安全配置");
+    expect(ledger.wallet(userId).spent).toBe(0);
     await page.getByRole("link", { name: "运维与审计", exact: true }).click();
-    await expect(page.locator(".audit-row")).toHaveCount(3);
+    await expect(page.locator(".audit-row")).toHaveCount(4);
   } finally {
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await gateway.close();
     await service.close();
     backend.close();
@@ -511,7 +553,8 @@ test("真实回环服务登录、明确显示数据待接入，退出失败后�
       page.getByRole("button", { name: "登录", exact: true }),
     ).toBeVisible();
   } finally {
-    await page.goto("about:blank");
+    // Close the test context before its servers, including unused preconnections.
+    await page.context().close();
     await service.close();
   }
 });

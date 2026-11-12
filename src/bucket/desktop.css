@@ -2325,3 +2325,5 @@ body.is-card-dragging * {
   touch-action: none;
   user-select: none;
 }
+.bucket-settings:has(.header-quota) { display: grid; grid-template-columns: 8px auto; gap: 5px 9px; white-space: normal; max-width: min(640px, 65vw); text-align: left; }
+.header-quota { grid-column: 1 / -1; font-size: 11px; letter-spacing: 0; font-weight: 500; }

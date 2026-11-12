@@ -294,9 +294,15 @@ function inferred(time, reason) {
 function anchorContext(text, anchor) {
   const compact = (t) => normalize(t).replace(/\s+/g, "");
   const pieces = String(text || "").split(/[。；;\n！？]/);
-  for (const piece of pieces) {
+  for (let index = 0; index < pieces.length; index++) {
+    let piece = pieces[index];
     const at = compact(piece).indexOf(compact(anchor));
     if (!anchor || at < 0) continue;
+    const next = pieces.slice(index + 1).find((p) => p.trim());
+    const continuedLine = !!(!clock(piece, true) && next && !/(?:\d+[年月日号]|今天|明天|后天|周[一二三四五六日天])/.test(
+      normalize(next)
+    ) && clock(next, true));
+    if (continuedLine) piece += "\n" + next;
     const value = compact(piece), key = compact(anchor);
     const left = Math.max(
       value.lastIndexOf("，", at),
@@ -312,7 +318,7 @@ function anchorContext(text, anchor) {
       ))
         context += "，" + adjacent;
     }
-    return context;
+    return (continuedLine ? "\n" : "") + context;
   }
   return "";
 }
@@ -354,14 +360,20 @@ function resolveDeadlineTime(due, evidence = [], sources = []) {
     const exact = clock(text);
     if (exact) {
       const { timeInferred, timeReason, ...rest } = due;
-      return applyClock(rest, exact);
+      return {
+        ...applyClock(rest, exact),
+        ...text.includes("\n") ? {
+          timeInferred: true,
+          timeReason: "从同一日期标题下一行的时刻推定，可手动修改；全部开放时段见原文"
+        } : {}
+      };
     }
   }
   for (const source of sources.filter((s) => s.id === due.sourceId)) {
     const text = normalize(source.text);
     const clocks = text.match(/\b\d{1,2}(?::\d{2})?\s*[ap]m\b|\d{1,2}\s*(?:[:点时])/gi) || [];
     const dates = text.match(
-      /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g
+      /(?:20\d{2}[年\/-]\d{1,2}[月\/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}[日号]|今天|明天|后天|昨天|前天|今[早晚]|明[早晚]|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天])/g
     ) || [];
     const parsed = clock(text);
     if (anchor !== "人工确认" && clocks.length === 1 && dates.length <= 1 && parsed && text.replace(/\s+/g, "").includes(normalize(anchor).replace(/\s+/g, ""))) {
@@ -476,6 +488,10 @@ function normalizeDateText(value) {
   ).replace(/\s+/g, "");
 }
 function point(text, today, inherited, end = false) {
+  text = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#"
+  );
   const [year, month] = today.split("-").map(Number);
   let date = "", inferred2 = false;
   const full = text.match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})(?:日|号)?/);
@@ -637,7 +653,10 @@ function parseDateExpression(value, today) {
       } : {}
     };
   }
-  const dateTokens = text.match(
+  const dateTokens = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#"
+  ).match(
     /20\d{2}[年/-]\d{1,2}[月/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}(?:日|号)|今天|明天|后天|昨天|前天|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天]/g
   ) || [];
   if (new Set(
@@ -661,6 +680,12 @@ function absoluteText(text, day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return text;
   let previousWeek = "", previousEnd = 0;
   return text.replace(relative, (token, offset) => {
+    if (/^\d/.test(token) && /[-~～至到—–]/.test(token) && (/[:：点时]$/.test(text.slice(0, offset)) || /^[:：点时]/.test(text.slice(offset + token.length))))
+      return token;
+    if (/^\d+号$/.test(token) && /^(?:窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/.test(
+      text.slice(offset + token.length)
+    ))
+      return token;
     if (/^\d/.test(token) && /[-~～至到—–]/.test(token) && (/第\s*$/.test(text.slice(0, offset)) || /^\s*(?:题|章|节|条|项|页|册|元|人|次|个|%)/.test(
       text.slice(offset + token.length)
     )))
@@ -800,6 +825,10 @@ function compareItems(a, b, sort, day) {
   if (sort === "custom") return a.order - b.order || a.id.localeCompare(b.id);
   if (sort === "created")
     return b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
+  if (sort === "category" && a.kind !== b.kind)
+    return (a.kind || "").localeCompare(b.kind || "");
+  if (sort === "due" || sort === "category")
+    return (a.date || "9999").localeCompare(b.date || "9999") || (a.time || "23:59").localeCompare(b.time || "23:59") || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   if (sort === "importance")
     return b.importance - a.importance || a.id.localeCompare(b.id);
   if (sort === "priority") {

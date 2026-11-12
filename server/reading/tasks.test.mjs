@@ -1,4 +1,4 @@
-import {manufactureLegacyTaskTenant}from './legacy-task-fixtures.mjs';
+import { manufactureLegacyTaskTenant } from "./legacy-task-fixtures.mjs";
 import test from "node:test";
 import { encodePng } from "./image.mjs";
 import { spawnSync } from "node:child_process";
@@ -37,44 +37,165 @@ const result = (sources) => ({
   ],
 });
 
-test("manual pause blocks later paid steps, preserves settled progress and requires explicit continue", async t => {
-  let paused=false;
-  const f=fixture(t,{text:'合成材料'.repeat(50000),provider:async sources=>{
-    paused=true;
-    return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};
-  }});
-  f.ledger.dispatchGuard=()=>{if(paused)throw Error('ADMIN_PAUSED');};
+test("invalid paid output leaves a durable safe report with settled cost and no business text", async (t) => {
+  const secret = "private-business-sentinel-DO-NOT-LOG";
+  const f = fixture(t, {
+    provider: async (sources) => {
+      const value = result(sources);
+      value.items[0].evidence[0].quote = secret;
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: value,
+      };
+    },
+  });
   f.enqueue();
-  await f.tasks.run('task');
-  const spent=f.ledger.wallet('synthetic').spent;
-  assert.equal(f.calls(),1);
-  assert.equal((await f.tasks.run('task')).reason,'ADMIN_PAUSED');
-  assert.equal(f.calls(),1);
-  paused=false;
-  assert.equal(f.tasks.get('task').state,'paused');
-  assert.equal(f.ledger.wallet('synthetic').spent,spent);
-  f.action('continue','manual-resume');
-  await f.tasks.run('task');
-  assert.equal(f.calls(),2);
+  const failed = await f.tasks.run("task");
+  assert.equal(failed.state, "paused");
+  assert.equal(failed.reason, "READING_TASK_FAILED");
+  const report = f.tasks.diagnostics.latest("task");
+  assert.equal(report.code, "INVALID_MODEL_SOURCE");
+  assert.equal(report.phase, "reading");
+  assert.equal(report.calls[0].state, "settled");
+  assert.ok(report.calls[0].actual > 0);
+  assert.ok(!JSON.stringify(report).includes(secret));
+  assert.ok(!JSON.stringify(report).includes("原件实际内容"));
+  f.tasks.close();
+  const restarted = new ReadingTasks(f.taskArgs);
+  try {
+    assert.deepEqual(restarted.diagnostics.latest("task"), report);
+    assert.throws(
+      () => f.ledger.db.prepare("DELETE FROM reading_diagnostics").run(),
+      /APPEND_ONLY/,
+    );
+  } finally {
+    restarted.close();
+  }
+});
+
+test("missing empty optional arrays do not reject grounded paid items; malformed arrays still pause", async (t) => {
+  const f = fixture(t, {
+    provider: async (sources) => {
+      const value = result(sources);
+      delete value.warnings;
+      for (const key of ["facts", "nextSteps", "uncertainties"])
+        delete value.items[0][key];
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: value,
+      };
+    },
+  });
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.equal(f.calls(), 1);
+  assert.deepEqual(f.store.record("packet").data.result.items[0].facts, []);
+  const g = fixture(t, {
+    provider: async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: { ...result(sources), warnings: "不能把正文当列表放行" },
+    }),
+  });
+  g.enqueue();
+  assert.equal((await g.tasks.run("task")).state, "paused");
+  assert.equal(g.tasks.diagnostics.latest("task").code, "INVALID_MODEL_OUTPUT");
+});
+
+test("normal notices may retain fourteen requirements without rejection or silent truncation", async (t) => {
+  const f = fixture(t, {
+    provider: async (sources) => {
+      const value = result(sources);
+      value.items[0].facts = Array.from(
+        { length: 14 },
+        (_, i) => "合成通知要求" + i,
+      );
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: value,
+      };
+    },
+  });
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.equal(f.store.record("packet").data.result.items[0].facts.length, 14);
+});
+
+test("manual pause blocks later paid steps, preserves settled progress and requires explicit continue", async (t) => {
+  let paused = false;
+  const f = fixture(t, {
+    text: "合成材料".repeat(50000),
+    provider: async (sources) => {
+      paused = true;
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: result(sources),
+      };
+    },
+  });
+  f.ledger.dispatchGuard = () => {
+    if (paused) throw Error("ADMIN_PAUSED");
+  };
+  f.enqueue();
+  await f.tasks.run("task");
+  const spent = f.ledger.wallet("synthetic").spent;
+  assert.equal(f.calls(), 1);
+  assert.equal((await f.tasks.run("task")).reason, "ADMIN_PAUSED");
+  assert.equal(f.calls(), 1);
+  paused = false;
+  assert.equal(f.tasks.get("task").state, "paused");
+  assert.equal(f.ledger.wallet("synthetic").spent, spent);
+  f.action("continue", "manual-resume");
+  await f.tasks.run("task");
+  assert.equal(f.calls(), 2);
 });
 
 for (const state of ["paused", "interrupted", "error", "conflict"]) {
   test(`retained ${state} task permits unrelated feeding without resuming old work`, async (t) => {
     const f = fixture(t);
     f.enqueue();
-    f.store.apply(f.windows.deviceId, {
-      id: "new-packet", opId: crypto.randomUUID(), type: "put", baseVersion: 0,
-      data: { text: "合成测试：明天整理书架", attachments: [], captureDate: "2026-11-11", status: "pending", result: null },
-    }, f.store.epoch);
-    const enqueueNew = () => f.tasks.enqueue({ id: "new-task", packetId: "new-packet", deviceId: f.windows.deviceId });
-    assert.throws(enqueueNew, (e) => e.code === "TASK_SLOT_FULL" && e.message.includes("正在处理"));
+    f.store.apply(
+      f.windows.deviceId,
+      {
+        id: "new-packet",
+        opId: crypto.randomUUID(),
+        type: "put",
+        baseVersion: 0,
+        data: {
+          text: "合成测试：明天整理书架",
+          attachments: [],
+          captureDate: "2026-11-11",
+          status: "pending",
+          result: null,
+        },
+      },
+      f.store.epoch,
+    );
+    const enqueueNew = () =>
+      f.tasks.enqueue({
+        id: "new-task",
+        packetId: "new-packet",
+        deviceId: f.windows.deviceId,
+      });
+    assert.throws(
+      enqueueNew,
+      (e) => e.code === "TASK_SLOT_FULL" && e.message.includes("正在处理"),
+    );
     // Synthetic retained state: the old task remains available for explicit continuation.
-    f.store.db.prepare("UPDATE reading_tasks SET state=?,reason='ADMIN_PAUSED' WHERE id='task'").run(state);
+    f.store.db
+      .prepare(
+        "UPDATE reading_tasks SET state=?,reason='ADMIN_PAUSED' WHERE id='task'",
+      )
+      .run(state);
     const old = f.tasks.get("task");
     const spent = f.ledger.wallet("synthetic").spent;
     assert.equal(enqueueNew().state, "queued");
     assert.equal(f.ledger.wallet("synthetic").spent, spent);
-    assert.throws(() => f.action("continue"), (e) => e.code === (state === "conflict" ? "INVALID_TASK_TRANSITION" : "TASK_SLOT_FULL"));
+    assert.throws(
+      () => f.action("continue"),
+      (e) =>
+        e.code ===
+        (state === "conflict" ? "INVALID_TASK_TRANSITION" : "TASK_SLOT_FULL"),
+    );
     assert.equal((await finish(f.tasks, "new-task")).state, "done");
     assert.deepEqual(f.tasks.get("task"), old);
     assert.equal(f.calls(), 1);
@@ -180,109 +301,303 @@ test("a failed final safety write abandons local ownership and leaves a conserva
   assert.equal(f.calls(), 1);
   assert.equal(f.ledger.wallet("synthetic").spent, 20);
 });
-test("audited root time extension preserves paid blocks and counters across restart, without new credit or automatic work", async t => {
-  const f=fixture(t);f.enqueue();await f.tasks.run("task");
-  f.tasks.activeLimitMs=1;
-  assert.equal((await f.tasks.run("task")).reason,"EXECUTION_LIMIT");
-  const before=f.tasks.roots.stats("task"),spent=f.ledger.wallet("synthetic").spent;
-  assert.throws(()=>new ReadingMaintenance(f.tasks),/MAINTENANCE_AUTHORITY_REQUIRED/);
-  const maintenance=new ReadingMaintenance(f.tasks,({actor})=>actor==="synthetic-maintainer");
-  assert.throws(()=>maintenance.preview("task","untrusted"),/MAINTENANCE_FORBIDDEN/);
-  const preview=maintenance.preview("task","synthetic-maintainer");
-  const request={operationId:"extend-one",expectedGeneration:preview.generation,expectedWatermark:preview.watermark,
-    newLimitMs:before.activeMs+1000,evidenceHash:sha256("synthetic time audit, not user content")};
-  assert.throws(()=>maintenance.extend("task",{...request,newLimitMs:0},"synthetic-maintainer"),/INVALID_MAINTENANCE_LIMIT/);
-  const receipt=maintenance.extend("task",request,"synthetic-maintainer");
-  assert.deepEqual(maintenance.extend("task",request,"synthetic-maintainer"),receipt);
-  assert.throws(()=>maintenance.extend("task",{...request,newLimitMs:request.newLimitMs+1},"synthetic-maintainer"),/IDEMPOTENCY_CONFLICT/);
-  assert.equal(f.calls(),1);assert.equal(f.ledger.wallet("synthetic").spent,spent);
-  assert.equal(f.tasks.get("task").state,"paused");
-  assert.throws(()=>f.ledger.db.exec("DELETE FROM reading_safe_limit_audits"),/SAFETY_APPEND_ONLY/);
-  const secondReview=maintenance.preview("task","synthetic-maintainer");
-  assert.throws(()=>maintenance.extend("task",{...request,operationId:"unneeded-second-audit",expectedWatermark:secondReview.watermark,
-    newLimitMs:request.newLimitMs+1000},"synthetic-maintainer"),/EXECUTION_LIMIT_NOT_REACHED/);
-  const actionRequest={operationId:"after-audit",expectedGeneration:f.tasks.get("task").generation,
-    expectedRevision:f.tasks.get("task").input_revision,expectedMaintenanceOperation:receipt.operation};
-  const tenantPrepare=f.store.db.prepare.bind(f.store.db);
-  f.store.db.prepare=sql=>{
-    if(sql.startsWith("INSERT INTO reading_action_audits"))throw Error("synthetic action proof failure");
+test("audited root time extension preserves paid blocks and counters across restart, without new credit or automatic work", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.tasks.activeLimitMs = 1;
+  assert.equal((await f.tasks.run("task")).reason, "EXECUTION_LIMIT");
+  const before = f.tasks.roots.stats("task"),
+    spent = f.ledger.wallet("synthetic").spent;
+  assert.throws(
+    () => new ReadingMaintenance(f.tasks),
+    /MAINTENANCE_AUTHORITY_REQUIRED/,
+  );
+  const maintenance = new ReadingMaintenance(
+    f.tasks,
+    ({ actor }) => actor === "synthetic-maintainer",
+  );
+  assert.throws(
+    () => maintenance.preview("task", "untrusted"),
+    /MAINTENANCE_FORBIDDEN/,
+  );
+  const preview = maintenance.preview("task", "synthetic-maintainer");
+  const request = {
+    operationId: "extend-one",
+    expectedGeneration: preview.generation,
+    expectedWatermark: preview.watermark,
+    newLimitMs: before.activeMs + 1000,
+    evidenceHash: sha256("synthetic time audit, not user content"),
+  };
+  assert.throws(
+    () =>
+      maintenance.extend(
+        "task",
+        { ...request, newLimitMs: 0 },
+        "synthetic-maintainer",
+      ),
+    /INVALID_MAINTENANCE_LIMIT/,
+  );
+  const receipt = maintenance.extend("task", request, "synthetic-maintainer");
+  assert.deepEqual(
+    maintenance.extend("task", request, "synthetic-maintainer"),
+    receipt,
+  );
+  assert.throws(
+    () =>
+      maintenance.extend(
+        "task",
+        { ...request, newLimitMs: request.newLimitMs + 1 },
+        "synthetic-maintainer",
+      ),
+    /IDEMPOTENCY_CONFLICT/,
+  );
+  assert.equal(f.calls(), 1);
+  assert.equal(f.ledger.wallet("synthetic").spent, spent);
+  assert.equal(f.tasks.get("task").state, "paused");
+  assert.throws(
+    () => f.ledger.db.exec("DELETE FROM reading_safe_limit_audits"),
+    /SAFETY_APPEND_ONLY/,
+  );
+  const secondReview = maintenance.preview("task", "synthetic-maintainer");
+  assert.throws(
+    () =>
+      maintenance.extend(
+        "task",
+        {
+          ...request,
+          operationId: "unneeded-second-audit",
+          expectedWatermark: secondReview.watermark,
+          newLimitMs: request.newLimitMs + 1000,
+        },
+        "synthetic-maintainer",
+      ),
+    /EXECUTION_LIMIT_NOT_REACHED/,
+  );
+  const actionRequest = {
+    operationId: "after-audit",
+    expectedGeneration: f.tasks.get("task").generation,
+    expectedRevision: f.tasks.get("task").input_revision,
+    expectedMaintenanceOperation: receipt.operation,
+  };
+  const tenantPrepare = f.store.db.prepare.bind(f.store.db);
+  f.store.db.prepare = (sql) => {
+    if (sql.startsWith("INSERT INTO reading_action_audits"))
+      throw Error("synthetic action proof failure");
     return tenantPrepare(sql);
   };
-  try{assert.throws(()=>f.tasks.action("task",actionRequest,"continue"),/synthetic action proof failure/);}
-  finally{f.store.db.prepare=tenantPrepare;}
-  assert.equal(f.tasks.get("task").state,"paused");
-  assert.equal(f.tasks.get("task").generation,actionRequest.expectedGeneration);
-  assert.equal(f.store.db.prepare("SELECT 1 FROM reading_actions WHERE operation='after-audit'").get(),undefined);
-  f.tasks.close();
-  const restarted=new ReadingTasks({...f.taskArgs,activeLimitMs:1});
   try {
-    assert.equal(restarted.executionLimit("task"),request.newLimitMs);
-    const current=restarted.get("task");
-    assert.throws(()=>restarted.action("task",{operationId:"old-replay",expectedGeneration:current.generation,expectedRevision:current.input_revision},"continue"),e=>e.code==="STALE_TASK");
-    const continued=restarted.action("task",actionRequest,"continue");
-    assert.deepEqual({...restarted.action("task",actionRequest,"continue")},{...continued});
-    assert.throws(()=>restarted.action("task",{...actionRequest,expectedMaintenanceOperation:null},"continue"),e=>e.code==="IDEMPOTENCY_CONFLICT");
-    for(let n=0;n<5 && restarted.get("task").state==="queued";n++)await restarted.run("task");
-    assert.equal(restarted.get("task").state,"done");assert.equal(f.calls(),1);
-    assert.equal(f.ledger.wallet("synthetic").spent,spent);
+    assert.throws(
+      () => f.tasks.action("task", actionRequest, "continue"),
+      /synthetic action proof failure/,
+    );
+  } finally {
+    f.store.db.prepare = tenantPrepare;
+  }
+  assert.equal(f.tasks.get("task").state, "paused");
+  assert.equal(
+    f.tasks.get("task").generation,
+    actionRequest.expectedGeneration,
+  );
+  assert.equal(
+    f.store.db
+      .prepare("SELECT 1 FROM reading_actions WHERE operation='after-audit'")
+      .get(),
+    undefined,
+  );
+  f.tasks.close();
+  const restarted = new ReadingTasks({ ...f.taskArgs, activeLimitMs: 1 });
+  try {
+    assert.equal(restarted.executionLimit("task"), request.newLimitMs);
+    const current = restarted.get("task");
+    assert.throws(
+      () =>
+        restarted.action(
+          "task",
+          {
+            operationId: "old-replay",
+            expectedGeneration: current.generation,
+            expectedRevision: current.input_revision,
+          },
+          "continue",
+        ),
+      (e) => e.code === "STALE_TASK",
+    );
+    const continued = restarted.action("task", actionRequest, "continue");
+    assert.deepEqual(
+      { ...restarted.action("task", actionRequest, "continue") },
+      { ...continued },
+    );
+    assert.throws(
+      () =>
+        restarted.action(
+          "task",
+          { ...actionRequest, expectedMaintenanceOperation: null },
+          "continue",
+        ),
+      (e) => e.code === "IDEMPOTENCY_CONFLICT",
+    );
+    for (let n = 0; n < 5 && restarted.get("task").state === "queued"; n++)
+      await restarted.run("task");
+    assert.equal(restarted.get("task").state, "done");
+    assert.equal(f.calls(), 1);
+    assert.equal(f.ledger.wallet("synthetic").spent, spent);
     assert.ok(restarted.roots.stats("task").activeMs >= before.activeMs);
-    assert.equal(restarted.roots.stats("task").calls,1);
-  } finally {restarted.close();}
-});
-
-test("time audit rejects stale reviews and failed receipt writes without granting time or changing fees",async t=>{
-  const f=fixture(t);f.enqueue();await f.tasks.run("task");f.tasks.activeLimitMs=1;await f.tasks.run("task");
-  const maintenance=new ReadingMaintenance(f.tasks,()=>true),actor="synthetic-maintainer";
-  const old=maintenance.preview("task",actor);
-  const request={operationId:"audit-write-failure",expectedGeneration:old.generation,expectedWatermark:old.watermark,
-    newLimitMs:old.activeMs+1000,evidenceHash:sha256("synthetic stale review")};
-  f.store.db.prepare("UPDATE reading_tasks SET active_ms=active_ms+1 WHERE id='task'").run();
-  const newer=maintenance.preview("task",actor);
-  assert.throws(()=>maintenance.extend("task",request,actor),/STALE_MAINTENANCE_REVIEW/);
-  const fresh={...request,expectedWatermark:newer.watermark};
-  const prepare=f.ledger.db.prepare.bind(f.ledger.db);
-  f.ledger.db.prepare=sql=>{
-    if(sql.startsWith("INSERT INTO reading_safe_limit_audits"))throw Error("synthetic receipt disk failure");
-    return prepare(sql);
-  };
-  try{assert.throws(()=>maintenance.extend("task",fresh,actor),/synthetic receipt disk failure/);}
-  finally{f.ledger.db.prepare=prepare;}
-  assert.equal(f.tasks.executionLimit("task"),1);
-  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
-  assert.equal(f.ledger.wallet("synthetic").spent,20);
-  maintenance.extend("task",fresh,actor);
-  assert.equal(f.tasks.executionLimit("task"),fresh.newLimitMs);assert.equal(f.calls(),1);
-});
-
-test("time audits cannot clear unknown fees, unknown active time or tenant rollback gates",async t=>{
-  for(const kind of ["cost","time","rollback"]){
-    const f=fixture(t,kind==="cost"?{provider:async()=>{throw Error("synthetic network unknown");}}
-      :kind==="time"?{reader:async()=>{throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"),{timingUncertain:true});}}:{});
-    f.enqueue();await f.tasks.run("task");f.tasks.activeLimitMs=1;
-    if(kind==="rollback"){
-      f.action("stop","rollback-before-audit");
-      f.store.db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id='task'").run();
-    }
-    const maintenance=new ReadingMaintenance(f.tasks,()=>true),review=maintenance.preview("task","synthetic-maintainer");
-    const risk=f.ledger.wallet("synthetic").unknownRisk;
-    assert.throws(()=>maintenance.extend("task",{operationId:"no-unknown-bypass",expectedGeneration:review.generation,
-      expectedWatermark:review.watermark,newLimitMs:review.activeMs+1000,evidenceHash:sha256("synthetic rejected audit")},"synthetic-maintainer"),
-      kind==="cost"?/UNKNOWN_COST/:/RECONCILIATION_REQUIRED/);
-    assert.equal(f.tasks.executionLimit("task"),1);assert.equal(f.ledger.wallet("synthetic").unknownRisk,risk);
-    assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
+    assert.equal(restarted.roots.stats("task").calls, 1);
+  } finally {
+    restarted.close();
   }
 });
 
-test("a trusted time audit cannot extend an in-flight step or cause an additional call",async t=>{
-  let release,enter;
-  const entered=new Promise(resolve=>enter=resolve);
-  const f=fixture(t,{reader:file=>new Promise(resolve=>{enter();release=()=>resolve(readMaterial(file));})});
-  f.enqueue();const pending=f.tasks.run("task");await entered;
-  const maintenance=new ReadingMaintenance(f.tasks,()=>true),review=maintenance.preview("task","synthetic-maintainer");
-  assert.throws(()=>maintenance.extend("task",{operationId:"no-live-extension",expectedGeneration:review.generation,
-    expectedWatermark:review.watermark,newLimitMs:3600000,evidenceHash:sha256("synthetic rejected live audit")},"synthetic-maintainer"),/TASK_STILL_DRAINING/);
-  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits").get().n,0);
-  release();await pending;assert.equal(f.calls(),1);
+test("time audit rejects stale reviews and failed receipt writes without granting time or changing fees", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.tasks.activeLimitMs = 1;
+  await f.tasks.run("task");
+  const maintenance = new ReadingMaintenance(f.tasks, () => true),
+    actor = "synthetic-maintainer";
+  const old = maintenance.preview("task", actor);
+  const request = {
+    operationId: "audit-write-failure",
+    expectedGeneration: old.generation,
+    expectedWatermark: old.watermark,
+    newLimitMs: old.activeMs + 1000,
+    evidenceHash: sha256("synthetic stale review"),
+  };
+  f.store.db
+    .prepare("UPDATE reading_tasks SET active_ms=active_ms+1 WHERE id='task'")
+    .run();
+  const newer = maintenance.preview("task", actor);
+  assert.throws(
+    () => maintenance.extend("task", request, actor),
+    /STALE_MAINTENANCE_REVIEW/,
+  );
+  const fresh = { ...request, expectedWatermark: newer.watermark };
+  const prepare = f.ledger.db.prepare.bind(f.ledger.db);
+  f.ledger.db.prepare = (sql) => {
+    if (sql.startsWith("INSERT INTO reading_safe_limit_audits"))
+      throw Error("synthetic receipt disk failure");
+    return prepare(sql);
+  };
+  try {
+    assert.throws(
+      () => maintenance.extend("task", fresh, actor),
+      /synthetic receipt disk failure/,
+    );
+  } finally {
+    f.ledger.db.prepare = prepare;
+  }
+  assert.equal(f.tasks.executionLimit("task"), 1);
+  assert.equal(
+    f.ledger.db
+      .prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits")
+      .get().n,
+    0,
+  );
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+  maintenance.extend("task", fresh, actor);
+  assert.equal(f.tasks.executionLimit("task"), fresh.newLimitMs);
+  assert.equal(f.calls(), 1);
+});
+
+test("time audits cannot clear unknown fees, unknown active time or tenant rollback gates", async (t) => {
+  for (const kind of ["cost", "time", "rollback"]) {
+    const f = fixture(
+      t,
+      kind === "cost"
+        ? {
+            provider: async () => {
+              throw Error("synthetic network unknown");
+            },
+          }
+        : kind === "time"
+          ? {
+              reader: async () => {
+                throw Object.assign(Error("READING_CANCEL_UNCONFIRMED"), {
+                  timingUncertain: true,
+                });
+              },
+            }
+          : {},
+    );
+    f.enqueue();
+    await f.tasks.run("task");
+    f.tasks.activeLimitMs = 1;
+    if (kind === "rollback") {
+      f.action("stop", "rollback-before-audit");
+      f.store.db
+        .prepare("UPDATE reading_tasks SET active_ms=0 WHERE id='task'")
+        .run();
+    }
+    const maintenance = new ReadingMaintenance(f.tasks, () => true),
+      review = maintenance.preview("task", "synthetic-maintainer");
+    const risk = f.ledger.wallet("synthetic").unknownRisk;
+    assert.throws(
+      () =>
+        maintenance.extend(
+          "task",
+          {
+            operationId: "no-unknown-bypass",
+            expectedGeneration: review.generation,
+            expectedWatermark: review.watermark,
+            newLimitMs: review.activeMs + 1000,
+            evidenceHash: sha256("synthetic rejected audit"),
+          },
+          "synthetic-maintainer",
+        ),
+      kind === "cost" ? /UNKNOWN_COST/ : /RECONCILIATION_REQUIRED/,
+    );
+    assert.equal(f.tasks.executionLimit("task"), 1);
+    assert.equal(f.ledger.wallet("synthetic").unknownRisk, risk);
+    assert.equal(
+      f.ledger.db
+        .prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits")
+        .get().n,
+      0,
+    );
+  }
+});
+
+test("a trusted time audit cannot extend an in-flight step or cause an additional call", async (t) => {
+  let release, enter;
+  const entered = new Promise((resolve) => (enter = resolve));
+  const f = fixture(t, {
+    reader: (file) =>
+      new Promise((resolve) => {
+        enter();
+        release = () => resolve(readMaterial(file));
+      }),
+  });
+  f.enqueue();
+  const pending = f.tasks.run("task");
+  await entered;
+  const maintenance = new ReadingMaintenance(f.tasks, () => true),
+    review = maintenance.preview("task", "synthetic-maintainer");
+  assert.throws(
+    () =>
+      maintenance.extend(
+        "task",
+        {
+          operationId: "no-live-extension",
+          expectedGeneration: review.generation,
+          expectedWatermark: review.watermark,
+          newLimitMs: 3600000,
+          evidenceHash: sha256("synthetic rejected live audit"),
+        },
+        "synthetic-maintainer",
+      ),
+    /TASK_STILL_DRAINING/,
+  );
+  assert.equal(
+    f.ledger.db
+      .prepare("SELECT COUNT(*) n FROM reading_safe_limit_audits")
+      .get().n,
+    0,
+  );
+  release();
+  await pending;
+  assert.equal(f.calls(), 1);
 });
 
 function fixture(
@@ -412,127 +727,292 @@ async function finish(tasks, id = "task") {
   throw Error("UNEXPECTED_NO_PROGRESS");
 }
 
-test("partial successors append only unaccepted blocks, retain user edits/IDs and share root fees across restart", async t => {
-  const f = fixture(t, { text: "课程通知完整材料😀。\n".repeat(18000) + "尾部唯一标记" });
+test("partial successors append only unaccepted blocks, retain user edits/IDs and share root fees across restart", async (t) => {
+  const f = fixture(t, {
+    text: "课程通知完整材料😀。\n".repeat(18000) + "尾部唯一标记",
+  });
   f.enqueue();
   await f.tasks.run("task");
   assert.equal(f.calls(), 1);
   // A host resource pause between scheduler steps, before user accepts output.
-  f.store.db.prepare("UPDATE reading_tasks SET state='paused',reason='RESOURCE' WHERE id='task'").run();
+  f.store.db
+    .prepare(
+      "UPDATE reading_tasks SET state='paused',reason='RESOURCE' WHERE id='task'",
+    )
+    .run();
   f.action("accept-partial", "accept-prefix");
   const accepted = structuredClone(f.store.record("packet").data);
   assert.equal(f.tasks.get("task").state, "partial");
   const firstId = accepted.itemIds[0];
   accepted.result.items[0].title = "我已核对的课程任务";
-  f.put({ result: accepted.result, itemState: { [firstId]: { starred: true, order: 9, status: "done" } }, doneIds: [firstId] });
+  f.put({
+    result: accepted.result,
+    itemState: { [firstId]: { starred: true, order: 9, status: "done" } },
+    doneIds: [firstId],
+  });
   const parent = f.tasks.get("task");
-  const request = { id: "remaining", packetId: "packet", deviceId: f.wechat.deviceId, remainingOf: parent.id,
-    remainingReview: { expectedGeneration: parent.generation, expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id) } };
+  const request = {
+    id: "remaining",
+    packetId: "packet",
+    deviceId: f.wechat.deviceId,
+    remainingOf: parent.id,
+    remainingReview: {
+      expectedGeneration: parent.generation,
+      expectedRevision: parent.input_revision,
+      expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id),
+    },
+  };
   f.tasks.enqueue(request);
   f.tasks.enqueue(request); // Lost creation acknowledgement replays the same task.
-  assert.throws(() => f.tasks.enqueue({ ...request, id: "double-click" }), e => e.code === "REMAINDER_EXISTS");
+  assert.throws(
+    () => f.tasks.enqueue({ ...request, id: "double-click" }),
+    (e) => e.code === "REMAINDER_EXISTS",
+  );
   f.tasks.close();
   const restarted = new ReadingTasks(f.taskArgs);
   try {
     const interrupted = restarted.get("remaining");
-    restarted.action("remaining", { operationId: "explicit-after-restart", expectedGeneration: interrupted.generation,
-      expectedRevision: interrupted.input_revision, expectedMaintenanceOperation: restarted.maintenanceOperation("remaining") }, "continue");
-    for (let i = 0; i < 15 && restarted.get("remaining").state === "queued"; i++) await restarted.run("remaining");
+    restarted.action(
+      "remaining",
+      {
+        operationId: "explicit-after-restart",
+        expectedGeneration: interrupted.generation,
+        expectedRevision: interrupted.input_revision,
+        expectedMaintenanceOperation:
+          restarted.maintenanceOperation("remaining"),
+      },
+      "continue",
+    );
+    for (
+      let i = 0;
+      i < 15 && restarted.get("remaining").state === "queued";
+      i++
+    )
+      await restarted.run("remaining");
     assert.equal(restarted.get("remaining").state, "done");
     const final = f.store.record("packet").data;
-    const count = restarted.db.prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task IN ('task','remaining')").get().n;
+    const count = restarted.db
+      .prepare(
+        "SELECT COUNT(*) n FROM reading_blocks WHERE task IN ('task','remaining')",
+      )
+      .get().n;
     assert.equal(final.result.items.length, count);
-    assert.equal(f.calls(), count, "accepted prefix must not be sent to the model again");
+    assert.equal(
+      f.calls(),
+      count,
+      "accepted prefix must not be sent to the model again",
+    );
     assert.equal(final.result.items[0].title, "我已核对的课程任务");
     assert.equal(final.itemIds[0], firstId);
     assert.equal(new Set(final.itemIds).size, final.itemIds.length);
     assert.equal(final.itemState[firstId].status, "done");
     assert.deepEqual(final.doneIds, [firstId]);
-    assert.ok(final.processingCoverage.processed.length > accepted.processingCoverage.processed.length);
+    assert.ok(
+      final.processingCoverage.processed.length >
+        accepted.processingCoverage.processed.length,
+    );
     assert.equal(final.processingCoverage.pending.length, 0);
     assert.equal(final.processingCoverage.partial, false);
     assert.equal(restarted.roots.stats("remaining").calls, f.calls());
     assert.equal(f.ledger.wallet("synthetic").spent, f.calls() * 20);
     assert.equal(restarted.get("task").state, "partial");
-  } finally { restarted.close(); }
+  } finally {
+    restarted.close();
+  }
 });
 
-test("remaining work binds the reviewed parent and independent metadata; changed input or forged exclusions cannot consume", async t => {
+test("remaining work binds the reviewed parent and independent metadata; changed input or forged exclusions cannot consume", async (t) => {
   const f = fixture(t, { text: "真实合成通知。".repeat(20000) });
-  f.enqueue(); await f.tasks.run("task");
-  f.store.db.prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'").run();
+  f.enqueue();
+  await f.tasks.run("task");
+  f.store.db
+    .prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'")
+    .run();
   f.action("accept-partial", "accept");
-  const parent = f.tasks.get("task"), review = { expectedGeneration: parent.generation,
-    expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id) };
-  const request = { id: "remaining", packetId: "packet", deviceId: f.windows.deviceId, remainingOf: "task", remainingReview: review };
-  assert.throws(() => f.tasks.enqueue({ ...request, remainingReview: { ...review, expectedGeneration: 999 } }), e => e.code === "STALE_TASK");
+  const parent = f.tasks.get("task"),
+    review = {
+      expectedGeneration: parent.generation,
+      expectedRevision: parent.input_revision,
+      expectedMaintenanceOperation: f.tasks.maintenanceOperation(parent.id),
+    };
+  const request = {
+    id: "remaining",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+    remainingOf: "task",
+    remainingReview: review,
+  };
+  assert.throws(
+    () =>
+      f.tasks.enqueue({
+        ...request,
+        remainingReview: { ...review, expectedGeneration: 999 },
+      }),
+    (e) => e.code === "STALE_TASK",
+  );
   f.tasks.modelVersion = "changed-model";
-  assert.throws(() => f.tasks.enqueue(request), e => e.code === "REMAINDER_CONTEXT_CHANGED");
+  assert.throws(
+    () => f.tasks.enqueue(request),
+    (e) => e.code === "REMAINDER_CONTEXT_CHANGED",
+  );
   f.tasks.modelVersion = f.taskArgs.modelVersion;
   f.put({ text: "改变了输入" });
-  assert.throws(() => f.tasks.enqueue(request), e => e.code === "INVALID_REMAINDER");
-  assert.throws(() => f.tasks.enqueue({ id: "overwrite-accepted", packetId: "packet", deviceId: f.windows.deviceId }), e => e.code === "REMAINDER_REQUIRED");
+  assert.throws(
+    () => f.tasks.enqueue(request),
+    (e) => e.code === "INVALID_REMAINDER",
+  );
+  assert.throws(
+    () =>
+      f.tasks.enqueue({
+        id: "overwrite-accepted",
+        packetId: "packet",
+        deviceId: f.windows.deviceId,
+      }),
+    (e) => e.code === "REMAINDER_REQUIRED",
+  );
   f.put({ text: "" });
   f.tasks.enqueue(request);
-  f.store.db.prepare("UPDATE reading_remainders SET context='{}' WHERE task='remaining'").run();
-  assert.throws(() => f.tasks.remainders.info("remaining"), e => e.code === "SAFETY_RECONCILIATION");
+  f.store.db
+    .prepare(
+      "UPDATE reading_remainders SET context='{}' WHERE task='remaining'",
+    )
+    .run();
+  assert.throws(
+    () => f.tasks.remainders.info("remaining"),
+    (e) => e.code === "SAFETY_RECONCILIATION",
+  );
   assert.equal(f.calls(), 1);
-  assert.throws(() => f.ledger.db.exec("DELETE FROM reading_remaining_intents"), /IMMUTABLE_REMAINDER/);
+  assert.throws(
+    () => f.ledger.db.exec("DELETE FROM reading_remaining_intents"),
+    /IMMUTABLE_REMAINDER/,
+  );
 });
 
-test("paid preview is bounded, read-only and never publishes or charges", async t => {
-  const f = fixture(t, { provider: async sources => ({ usage: { prompt_tokens: 10, completion_tokens: 10 },
-    result: { ...result(sources), items: Array.from({ length: 25 }, (_, i) => ({ ...result(sources).items[0], title: `课程事项${i}` })) } }) });
-  f.enqueue(); await f.tasks.run("task");
-  const sequence = f.ledger.sequence("synthetic"), previews = [];
+test("paid preview is bounded, read-only and never publishes or charges", async (t) => {
+  const f = fixture(t, {
+    provider: async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        ...result(sources),
+        items: Array.from({ length: 25 }, (_, i) => ({
+          ...result(sources).items[0],
+          title: `课程事项${i}`,
+        })),
+      },
+    }),
+  });
+  f.enqueue();
+  await f.tasks.run("task");
+  const sequence = f.ledger.sequence("synthetic"),
+    previews = [];
   let offset = 0;
   do {
     const preview = f.tasks.preview("task", offset);
     assert.ok(Buffer.byteLength(JSON.stringify(preview)) < 210000);
-    assert.equal(preview.readOnly, true); assert.equal(preview.published, false);
+    assert.equal(preview.readOnly, true);
+    assert.equal(preview.published, false);
     assert.ok(preview.items.length <= 8);
-    previews.push(...preview.items); offset = preview.nextOffset;
+    previews.push(...preview.items);
+    offset = preview.nextOffset;
   } while (offset !== null);
   assert.equal(previews.length, 25);
-  assert.equal(new Set(previews.map(p => p.previewKey)).size, 25);
+  assert.equal(new Set(previews.map((p) => p.previewKey)).size, 25);
   assert.equal(f.store.record("packet").data.result, null);
-  assert.equal(f.ledger.sequence("synthetic"), sequence); assert.equal(f.calls(), 1);
-  assert.throws(() => f.tasks.preview("task", -1), e => e.code === "INVALID_PREVIEW_OFFSET");
+  assert.equal(f.ledger.sequence("synthetic"), sequence);
+  assert.equal(f.calls(), 1);
+  assert.throws(
+    () => f.tasks.preview("task", -1),
+    (e) => e.code === "INVALID_PREVIEW_OFFSET",
+  );
 });
 
-test("remaining publications retain the attachment citation cap without changing accepted text or paid proofs", async t => {
-  const f = fixture(t, { text: "学习通知完整材料。".repeat(18000), provider: async sources => ({ usage: { prompt_tokens: 10, completion_tokens: 10 },
-    result: { summary: "合成", warnings: [], items: Array.from({ length: 10 }, (_, i) => ({ ...result(sources).items[0], title: `事项${i}`,
-      evidence: [{ sourceId: sources[0].id, quote: sources[0].text.slice(0, 500) }] })) } }) });
-  f.enqueue(); await f.tasks.run("task");
-  f.store.db.prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'").run();
+test("remaining publications retain the attachment citation cap without changing accepted text or paid proofs", async (t) => {
+  const f = fixture(t, {
+    text: "学习通知完整材料。".repeat(18000),
+    provider: async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        summary: "合成",
+        warnings: [],
+        items: Array.from({ length: 10 }, (_, i) => ({
+          ...result(sources).items[0],
+          title: `事项${i}`,
+          evidence: [
+            { sourceId: sources[0].id, quote: sources[0].text.slice(0, 500) },
+          ],
+        })),
+      },
+    }),
+  });
+  f.enqueue();
+  await f.tasks.run("task");
+  f.store.db
+    .prepare("UPDATE reading_tasks SET state='paused' WHERE id='task'")
+    .run();
   f.action("accept-partial", "accepted");
   const original = structuredClone(f.store.record("packet").data.result.items);
   const parent = f.tasks.get("task");
-  f.tasks.enqueue({ id: "remaining", packetId: "packet", deviceId: f.windows.deviceId, remainingOf: "task",
-    remainingReview: { expectedGeneration: parent.generation, expectedRevision: parent.input_revision, expectedMaintenanceOperation: f.tasks.maintenanceOperation("task") } });
-  for (let i = 0; i < 12 && f.tasks.get("remaining").state === "queued"; i++) await f.tasks.run("remaining");
+  f.tasks.enqueue({
+    id: "remaining",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+    remainingOf: "task",
+    remainingReview: {
+      expectedGeneration: parent.generation,
+      expectedRevision: parent.input_revision,
+      expectedMaintenanceOperation: f.tasks.maintenanceOperation("task"),
+    },
+  });
+  for (let i = 0; i < 12 && f.tasks.get("remaining").state === "queued"; i++)
+    await f.tasks.run("remaining");
   assert.equal(f.tasks.get("remaining").state, "done");
   const items = f.store.record("packet").data.result.items;
   assert.deepEqual(items.slice(0, original.length), original);
   assert.ok(items.length > original.length);
-  assert.equal(items.flatMap(item => item.evidence).reduce((sum, evidence) => sum + evidence.quote.length, 0), 2000);
-  for (const block of f.store.db.prepare("SELECT * FROM reading_blocks WHERE task='remaining'").all())
-    assert.equal(f.tasks.reuse.proof("remaining", block.fingerprint).result_hash, sha256(block.result));
+  assert.equal(
+    items
+      .flatMap((item) => item.evidence)
+      .reduce((sum, evidence) => sum + evidence.quote.length, 0),
+    2000,
+  );
+  for (const block of f.store.db
+    .prepare("SELECT * FROM reading_blocks WHERE task='remaining'")
+    .all())
+    assert.equal(
+      f.tasks.reuse.proof("remaining", block.fingerprint).result_hash,
+      sha256(block.result),
+    );
 });
 
 test("editing packet text revalidates and reuses unchanged paid ZIP blocks across revisions", async (t) => {
   const sample = archiveSample({ long: true });
   let parses = 0;
-  const f = fixture(t, { name: sample.name, text: sample.body, reader: async file => { parses++; return readMaterial(file); } });
+  const f = fixture(t, {
+    name: sample.name,
+    text: sample.body,
+    reader: async (file) => {
+      parses++;
+      return readMaterial(file);
+    },
+  });
   f.enqueue();
   assert.equal((await finish(f.tasks)).state, "done");
-  const previousCalls = f.calls(), previousSpent = f.ledger.wallet("synthetic").spent;
+  const previousCalls = f.calls(),
+    previousSpent = f.ledger.wallet("synthetic").spent;
   f.put({ text: "补充新的材料要求" });
-  f.tasks.enqueue({ id: "revised", packetId: "packet", deviceId: f.wechat.deviceId });
-  for (let i = 0; i < 15 && f.tasks.get("revised").state === "queued"; i++) await f.tasks.run("revised");
+  f.tasks.enqueue({
+    id: "revised",
+    packetId: "packet",
+    deviceId: f.wechat.deviceId,
+  });
+  for (let i = 0; i < 15 && f.tasks.get("revised").state === "queued"; i++)
+    await f.tasks.run("revised");
   assert.equal(f.tasks.get("revised").state, "done");
-  assert.equal(f.calls(), previousCalls + 1, "unchanged ZIP must not be charged again");
+  assert.equal(
+    f.calls(),
+    previousCalls + 1,
+    "unchanged ZIP must not be charged again",
+  );
   assert.equal(f.ledger.wallet("synthetic").spent, previousSpent + 20);
   assert.ok(parses >= 3, "current text and ZIP bytes are actually read again");
   assert.equal(f.tasks.reuse.count("revised"), previousCalls);
@@ -541,63 +1021,137 @@ test("editing packet text revalidates and reuses unchanged paid ZIP blocks acros
   f.tasks.close();
   const restarted = new ReadingTasks(f.taskArgs);
   assert.equal(restarted.reuse.count("revised"), previousCalls);
-  assert.equal(restarted.roots.stats("revised").completed, previousCalls + 1,
-    "restart cannot count borrowed results as new root progress");
+  assert.equal(
+    restarted.roots.stats("revised").completed,
+    previousCalls + 1,
+    "restart cannot count borrowed results as new root progress",
+  );
   restarted.close();
 });
 
-for (const mismatch of ["date", "model", "output", "hash", "purged", "legacy", "reader", "certificate", "quote", "call"])
-  test(`cross-revision reuse rejects ${mismatch} mismatch`, async t => {
+for (const mismatch of [
+  "date",
+  "model",
+  "output",
+  "hash",
+  "purged",
+  "legacy",
+  "reader",
+  "certificate",
+  "quote",
+  "call",
+])
+  test(`cross-revision reuse rejects ${mismatch} mismatch`, async (t) => {
     const f = fixture(t, { text: "可信原件内容与尾部", name: "材料.txt" });
     f.enqueue();
     assert.equal((await finish(f.tasks)).state, "done");
     if (mismatch === "date") f.put({ captureDate: "2026-10-29" });
     if (mismatch === "model") f.tasks.modelVersion = "synthetic/changed";
     if (mismatch === "output") f.tasks.maxOutputTokens = 3000;
-    if (mismatch === "legacy") f.store.db.exec("DELETE FROM reading_reuse_keys");
-    if (mismatch === "reader") f.tasks.reader = async file => ({ ...(await readMaterial(file)), readerVersion: "changed-reader/1" });
+    if (mismatch === "legacy")
+      f.store.db.exec("DELETE FROM reading_reuse_keys");
+    if (mismatch === "reader")
+      f.tasks.reader = async (file) => ({
+        ...(await readMaterial(file)),
+        readerVersion: "changed-reader/1",
+      });
     if (mismatch === "hash") {
-      const changed = f.store.files.put("packet", "different", { name: "材料.txt", body: Buffer.from("可信原件内容与改变的尾部"), type: "text/plain", epoch: f.store.epoch });
-      f.put({ attachments: [{ ...f.store.record("packet").data.attachments[0], deletedAt: "2026-10-28T01:00:00Z" }, changed] });
+      const changed = f.store.files.put("packet", "different", {
+        name: "材料.txt",
+        body: Buffer.from("可信原件内容与改变的尾部"),
+        type: "text/plain",
+        epoch: f.store.epoch,
+      });
+      f.put({
+        attachments: [
+          {
+            ...f.store.record("packet").data.attachments[0],
+            deletedAt: "2026-10-28T01:00:00Z",
+          },
+          changed,
+        ],
+      });
     }
     if (mismatch === "purged") f.action("purge");
-    if (mismatch === "certificate") f.store.db.prepare("UPDATE reading_reuse_keys SET result_hash='invalid'").run();
+    if (mismatch === "certificate")
+      f.store.db
+        .prepare("UPDATE reading_reuse_keys SET result_hash='invalid'")
+        .run();
     if (mismatch === "quote") {
       const row = f.store.db.prepare("SELECT * FROM reading_blocks").get();
       const result = JSON.parse(row.result);
       result.items[0].evidence[0].quote = "不在当前来源的引用";
       const body = JSON.stringify(result);
       f.store.db.prepare("UPDATE reading_blocks SET result=?").run(body);
-      f.store.db.prepare("UPDATE reading_reuse_keys SET result_hash=?").run(sha256(body));
+      f.store.db
+        .prepare("UPDATE reading_reuse_keys SET result_hash=?")
+        .run(sha256(body));
     }
-    if (mismatch === "call") f.store.db.prepare("UPDATE reading_blocks SET call_id='absent'").run();
-    f.tasks.enqueue({ id: "different", packetId: "packet", deviceId: f.windows.deviceId });
-    for (let i = 0; i < 5 && f.tasks.get("different").state === "queued"; i++) await f.tasks.run("different");
+    if (mismatch === "call")
+      f.store.db.prepare("UPDATE reading_blocks SET call_id='absent'").run();
+    f.tasks.enqueue({
+      id: "different",
+      packetId: "packet",
+      deviceId: f.windows.deviceId,
+    });
+    for (let i = 0; i < 5 && f.tasks.get("different").state === "queued"; i++)
+      await f.tasks.run("different");
     assert.equal(f.tasks.get("different").state, "done");
     assert.equal(f.tasks.reuse.count("different"), 0);
     assert.equal(f.calls(), 2);
   });
 
-test("unknown fees and root reconciliation cannot be bypassed by fully reusable results", async t => {
+test("unknown fees and root reconciliation cannot be bypassed by fully reusable results", async (t) => {
   for (const mode of ["unknown", "root"]) {
     const f = fixture(t);
     f.enqueue();
     await finish(f.tasks);
     if (mode === "unknown") {
-      f.ledger.reserve({ callId: "unknown", account: "synthetic", task: "task", block: "uncertain", generation: 1,
-        priceId: "fixture", maxPromptTokens: 10, maxOutputTokens: 10 });
-      f.ledger.sent("unknown"); f.ledger.unknown("unknown");
+      f.ledger.reserve({
+        callId: "unknown",
+        account: "synthetic",
+        task: "task",
+        block: "uncertain",
+        generation: 1,
+        priceId: "fixture",
+        maxPromptTokens: 10,
+        maxOutputTokens: 10,
+      });
+      f.ledger.sent("unknown");
+      f.ledger.unknown("unknown");
     } else f.tasks.roots.block("task", "ACTIVE_TIME_RECONCILIATION");
-    f.tasks.enqueue({ id: "next", packetId: "packet", deviceId: f.wechat.deviceId });
-    assert.equal((await f.tasks.run("next")).reason, mode === "unknown" ? "UNKNOWN_COST" : "ACTIVE_TIME_RECONCILIATION");
+    f.tasks.enqueue({
+      id: "next",
+      packetId: "packet",
+      deviceId: f.wechat.deviceId,
+    });
+    assert.equal(
+      (await f.tasks.run("next")).reason,
+      mode === "unknown" ? "UNKNOWN_COST" : "ACTIVE_TIME_RECONCILIATION",
+    );
     assert.equal(f.tasks.reuse.count("next"), 0);
     assert.equal(f.calls(), 1);
     if (mode === "unknown") {
-      f.store.apply(f.windows.deviceId, {
-        id: "other", opId: "separate-packet", type: "put", baseVersion: 0,
-        data: { text: "另一份合成材料", captureDate: "2026-10-28", status: "pending" },
-      }, f.store.epoch);
-      f.tasks.enqueue({ id: "other-task", packetId: "other", deviceId: f.wechat.deviceId });
+      f.store.apply(
+        f.windows.deviceId,
+        {
+          id: "other",
+          opId: "separate-packet",
+          type: "put",
+          baseVersion: 0,
+          data: {
+            text: "另一份合成材料",
+            captureDate: "2026-10-28",
+            status: "pending",
+          },
+        },
+        f.store.epoch,
+      );
+      f.tasks.enqueue({
+        id: "other-task",
+        packetId: "other",
+        deviceId: f.wechat.deviceId,
+      });
       assert.equal((await finish(f.tasks, "other-task")).state, "done");
       assert.equal(f.calls(), 2);
       assert.ok(f.ledger.wallet("synthetic").unknownRisk > 0);
@@ -605,55 +1159,120 @@ test("unknown fees and root reconciliation cannot be bypassed by fully reusable 
   }
 });
 
-test("paid results cannot cross packets or stand in for missing original bytes", async t => {
+test("paid results cannot cross packets or stand in for missing original bytes", async (t) => {
   const f = fixture(t);
-  f.enqueue(); await finish(f.tasks);
+  f.enqueue();
+  await finish(f.tasks);
   const data = f.store.record("packet").data;
   const original = f.store.files.get("packet", "a");
-  const put = patch => f.store.apply(f.windows.deviceId, { id: "other", opId: crypto.randomUUID(), type: "put",
-    baseVersion: f.store.record("other")?.version || 0, data: patch }, f.store.epoch);
-  put({ id: "other", text: data.text, captureDate: data.captureDate,
-    attachments: [], result: null, sources: [], status: "pending" });
-  const file = f.store.files.put("other", "a", { name: original.name, body: original.body, type: original.type, epoch: f.store.epoch });
+  const put = (patch) =>
+    f.store.apply(
+      f.windows.deviceId,
+      {
+        id: "other",
+        opId: crypto.randomUUID(),
+        type: "put",
+        baseVersion: f.store.record("other")?.version || 0,
+        data: patch,
+      },
+      f.store.epoch,
+    );
+  put({
+    id: "other",
+    text: data.text,
+    captureDate: data.captureDate,
+    attachments: [],
+    result: null,
+    sources: [],
+    status: "pending",
+  });
+  const file = f.store.files.put("other", "a", {
+    name: original.name,
+    body: original.body,
+    type: original.type,
+    epoch: f.store.epoch,
+  });
   put({ attachments: [file] });
-  f.tasks.enqueue({ id: "other-task", packetId: "other", deviceId: f.wechat.deviceId });
-  for (let i = 0; i < 5 && f.tasks.get("other-task").state === "queued"; i++) await f.tasks.run("other-task");
+  f.tasks.enqueue({
+    id: "other-task",
+    packetId: "other",
+    deviceId: f.wechat.deviceId,
+  });
+  for (let i = 0; i < 5 && f.tasks.get("other-task").state === "queued"; i++)
+    await f.tasks.run("other-task");
   assert.equal(f.tasks.get("other-task").state, "done");
   assert.equal(f.tasks.reuse.count("other-task"), 0);
   assert.equal(f.calls(), 2);
   f.store.files.purge("packet");
-  assert.throws(() => f.tasks.enqueue({ id: "missing", packetId: "packet", deviceId: f.windows.deviceId }),
-    e => e.code === "REUPLOAD_REQUIRED");
+  assert.throws(
+    () =>
+      f.tasks.enqueue({
+        id: "missing",
+        packetId: "packet",
+        deviceId: f.windows.deviceId,
+      }),
+    (e) => e.code === "REUPLOAD_REQUIRED",
+  );
   assert.equal(f.calls(), 2);
 });
 
-test("changing capture date invalidates same-task continuation before old relative dates can be reused", async t => {
+test("changing capture date invalidates same-task continuation before old relative dates can be reused", async (t) => {
   const f = fixture(t, { text: "明天交报告。".repeat(30000) });
-  f.enqueue(); await f.tasks.run("task");
+  f.enqueue();
+  await f.tasks.run("task");
   f.action("stop");
   f.put({ captureDate: "2026-10-29" });
-  assert.throws(() => f.action("continue", "changed-day"), e => e.code === "INPUT_CHANGED");
+  assert.throws(
+    () => f.action("continue", "changed-day"),
+    (e) => e.code === "INPUT_CHANGED",
+  );
   assert.equal(f.calls(), 1);
 });
 
-test("reuse receipt failure rolls back block/range writes and retries without a new charge", async t => {
+test("reuse receipt failure rolls back block/range writes and retries without a new charge", async (t) => {
   const f = fixture(t);
-  f.enqueue(); await finish(f.tasks);
-  f.tasks.enqueue({ id: "next", packetId: "packet", deviceId: f.wechat.deviceId });
+  f.enqueue();
+  await finish(f.tasks);
+  f.tasks.enqueue({
+    id: "next",
+    packetId: "packet",
+    deviceId: f.wechat.deviceId,
+  });
   const prepare = f.store.db.prepare.bind(f.store.db);
-  f.store.db.prepare = sql => {
-    if (sql.startsWith("INSERT INTO reading_reused_blocks")) throw Error("synthetic receipt failure");
+  f.store.db.prepare = (sql) => {
+    if (sql.startsWith("INSERT INTO reading_reused_blocks"))
+      throw Error("synthetic receipt failure");
     return prepare(sql);
   };
-  try { assert.equal((await f.tasks.run("next")).state, "paused"); }
-  finally { f.store.db.prepare = prepare; }
-  assert.equal(prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task='next'").get().n, 0);
-  assert.equal(prepare("SELECT COUNT(*) n FROM reading_block_ranges WHERE task='next'").get().n, 0);
+  try {
+    assert.equal((await f.tasks.run("next")).state, "paused");
+  } finally {
+    f.store.db.prepare = prepare;
+  }
+  assert.equal(
+    prepare("SELECT COUNT(*) n FROM reading_blocks WHERE task='next'").get().n,
+    0,
+  );
+  assert.equal(
+    prepare(
+      "SELECT COUNT(*) n FROM reading_block_ranges WHERE task='next'",
+    ).get().n,
+    0,
+  );
   assert.equal(f.calls(), 1);
   const current = f.tasks.get("next");
-  f.tasks.action("next", { operationId: "recover-receipt", expectedGeneration: current.generation,
-    expectedRevision: current.input_revision }, "continue", f.wechat.deviceId);
-  for (let i = 0; i < 5 && f.tasks.get("next").state === "queued"; i++) await f.tasks.run("next");
+  f.tasks.action(
+    "next",
+    {
+      operationId: "recover-receipt",
+      expectedGeneration: current.generation,
+      expectedRevision: current.input_revision,
+    },
+    "continue",
+    f.wechat.deviceId,
+  );
+  for (let i = 0; i < 5 && f.tasks.get("next").state === "queued"; i++)
+    await f.tasks.run("next");
   assert.equal(f.tasks.get("next").state, "done");
   assert.equal(f.tasks.reuse.count("next"), 1);
   assert.equal(f.calls(), 1);
@@ -663,11 +1282,17 @@ test("reuse receipt failure rolls back block/range writes and retries without a 
 test("ZIP paid block survives stop/resume without duplicate consumption and passes package paths to the provider", async (t) => {
   const sample = archiveSample({ long: true });
   const seen = [];
-  const f = fixture(t, { name: sample.name, text: sample.body,
+  const f = fixture(t, {
+    name: sample.name,
+    text: sample.body,
     provider: async (sources) => {
       seen.push(...sources);
-      return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: result(sources) };
-    } });
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: result(sources),
+      };
+    },
+  });
   f.enqueue();
   await f.tasks.run("task");
   const paid = f.ledger.wallet("synthetic").spent;
@@ -675,8 +1300,8 @@ test("ZIP paid block survives stop/resume without duplicate consumption and pass
   f.action("stop");
   f.action("continue", "resume");
   assert.equal((await finish(f.tasks)).state, "done");
-  assert.ok(seen.every(s => s.name.startsWith("包内 ")));
-  assert.equal(seen.map(s => s.text).join(""), sample.expectedText);
+  assert.ok(seen.every((s) => s.name.startsWith("包内 ")));
+  assert.equal(seen.map((s) => s.text).join(""), sample.expectedText);
   assert.equal(f.ledger.wallet("synthetic").spent, f.calls() * paid);
   assert.ok(!JSON.stringify(f.tasks.get("task")).includes("归档课程材料"));
 });
@@ -690,10 +1315,15 @@ test("ZIP partial acceptance retains unprocessed paths; unsafe archive sends no 
   assert.equal((await f.tasks.run("task")).reason, "EXECUTION_LIMIT");
   assert.equal(f.action("accept-partial", "accept").state, "partial");
   const packet = f.store.record("packet").data;
-  assert.ok(packet.processingCoverage.pending.some(r => r.archivePath === "尾部.txt"));
+  assert.ok(
+    packet.processingCoverage.pending.some((r) => r.archivePath === "尾部.txt"),
+  );
   assert.match(readingView(packet.readingCoverage)[0].missing, /嵌套归档/);
   assert.equal(f.calls(), 1);
-  const bad = fixture(t, { name: "危险.zip", text: zipBytes({ "../escape.txt": "never" }) });
+  const bad = fixture(t, {
+    name: "危险.zip",
+    text: zipBytes({ "../escape.txt": "never" }),
+  });
   bad.enqueue();
   assert.equal((await finish(bad.tasks)).reason, "NO_READABLE_MATERIAL");
   assert.equal(bad.calls(), 0);
@@ -949,7 +1579,11 @@ test("a reader that outlives shutdown cannot publish and needs active-time recon
   restarted.close();
   release();
   await pending;
-  assert.equal(f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_step_times").get().n, 0);
+  assert.equal(
+    f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_safe_step_times").get()
+      .n,
+    0,
+  );
   assert.equal(f.calls(), 0);
   assert.equal(f.ledger.wallet("synthetic").spent, 0);
   assert.equal(f.store.record("packet").data.result, null);
@@ -1041,7 +1675,10 @@ test("a no-progress checkpoint remains paused across repeated manual continue, w
   f.enqueue();
   f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
   assert.equal((await f.tasks.run("task")).reason, "CHECKPOINT_NO_PROGRESS");
-  assert.throws(()=>f.action("continue", "retry-checkpoint"),e=>e.code==="CHECKPOINT_NO_PROGRESS");
+  assert.throws(
+    () => f.action("continue", "retry-checkpoint"),
+    (e) => e.code === "CHECKPOINT_NO_PROGRESS",
+  );
   assert.equal(f.tasks.get("task").reason, "CHECKPOINT_NO_PROGRESS");
   assert.equal(f.calls(), 0);
 });
@@ -1160,14 +1797,22 @@ test("legacy root upgrade is idempotent, preserves paid progress, and requires a
   await f.tasks.run("task");
   f.action("stop", "before_upgrade");
   f.store.db.prepare("UPDATE reading_tasks SET calls=24 WHERE id='task'").run();
-  const legacyStore=manufactureLegacyTaskTenant(f),args={...f.taskArgs,store:legacyStore};
-  let upgraded,twice;
-  try{
-    upgraded=new ReadingTasks(args);const root=upgraded.roots.stats('task');
-    assert.equal(root.reason,'CHECKPOINT_RECONCILIATION');assert.equal(root.calls,24);assert.equal(root.completed,1);
-    twice=new ReadingTasks(args);assert.deepEqual(twice.roots.stats('task'),root);
-  }finally{upgraded?.close();twice?.close();legacyStore.close();}
-
+  const legacyStore = manufactureLegacyTaskTenant(f),
+    args = { ...f.taskArgs, store: legacyStore };
+  let upgraded, twice;
+  try {
+    upgraded = new ReadingTasks(args);
+    const root = upgraded.roots.stats("task");
+    assert.equal(root.reason, "CHECKPOINT_RECONCILIATION");
+    assert.equal(root.calls, 24);
+    assert.equal(root.completed, 1);
+    twice = new ReadingTasks(args);
+    assert.deepEqual(twice.roots.stats("task"), root);
+  } finally {
+    upgraded?.close();
+    twice?.close();
+    legacyStore.close();
+  }
 });
 
 test("crash-persisted running work cannot lose its unrecorded active interval by restarting or creating a new task", (t) => {
@@ -1555,12 +2200,32 @@ test("stop retains completed paid block, rejects stale action, and settles but d
   const prior = f.tasks.get("task");
   f.action("stop", "stop");
   assert.equal(f.tasks.get("task").state, "cancelled");
-  f.store.apply(f.windows.deviceId, {
-    id: "draining-other-packet", opId: crypto.randomUUID(), type: "put", baseVersion: 0,
-    data: { text: "合成的另一项投递", attachments: [], captureDate: "2026-11-11", status: "pending", result: null },
-  }, f.store.epoch);
-  assert.throws(() => f.tasks.enqueue({ id: "draining-other-task", packetId: "draining-other-packet", deviceId: f.windows.deviceId }),
-    (e) => e.code === "TASK_SLOT_FULL");
+  f.store.apply(
+    f.windows.deviceId,
+    {
+      id: "draining-other-packet",
+      opId: crypto.randomUUID(),
+      type: "put",
+      baseVersion: 0,
+      data: {
+        text: "合成的另一项投递",
+        attachments: [],
+        captureDate: "2026-11-11",
+        status: "pending",
+        result: null,
+      },
+    },
+    f.store.epoch,
+  );
+  assert.throws(
+    () =>
+      f.tasks.enqueue({
+        id: "draining-other-task",
+        packetId: "draining-other-packet",
+        deviceId: f.windows.deviceId,
+      }),
+    (e) => e.code === "TASK_SLOT_FULL",
+  );
   assert.throws(
     () => f.action("continue", "too-early"),
     (e) => e.code === "UNKNOWN_COST",
@@ -1904,110 +2569,323 @@ test("time audit receipt, tenant projection and final gate release recover conse
   }
 });
 
-test('independent disk reader retains finalized time receipt and paid cumulative watermark',async t=>{
-  const f=fixture(t);f.enqueue();await f.tasks.run('task');f.action('stop');
-  const a=timeAuditFixture(f);a.maintenance.reconcile('task',a.request,'maintainer');
-  const code=`import {ReadingLedger} from ${JSON.stringify(new URL('./ledger.mjs',import.meta.url).href)};
-    import {ReadingRootSafety} from ${JSON.stringify(new URL('./root-safety.mjs',import.meta.url).href)};
-    const ledger=new ReadingLedger(${JSON.stringify(join(f.directory,'ledger.sqlite'))});
+test("independent disk reader retains finalized time receipt and paid cumulative watermark", async (t) => {
+  const f = fixture(t);
+  f.enqueue();
+  await f.tasks.run("task");
+  f.action("stop");
+  const a = timeAuditFixture(f);
+  a.maintenance.reconcile("task", a.request, "maintainer");
+  const code = `import {ReadingLedger} from ${JSON.stringify(new URL("./ledger.mjs", import.meta.url).href)};
+    import {ReadingRootSafety} from ${JSON.stringify(new URL("./root-safety.mjs", import.meta.url).href)};
+    const ledger=new ReadingLedger(${JSON.stringify(join(f.directory, "ledger.sqlite"))});
     const guard=new ReadingRootSafety(ledger,'synthetic');
     console.log(JSON.stringify({receipt:guard.lastTimeAudit('task'),latest:guard.latest('task'),wallet:ledger.wallet('synthetic')}));ledger.close();`;
-  const child=spawnSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',timeout:5000,maxBuffer:16384});
-  assert.equal(child.status,0,child.stderr);const disk=JSON.parse(child.stdout);
-  assert.equal(disk.receipt.operation,a.request.operationId);assert.equal(disk.latest.reason,'');
-  assert.equal(disk.latest.active_ms,a.review.activeMs+321);assert.equal(disk.wallet.spent,20);
-  assert.equal(disk.wallet.costAuditOperation,f.ledger.recoveryOperation('synthetic'));
+  const child = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", code],
+    { encoding: "utf8", timeout: 5000, maxBuffer: 16384 },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  const disk = JSON.parse(child.stdout);
+  assert.equal(disk.receipt.operation, a.request.operationId);
+  assert.equal(disk.latest.reason, "");
+  assert.equal(disk.latest.active_ms, a.review.activeMs + 321);
+  assert.equal(disk.wallet.spent, 20);
+  assert.equal(
+    disk.wallet.costAuditOperation,
+    f.ledger.recoveryOperation("synthetic"),
+  );
 });
-test('unknown fees, pending executors, stale reviews and concurrent proof mutations keep time audit closed',async t=>{
-  for(const mode of ['unknown','executor','stale','proof-race']){
-    const f=fixture(t);f.enqueue();await f.tasks.run('task');f.action('stop');
-    const a=timeAuditFixture(f);let request=a.request,maintenance=a.maintenance;
-    if(mode==='unknown'){
-      f.ledger.reserve({callId:'uncertain',account:'synthetic',task:'task',block:'unknown-block',generation:1,
-        priceId:'fixture',maxPromptTokens:10,maxOutputTokens:10,fingerprint:'unknown'});
-      f.ledger.sent('uncertain');f.ledger.unknown('uncertain');
-      request={...request,expectedLedgerSequence:f.ledger.sequence('synthetic')};
+test("unknown fees, pending executors, stale reviews and concurrent proof mutations keep time audit closed", async (t) => {
+  for (const mode of ["unknown", "executor", "stale", "proof-race"]) {
+    const f = fixture(t);
+    f.enqueue();
+    await f.tasks.run("task");
+    f.action("stop");
+    const a = timeAuditFixture(f);
+    let request = a.request,
+      maintenance = a.maintenance;
+    if (mode === "unknown") {
+      f.ledger.reserve({
+        callId: "uncertain",
+        account: "synthetic",
+        task: "task",
+        block: "unknown-block",
+        generation: 1,
+        priceId: "fixture",
+        maxPromptTokens: 10,
+        maxOutputTokens: 10,
+        fingerprint: "unknown",
+      });
+      f.ledger.sent("uncertain");
+      f.ledger.unknown("uncertain");
+      request = {
+        ...request,
+        expectedLedgerSequence: f.ledger.sequence("synthetic"),
+      };
     }
-    if(mode==='executor')f.tasks.executions.set('synthetic-active',{});
-    if(mode==='stale')request={...request,expectedWatermark:request.expectedWatermark-1};
-    if(mode==='proof-race')maintenance=new ReadingTimeMaintenance(f.tasks,a.authorize,args=>{
-      const proof=a.verify(args);f.tasks.roots.safety.begin('task','task',1);return proof;
+    if (mode === "executor") f.tasks.executions.set("synthetic-active", {});
+    if (mode === "stale")
+      request = {
+        ...request,
+        expectedWatermark: request.expectedWatermark - 1,
+      };
+    if (mode === "proof-race")
+      maintenance = new ReadingTimeMaintenance(f.tasks, a.authorize, (args) => {
+        const proof = a.verify(args);
+        f.tasks.roots.safety.begin("task", "task", 1);
+        return proof;
+      });
+    try {
+      assert.throws(
+        () => maintenance.reconcile("task", request, "maintainer"),
+        /UNKNOWN_COST|TASK_STILL_DRAINING|STALE_MAINTENANCE_REVIEW/,
+      );
+    } finally {
+      f.tasks.executions.delete("synthetic-active");
+    }
+    assert.equal(
+      f.ledger.db.prepare("SELECT COUNT(*) n FROM reading_time_audits").get().n,
+      0,
+    );
+    assert.equal(f.calls(), 1);
+  }
+});
+
+for (const [archived, jpegInput] of [
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])
+  test(`${archived ? "archive " : ""}${jpegInput ? "JPEG" : "PNG"} tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes`, async (t) => {
+    const width = 2051,
+      height = 4,
+      pixels = Buffer.alloc(width * height * 4, 255);
+    pixels[0] = 0;
+    pixels[pixels.length - 4] = 27;
+    const png = jpegInput
+      ? (await import("./jpeg-fixtures.mjs")).jpegSample({
+          width: 4,
+          height: 2051,
+          orientation: 6,
+        }).body
+      : encodePng(width, height, pixels);
+    let tiles = [];
+    const f = fixture(t, {
+      name: archived ? "图像.zip" : jpegInput ? "图像.jpg" : "图像.png",
+      text: archived
+        ? zipBytes({ [jpegInput ? "notice.jpg" : "notice.png"]: png })
+        : png,
+      reader: Object.assign(
+        async (file, options) => readMaterial(file, options),
+        { pdfWindows: true, imageWindows: true, archiveWindows: archived },
+      ),
+      provider: async (sources) => {
+        assert.equal(sources.length, 1);
+        const source = sources[0];
+        if (!source.image)
+          return {
+            usage: { prompt_tokens: 10, completion_tokens: 10 },
+            result: result(sources),
+          };
+        tiles.push(source.id);
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            ...result(sources),
+            items: [
+              {
+                ...result(sources).items[0],
+                evidence: [{ sourceId: source.id, quote: "合成图像可见文字" }],
+              },
+            ],
+          },
+        };
+      },
     });
-    try {assert.throws(()=>maintenance.reconcile('task',request,'maintainer'),/UNKNOWN_COST|TASK_STILL_DRAINING|STALE_MAINTENANCE_REVIEW/);}
-    finally {f.tasks.executions.delete('synthetic-active');}
-    assert.equal(f.ledger.db.prepare('SELECT COUNT(*) n FROM reading_time_audits').get().n,0);
-    assert.equal(f.calls(),1);
+    f.tasks.provider.imageInput = true;
+    f.enqueue();
+    const firstPng = await f.tasks.run("task");
+    assert.equal(
+      firstPng.state,
+      "queued",
+      JSON.stringify({ reason: firstPng.reason, tiles, calls: f.calls() }),
+    );
+    f.action("stop", "png-stop");
+    assert.equal(f.calls(), 1);
+    const original = f.tasks.get("task");
+    const restarted = new ReadingTasks(f.taskArgs);
+    restarted.provider.imageInput = true;
+    restarted.action(
+      "task",
+      {
+        operationId: "png-continue",
+        expectedGeneration: original.generation,
+        expectedRevision: original.input_revision,
+      },
+      "continue",
+    );
+    assert.equal((await finish(restarted)).state, "done");
+    assert.equal(f.calls(), 3);
+    assert.equal(new Set(tiles).size, 3);
+    assert.equal(f.ledger.wallet("synthetic").spent, 60);
+    const published = f.store.record("packet").data;
+    assert.equal(published.readingCoverage[0].covered.length, 3);
+    assert.ok(
+      !published.readingCoverage[0].uncovered.some(
+        (r) => r.code === "IMAGE_WINDOW_PENDING",
+      ),
+    );
+    assert.ok(
+      published.result.warnings.some((w) => w.includes("图像内容由模型识别")),
+    );
+    const tables = [
+      "reading_tasks",
+      "reading_blocks",
+      "reading_block_ranges",
+      "reading_windows",
+    ];
+    for (const table of tables) {
+      const data = JSON.stringify(
+        f.store.db.prepare("SELECT * FROM " + table).all(),
+      );
+      assert.ok(!data.includes("base64"));
+      assert.ok(!data.includes("iVBORw0KGgo"));
+    }
+    f.put({ text: "新的补充要求" });
+    restarted.enqueue({
+      id: "revised-png",
+      packetId: "packet",
+      deviceId: f.windows.deviceId,
+    });
+    for (
+      let i = 0;
+      i < 15 && restarted.get("revised-png").state === "queued";
+      i++
+    )
+      await restarted.run("revised-png");
+    assert.equal(restarted.get("revised-png").state, "done");
+    assert.equal(restarted.reuse.count("revised-png"), 3);
+  });
+
+test("unconfigured image provider and malformed PNG do not issue model calls or save pixel payloads", async (t) => {
+  for (const enabled of [false, true]) {
+    const f = fixture(t, {
+      name: "图像.png",
+      text: enabled
+        ? Buffer.from("not PNG")
+        : encodePng(1, 1, Buffer.from([1, 2, 3, 255])),
+      reader: Object.assign((file, options) => readMaterial(file, options), {
+        pdfWindows: true,
+        imageWindows: true,
+      }),
+    });
+    f.tasks.provider.imageInput = enabled;
+    f.enqueue();
+    const task = await finish(f.tasks);
+    assert.equal(task.reason, "NO_READABLE_MATERIAL");
+    assert.equal(f.calls(), 0);
+    assert.equal(f.ledger.wallet("synthetic").spent, 0);
+    assert.equal(f.tasks.materials.size, 0);
   }
 });
-
-for(const [archived,jpegInput] of [[false,false],[true,false],[false,true],[true,true]])test(`${archived?'archive ':''}${jpegInput?'JPEG':'PNG'} tile task stop/restart rechecks originals, reuses paid blocks and never persists image bytes`,async t=>{
-  const width=2051,height=4,pixels=Buffer.alloc(width*height*4,255);pixels[0]=0;pixels[pixels.length-4]=27;
-  const png=jpegInput ? (await import('./jpeg-fixtures.mjs')).jpegSample({width:4,height:2051,orientation:6}).body : encodePng(width,height,pixels);let tiles=[];
-  const f=fixture(t,{name:archived?'图像.zip':jpegInput?'图像.jpg':'图像.png',text:archived?zipBytes({[jpegInput?'notice.jpg':'notice.png']:png}):png,
-    reader:Object.assign(async(file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true,archiveWindows:archived}),
-    provider:async sources=>{
-      assert.equal(sources.length,1);const source=sources[0];if(!source.image)return {usage:{prompt_tokens:10,completion_tokens:10},result:result(sources)};tiles.push(source.id);
-      return {usage:{prompt_tokens:10,completion_tokens:10},result:{...result(sources),
-        items:[{...result(sources).items[0],evidence:[{sourceId:source.id,quote:'合成图像可见文字'}]}]}};
-    }});
-  f.tasks.provider.imageInput=true;f.enqueue();const firstPng=await f.tasks.run('task');assert.equal(firstPng.state,'queued',JSON.stringify({reason:firstPng.reason,tiles,calls:f.calls()}));f.action('stop','png-stop');
-  assert.equal(f.calls(),1);const original=f.tasks.get('task');
-  const restarted=new ReadingTasks(f.taskArgs);restarted.provider.imageInput=true;
-  restarted.action('task',{operationId:'png-continue',expectedGeneration:original.generation,expectedRevision:original.input_revision},'continue');
-  assert.equal((await finish(restarted)).state,'done');assert.equal(f.calls(),3);
-  assert.equal(new Set(tiles).size,3);assert.equal(f.ledger.wallet('synthetic').spent,60);
-  const published=f.store.record('packet').data;assert.equal(published.readingCoverage[0].covered.length,3);
-  assert.ok(!published.readingCoverage[0].uncovered.some(r=>r.code==='IMAGE_WINDOW_PENDING'));
-  assert.ok(published.result.warnings.some(w=>w.includes('图像内容由模型识别')));
-  const tables=['reading_tasks','reading_blocks','reading_block_ranges','reading_windows'];
-  for(const table of tables){const data=JSON.stringify(f.store.db.prepare('SELECT * FROM '+table).all());
-    assert.ok(!data.includes('base64'));assert.ok(!data.includes('iVBORw0KGgo'));}
-  f.put({text:'新的补充要求'});restarted.enqueue({id:'revised-png',packetId:'packet',deviceId:f.windows.deviceId});
-  for(let i=0;i<15&&restarted.get('revised-png').state==='queued';i++)await restarted.run('revised-png');
-  assert.equal(restarted.get('revised-png').state,'done');assert.equal(restarted.reuse.count('revised-png'),3);
+test("cumulative quote validation failure still settles trustworthy returned usage", async (t) => {
+  const f = fixture(t);
+  f.tasks.boundQuotes = () => {
+    throw Error("INVALID_MODEL_SOURCE");
+  };
+  f.enqueue();
+  const task = await f.tasks.run("task");
+  assert.equal(task.state, "paused");
+  assert.equal(f.calls(), 1);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+  assert.equal(f.ledger.wallet("synthetic").unknownRisk, 0);
 });
 
-test('unconfigured image provider and malformed PNG do not issue model calls or save pixel payloads',async t=>{
-  for(const enabled of [false,true]){
-    const f=fixture(t,{name:'图像.png',text:enabled?Buffer.from('not PNG'):encodePng(1,1,Buffer.from([1,2,3,255])),
-      reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true})});
-    f.tasks.provider.imageInput=enabled;f.enqueue();const task=await finish(f.tasks);
-    assert.equal(task.reason,'NO_READABLE_MATERIAL');assert.equal(f.calls(),0);assert.equal(f.ledger.wallet('synthetic').spent,0);
-    assert.equal(f.tasks.materials.size,0);
-  }
-});
-test('cumulative quote validation failure still settles trustworthy returned usage',async t=>{
-  const f=fixture(t);f.tasks.boundQuotes=()=>{throw Error('INVALID_MODEL_SOURCE');};f.enqueue();
-  const task=await f.tasks.run('task');assert.equal(task.state,'paused');assert.equal(f.calls(),1);
-  assert.equal(f.ledger.wallet('synthetic').spent,20);assert.equal(f.ledger.wallet('synthetic').unknownRisk,0);
-});
-
-test('archive PNG without provider image capability remains unread and cannot send a text surrogate',async t=>{
-  const png=encodePng(2051,1,Buffer.alloc(2051*4,255));
-  const f=fixture(t,{name:'图片.zip',text:zipBytes({'notice.png':png}),
-    reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,archiveWindows:true,imageWindows:true})});
-  f.enqueue();const task=await finish(f.tasks);
-  assert.equal(task.reason,'NO_READABLE_MATERIAL');assert.equal(f.calls(),0);
-  assert.equal(f.ledger.wallet('synthetic').spent,0);
-  const coverage=JSON.parse(task.coverage)[0];
-  assert.equal(coverage.covered.length,0);
-  assert.equal(coverage.uncovered.filter(r=>r.code==='IMAGE_PROVIDER_UNSUPPORTED').length,3);
-  assert.ok(!JSON.stringify(coverage).includes('iVBORw0KGgo'));
+test("archive PNG without provider image capability remains unread and cannot send a text surrogate", async (t) => {
+  const png = encodePng(2051, 1, Buffer.alloc(2051 * 4, 255));
+  const f = fixture(t, {
+    name: "图片.zip",
+    text: zipBytes({ "notice.png": png }),
+    reader: Object.assign((file, options) => readMaterial(file, options), {
+      pdfWindows: true,
+      archiveWindows: true,
+      imageWindows: true,
+    }),
+  });
+  f.enqueue();
+  const task = await finish(f.tasks);
+  assert.equal(task.reason, "NO_READABLE_MATERIAL");
+  assert.equal(f.calls(), 0);
+  assert.equal(f.ledger.wallet("synthetic").spent, 0);
+  const coverage = JSON.parse(task.coverage)[0];
+  assert.equal(coverage.covered.length, 0);
+  assert.equal(
+    coverage.uncovered.filter((r) => r.code === "IMAGE_PROVIDER_UNSUPPORTED")
+      .length,
+    3,
+  );
+  assert.ok(!JSON.stringify(coverage).includes("iVBORw0KGgo"));
 });
 
-test('image quote privacy cap retains locator-only paid reuse and its already-grounded deadline',async t=>{
-  const quote=('2026年10月30日18:00。'+'合成'.repeat(300)).slice(0,500);
-  const f=fixture(t,{name:'长图.png',text:encodePng(4097,1,Buffer.alloc(4097*4,255)),
-    reader:Object.assign((file,options)=>readMaterial(file,options),{pdfWindows:true,imageWindows:true}),
-    provider:async sources=>({usage:{prompt_tokens:10,completion_tokens:10},result:sources[0].image?{
-      ...result(sources),items:[{...result(sources).items[0],evidence:[{sourceId:sources[0].id,quote}],
-        due:{date:'2026-10-30',time:'18:00',anchor:'2026年10月30日18:00',sourceId:sources[0].id}}]}:result(sources)})});
-  f.tasks.provider.imageInput=true;f.enqueue();for(let i=0;i<30&&f.tasks.get('task').state==='queued';i++)await f.tasks.run('task');
-  assert.equal(f.tasks.get('task').state,'done');assert.equal(f.calls(),5);
-  const original=f.store.record('packet').data.result;assert.equal(original.items.at(-1).evidence[0].quote,'');
-  assert.equal(original.items.at(-1).due.time,'18:00');
-  f.put({text:'补充要求'});f.tasks.enqueue({id:'quote-revision',packetId:'packet',deviceId:f.windows.deviceId});
-  for(let i=0;i<30&&f.tasks.get('quote-revision').state==='queued';i++)await f.tasks.run('quote-revision');
-  assert.equal(f.tasks.get('quote-revision').state,'done');assert.equal(f.tasks.reuse.count('quote-revision'),5);assert.equal(f.calls(),6);
-  assert.equal(f.store.record('packet').data.result.items.at(-1).due.time,'18:00');
+test("image quote privacy cap retains locator-only paid reuse and its already-grounded deadline", async (t) => {
+  const quote = ("2026年10月30日18:00。" + "合成".repeat(300)).slice(0, 500);
+  const f = fixture(t, {
+    name: "长图.png",
+    text: encodePng(4097, 1, Buffer.alloc(4097 * 4, 255)),
+    reader: Object.assign((file, options) => readMaterial(file, options), {
+      pdfWindows: true,
+      imageWindows: true,
+    }),
+    provider: async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: sources[0].image
+        ? {
+            ...result(sources),
+            items: [
+              {
+                ...result(sources).items[0],
+                evidence: [{ sourceId: sources[0].id, quote }],
+                due: {
+                  date: "2026-10-30",
+                  time: "18:00",
+                  anchor: "2026年10月30日18:00",
+                  sourceId: sources[0].id,
+                },
+              },
+            ],
+          }
+        : result(sources),
+    }),
+  });
+  f.tasks.provider.imageInput = true;
+  f.enqueue();
+  for (let i = 0; i < 30 && f.tasks.get("task").state === "queued"; i++)
+    await f.tasks.run("task");
+  assert.equal(f.tasks.get("task").state, "done");
+  assert.equal(f.calls(), 5);
+  const original = f.store.record("packet").data.result;
+  assert.equal(original.items.at(-1).evidence[0].quote, "");
+  assert.equal(original.items.at(-1).due.time, "18:00");
+  f.put({ text: "补充要求" });
+  f.tasks.enqueue({
+    id: "quote-revision",
+    packetId: "packet",
+    deviceId: f.windows.deviceId,
+  });
+  for (
+    let i = 0;
+    i < 30 && f.tasks.get("quote-revision").state === "queued";
+    i++
+  )
+    await f.tasks.run("quote-revision");
+  assert.equal(f.tasks.get("quote-revision").state, "done");
+  assert.equal(f.tasks.reuse.count("quote-revision"), 5);
+  assert.equal(f.calls(), 6);
+  assert.equal(
+    f.store.record("packet").data.result.items.at(-1).due.time,
+    "18:00",
+  );
 });

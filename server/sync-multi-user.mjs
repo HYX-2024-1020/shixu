@@ -865,6 +865,17 @@ function createAccountService(
           ...(readingRoutes
             ? {
                 reading: readingRoutes.capabilities(),
+                aiAvailability: (() => {
+                  try {
+                    if (!reading.enabled || registry.aiPaused()) return { available: false, reason: "AI_DISABLED" };
+                    reading.ledger.dispatchGuard?.(account.id);
+                    const wallet = reading.ledger.wallet(account.id);
+                    return { available: !wallet.pausedReason && wallet.available > 0, reason: wallet.pausedReason || (wallet.available > 0 ? "" : "PERSONAL_BUDGET") };
+                  } catch (e) {
+                    return { available: false, reason: ["ADMIN_PAUSED", "MAINTENANCE"].includes(e.message) ? e.message : "SERVICE_UNAVAILABLE" };
+                  }
+                })(),
+                usageSummary: (() => { try { return reading.ledger.usageSummary(account.id); } catch { return null; } })(),
                 wallet: (() => {
                   try {
                     return reading.ledger.wallet(account.id);

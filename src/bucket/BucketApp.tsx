@@ -16,6 +16,7 @@ import {
   validateResult,
 } from "../../shared/bucket-engine.mjs";
 import { localDate } from "../organize";
+import { applyChatProposals } from "./chat-proposals";
 import {
   allPackets,
   putPacket,
@@ -151,6 +152,12 @@ export default function BucketApp() {
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudActive, setCloudActive] = useState(false);
+  const [cloudUsage, setCloudUsage] =
+    useState<
+      NonNullable<
+        Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>["account"]
+      >["usageSummary"]
+    >(null);
   const [currentCaptureId, setCurrentCaptureId] = useState("");
   useEffect(() => {
     if (!currentCaptureId) return;
@@ -162,6 +169,8 @@ export default function BucketApp() {
     return () => cancelAnimationFrame(frame);
   }, [currentCaptureId]);
   const [draftStatus, setDraftStatus] = useState("正在恢复本机资料…");
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [dropVisible, setDropVisible] = useState(false);
   const [receiptLimit, setReceiptLimit] = useState(20);
   const [initial] = useState(initialConfig),
@@ -215,16 +224,20 @@ export default function BucketApp() {
         setCloudActive(!!state.base);
         if (!state.base) return;
         const updated = await window.desktop!.cloud("sync");
+        if (stopped) return;
+        setCloudUsage(updated.account?.usageSummary || null);
         const ai = updated.account?.ai;
         const used =
           ai?.usage.find((u) => u.day === new Date().toISOString().slice(0, 10))
             ?.requests || 0;
         setCloudReady(
-          updated.account?.reading
-            ? !!updated.account.reading.features.readingEnabled &&
+          updated.account?.aiAvailability
+            ? updated.account.aiAvailability.available
+            : updated.account?.reading
+              ? !!updated.account.reading.features.readingEnabled &&
                 !updated.account.wallet?.pausedReason &&
                 (updated.account.wallet?.available || 0) > 0
-            : !!ai?.enabled && used < ai.dailyLimit,
+              : !!ai?.enabled && used < ai.dailyLimit,
         );
         const rows = await allPackets();
         if (!stopped && !working.current && !submitLock.current) {
@@ -232,6 +245,7 @@ export default function BucketApp() {
           setPackets(rows);
         }
       } catch {
+        setCloudUsage(null);
         setCloudReady(
           false,
         ); /* Persistent queue and last error are visible in cloud settings. */
@@ -242,10 +256,12 @@ export default function BucketApp() {
     void refresh();
     const timer = setInterval(() => void refresh(), 8000);
     window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
       stopped = true;
       clearInterval(timer);
       window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
     };
   }, [loaded]);
   const purgePacket = useCallback(
@@ -269,6 +285,27 @@ export default function BucketApp() {
     setPackets(next);
   }, []);
   const save = useCallback((packet: Packet) => saveMany([packet]), [saveMany]);
+  const confirmChatProposals = useCallback(
+    async (packetId: string, itemId: string) => {
+      if (chatLocks.current.has(packetId))
+        throw Error("这份投递正在处理，请稍后");
+      chatLocks.current.add(packetId);
+      try {
+        if (window.desktop) {
+          const state = await window.desktop.cloud("sync", { force: true });
+          if (state.conflicts.length)
+            throw Error("请先处理同步冲突，再确认跨卡片修改");
+        }
+        const current = await allPackets();
+        const changes = applyChatProposals(current, packetId, itemId);
+        await saveMany(changes);
+        notify("已确认保存跨卡片修改；同步状态可在设置中核对。");
+      } finally {
+        chatLocks.current.delete(packetId);
+      }
+    },
+    [saveMany, notify],
+  );
   const reorderCards = useCallback(
     async (ids: string[]) => {
       const ranks = new Map(ids.map((id, index) => [id, index]));
@@ -308,6 +345,8 @@ export default function BucketApp() {
       packetId: string;
       itemId?: string;
       instruction?: string;
+      scope?: "item" | "account";
+      readAttachments?: boolean;
     },
     wait = false,
   ): Promise<Packet[]> {
@@ -349,6 +388,7 @@ export default function BucketApp() {
     packetId: string,
     itemId: string,
     instruction: string,
+    options?: { scope: "item" | "account"; readAttachments: boolean },
   ): Promise<ItemState> {
     if (window.desktop) {
       if (chatLocks.current.has(packetId))
@@ -356,7 +396,7 @@ export default function BucketApp() {
       chatLocks.current.add(packetId);
       try {
         const result = await runCloudAI(
-          { kind: "chat", packetId, itemId, instruction },
+          { kind: "chat", packetId, itemId, instruction, ...options },
           true,
         );
         const packet = result.find((p) => p.id === packetId);
@@ -496,6 +536,7 @@ export default function BucketApp() {
   useEffect(() => {
     let active = true;
     (async () => {
+      setLoadError("");
       if (window.desktop) {
         await upgradeDesktopProfile();
       }
@@ -576,11 +617,14 @@ export default function BucketApp() {
       setText(draft.text);
       setAttachments(draft.attachments);
       setLoaded(true);
-    })().catch((error) => notify(message(error)));
+    })().catch((error) => {
+      if (active) setLoadError(message(error));
+      notify(message(error));
+    });
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, loadAttempt]);
   useEffect(() => {
     if (!loaded) return;
     if (ADMIN_TEST) {
@@ -1315,7 +1359,11 @@ export default function BucketApp() {
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
-  const currentCapture = visible.find((p) => p.id === currentCaptureId);
+  const currentCapture =
+    visible.find((p) => p.id === currentCaptureId) ||
+    visible.find(
+      (p) => !p.result && ["error", "processing", "pending"].includes(p.status),
+    );
   const receipts = useMemo(
     () => (
       <section className="delivery-receipts" aria-label="整理回执">
@@ -1764,6 +1812,20 @@ export default function BucketApp() {
               .toUpperCase()}{" "}
             · {apiKey || health?.modelReady || cloudReady ? "AI ON" : "AI OFF"}
           </span>
+          {cloudActive && (
+            <small
+              className="header-quota"
+              title={
+                cloudUsage
+                  ? `北京时间当日账本已结算用量；个人为累计钱包余额，全站为日/月预算较小可用额，已扣在途与费用不明预留，并非供应商余额。更新于${new Date(cloudUsage.sampledAt).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai" })}。`
+                  : "无法读取真实账本，请联网后刷新"
+              }
+            >
+              {cloudUsage
+                ? `今日已用 ¥${(cloudUsage.daySpentMicro / 1000000).toFixed(4)} · 个人剩余 ¥${(cloudUsage.personalRemainingMicro / 1000000).toFixed(2)} · 全站可用 ¥${(cloudUsage.siteRemainingMicro / 1000000).toFixed(2)}`
+                : "额度暂不可用"}
+            </small>
+          )}
         </button>
         <nav className="workspace-nav" aria-label="主工作区">
           <button
@@ -1810,6 +1872,8 @@ export default function BucketApp() {
             skin={activeSkin}
             reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
+            onRetry={retry}
+            onApplyProposals={confirmChatProposals}
             onChat={editWithAI}
             packets={packets}
             save={save}
@@ -1917,6 +1981,17 @@ export default function BucketApp() {
               >
                 <ArrowDown size={25} />
                 <span>松手，放进桶里。</span>
+              </div>
+            )}
+            {loadError && (
+              <div className="startup-error" role="alert">
+                <p>本机资料暂未读入，原有内容保留。{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => setLoadAttempt((value) => value + 1)}
+                >
+                  重新读取本机资料
+                </button>
               </div>
             )}
             <textarea
@@ -2068,8 +2143,14 @@ export default function BucketApp() {
               {currentCapture.status === "error" && (
                 <div className="current-delivery-status" role="status">
                   <span>
+                    原样材料已保存，AI尚未完成整理。
                     {currentCapture.error || "这次没整理完，材料已经收好。"}
                   </span>
+                  <button
+                    onClick={() => goWorkspace("results", currentCapture.id)}
+                  >
+                    查看原样材料
+                  </button>
                   <button onClick={() => void retry(currentCapture)}>
                     重试
                   </button>
@@ -2084,6 +2165,7 @@ export default function BucketApp() {
                     reorder={reorderCards}
                     onRecords={() => setRecordsOpen(true)}
                     onChat={editWithAI}
+                    onApplyProposals={confirmChatProposals}
                     packets={[currentCapture]}
                     save={save}
                     focusPacket=""

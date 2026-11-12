@@ -110,6 +110,12 @@ export interface AdminApi {
     operationId: string,
   ): Promise<Budget>;
   getAlerts?(): Promise<import("./types").AlertItem[]>;
+  followAlert?(
+    id: string,
+    state: string,
+    note: string,
+    operationId: string,
+  ): Promise<{ accepted: boolean; recovered: boolean }>;
   readAlert?(
     id: string,
     operationId: string,

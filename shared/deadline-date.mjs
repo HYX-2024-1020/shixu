@@ -48,6 +48,10 @@ export function normalizeDateText(value) {
 
 // Infer omitted calendar components once from the saved capture day.
 function point(text, today, inherited, end = false) {
+  text = text.replace(
+    /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+    "$1#",
+  );
   const [year, month] = today.split("-").map(Number);
   let date = "",
     inferred = false;
@@ -238,9 +242,14 @@ export function parseDateExpression(value, today) {
     };
   }
   const dateTokens =
-    text.match(
-      /20\d{2}[年/-]\d{1,2}[月/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}(?:日|号)|今天|明天|后天|昨天|前天|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天]/g,
-    ) || [];
+    text
+      .replace(
+        /(?<![\d月])(\d{1,3})号(?=窗口|柜台|楼|宿舍|寝室|教室|线|车|座|房|室|门|店)/g,
+        "$1#",
+      )
+      .match(
+        /20\d{2}[年/-]\d{1,2}[月/-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?|\d{1,2}(?:日|号)|今天|明天|后天|昨天|前天|(?:[上下本这]?周|星期|礼拜)[一二三四五六日天]/g,
+      ) || [];
   if (
     new Set(
       dateTokens

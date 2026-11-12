@@ -20,13 +20,14 @@ export default function SkinArt({
     const element = video.current;
     if (!element) return;
     element.pause();
-    element.currentTime = 0;
     element.volume = SKIN_INTERACTION.volume;
     let cancelled = false;
-    if (playing)
+    if (playing) {
+      if (element.ended) element.currentTime = 0;
       void element.play().catch(() => {
         if (!cancelled) onPlaybackEnd?.();
       });
+    }
     return () => {
       cancelled = true;
       element.pause();
@@ -41,7 +42,10 @@ export default function SkinArt({
         aria-label={skin.name}
         src={import.meta.env.BASE_URL + "bunny-motion.webm"}
         poster={import.meta.env.BASE_URL + "bunny.png"}
-        onEnded={onPlaybackEnd}
+        onEnded={() => {
+          if (video.current) video.current.currentTime = 0;
+          onPlaybackEnd?.();
+        }}
         onError={onPlaybackEnd}
         playsInline
         preload="auto"

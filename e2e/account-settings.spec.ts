@@ -113,7 +113,7 @@ test("已连接账号清楚可见，改密使用本区当前密码并保留错�
 }, info) => {
   await openSettings(page, true);
   await expect(
-    page.getByRole("heading", { name: "账号已连接", exact: true }),
+    page.getByRole("heading", { name: "已登录 · fixture-user", exact: true }),
   ).toBeVisible();
   await expect(page.getByText(/当前账号：fixture-user/)).toBeVisible();
   await expect(page.getByLabel("登录密码", { exact: true })).toHaveCount(0);
