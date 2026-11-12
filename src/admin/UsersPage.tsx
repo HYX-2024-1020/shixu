@@ -50,11 +50,31 @@ export function UsersPage({ api }: { api: AdminApi }) {
   );
   const clearAlertAccount = () => {
     setAlertAccount("");
+    routeAccount.current = "";
     history.replaceState(null, "", "#/users");
   };
   const [status, setStatus] = useState<AdminUserStatus | "all">("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const routeAccount = useRef(alertAccount);
+  useEffect(() => {
+    const onHash = () => {
+      const account =
+        new URLSearchParams(location.hash.split("?")[1] || "").get("account") ||
+        "";
+      if (routeAccount.current === account) return;
+      routeAccount.current = account;
+      setAlertAccount(account);
+      setPage(1);
+      detailRequest.current += 1;
+      setDetail(null);
+      setSelectedUser(null);
+      setDetailPhase("closed");
+      setAction(null);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   const [list, setList] = useState<{
     items: AdminUser[];
@@ -87,9 +107,11 @@ export function UsersPage({ api }: { api: AdminApi }) {
   } | null>(null);
 
   const keywordRef = useRef(keyword);
+  const listRequest = useRef(0);
   keywordRef.current = keyword;
 
   const loadList = useCallback(async () => {
+    const requestId = ++listRequest.current;
     setListPhase("loading");
     try {
       const result = await api.listUsers({
@@ -98,9 +120,11 @@ export function UsersPage({ api }: { api: AdminApi }) {
         page,
         pageSize,
       });
+      if (requestId !== listRequest.current) return;
       setList({ items: result.items, total: result.total });
       setListPhase("ready");
     } catch (err) {
+      if (requestId !== listRequest.current) return;
       reportSessionExpired(err);
       setListError(err);
       setListPhase("error");
@@ -109,6 +133,9 @@ export function UsersPage({ api }: { api: AdminApi }) {
 
   useEffect(() => {
     void loadList();
+    return () => {
+      listRequest.current += 1;
+    };
   }, [loadList, tick]);
 
   // 搜索防抖

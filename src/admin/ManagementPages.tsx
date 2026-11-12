@@ -47,6 +47,23 @@ export function TasksPage({ api }: { api: AdminApi }) {
     ),
     [status, setStatus] = useState<TaskStatus | "all">("all"),
     [page, setPage] = useState(1);
+  const routeAccount = useRef(keyword);
+  useEffect(() => {
+    const onHash = () => {
+      const account =
+        new URLSearchParams(location.hash.split("?")[1] || "").get("account") ||
+        "";
+      if (routeAccount.current === account) return;
+      routeAccount.current = account;
+      setKeyword(account);
+      setPage(1);
+      setSelected(null);
+      setPending(null);
+      setLimit(null);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [selected, setSelected] = useState<AdminTask | null>(null),
     [pending, setPending] = useState<{
       task: AdminTask;

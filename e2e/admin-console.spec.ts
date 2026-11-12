@@ -169,6 +169,15 @@ test("真实账号、任务、预算与备份队列在同一管理界面连贯�
     ).toContainText("25.00");
     await drawer.getByRole("button", { name: "关闭", exact: true }).click();
     await page.getByRole("link", { name: "任务管理", exact: true }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await page.evaluate(() => {
+      location.hash = "#/tasks?account=synthetic-unrelated-account";
+    });
+    await expect(page.locator("tbody tr")).toHaveCount(0);
+    await page.evaluate((id) => {
+      location.hash = "#/tasks?account=" + encodeURIComponent(id);
+    }, account);
+    await expect(page.locator("tbody tr")).toHaveCount(1);
     await page
       .locator("tbody tr")
       .filter({ hasText: "product-owner" })
@@ -330,7 +339,8 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       .locator(".drawer")
       .getByRole("button", { name: "关闭", exact: true })
       .click();
-    await page.getByRole("link", { name: "服务总览", exact: true }).click();
+    // Change the query while UsersPage stays mounted: consecutive hash changes
+    // can be batched, so a mount-only query initializer is insufficient.
     await page.evaluate((id) => {
       location.hash = "#/users?account=" + encodeURIComponent(id);
     }, userId);
