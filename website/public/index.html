@@ -2,174 +2,460 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>拾序 · 个人事务管理</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10131f" />
     <meta
       name="description"
-      content="拾序是一个个人事务管理与资料整理项目。用桶收集材料，在世界里核对事项，用DDL安排截止日期。"
+      content="拾序是面向学生和普通人的个人事务管理与资料整理工具。用桶接住零散通知、文字和文件，在世界整理事项，用DDL安排截止日期。"
     />
+    <title>拾序 · 把混乱捡回来</title>
     <link rel="canonical" href="https://www.shixunote.top/" />
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261112-redesign" />
   </head>
   <body>
-    <a class="skip" href="#main">跳到正文</a>
-    <header class="header wrap">
-      <a class="brand" href="/" aria-label="拾序首页"
-        ><img src="/assets/icon.svg" width="44" height="44" alt="" /><span
-          >拾序<small>个人事务管理</small></span
-        ></a
-      >
-      <nav aria-label="主导航">
-        <a href="#features">认识拾序</a><a href="/guide/">使用指引</a
-        ><a href="/privacy/">隐私说明</a>
-      </nav>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <div class="signal-strip">
+      <div class="wrap">
+        <strong>SHIXU SIGNAL</strong> · 生活碎片正在飞 · 拾序负责接住
+      </div>
+    </div>
+    <header class="site-header">
+      <div class="header-inner wrap">
+        <a class="brand" href="/" aria-label="拾序首页">
+          <img
+            class="brand-mark"
+            src="/assets/icon.svg"
+            width="48"
+            height="48"
+            alt=""
+          />
+          <span
+            ><span class="brand-name">拾序</span
+            ><span class="brand-sub">PERSONAL TASK SYSTEM</span></span
+          >
+        </a>
+        <nav class="main-nav" aria-label="主导航">
+          <a href="/#modules" aria-current="page">认识拾序</a>
+          <a href="/guide/">使用指引</a>
+          <a href="/privacy/">隐私说明</a>
+        </nav>
+      </div>
     </header>
+
     <main id="main">
-      <section class="hero wrap">
-        <div class="hero-copy">
-          <p class="eyebrow">SHIXU / 给纷杂的日常一点顺序</p>
-          <h1>
-            先把事情收下，<br />再慢慢<span class="highlight">理清楚。</span>
-          </h1>
-          <p class="intro">
-            念头、通知、文件，总会在忙的时候一起涌来。<br
-              class="desktop-break"
-            />拾序帮你接住材料，整理事项，记住值得留意的截止日期。
+      <section class="hero-stage wrap" aria-labelledby="hero-title">
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <p class="eyebrow">Daily Rescue / 给失控日常按暂停</p>
+            <h1 id="hero-title">
+              <span class="line-a">通知乱飞？</span><br /><span class="line-b"
+                >把混乱</span
+              ><br /><span class="line-c">捡回来。</span>
+            </h1>
+            <p class="hero-intro">
+              <strong>拾序是面向学生和普通人的个人事务管理工具。</strong
+              >先把通知、文字和文件投进“桶”，再到“世界”整理成事项，用“DDL”看清截止日期。
+            </p>
+            <div class="actions">
+              <a class="btn" href="/guide/"
+                >查看使用指引 <span aria-hidden="true">↗</span></a
+              >
+              <a class="arrow-link hero-flow-link" href="#flow-lab"
+                >看流程控制台 <span class="arrow" aria-hidden="true">↓</span></a
+              >
+            </div>
+            <p class="hero-status">
+              <span>Windows · 小范围邀请体验</span><span>无公开下载</span
+              ><span>无网页注册</span>
+            </p>
+          </div>
+          <div class="hero-art">
+            <div class="speed-burst" aria-hidden="true"></div>
+            <div
+              class="client-scene"
+              role="img"
+              aria-label="无人物动漫风客户端示意图：冰块收下通知卡片，底部是桶、世界和DDL三个真实模块"
+            >
+              <div class="scene-bar">
+                <span>拾序 / SHIXU</span><span>WINDOWS · UI STUDY</span>
+              </div>
+              <div class="scene-copy">
+                <span>什么都行，</span><strong>喂给它。</strong>
+              </div>
+              <div class="ice-stack" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </div>
+              <span class="scene-caption">CATCH FIRST / 先收下，再理清</span>
+              <div class="scene-nav" aria-hidden="true">
+                <span class="active">桶 <b>01</b></span
+                ><span>世界 <b>02</b></span
+                ><span>DDL <b>03</b></span>
+              </div>
+            </div>
+            <div class="holo-chip chip-a">
+              周五 18:00 · 读书报告<small>FICTIONAL NOTICE</small>
+            </div>
+            <div class="holo-chip chip-b">
+              参考文献 · 待核对<small>SAMPLE CARD</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="marquee" aria-label="拾序可以接住的材料类型">
+        <div class="marquee-track">
+          <div class="marquee-group">
+            <span>群消息</span><span>临时念头</span><span>课程通知</span
+            ><span>文件</span><span>待办</span><span>截止日期</span>
+          </div>
+          <div class="marquee-group" aria-hidden="true">
+            <span>群消息</span><span>临时念头</span><span>课程通知</span
+            ><span>文件</span><span>待办</span><span>截止日期</span>
+          </div>
+        </div>
+      </div>
+
+      <section
+        class="modules wrap"
+        id="modules"
+        aria-labelledby="modules-title"
+      >
+        <div class="modules-heading">
+          <div>
+            <p class="eyebrow">Three Stations / 不是三个普通功能</p>
+            <h2 class="section-title" id="modules-title">
+              一张生活碎片，<br />会经过三站。
+            </h2>
+          </div>
+          <p class="section-copy">
+            每张卡片都是一次状态切换：先接住，再变清楚，最后把期限放上桌面。点击卡片可直接跳到对应使用章节。
           </p>
-          <div class="actions">
-            <a class="button" href="/guide/"
-              >从使用流程开始 <span aria-hidden="true">↗</span></a
-            ><a class="text-link" href="#features">看看它能做什么 ↓</a>
+        </div>
+        <div class="module-grid">
+          <a
+            class="module-card module-bucket"
+            href="/guide/#collect"
+            data-code="CATCH-01"
+          >
+            <span class="module-index">01 / 桶 · BUCKET</span>
+            <h3><small>先收下</small>通知、文字、文件，<br />统统先进来。</h3>
+            <p>
+              不用当场分类，也不用立刻做出判断。把零散材料先放进桶，让它们在忙乱里有一个稳定落点。
+            </p>
+            <div class="module-window" aria-hidden="true">
+              <div class="window-bar"><i></i><i></i><i></i>BUCKET.IN</div>
+              <div class="window-body">
+                <span class="window-row">读书报告 · 周五前交</span>
+                <span class="window-row">讨论提纲 · 下周要用</span>
+                <span class="window-row done">临时想法 · 已接住</span>
+              </div>
+            </div>
+            <span class="module-glyph" aria-hidden="true">桶</span>
+            <span class="module-cta">进入收集章节</span>
+          </a>
+          <a
+            class="module-card module-world"
+            href="/guide/#confirm"
+            data-code="WORLD-02"
+          >
+            <span class="module-index">02 / 世界 · WORLD</span>
+            <h3><small>再核对</small>把材料变成能做的事。</h3>
+            <p>
+              查看、编辑、排序、星标和完成事项。AI
+              可以辅助提取，但每一条结果都要对照原始材料确认。
+            </p>
+            <div class="module-window" aria-hidden="true">
+              <div class="window-bar"><i></i><i></i><i></i>WORLD.CHECK</div>
+              <div class="window-body">
+                <span class="window-row">动作 · 已核对</span
+                ><span class="window-row">来源 · 待回看</span>
+              </div>
+            </div>
+            <span class="module-glyph" aria-hidden="true">界</span>
+            <span class="module-cta">进入核对章节</span>
+          </a>
+          <a
+            class="module-card module-deadline"
+            href="/guide/#arrange"
+            data-code="DDL-03"
+          >
+            <span class="module-index">03 / DDL · DEADLINE</span>
+            <h3><small>最后安排</small>让期限不再突然袭击。</h3>
+            <p>
+              集中查看有时限的事项，分清原文明确给出的时间与系统推定的时间，再按实际计划调整。
+            </p>
+            <div class="module-window" aria-hidden="true">
+              <div class="window-bar"><i></i><i></i><i></i>DDL.BOARD</div>
+              <div class="window-body">
+                <span class="window-row">周五 18:00 · 原文明确</span
+                ><span class="window-row done">下周一 · 已调整</span>
+              </div>
+            </div>
+            <span class="module-glyph" aria-hidden="true">期</span>
+            <span class="module-cta">进入安排章节</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="signal-quote" aria-label="拾序产品态度">
+        <div class="wrap">
+          <div class="quote-mark" aria-hidden="true">乱也<br />能接住</div>
+          <h2>
+            不是让你变成效率机器。<br />是让重要的事，<em
+              >别再从指缝掉下去。</em
+            >
+          </h2>
+        </div>
+      </section>
+
+      <section class="flow-lab wrap" id="flow-lab" aria-labelledby="flow-title">
+        <div class="flow-lab-heading">
+          <div>
+            <p class="eyebrow">Flow Console / 无脚本交互演示</p>
+            <h2 class="section-title" id="flow-title">
+              一条通知，<br />怎么被捡回来？
+            </h2>
           </div>
-          <p class="status">
-            <span class="dot"></span> Windows 客户端 · 小范围邀请体验中
+          <span class="tag pink">示例内容均为虚构</span>
+        </div>
+        <div class="flow-switch">
+          <input
+            type="radio"
+            name="flow"
+            id="flow-catch"
+            aria-label="流程演示：01 接住"
+            checked
+          />
+          <input
+            type="radio"
+            name="flow"
+            id="flow-world"
+            aria-label="流程演示：02 变清楚"
+          />
+          <input
+            type="radio"
+            name="flow"
+            id="flow-check"
+            aria-label="流程演示：03 回来源"
+          />
+          <input
+            type="radio"
+            name="flow"
+            id="flow-ddl"
+            aria-label="流程演示：04 定期限"
+          />
+          <div class="flow-tabs" aria-label="切换整理流程演示">
+            <label for="flow-catch">01 接住</label>
+            <label for="flow-world">02 变清楚</label>
+            <label for="flow-check">03 回来源</label>
+            <label for="flow-ddl">04 定期限</label>
+          </div>
+          <div class="flow-panels">
+            <section class="flow-panel panel-catch" aria-label="接住演示">
+              <div>
+                <span class="tag yellow">SCENE 01</span>
+                <h3>消息弹出来的瞬间，先不用做决定。</h3>
+                <p>
+                  “周五 18:00
+                  前交读书报告，参考文献一并检查。”先投进桶，把材料留住，再决定下一步。
+                </p>
+              </div>
+              <div class="demo-console" data-label="FICTIONAL / 虚构示例">
+                <div class="console-lines">
+                  <div class="console-line">
+                    <strong>入</strong>读书报告 · 周五 18:00 前<b>BUCKET</b>
+                  </div>
+                  <div class="console-line">
+                    <strong>入</strong>参考文献检查清单<b>BUCKET</b>
+                  </div>
+                  <div class="console-line done">
+                    <strong>稳</strong>临时打断已接住<b>SAFE</b>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="flow-panel panel-world" aria-label="世界演示">
+              <div>
+                <span class="tag cyan">SCENE 02</span>
+                <h3>材料在世界里有自己的位置。</h3>
+                <p>
+                  把一条通知拆成清楚的行动：要做什么、谁来做、何时完成。需要时编辑、排序、星标或标记完成。
+                </p>
+              </div>
+              <div class="demo-console" data-label="FICTIONAL / 虚构示例">
+                <div class="console-lines">
+                  <div class="console-line">
+                    <strong>事</strong>提交读书报告<b>OPEN</b>
+                  </div>
+                  <div class="console-line">
+                    <strong>事</strong>检查参考文献<b>OPEN</b>
+                  </div>
+                  <div class="console-line done">
+                    <strong>事</strong>准备讨论提纲<b>DONE</b>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="flow-panel panel-check" aria-label="核对演示">
+              <div>
+                <span class="tag mint">SCENE 03</span>
+                <h3>AI 可以帮忙，但最后要由你确认。</h3>
+                <p>
+                  回到原始材料核对动作、负责人和日期。辅助提取是起点，不代替你的判断。
+                </p>
+              </div>
+              <div class="demo-console" data-label="FICTIONAL / 虚构示例">
+                <div class="console-lines">
+                  <div class="console-line">
+                    <strong>核</strong>动作：提交报告<b>MATCH</b>
+                  </div>
+                  <div class="console-line">
+                    <strong>核</strong>负责人：我<b>MATCH</b>
+                  </div>
+                  <div class="console-line">
+                    <strong>核</strong>来源：原通知<b>REVIEW</b>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="flow-panel panel-ddl" aria-label="期限演示">
+              <div>
+                <span class="tag violet">SCENE 04</span>
+                <h3>期限集中摆上桌，才不会突然袭击。</h3>
+                <p>
+                  原文明确写出的时间与系统推定的时间分开看；重要截止日期以原通知为准，必要时手动调整。
+                </p>
+              </div>
+              <div class="demo-console" data-label="FICTIONAL / 虚构示例">
+                <div class="console-lines">
+                  <div class="console-line">
+                    <strong>期</strong>周五 18:00 · 原文明确<b>LOCK</b>
+                  </div>
+                  <div class="console-line">
+                    <strong>期</strong>周四晚 · 自查窗口<b>PLAN</b>
+                  </div>
+                  <div class="console-line done">
+                    <strong>期</strong>下周一 · 已手动调整<b>OK</b>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <p class="flow-note">
+            CSS-only interaction / 点击标签，或聚焦单选项后用方向键切换 ·
+            示例均为虚构
           </p>
         </div>
-        <div class="showcase" aria-label="拾序整理流程示意">
-          <div class="paper-note">
-            <span class="paper-label">先收集 · 桶</span>
+      </section>
+
+      <section class="guide-callout wrap" aria-labelledby="guide-title">
+        <div class="guide-board">
+          <div class="guide-cover">
+            <span class="tag yellow noise-tag">新手任务 / 不需要真实资料</span>
+            <h2 id="guide-title">第一次用？<br />先通关一条通知。</h2>
             <p>
-              “读书报告周五前交，<br />资料先放这里，<br />还有下周的项目讨论……”
+              写一条不含隐私的短通知，走完收集、核对、安排和回看。知道它怎么接住生活，再决定要不要让它接住更多。
             </p>
-            <span class="note-bottom">零散的消息，也有自己的位置。</span>
+            <a class="btn pink" href="/guide/"
+              >打开闯关指引 <span aria-hidden="true">↗</span></a
+            >
           </div>
-          <div class="task-board">
-            <div class="board-heading">
-              <span>今天，理清一点</span
-              ><span class="board-mark" aria-hidden="true">✳</span>
-            </div>
-            <div class="sample-task">
-              <span class="checkbox" aria-hidden="true"></span>
-              <div>
-                <b>整理课程资料</b><small>资料 · 保留来源，方便回看</small>
-              </div>
-              <span class="tag green">世界</span>
-            </div>
-            <div class="sample-task">
-              <span class="checkbox" aria-hidden="true"></span>
-              <div>
-                <b>提交读书报告</b><small>周五之前 · 先核对原通知</small>
-              </div>
-              <span class="tag yellow">DDL</span>
-            </div>
-            <div class="sample-task">
-              <span class="checkbox checked" aria-hidden="true">✓</span>
-              <div>
-                <b>准备项目讨论提纲</b><small>完成一件，轻松一点</small>
-              </div>
-            </div>
-            <div class="board-footer">收集 → 核对 → 安排 → 回看</div>
+          <ol class="mission-list">
+            <li>
+              <b>投进去</b>
+              <p>文字或支持的文件，先放进桶。</p>
+            </li>
+            <li>
+              <b>对一下</b>
+              <p>人物、动作和日期，都回到来源核对。</p>
+            </li>
+            <li>
+              <b>排上去</b>
+              <p>在世界与 DDL 中安排、完成并回看。</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section
+        class="status-zone wrap"
+        id="status"
+        aria-labelledby="status-title"
+      >
+        <div class="status-split">
+          <div class="status-card status-live">
+            <span class="tag pink">CURRENT / 小范围邀请体验</span>
+            <h2 id="status-title">门还只开了一条缝，<br />但可以先看里面。</h2>
+            <p>
+              拾序 Windows
+              客户端正在小范围邀请体验。当前尚未开放公开下载和网页账户注册；已获邀用户请使用已有客户端入口。本站也不提供资料上传或在线
+              AI 处理。
+            </p>
           </div>
-          <p class="sample-caption">流程示意，使用虚构内容。</p>
+          <div class="status-card status-source">
+            <span class="source-code-mark" aria-hidden="true">&lt;/&gt;</span>
+            <h3>想看系统怎么搭？</h3>
+            <p>
+              项目源码与公开进展在
+              GitHub。公开技术问题请移步问题列表，别在里面提交个人资料。
+            </p>
+            <p class="source-action">
+              <a
+                class="btn"
+                href="https://github.com/HYX-2024-1020/shixu"
+                target="_blank"
+                rel="noopener noreferrer"
+                >进入开源项目 <span aria-hidden="true">↗</span></a
+              >
+            </p>
+          </div>
         </div>
       </section>
-      <section class="features wrap" id="features">
-        <div class="section-heading">
-          <p class="eyebrow">三个地方，各管一件事</p>
-          <h2>材料有去处，事情有头绪。</h2>
+
+      <section class="privacy-banner wrap" aria-labelledby="privacy-title">
+        <div class="privacy-card">
+          <div>
+            <h2 id="privacy-title">逛网站，不用先交出自己。</h2>
+            <p>没有账户登录、资料上传、Cookie、访问统计或在线 AI 处理。</p>
+          </div>
+          <a class="arrow-link" href="/privacy/"
+            >读取边界说明 <span class="arrow" aria-hidden="true">↗</span></a
+          >
         </div>
-        <div class="feature-grid">
-          <article class="feature">
-            <span class="number">01</span
-            ><span class="feature-symbol bucket" aria-hidden="true">桶</span>
-            <h3>先收下，不急着分类</h3>
-            <p>
-              用“桶”接住文字、通知和文件。先留下材料，再按自己的节奏整理，减少临时打断。
-            </p>
-          </article>
-          <article class="feature">
-            <span class="number">02</span
-            ><span class="feature-symbol world" aria-hidden="true">世界</span>
-            <h3>把资料变成可行动的事</h3>
-            <p>
-              在“世界”里查看、编辑、完成和回看事项。AI
-              可以辅助提取，结果仍由你结合原始材料核对。
-            </p>
-          </article>
-          <article class="feature">
-            <span class="number">03</span
-            ><span class="feature-symbol deadline" aria-hidden="true">DDL</span>
-            <h3>让截止日期清楚一点</h3>
-            <p>
-              集中查看有时限的事项，分清原文给出的时间和推定时间，按实际安排调整。
-            </p>
-          </article>
-        </div>
-      </section>
-      <section class="workflow wrap">
-        <div>
-          <p class="eyebrow">一个更从容的使用习惯</p>
-          <h2>先接住，再确认。<br />最后，一件件完成。</h2>
-          <a class="text-link" href="/guide/">阅读完整使用指引 ↗</a>
-        </div>
-        <ol class="steps">
-          <li>
-            <b>留住材料</b>
-            <p>把眼前的消息和资料收进桶，让它们有地方可找。</p>
-          </li>
-          <li>
-            <b>核对事项</b>
-            <p>回到来源确认人物、动作和日期，补充你自己的判断。</p>
-          </li>
-          <li>
-            <b>安排与回看</b>
-            <p>在世界和 DDL 中调整事项，做完后标记完成。</p>
-          </li>
-        </ol>
-      </section>
-      <section class="availability wrap" id="status">
-        <span class="pill">当前进展</span>
-        <h2>正在把拾序打磨得更好用。</h2>
-        <p>
-          Windows
-          客户端正在小范围邀请体验，持续收集实际使用反馈。当前尚未开放公开下载和网页账户注册。
-        </p>
-        <p>
-          已经获得体验资格的用户，请使用已有客户端入口。想了解项目实现与公开进展，可以查看项目源码。
-        </p>
-        <a
-          class="button secondary"
-          href="https://github.com/HYX-2024-1020/shixu"
-          target="_blank"
-          rel="noopener noreferrer"
-          >查看开源项目 ↗</a
-        >
       </section>
     </main>
-    <footer class="footer wrap">
-      <div>
-        <a class="footer-name" href="/">拾序</a
-        ><span>个人事务管理与资料整理项目</span>
+
+    <footer class="site-footer">
+      <div class="footer-main wrap">
+        <div class="footer-brand">
+          <img src="/assets/icon.svg" width="48" height="48" alt="" />
+          <div>
+            <strong>拾序个人事务管理</strong
+            ><span>把零散材料接住，把日常慢慢理顺。</span>
+          </div>
+        </div>
+        <nav class="footer-nav" aria-label="页脚导航">
+          <a href="/guide/">使用指引</a>
+          <a href="/privacy/">隐私说明</a>
+          <a
+            href="https://github.com/HYX-2024-1020/shixu"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub ↗</a
+          >
+        </nav>
       </div>
-      <div class="footer-links">
-        <a href="/guide/">使用指引</a><a href="/privacy/">隐私说明</a
-        ><a
-          href="https://beian.miit.gov.cn/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >豫ICP备2026057621号-1</a
-        ><span>© 2026 拾序</span>
+      <div class="footer-bottom wrap">
+        <p>© 2026 拾序 · 页面示例均为虚构</p>
+        <p>
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >豫ICP备2026057621号-1</a
+          >
+        </p>
       </div>
     </footer>
   </body>

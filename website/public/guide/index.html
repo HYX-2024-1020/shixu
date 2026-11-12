@@ -2,117 +2,271 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>使用指引 · 拾序</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10131f" />
     <meta
       name="description"
-      content="了解拾序Windows客户端的收集、整理、核对和回看流程。"
+      content="了解拾序Windows客户端的收集、整理、核对和回看流程，以及如何核对来源、日期和保存状态。"
     />
+    <title>使用指引 · 拾序</title>
     <link rel="canonical" href="https://www.shixunote.top/guide/" />
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261112-redesign" />
   </head>
   <body>
-    <a class="skip" href="#main">跳到正文</a>
-    <header class="header wrap">
-      <a class="brand" href="/" aria-label="拾序首页"
-        ><img src="/assets/icon.svg" width="44" height="44" alt="" /><span
-          >拾序<small>个人事务管理</small></span
-        ></a
-      >
-      <nav aria-label="主导航">
-        <a href="/">认识拾序</a
-        ><a href="/guide/" aria-current="page">使用指引</a
-        ><a href="/privacy/">隐私说明</a>
-      </nav>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <div class="signal-strip">
+      <div class="wrap">
+        <strong>MISSION GUIDE</strong> ·
+        新手指引不需要真实资料，一条自写通知就够了
+      </div>
+    </div>
+    <header class="site-header">
+      <div class="header-inner wrap">
+        <a class="brand" href="/" aria-label="拾序首页">
+          <img
+            class="brand-mark"
+            src="/assets/icon.svg"
+            width="48"
+            height="48"
+            alt=""
+          />
+          <span
+            ><span class="brand-name">拾序</span
+            ><span class="brand-sub">PERSONAL TASK SYSTEM</span></span
+          >
+        </a>
+        <nav class="main-nav" aria-label="主导航">
+          <a href="/#modules">认识拾序</a>
+          <a href="/guide/" aria-current="page">使用指引</a>
+          <a href="/privacy/">隐私说明</a>
+        </nav>
+      </div>
     </header>
-    <main id="main" class="reading wrap">
-      <p class="eyebrow">HOW TO / 从一条简单的通知开始</p>
-      <h1>拾序使用指引</h1>
-      <p class="lead">
-        先用一份自写、无隐私的短材料走一遍流程，熟悉之后再安排自己的日常资料。
-      </p>
-      <aside class="notice">
-        <b>当前体验方式</b>
-        <p>
-          本指引面向已获邀使用 Windows
-          客户端的用户。客户端正在小范围体验，本网站暂未提供公开下载、账户注册或在线资料整理入口。
-        </p>
-      </aside>
-      <section>
-        <span class="chapter">01 / 收集</span>
-        <h2>把临时材料放进桶</h2>
-        <p>
-          从已安装的“拾序”桌面入口打开客户端。你可以先写一条简单的通知，例如：
-        </p>
-        <blockquote>
-          示例：本周五前提交读书报告，提交前检查参考文献。
-        </blockquote>
-        <p>
-          将文字或支持的文件加入投递。文件是否支持、读取范围和处理状态，以客户端当前显示为准。
-        </p>
+
+    <main id="main" class="wrap">
+      <section class="page-hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Mission Manual / 把第一条通知走完整</p>
+          <h1 id="page-title">
+            <span class="stroke">不是说明书。</span><br /><span class="hot"
+              >是闯关地图。</span
+            >
+          </h1>
+          <p class="page-lead">
+            先用一份自写、无隐私的短材料走一遍流程。熟悉收集、整理、核对和回看之后，再安排自己的日常资料。
+          </p>
+        </div>
+        <aside class="page-visual-card blue" aria-label="当前体验状态">
+          <span class="card-label">BEFORE START / 先看这里</span>
+          <h2>目前是一张邀请票</h2>
+          <p>
+            本指引面向已获邀使用 Windows
+            客户端的用户。网站没有公开下载、注册或在线整理入口。
+          </p>
+          <span class="tag yellow">Windows · 小范围体验</span>
+        </aside>
       </section>
-      <section>
-        <span class="chapter">02 / 整理</span>
-        <h2>看清处理进度与已有结果</h2>
-        <p>
-          发起整理后，留意任务进度。较长材料可能分步处理；需要暂停或继续时，在同一任务中查看状态与回执。
-        </p>
-        <p>
-          使用云端 AI
-          前，请先阅读客户端的数据处理说明，确认账户、用量和处理范围。已经发出的模型请求可能仍会产生费用。
-        </p>
-      </section>
-      <section>
-        <span class="chapter">03 / 确认</span>
-        <h2>对照来源，核对每一条事项</h2>
-        <p>
-          重点检查要做什么、谁来做、何时完成，以及事项对应的原始材料。AI
-          辅助提取不代替你的确认。
-        </p>
-        <p>
-          尤其要分清“原文明确给出的时间”和“系统推定的时间”。重要截止日期应以原通知为准，必要时手动调整。
-        </p>
-      </section>
-      <section>
-        <span class="chapter">04 / 安排</span>
-        <h2>在世界和 DDL 里逐步完成</h2>
-        <p>
-          在“世界”中查看和编辑事项，按需要排序、星标和标记完成；在“DDL”中集中检查有时限的安排。
-        </p>
-        <p>
-          退出前确认重要编辑已保存。再次打开时，可以用一条测试事项核对保存与同步情况，再开始日常使用。
-        </p>
-      </section>
-      <section>
-        <h2>遇到问题怎样记录</h2>
-        <p>
-          记录客户端版本、所在页面、操作步骤、预期结果和实际结果。如果有错误码，一并记录；截图前遮住个人资料、密码和其他凭据。
-        </p>
-        <p>
-          体验用户可通过原有反馈渠道报告问题；不含个人资料的公开技术问题也可以提交到<a
-            href="https://github.com/HYX-2024-1020/shixu/issues"
+
+      <nav class="guide-map" aria-label="流程快速入口">
+        <a href="#collect"><span>01</span>收集材料</a>
+        <a href="#organize"><span>02</span>发起整理</a>
+        <a href="#confirm"><span>03</span>核对事项</a>
+        <a href="#arrange"><span>04</span>安排回看</a>
+        <a href="#feedback"><span>05</span>记录问题</a>
+      </nav>
+
+      <div class="guide-layout">
+        <nav class="chapter-nav" aria-label="本页章节">
+          <strong>MISSION ROUTE</strong>
+          <a href="#collect"><span>01</span>把材料放进桶</a>
+          <a href="#organize"><span>02</span>查看处理进度</a>
+          <a href="#confirm"><span>03</span>对照来源核对</a>
+          <a href="#arrange"><span>04</span>安排并回看</a>
+          <a href="#feedback"><span>05</span>清楚记录问题</a>
+        </nav>
+
+        <article class="guide-content">
+          <aside class="alert-card">
+            <span class="alert-icon" aria-hidden="true">!</span>
+            <div>
+              <h2>当前体验方式</h2>
+              <p>
+                客户端正在小范围体验。本网站暂未提供公开下载、账户注册或在线资料整理入口；已获邀用户请从已安装的“拾序”桌面入口打开客户端。
+              </p>
+            </div>
+          </aside>
+
+          <section
+            class="chapter-card chapter-pink"
+            id="collect"
+            data-index="MISSION 01"
+          >
+            <span class="chapter-index">01 / CATCH · 先别让它跑掉</span>
+            <h2>把临时材料放进桶</h2>
+            <p>
+              从已安装的“拾序”桌面入口打开客户端。你可以先写一条简单的通知，例如：
+            </p>
+            <blockquote class="example-note">
+              本周五前提交读书报告，<br />提交前检查参考文献。
+            </blockquote>
+            <p>
+              将文字或支持的文件加入投递。文件是否支持、读取范围和处理状态，以客户端当前显示为准。
+            </p>
+            <details class="intel-detail">
+              <summary>什么样的材料适合先练手？</summary>
+              <div class="detail-body">
+                用自己临时写的一句话即可，不要使用含证件、联系方式、密码或其他隐私的真实资料。
+              </div>
+            </details>
+            <div class="tip-box">
+              <strong>小动作：</strong
+              >先把材料留下，不必在忙乱的时候顺便完成一整套分类。
+            </div>
+          </section>
+
+          <section
+            class="chapter-card chapter-blue"
+            id="organize"
+            data-index="MISSION 02"
+          >
+            <span class="chapter-index">02 / PROCESS · 给处理一点耐心</span>
+            <h2>看清处理进度与已有结果</h2>
+            <p>
+              发起整理后，留意任务进度。较长材料可能分步处理；需要暂停或继续时，在同一任务中查看状态与回执。
+            </p>
+            <p>
+              使用云端 AI
+              前，请先阅读客户端的数据处理说明，确认账户、用量和处理范围。已经发出的模型请求可能仍会产生费用。
+            </p>
+            <details class="intel-detail">
+              <summary>这里的 AI 处理发生在网页里吗？</summary>
+              <div class="detail-body">
+                不是。这里说的是已安装 Windows
+                客户端中的使用流程；本网站不提供在线 AI 处理入口。
+              </div>
+            </details>
+          </section>
+
+          <section
+            class="chapter-card chapter-mint"
+            id="confirm"
+            data-index="MISSION 03"
+          >
+            <span class="chapter-index">03 / VERIFY · 你做最后的编辑</span>
+            <h2>对照来源，核对每一条事项</h2>
+            <p>
+              重点检查要做什么、谁来做、何时完成，以及事项对应的原始材料。AI
+              辅助提取不代替你的确认。
+            </p>
+            <ul class="check-list" aria-label="事项核对清单">
+              <li>要做什么？</li>
+              <li>谁来做？</li>
+              <li>原文何时截止？</li>
+            </ul>
+            <p>
+              尤其要分清“原文明确给出的时间”和“系统推定的时间”。重要截止日期应以原通知为准，必要时手动调整。
+            </p>
+            <details class="intel-detail">
+              <summary>看到“下周五”要核对什么？</summary>
+              <div class="detail-body">
+                回到原通知的发送日期、上下文和完整表述核对，不要只看提取结果里的一个日期。
+              </div>
+            </details>
+            <div class="tip-box">
+              <strong>日期小贴士：</strong
+              >重要截止时间以原通知为准；拿不准时先手动调整，再把来源留在事项旁边。
+            </div>
+          </section>
+
+          <section
+            class="chapter-card chapter-violet"
+            id="arrange"
+            data-index="MISSION 04"
+          >
+            <span class="chapter-index">04 / ARRANGE · 做完一件，轻松一点</span>
+            <h2>在世界和 DDL 里逐步完成</h2>
+            <p>
+              在“世界”中查看和编辑事项，按需要排序、星标和标记完成；在“DDL”中集中检查有时限的安排。
+            </p>
+            <p>
+              退出前确认重要编辑已保存。再次打开时，可以用一条测试事项核对保存与同步情况，再开始日常使用。
+            </p>
+            <details class="intel-detail">
+              <summary>为什么要用测试事项回看？</summary>
+              <div class="detail-body">
+                这能在不暴露真实资料的情况下确认保存与同步状态；确认正常后再开始日常使用。
+              </div>
+            </details>
+            <div class="tip-box">
+              <strong>回看习惯：</strong
+              >重要事项完成后再看一眼状态，确认它真的被记下，而不只是“以为保存了”。
+            </div>
+          </section>
+
+          <section
+            class="chapter-card chapter-orange"
+            id="feedback"
+            data-index="MISSION 05"
+          >
+            <span class="chapter-index">05 / REPORT · 把问题也描述清楚</span>
+            <h2>遇到问题怎样记录</h2>
+            <p>
+              记录客户端版本、所在页面、操作步骤、预期结果和实际结果。如果有错误码，一并记录；截图前遮住个人资料、密码和其他凭据。
+            </p>
+            <p>
+              体验用户可通过原有反馈渠道报告问题；不含个人资料的公开技术问题也可以提交到<a
+                href="https://github.com/HYX-2024-1020/shixu/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                >项目问题列表 ↗</a
+              >。
+            </p>
+            <details class="intel-detail">
+              <summary>截图前最容易漏掉什么？</summary>
+              <div class="detail-body">
+                先遮住姓名、联系方式、证件、账号、密码、令牌、文件内容和通知里的他人信息。
+              </div>
+            </details>
+          </section>
+
+          <a class="arrow-link back-home" href="/"
+            ><span aria-hidden="true">←</span> 回到拾序首页</a
+          >
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-main wrap">
+        <div class="footer-brand">
+          <img src="/assets/icon.svg" width="48" height="48" alt="" />
+          <div>
+            <strong>拾序个人事务管理</strong
+            ><span>把零散材料接住，把日常慢慢理顺。</span>
+          </div>
+        </div>
+        <nav class="footer-nav" aria-label="页脚导航">
+          <a href="/">返回首页</a>
+          <a href="/privacy/">隐私说明</a>
+          <a
+            href="https://github.com/HYX-2024-1020/shixu"
             target="_blank"
             rel="noopener noreferrer"
-            >项目问题列表</a
-          >。
-        </p>
-      </section>
-      <a class="text-link" href="/">← 回到拾序首页</a>
-    </main>
-    <footer class="footer wrap">
-      <div>
-        <a class="footer-name" href="/">拾序</a
-        ><span>个人事务管理与资料整理项目</span>
+            >GitHub ↗</a
+          >
+        </nav>
       </div>
-      <div class="footer-links">
-        <a href="/privacy/">隐私说明</a
-        ><a
-          href="https://beian.miit.gov.cn/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >豫ICP备2026057621号-1</a
-        ><span>© 2026 拾序</span>
+      <div class="footer-bottom wrap">
+        <p>© 2026 拾序 · 页面示例均为虚构</p>
+        <p>
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >豫ICP备2026057621号-1</a
+          >
+        </p>
       </div>
     </footer>
   </body>
