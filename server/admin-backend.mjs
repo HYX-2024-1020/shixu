@@ -624,7 +624,8 @@ export class AdminBackend {
       .map((r) => this.user(r.id))
       .filter(
         (u) =>
-          u.username.toLowerCase().includes(keyword) &&
+          (u.username.toLowerCase().includes(keyword) ||
+            u.id.toLowerCase().includes(keyword)) &&
           (!status || status === "all" || u.status === status),
       );
     return {
@@ -841,7 +842,7 @@ export class AdminBackend {
           actionHref: taskFailure
             ? "#/tasks?account=" + encodeURIComponent(r.object)
             : userIssue
-              ? "#/users"
+              ? "#/users?account=" + encodeURIComponent(r.object)
               : ["backup-missing", "operation-failed"].includes(r.kind)
                 ? "#/storage"
                 : "#/ops",

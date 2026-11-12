@@ -79,6 +79,10 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   assert.throws(() => backend.assertDispatch(a), /ADMIN_PAUSED/);
   const users = backend.users(new URLSearchParams());
   assert.equal(users.total, 2);
+  assert.deepEqual(
+    backend.users(new URLSearchParams({ keyword: a })).items.map((u) => u.id),
+    [a],
+  );
   assert.equal(JSON.stringify(users).includes("invite_hash"), false);
   registry.pauseAI(true);
   backend.sample();

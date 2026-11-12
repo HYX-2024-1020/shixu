@@ -330,6 +330,15 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       .locator(".drawer")
       .getByRole("button", { name: "关闭", exact: true })
       .click();
+    await page.getByRole("link", { name: "服务总览", exact: true }).click();
+    await page.evaluate((id) => {
+      location.hash = "#/users?account=" + encodeURIComponent(id);
+    }, userId);
+    await expect(page.getByText("仅查看这条告警关联的账号")).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText("fixture-owner");
+    await page.getByRole("button", { name: "显示全部账号" }).click();
+    await expect(page).toHaveURL(/#\/users$/);
     await page.getByRole("link", { name: /告警中心/ }).click();
     await expect(
       page.getByRole("heading", { name: "告警中心", exact: true }),

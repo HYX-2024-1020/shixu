@@ -20,11 +20,12 @@ import {
   type BadgeTone,
 } from "./ui";
 
-const USER_BADGE: Record<AdminUserStatus, { tone: BadgeTone; label: string }> = {
-  active: { tone: "ok", label: "正常" },
-  "ai-paused": { tone: "warn", label: "AI 已暂停" },
-  disabled: { tone: "muted", label: "已停用" },
-};
+const USER_BADGE: Record<AdminUserStatus, { tone: BadgeTone; label: string }> =
+  {
+    active: { tone: "ok", label: "正常" },
+    "ai-paused": { tone: "warn", label: "AI 已暂停" },
+    disabled: { tone: "muted", label: "已停用" },
+  };
 
 type PendingAction =
   | { kind: "enabled"; user: AdminUserDetail; enabled: boolean }
@@ -42,6 +43,15 @@ type PendingAction =
 export function UsersPage({ api }: { api: AdminApi }) {
   const toast = useToast();
   const [keyword, setKeyword] = useState("");
+  const [alertAccount, setAlertAccount] = useState(
+    () =>
+      new URLSearchParams(location.hash.split("?")[1] || "").get("account") ||
+      "",
+  );
+  const clearAlertAccount = () => {
+    setAlertAccount("");
+    history.replaceState(null, "", "#/users");
+  };
   const [status, setStatus] = useState<AdminUserStatus | "all">("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -57,7 +67,9 @@ export function UsersPage({ api }: { api: AdminApi }) {
   const [tick, setTick] = useState(0);
 
   const [detail, setDetail] = useState<AdminUserDetail | null>(null);
-  const [detailPhase, setDetailPhase] = useState<"closed" | "loading" | "error" | "ready">("closed");
+  const [detailPhase, setDetailPhase] = useState<
+    "closed" | "loading" | "error" | "ready"
+  >("closed");
   const [detailError, setDetailError] = useState<unknown>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const detailRequest = useRef(0);
@@ -81,7 +93,7 @@ export function UsersPage({ api }: { api: AdminApi }) {
     setListPhase("loading");
     try {
       const result = await api.listUsers({
-        keyword: keywordRef.current,
+        keyword: alertAccount || keywordRef.current,
         status,
         page,
         pageSize,
@@ -93,7 +105,7 @@ export function UsersPage({ api }: { api: AdminApi }) {
       setListError(err);
       setListPhase("error");
     }
-  }, [api, status, page, pageSize]);
+  }, [api, status, page, pageSize, alertAccount]);
 
   useEffect(() => {
     void loadList();
@@ -262,11 +274,20 @@ export function UsersPage({ api }: { api: AdminApi }) {
       </header>
 
       <div className="toolbar" role="search">
+        {alertAccount && (
+          <p>
+            仅查看这条告警关联的账号{" "}
+            <Button onClick={clearAlertAccount}>显示全部账号</Button>
+          </p>
+        )}
         <input
           type="search"
           placeholder="按账号搜索…"
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          onChange={(e) => {
+            clearAlertAccount();
+            setKeyword(e.target.value);
+          }}
           aria-label="按账号搜索"
         />
         <select
@@ -294,7 +315,10 @@ export function UsersPage({ api }: { api: AdminApi }) {
         <ErrorState error={listError} onRetry={() => setTick((t) => t + 1)} />
       )}
       {listPhase === "ready" && list && list.items.length === 0 && (
-        <EmptyState title="没有符合条件的账号" hint="调整搜索关键词或状态筛选后再试。" />
+        <EmptyState
+          title="没有符合条件的账号"
+          hint="调整搜索关键词或状态筛选后再试。"
+        />
       )}
       {listPhase === "ready" && list && list.items.length > 0 && (
         <>
@@ -328,13 +352,18 @@ export function UsersPage({ api }: { api: AdminApi }) {
                       aria-label={`查看 ${u.username} 详情`}
                     >
                       <td>
-                        <span className="money-strong" style={{ fontFamily: "var(--font-num)" }}>
+                        <span
+                          className="money-strong"
+                          style={{ fontFamily: "var(--font-num)" }}
+                        >
                           {u.username}
                         </span>
                         <span className="sub">{u.deviceCount} 台设备</span>
                       </td>
                       <td>
-                        <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+                        <StatusBadge tone={badge.tone}>
+                          {badge.label}
+                        </StatusBadge>
                       </td>
                       <td className="num">{formatMicroYuan(u.grantedMicro)}</td>
                       <td className="num">{formatMicroYuan(u.spentMicro)}</td>
@@ -362,13 +391,21 @@ export function UsersPage({ api }: { api: AdminApi }) {
           </div>
           {totalPages > 1 && (
             <div className="toolbar" style={{ justifyContent: "flex-end" }}>
-              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <Button
+                variant="ghost"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
                 上一页
               </Button>
               <span className="sub" style={{ alignSelf: "center" }}>
                 {page} / {totalPages} 页
               </span>
-              <Button variant="ghost" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              <Button
+                variant="ghost"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
                 下一页
               </Button>
             </div>
@@ -379,16 +416,26 @@ export function UsersPage({ api }: { api: AdminApi }) {
       {detailPhase !== "closed" && (
         <>
           <div className="drawer-backdrop" onClick={closeDetail} />
-          <aside className="drawer" role="dialog" aria-modal="true" aria-label="用户详情">
+          <aside
+            className="drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="用户详情"
+          >
             {detailPhase === "loading" && (
               <>
-                <Button variant="ghost" onClick={closeDetail}>关闭</Button>
+                <Button variant="ghost" onClick={closeDetail}>
+                  关闭
+                </Button>
                 <Skeleton rows={6} height={24} />
               </>
             )}
             {detailPhase === "error" && (
               <>
-                <ErrorState error={detailError} onRetry={() => selectedUser && openDetail(selectedUser)} />
+                <ErrorState
+                  error={detailError}
+                  onRetry={() => selectedUser && openDetail(selectedUser)}
+                />
                 <Button variant="ghost" onClick={closeDetail}>
                   关闭
                 </Button>
@@ -418,26 +465,41 @@ export function UsersPage({ api }: { api: AdminApi }) {
                 <div className="wallet-grid">
                   <div className="wallet-cell">
                     <span className="k">累计额度</span>
-                    <div className="v">{formatMicroYuan(detail.grantedMicro)}</div>
+                    <div className="v">
+                      {formatMicroYuan(detail.grantedMicro)}
+                    </div>
                   </div>
                   <div className="wallet-cell">
                     <span className="k">已消费</span>
-                    <div className="v">{formatMicroYuan(detail.spentMicro)}</div>
+                    <div className="v">
+                      {formatMicroYuan(detail.spentMicro)}
+                    </div>
                   </div>
                   <div className="wallet-cell">
                     <span className="k">预留中（在途冻结）</span>
-                    <div className="v">{formatMicroYuan(detail.reservedMicro)}</div>
+                    <div className="v">
+                      {formatMicroYuan(detail.reservedMicro)}
+                    </div>
                   </div>
                   <div className="wallet-cell">
                     <span className="k">可用余额</span>
-                    <div className="v">{formatMicroYuan(detail.availableMicro)}</div>
+                    <div className="v">
+                      {formatMicroYuan(detail.availableMicro)}
+                    </div>
                   </div>
                 </div>
-                <p className="wallet-note">费用不明风险预留：{formatMicroYuan(detail.unknownRiskMicro || 0)}。余额 = 累计额度 − 已消费 − 在途预留 − 费用不明风险。</p>
+                <p className="wallet-note">
+                  费用不明风险预留：
+                  {formatMicroYuan(detail.unknownRiskMicro || 0)}。余额 =
+                  累计额度 − 已消费 − 在途预留 − 费用不明风险。
+                </p>
 
                 {resetResult && (
                   <p className="login-notice" role="status">
-                    临时密码：<code style={{ fontFamily: "var(--font-num)" }}>{resetResult.password}</code>
+                    临时密码：
+                    <code style={{ fontFamily: "var(--font-num)" }}>
+                      {resetResult.password}
+                    </code>
                     <br />
                     {resetResult.note}
                   </p>
@@ -464,15 +526,23 @@ export function UsersPage({ api }: { api: AdminApi }) {
                   >
                     追加额度
                   </Button>
-                  {(detail.personalAiPaused ?? detail.status === "ai-paused") ? (
-                    <Button variant="ghost" onClick={() => beginAction({ kind: "ai", user: detail, pause: false })}>
+                  {(detail.personalAiPaused ??
+                  detail.status === "ai-paused") ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        beginAction({ kind: "ai", user: detail, pause: false })
+                      }
+                    >
                       恢复 AI
                     </Button>
                   ) : (
                     <Button
                       variant="ghost"
                       disabled={detail.status === "disabled"}
-                      onClick={() => beginAction({ kind: "ai", user: detail, pause: true })}
+                      onClick={() =>
+                        beginAction({ kind: "ai", user: detail, pause: true })
+                      }
                     >
                       暂停 AI
                     </Button>
@@ -664,7 +734,9 @@ export function UsersPage({ api }: { api: AdminApi }) {
                   ))
                 )}
 
-                <h3 className="section-title">最近管理操作（审计，受保护不可删）</h3>
+                <h3 className="section-title">
+                  最近管理操作（审计，受保护不可删）
+                </h3>
                 {detail.recentAudit.length === 0 ? (
                   <EmptyState title="暂无该用户的管理操作记录" />
                 ) : (
