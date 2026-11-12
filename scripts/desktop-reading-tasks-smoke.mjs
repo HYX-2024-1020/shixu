@@ -420,14 +420,14 @@ scenario: try {
       const db=openSyntheticTenantWriter(fixture.service,fixture.invitation.userId);
       try {db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id);} finally {db.close();}
       await page.getByRole("button",{name:"立即同步",exact:true}).click();
-      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       const after=await page.evaluate(()=>window.desktop.cloud("status"));
       assert.ok(after.jobs[0].rootActiveMs >= task.rootActiveMs);
       assert.equal(calls,1);assert.equal(after.account.wallet.spent,before.account.wallet.spent);
       await page.reload();
       await page.locator(".bucket-settings").click();
-      await expect(page.getByText(/资料进度与安全记录不一致/)).toBeVisible();
+      await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,safetyRollback:true,
         sameTimeFloor:true,noContinue:true,reloadGatePreserved:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent}));
