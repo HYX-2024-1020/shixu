@@ -164,6 +164,9 @@ it("keeps numbered service windows out of dates while preserving an actual day",
     absoluteText("北校区师生服务大厅23号窗口，11月4日办理", "2026-10-31"),
   ).toBe("北校区师生服务大厅23号窗口，2026年11月04日办理");
   expect(parseDateExpression("师生服务大厅23号窗口", "2026-10-31")).toBeNull();
+  expect(parseDateExpression("11月4日在23号窗口办理", "2026-10-31")?.date).toBe(
+    "2026-11-04",
+  );
   expect(parseDeadline("23号前往窗口办理", "2026-10-31").date).toBe(
     "2026-11-23",
   );
