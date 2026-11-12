@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { accountUIFixture } from "./account-ui-fixture.mjs";
-import { waitForPageState } from "./desktop-test-wait.mjs";
+import { waitForPageState, waitForDesktopReady } from "./desktop-test-wait.mjs";
 import { ReadingLedger } from "../server/reading/ledger.mjs";
 import { readMaterial } from "../server/reading/material.mjs";
 const root = await mkdtemp(join(tmpdir(), "shixu-account-v4-ui-")),
@@ -43,9 +43,7 @@ try {
   await page
     .getByRole("textbox", { name: "往桶里放入内容", exact: true })
     .waitFor();
-  await expect(
-    page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
-  ).toBeEnabled();
+  await waitForDesktopReady(page, "account initial");
   await page.locator(".bucket-settings").click();
   await page.getByRole("button", { name: "首次注册", exact: true }).click();
   await page.getByLabel("账号名称", { exact: true }).fill("ui-tester");
@@ -81,9 +79,7 @@ try {
     page.waitForEvent("domcontentloaded"),
     page.getByRole("button", { name: "账号登录", exact: true }).click(),
   ]);
-  await expect(
-    page.getByRole("textbox", { name: "往桶里放入内容", exact: true }),
-  ).toBeEnabled();
+  await waitForDesktopReady(page, "account relogin");
   await waitForPageState(
     page,
     async () => (await window.desktop.cloud("status")).activation === "active",
