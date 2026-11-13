@@ -528,6 +528,7 @@ scenario: try {
       ).originalStorage;
       assert.equal(storage.usedBytes, 0);
       assert.equal(storage.originals[0].state, "deleted");
+      await page.getByRole("button", { name: "返回整理任务", exact: true }).click();
     }
     if (revisionReuse) {
       const previousCalls = calls;
