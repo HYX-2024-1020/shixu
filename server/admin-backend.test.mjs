@@ -8,6 +8,59 @@ import { AccountsV4 } from "./accounts-v4.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
 import { AdminBackend } from "./admin-backend.mjs";
 
+test("a sustained service alert survives restart and recovers only when live failures subside", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "shixu-admin-risk-restart-"));
+  const registry = new AccountRegistry(
+    directory,
+    "synthetic-secret-".repeat(4),
+  );
+  const credentials = new AccountsV4(registry);
+  const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
+  let at = Date.now();
+  let failures = [
+    { account: "synthetic-a", reason: "READING_TIMEOUT", count: 2 },
+    { account: "synthetic-b", reason: "READING_TIMEOUT", count: 2 },
+    { account: "synthetic-c", reason: "READING_TIMEOUT", count: 1 },
+  ];
+  const options = {
+    path: join(directory, "ops.sqlite"),
+    registry,
+    ledger,
+    directory,
+    now: () => at,
+    routes: { snapshot: () => ({ running: 0, waiting: 0, failures }) },
+  };
+  let backend = new AdminBackend(options);
+  t.after(() => {
+    backend.close();
+    credentials.close();
+    registry.close();
+    ledger.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const alerts = () =>
+    backend.alerts().filter((a) => a.kind === "task-READING_TIMEOUT");
+  assert.equal(alerts().length, 0);
+  at += 120001;
+  backend.sample();
+  const original = alerts()[0];
+  assert.ok(original);
+  assert.equal(original.recoveredAt, null);
+  backend.close();
+  at += 1000;
+  backend = new AdminBackend(options);
+  assert.equal(alerts().length, 1);
+  assert.equal(alerts()[0].id, original.id);
+  assert.equal(alerts()[0].recoveredAt, null);
+  failures = failures.slice(0, 2);
+  backend.sample();
+  assert.ok(alerts()[0].recoveredAt);
+  backend.close();
+  backend = new AdminBackend(options);
+  assert.equal(alerts().length, 1);
+  assert.ok(alerts()[0].recoveredAt);
+});
+
 test("durable independent controls compose, deduplicate, preserve billing and append-only audit", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-admin-backend-"));
   const registry = new AccountRegistry(

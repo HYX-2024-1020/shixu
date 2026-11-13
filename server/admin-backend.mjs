@@ -61,7 +61,17 @@ export class AdminBackend {
       CREATE TRIGGER IF NOT EXISTS intents_no_update BEFORE UPDATE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
       CREATE TRIGGER IF NOT EXISTS intents_no_delete BEFORE DELETE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`);
     this.operations = new Map();
-    this.failureObservations = new Map();
+    // An active service alert has already passed the observation window.
+    // Recheck its live threshold immediately after restart instead of recording
+    // a false recovery while a fresh in-memory observation matures.
+    this.failureObservations = new Map(
+      this.db
+        .prepare(
+          "SELECT kind FROM alerts WHERE kind LIKE 'task-%' AND object='site' AND recovered_at IS NULL",
+        )
+        .all()
+        .map(({ kind }) => [kind.slice(5), now() - 120000]),
+    );
     this.cloudOperations = new CloudOperations(path, { now });
     this.cpu = this.cpuTimes();
     this.sample();
