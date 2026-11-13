@@ -1,5 +1,9 @@
 # 成果复用与推进约束
 
+## 当前接续（2026-11-13第二轮整改留存）
+
+第二轮[R01—R13反馈/验收](user-feedback-round2-20261113.md)与[grill Q1—Q12决定](acceptance-round2-grill-20261113.md)已统一，跟踪[#118](https://github.com/HYX-2024-1020/shixu/issues/118)。本对话只做文档PR，新对话按[启动提示词](acceptance-round2-start-prompt-20261113.md)实施；先核对文档PR/CI、看板#117交接与固定工作区，另开修复分支。保留第一轮成果，不将留存、CI或原入口打开当作第二轮产品验收。
+
 ## 当前接续（2026-11-11）
 
 用户集中体验已结束；下一轮先读[28项反馈及复现对照](user-feedback-20261111.md)和[修复启动提示词](acceptance-repair-start-prompt-20261111.md)。本次留存只整理反馈，不代表修复或用户验收通过。先核对留存PR/CI与固定工作区状态，再开独立修复任务。Windows、现有云端及原控制台整改优先，小程序仍后置。
