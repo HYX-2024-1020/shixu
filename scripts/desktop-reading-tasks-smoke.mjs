@@ -270,6 +270,10 @@ scenario: try {
       packetId: "task-ui",
     });
   }, original);
+  await page.locator(".bucket-settings").click();
+  await page.getByRole("button", { name: "AI与用量", exact: true }).click();
+  await expect(page.getByText(/累计已消费/)).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.getByRole("button",{name:"整理结果",exact:true}).click();
   await page.getByRole("button",{name:"整理任务",exact:true}).click();
   if (partialRemaining) {
@@ -385,7 +389,6 @@ scenario: try {
       }),
     );
   } else {
-    await expect(page.getByText(/累计已消费/)).toBeVisible();
     if(costAudit) {
       await waitForPageState(page,async()=>{
         await window.desktop.cloud("sync");
@@ -505,7 +508,7 @@ scenario: try {
           .getByRole("button", { name: "下载到本机", exact: true })
           .click();
         await expect(
-          page.getByText("原件已校验并保存到本机，可从材料面板打开", {
+          page.getByText("原件已校验并保存至：" + join(fixture.env.SHIXU_DATA_DIR,"synthetic-original-download.txt"), {
             exact: true,
           }),
         ).toBeVisible();
