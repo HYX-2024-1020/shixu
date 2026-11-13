@@ -4,6 +4,7 @@ import { statfsSync, readFileSync, existsSync, lstatSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { CloudOperations } from "./cloud-operations.mjs";
+import { serviceFailureSignals } from "./admin-risk.mjs";
 
 const fail = (status, code) => {
   throw Object.assign(Error(code), { status, code });
@@ -52,6 +53,7 @@ export class AdminBackend {
       CREATE TRIGGER IF NOT EXISTS intents_no_update BEFORE UPDATE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
       CREATE TRIGGER IF NOT EXISTS intents_no_delete BEFORE DELETE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`);
     this.operations = new Map();
+    this.failureObservations = new Map();
     this.cloudOperations = new CloudOperations(path, { now });
     this.cpu = this.cpuTimes();
     this.sample();
@@ -241,7 +243,7 @@ export class AdminBackend {
   budget() {
     return this.ledger.budget();
   }
-  storage() {
+  storage(cutoff = this.now()) {
     const root = dirname(this.registry.db.location());
     const users = this.users(new URLSearchParams("pageSize=100")).items.map(
       (user) => {
@@ -271,6 +273,20 @@ export class AdminBackend {
                 )
                 .all()
             : [];
+          const hasTasks = db
+            .prepare("SELECT 1 FROM sqlite_master WHERE name='reading_tasks'")
+            .get();
+          const eligible = has
+            ? db
+                .prepare(
+                  "SELECT packet,id,version,size,cleanup FROM original_files f WHERE mode='retained' AND state NOT IN ('deleted','cleaned') AND cleanup<=?" +
+                    (hasTasks
+                      ? " AND NOT EXISTS(SELECT 1 FROM reading_tasks t WHERE t.packet=f.packet AND t.state IN ('queued','running','applying'))"
+                      : "") +
+                    " ORDER BY packet,id",
+                )
+                .all(cutoff)
+            : [];
           const page = db.prepare("PRAGMA page_size").get().page_size;
           return {
             accountId: user.id,
@@ -293,6 +309,11 @@ export class AdminBackend {
                   .get().n
               : 0,
             originals,
+            cleanupEligibleCount: eligible.length,
+            cleanupEligibleBytes: eligible.reduce((n, f) => n + f.size, 0),
+            cleanupStamp: createHash("sha256")
+              .update(JSON.stringify(eligible))
+              .digest("hex"),
           };
         } finally {
           db.close();
@@ -397,12 +418,42 @@ export class AdminBackend {
     if (Number(disk.bavail) / Number(disk.blocks) <= 0.2)
       fail(503, "DISK_FULL");
   }
+  cleanupPreview(cutoff = this.now()) {
+    const storage = this.storage(cutoff);
+    const snapshots = this.cloudOperations.inventory()?.snapshots || [];
+    const source = {
+      cutoff,
+      originals: storage.users.map((u) => [u.accountId, u.cleanupStamp || ""]),
+      snapshots: snapshots.map((s) => [s.id, s.expiresAt, s.available]),
+    };
+    return {
+      at: cutoff,
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify(source))
+        .digest("hex"),
+      originals: storage.users.reduce(
+        (n, u) => n + (u.cleanupEligibleCount || 0),
+        0,
+      ),
+      logicalBytes: storage.users.reduce(
+        (n, u) => n + (u.cleanupEligibleBytes || 0),
+        0,
+      ),
+      reusablePageBytes: storage.freePageBytes,
+      expiredBackups: snapshots.filter(
+        (s) => s.expiresAt && Date.parse(s.expiresAt) <= cutoff,
+      ).length,
+      protected:
+        "有效原件引用、在途任务、卡片、账本、安全审计及最后一份校验有效备份保留；物理回收量以执行结果为准",
+    };
+  }
   operationsStatus() {
     return {
       maintenance: this.cloudOperations.maintenance(),
       jobs: this.cloudOperations.jobs(),
       budget: this.budget(),
       inventory: this.cloudOperations.inventory(),
+      cleanupPreview: this.cleanupPreview(),
     };
   }
   requestOperation(value, operation, actor) {
@@ -414,8 +465,27 @@ export class AdminBackend {
       operation,
       actor,
       { ...value, reason: value.args?.reason || "" },
-      () =>
-        this.cloudOperations.request(value.kind, value.args, operation, actor),
+      () => {
+        if (
+          value.kind === "cleanup" &&
+          !this.cloudOperations.jobs().some((j) => j.id === operation)
+        ) {
+          if (
+            !Number.isSafeInteger(value.args.cleanupBefore) ||
+            value.args.cleanupBefore > this.now() ||
+            this.now() - value.args.cleanupBefore > 120000 ||
+            value.args.cleanupFingerprint !==
+              this.cleanupPreview(value.args.cleanupBefore).fingerprint
+          )
+            fail(409, "CLEANUP_PREVIEW_CHANGED");
+        }
+        return this.cloudOperations.request(
+          value.kind,
+          value.args,
+          operation,
+          actor,
+        );
+      },
     );
   }
   control(scope, paused, operation, actor, reason = "") {
@@ -710,13 +780,13 @@ export class AdminBackend {
         "全站月预算不足，保留进度，核对预算后需主动继续",
       );
     const priceError = this.pricingHealth();
-    for (const failure of this.routes.snapshot().failures || [])
-      add(
-        "task-" + failure.reason,
-        failure.account,
-        "warning",
-        `${failure.count} 个任务等待处理：${failure.reason}；请核对用户任务及累计费用`,
-      );
+    signals.push(
+      ...serviceFailureSignals(
+        this.routes.snapshot().failures,
+        this.failureObservations,
+        at,
+      ),
+    );
     if (priceError)
       add("tariff", "site", "critical", `模型价格验证门禁：${priceError}`);
     if (this.routes.snapshot().waiting >= 10)
@@ -789,7 +859,7 @@ export class AdminBackend {
         const taskFailure = r.kind.startsWith("task-");
         const userIssue = ["unknown-cost", "ledger"].includes(r.kind);
         const friendlyMessage = taskFailure
-          ? `${r.message.match(/^\d+/)?.[0] || "部分"} 个任务尚未完成，资料与累计费用保留；请查看具体任务的处理报告。`
+          ? r.message
           : r.kind === "operation-failed"
             ? "最近的维护操作未完成，维护权限仍暂停；请核对执行回执并修复原因。"
             : r.kind === "operation-pending"
@@ -821,7 +891,7 @@ export class AdminBackend {
         return {
           id: String(r.id),
           title: taskFailure
-            ? "有整理任务需要跟进"
+            ? "多人持续处理异常，需要核对服务"
             : titles[r.kind] || "服务状态需要核对",
           kind: r.kind,
           technicalMessage: r.message,
@@ -840,7 +910,7 @@ export class AdminBackend {
                 ? "查看备份与维护回执"
                 : "核对运行与审计",
           actionHref: taskFailure
-            ? "#/tasks?account=" + encodeURIComponent(r.object)
+            ? "#/tasks"
             : userIssue
               ? "#/users?account=" + encodeURIComponent(r.object)
               : ["backup-missing", "operation-failed"].includes(r.kind)

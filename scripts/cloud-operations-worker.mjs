@@ -309,7 +309,7 @@ async function main() {
         result = await takeCloudSnapshot(config);
       } else if (kind === "restore")
         result = restoreCloudSnapshot(config, job.args.snapshotId);
-      else if (kind === "cleanup") result = cleanCloudStorage(config);
+      else if (kind === "cleanup") result = cleanCloudStorage(config, {now:job.args.cleanupBefore || Date.now()});
       else throw Error("INVALID_OPERATION");
       ops.event(id, "running", "", result);
     } catch (e) {

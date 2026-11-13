@@ -554,6 +554,11 @@ export class ReadingTasks {
       }
       const task = this.get(id);
       if (!task) throw error("TASK_NOT_FOUND");
+      if (
+        ["continue", "accept-partial"].includes(action) &&
+        this.store.record(task.packet)?.data?.defaultCardDisposition
+      )
+        throw error("MATERIAL_DECIDED");
       if (task.state === "purged") throw error("INVALID_TASK_TRANSITION");
       if (
         task.generation !== expectedGeneration ||

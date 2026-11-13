@@ -16,7 +16,7 @@ try {
   foreach($file in $delivery.files){
     if($file.group -notin @('console','connection') -or $file.path -notmatch '^[\w./-]+$' -or $file.path.Contains('..')){throw 'Invalid payload path'}
     if($file.group -eq 'connection' -and $file.path -notin @('connection.json','known_hosts','id_ed25519','ssh_config')){throw 'Unexpected connection file'}
-    if($file.group -eq 'console' -and $file.path -notin @('Launch-Cloud.ps1','Launch.ps1','Cloud-Start.vbs','Launch.vbs','console-xu-v1.ico','current.json') -and -not $file.path.StartsWith(('releases/'+$delivery.release+'/'))){throw 'Unexpected console file'}
+    if($file.group -eq 'console' -and $file.path -notin @('Launch-Cloud.ps1','Launch.ps1','Cloud-Start.vbs','Launch.vbs','console-xu-v2.ico','current.json') -and -not $file.path.StartsWith(('releases/'+$delivery.release+'/'))){throw 'Unexpected console file'}
     $source=[IO.Path]::GetFullPath((Join-Path $payload ($file.group+'\'+$file.path)))
     if(-not $source.StartsWith($payload,[StringComparison]::OrdinalIgnoreCase) -or (Hash-File $source) -ne $file.sha256){throw 'Payload checksum failed'}
     $targetRoot=if($file.group -eq 'console'){$console}else{$connection}
@@ -59,7 +59,7 @@ try {
   $shortcut.TargetPath=Join-Path $env:SystemRoot 'System32\wscript.exe'
   $shortcut.Arguments='"'+(Join-Path $console 'Cloud-Start.vbs')+'"'
   $shortcut.WorkingDirectory=$console;$shortcut.WindowStyle=7
-  $shortcut.IconLocation=(Join-Path $console 'console-xu-v1.ico')+',0'
+  $shortcut.IconLocation=(Join-Path $console 'console-xu-v2.ico')+',0'
   $shortcut.Save()
   & (Join-Path $env:SystemRoot 'System32\cscript.exe') //Nologo (Join-Path $console 'Cloud-Start.vbs') /headless
   if($LASTEXITCODE -ne 0){throw 'Installed console startup failed'}

@@ -646,3 +646,43 @@ test("chat status and correction metadata follow the existing manual card rules"
   assert.equal(packet.itemState.item1.completedAt, "2026-10-30T08:00:00.000Z");
   assert.equal(packet.itemState.item1.history.length, 1);
 });
+
+for (const scope of ["packet", "group", "selected"])
+  test(`explicit ${scope} scope yields a merge preview without adding or modifying source cards`, async (t) => {
+    const f = fixture(t, {
+      chatProvider: async (sources) => {
+        const context = JSON.parse(sources[0].text);
+        assert.equal(context.relatedItems.length, 1);
+        assert.equal(context.relatedItems[0].itemId, "item2");
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            reply: "待确认合并",
+            patch: {},
+            merge: {
+              title: "合并事项",
+              targets: [context.currentTarget, context.relatedItems[0]],
+            },
+          },
+        };
+      },
+    });
+    const before = f.store.record("packet").data;
+    f.put({
+      itemState: { item2: { ...before.itemState.item2, groupIds: ["theme"] } },
+    });
+    f.input.chat = {
+      ...f.input.chat,
+      scope,
+      groupId: "theme",
+      targets: [{ packetId: "packet", itemId: "item2" }],
+      baseVersion: f.store.record("packet").version,
+    };
+    f.enqueue();
+    assert.equal((await finish(f.tasks)).state, "done");
+    const after = f.store.record("packet").data;
+    assert.deepEqual(after.result.items, before.result.items);
+    assert.equal(after.itemState.item1.chatMerge.targets.length, 2);
+    assert.equal(after.itemState.item2.mergedInto, undefined);
+    assert.equal(f.calls().chat, 1);
+  });

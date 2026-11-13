@@ -24,7 +24,7 @@
     "check": "tsc -b",
     "test:e2e": "playwright test",
     "start": "node --env-file-if-exists=.env server/index.mjs",
-    "test:server": "node --test server/server.test.mjs server/database-schema.test.mjs server/admin-service.test.mjs server/admin-backend.test.mjs server/admin-management.test.mjs server/cloud-backup.test.mjs server/console-gateway.test.mjs",
+    "test:server": "node --test server/server.test.mjs server/database-schema.test.mjs server/admin-service.test.mjs server/admin-backend.test.mjs server/admin-risk.test.mjs server/admin-management.test.mjs server/cloud-backup.test.mjs server/console-gateway.test.mjs",
     "desktop:build": "tsc -b && vite build --base=/",
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",

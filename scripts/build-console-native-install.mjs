@@ -164,7 +164,7 @@ lines.push(
   'SetOutPath "$LOCALAPPDATA\\Shixu\\AdminConsole"',
   "File /oname=native-delivery.json " + quote(manifest),
   "${DisableX64FSRedirection}",
-  'CreateShortCut "$DESKTOP\\拾序管理控制台.lnk" "$WINDIR\\System32\\wscript.exe" \'"$LOCALAPPDATA\\Shixu\\AdminConsole\\Cloud-Start.vbs"\' "$LOCALAPPDATA\\Shixu\\AdminConsole\\console-xu-v1.ico"',
+  'CreateShortCut "$DESKTOP\\拾序管理控制台.lnk" "$WINDIR\\System32\\wscript.exe" \'"$LOCALAPPDATA\\Shixu\\AdminConsole\\Cloud-Start.vbs"\' "$LOCALAPPDATA\\Shixu\\AdminConsole\\console-xu-v2.ico"',
   "${EnableX64FSRedirection}",
   "nsExec::ExecToLog '\"$LOCALAPPDATA\\Shixu\\AdminConsole\\releases\\" +
     metadata.release +

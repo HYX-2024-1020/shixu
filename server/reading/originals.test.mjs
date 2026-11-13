@@ -513,3 +513,61 @@ test("a v4 original tenant refuses a v3-only binary instead of bypassing retenti
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("renew immediately extends the existing deadline by 30 days and replay does not extend twice", () => {
+  const f = fixture();
+  try {
+    f.put("packet");
+    const a = f.file();
+    const sub = f.begin("packet", [a]);
+    f.originals.put(sub.submissionId, a.id, a.body);
+    f.commit(sub);
+    const before = f.originals.list().originals[0];
+    const request = {
+      operationId: "extend-now",
+      ids: [{ packetId: "packet", id: a.id, expectedVersion: before.version }],
+    };
+    const receipt = f.originals.action("renew", request);
+    assert.equal(
+      f.originals.list().originals[0].expiresAt,
+      before.expiresAt + 30 * day,
+    );
+    assert.deepEqual(f.originals.action("renew", request), receipt);
+    assert.equal(
+      f.originals.list().originals[0].expiresAt,
+      before.expiresAt + 30 * day,
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test("physical storage pressure blocks new uploads without deleting existing originals or blocking manual edits and renewal", () => {
+  const f = fixture();
+  try {
+    f.put("packet");
+    const a = f.file(),
+      sub = f.begin("packet", [a]);
+    f.originals.put(sub.submissionId, a.id, a.body);
+    f.commit(sub);
+    f.originals.freeSpace = () => 0;
+    f.put("new-packet");
+    assert.throws(
+      () => f.begin("new-packet", [{ ...a, id: "new-file" }]),
+      (e) => e.code === "STORAGE_PRESSURE",
+    );
+    f.put("packet", { text: "人工补充" });
+    assert.equal(f.store.record("packet").data.text, "人工补充");
+    const row = f.originals.list().originals[0];
+    assert.equal(
+      f.originals.action("renew", {
+        operationId: "renew-pressure",
+        ids: [{ packetId: "packet", id: a.id, expectedVersion: row.version }],
+      }).results[0].code,
+      "OK",
+    );
+    assert.deepEqual(f.store.files.get("packet", a.id).body, a.body);
+  } finally {
+    f.close();
+  }
+});

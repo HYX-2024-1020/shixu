@@ -1,5 +1,9 @@
 # 当前成果与接续入口
 
+## 2026-11-13 第二轮集中整改开发中（#118）
+
+用户已在新对话启动PR119所存R01—R13的产品整改，独立分支`fix/acceptance-round-two`；[实施、根因与分层验证](project-continuity/acceptance-round2-repair-20261113.md)。默认卡、小组/合并、设置用途接续、旧任务续接、下载续期与管理治理正在集成，尚未完成最终CI、部署、原生安装或用户复验，运行包仍0.3.26。看板PR120/#117和外部前端保持独立，不在本修复中接入；小程序与双端用户联验继续后置。
+
 ## 2026-11-13 第二轮反馈及grill决定已确认，留存待实施
 
 用户补充R01—R13并完成Q1—Q12访谈，明确下一对话实施；本轮仅文档PR，未修产品、部署或安装。[完整清单与验收](project-continuity/user-feedback-round2-20261113.md)、[逐题问答](project-continuity/acceptance-round2-grill-20261113.md)、[新对话提示词](project-continuity/acceptance-round2-start-prompt-20261113.md)统一跟踪[#118](https://github.com/HYX-2024-1020/shixu/issues/118)。0.3.26运行基线不变，下载续期、旧任务重试等用户复验反馈重新调查；不能凭第一轮CI称其已解决。演出暂保持、双端同步联验后置，不进入小程序；保护#117看板前端交接，固定checkout串行协调，不混用任务分支。

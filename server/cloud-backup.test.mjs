@@ -277,7 +277,7 @@ test("real cross-database snapshots restore old tenant data using the live trust
     reopenedLedger.close();
   }
 });
-test("snapshot hashes and seven-day expiry fail closed, rotation retains only two verified successes and never changes authority", async (t) => {
+test("snapshot hashes and seven-day expiry fail closed, rotation keeps two successes and protects the final valid copy after expiry without changing authority", async (t) => {
   const f = await fixture(t),
     now = Date.now();
   for (let i = 0; i < 3; i++)
@@ -305,7 +305,15 @@ test("snapshot hashes and seven-day expiry fail closed, rotation retains only tw
   );
   rotateCloudSnapshots(f.config.backupRoot, { now: now + 8 * 86400000 });
   assert.deepEqual(readFileSync(f.config.ledgerPath), authority);
-  assert.equal(listCloudSnapshots(f.config.backupRoot).length, 0);
+  const kept = listCloudSnapshots(f.config.backupRoot, {
+    now: now + 8 * 86400000,
+  });
+  assert.equal(kept.length, 1);
+  assert.notEqual(kept[0].id, a.id);
+  verifyCloudSnapshot(f.config.backupRoot, kept[0].id, {
+    now: now + 8 * 86400000,
+    allowExpired: true,
+  });
 });
 test("durable operation requests serialize, deduplicate and leave maintenance gates across worker failure", (t) => {
   const root = mkdtempSync(join(tmpdir(), "shixu-cloud-jobs-"));

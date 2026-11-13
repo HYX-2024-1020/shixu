@@ -1,4 +1,105 @@
 // Generated from the same desktop organizer/chat code.
+// src/bucket/card-merge.ts
+var CardOperationError = class extends Error {
+};
+function node(packets, target) {
+  const packet = packets.find((p) => p.id === target.packetId);
+  const index = packet?.itemIds?.indexOf(target.itemId) ?? -1;
+  const meta = packet?.itemState?.[target.itemId] || {};
+  if (!packet?.result || packet.deletedAt || index < 0 || meta.deletedAt || meta.purgedAt || meta.mergedInto || meta.mergedCard || meta.defaultDecision === "pending")
+    throw new CardOperationError("目标卡片已变化、删除或参与合并，请重新核对");
+  return { packet, index, meta, item: packet.result.items[index] };
+}
+function mergeCards(packets, targets, itemId, title) {
+  if (targets.length < 2 || targets.length > 20 || !title.trim() || title.length > 150 || !/^[\w-]{1,100}$/.test(itemId) || new Set(targets.map((t) => t.packetId + "#" + t.itemId)).size !== targets.length)
+    throw new CardOperationError("请选择2至20张不同卡片并填写合并标题");
+  const nodes = targets.map((t) => node(packets, t));
+  if (packets.some((p) => p.itemIds?.includes(itemId)))
+    throw new CardOperationError("合并编号已存在");
+  const changes = /* @__PURE__ */ new Map();
+  const copy = (p) => {
+    if (!changes.has(p.id))
+      changes.set(p.id, {
+        ...p,
+        result: { ...p.result, items: [...p.result.items] },
+        itemIds: [...p.itemIds || []],
+        itemState: { ...p.itemState },
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    return changes.get(p.id);
+  };
+  const host = copy(nodes[0].packet);
+  const item = {
+    ...nodes[0].item,
+    kind: "note",
+    title: title.trim(),
+    summary: nodes.map((n) => n.item.title + "：" + n.item.summary).join("\n").slice(0, 2e3),
+    facts: [],
+    nextSteps: [],
+    uncertainties: [],
+    due: null,
+    sourceIds: [...new Set(nodes.flatMap((n) => n.item.sourceIds || []))],
+    evidence: []
+  };
+  const base = {
+    status: "active",
+    groupIds: [...new Set(nodes.flatMap((n) => n.meta.groupIds || []))]
+  };
+  host.result.items.push(item);
+  host.itemIds.push(itemId);
+  host.itemState[itemId] = {
+    ...base,
+    mergedCard: {
+      sources: targets.map((t, i) => ({ ...t, title: nodes[i].item.title })),
+      initialItem: item,
+      initialState: JSON.stringify(base)
+    }
+  };
+  for (const [i, t] of targets.entries())
+    copy(nodes[i].packet).itemState[t.itemId] = {
+      ...nodes[i].meta,
+      mergedInto: { packetId: host.id, itemId }
+    };
+  return [...changes.values()];
+}
+function undoCardMerge(packets, target, preserveEdited = false) {
+  const owner = packets.find((p) => p.id === target.packetId), index = owner?.itemIds?.indexOf(target.itemId) ?? -1;
+  const meta = owner?.itemState?.[target.itemId], merge = meta?.mergedCard;
+  if (!owner?.result || owner.deletedAt || index < 0 || !merge || meta?.deletedAt)
+    throw new CardOperationError("合并已撤销或卡片不可用");
+  const { mergedCard, chat, history, ...state } = meta;
+  const edited = JSON.stringify(owner.result.items[index]) !== JSON.stringify(merge.initialItem) || JSON.stringify(state) !== merge.initialState || !!chat?.length || !!history?.length;
+  if (edited && !preserveEdited)
+    throw new CardOperationError(
+      "合并后已有修改。请确认将主卡保留为独立卡，或取消撤销"
+    );
+  const changes = /* @__PURE__ */ new Map();
+  const copy = (p) => {
+    if (!changes.has(p.id))
+      changes.set(p.id, {
+        ...p,
+        itemState: { ...p.itemState },
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    return changes.get(p.id);
+  };
+  for (const source of merge.sources) {
+    const p = packets.find((p2) => p2.id === source.packetId), s = p?.itemState?.[source.itemId];
+    if (!p || p.deletedAt || s?.deletedAt || s?.purgedAt || s?.mergedInto?.packetId !== owner.id || s.mergedInto.itemId !== target.itemId)
+      throw new CardOperationError("源卡状态已变化，尚未撤销任何卡片");
+    copy(p).itemState[source.itemId] = { ...s, mergedInto: null };
+  }
+  copy(owner).itemState[target.itemId] = {
+    ...meta,
+    mergedCard: null,
+    ...edited ? {} : {
+      deletedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      purgedAt: (/* @__PURE__ */ new Date()).toISOString()
+    }
+  };
+  return [...changes.values()];
+}
+
 // shared/deadline-time.mjs
 var digits = {
   零: 0,
@@ -1029,7 +1130,7 @@ function itemMap(packets) {
       continue;
     packet.result.items.forEach((item, index) => {
       const meta = packet.itemState?.[packet.itemIds?.[index] || `${packet.id}:${index}`];
-      if (meta?.deletedAt || meta?.purgedAt) return;
+      if (meta?.deletedAt || meta?.purgedAt || meta?.mergedInto) return;
       const ref = itemRef(packet.id, packet.itemIds?.[index] || index);
       map.set(ref, {
         ref,
@@ -1064,10 +1165,10 @@ function buildGroups(packets) {
     }
   }
   const components = /* @__PURE__ */ new Map();
-  for (const node of nodes.values()) {
-    const root = graph.find(node.ref);
+  for (const node2 of nodes.values()) {
+    const root = graph.find(node2.ref);
     if (!components.has(root)) components.set(root, []);
-    components.get(root).push(node);
+    components.get(root).push(node2);
   }
   return [...components.values()].filter((rows) => rows.length > 1).map((rows) => {
     rows.sort(
@@ -1076,10 +1177,10 @@ function buildGroups(packets) {
     const refs = rows.map((n) => n.ref), memberSet = new Set(refs);
     const links = edges.filter((e) => memberSet.has(e.from) && memberSet.has(e.target)).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
     const units = /* @__PURE__ */ new Map();
-    for (const node of rows) {
-      const root = same.find(node.ref);
+    for (const node2 of rows) {
+      const root = same.find(node2.ref);
       if (!units.has(root)) units.set(root, []);
-      units.get(root).push(node);
+      units.get(root).push(node2);
     }
     return {
       id: [...refs].sort()[0],
@@ -1105,11 +1206,14 @@ function buildGroups(packets) {
   }).sort((a, b) => b.latestAt.localeCompare(a.latestAt));
 }
 export {
+  CardOperationError,
   DEFAULT_MODEL,
   absoluteItem,
   buildGroups,
   chatWithItem,
+  mergeCards,
   organizePacket,
+  undoCardMerge,
   validateChatUpdate,
   validateResult
 };

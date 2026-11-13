@@ -154,3 +154,79 @@ test("durable independent controls compose, deduplicate, preserve billing and ap
   );
   assert.ok(backend.overview().resources.source);
 });
+
+test("safe storage release requires a fresh matching preview and replays the same maintenance request", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "shixu-cleanup-preview-"));
+  const registry = new AccountRegistry(
+    directory,
+    "synthetic-preview-secret-".repeat(3),
+  );
+  const credentials = new AccountsV4(registry);
+  const ledger = new ReadingLedger(join(directory, "ledger.sqlite"));
+  let now = Date.now();
+  const backend = new AdminBackend({
+    path: join(directory, "ops.sqlite"),
+    registry,
+    ledger,
+    directory,
+    now: () => now,
+    routes: { snapshot: () => ({ running: 0, waiting: 0 }) },
+  });
+  t.after(() => {
+    backend.close();
+    credentials.close();
+    registry.close();
+    ledger.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  await assert.rejects(
+    backend.requestOperation(
+      { kind: "cleanup", args: { reason: "合成释放" } },
+      "missing-preview",
+      "operator",
+    ),
+    (e) => e.code === "CLEANUP_PREVIEW_CHANGED",
+  );
+  const preview = backend.operationsStatus().cleanupPreview;
+  assert.equal(preview.originals, 0);
+  assert.match(preview.protected, /最后一份/);
+  now += 120001;
+  await assert.rejects(
+    backend.requestOperation(
+      {
+        kind: "cleanup",
+        args: {
+          reason: "合成释放",
+          cleanupBefore: preview.at,
+          cleanupFingerprint: preview.fingerprint,
+        },
+      },
+      "expired-preview",
+      "operator",
+    ),
+    (e) => e.code === "CLEANUP_PREVIEW_CHANGED",
+  );
+  const fresh = backend.operationsStatus().cleanupPreview;
+  const request = {
+    kind: "cleanup",
+    args: {
+      reason: "合成释放",
+      cleanupBefore: fresh.at,
+      cleanupFingerprint: fresh.fingerprint,
+    },
+  };
+  const job = await backend.requestOperation(
+    request,
+    "confirmed-preview",
+    "operator",
+  );
+  assert.equal(job.kind, "cleanup");
+  assert.equal(job.state, "queued");
+  now += 180000;
+  assert.equal(
+    (await backend.requestOperation(request, "confirmed-preview", "operator"))
+      .id,
+    job.id,
+  );
+  assert.equal(backend.cloudOperations.jobs().length, 1);
+});

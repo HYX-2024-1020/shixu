@@ -40,6 +40,7 @@ class AccountWorkspace extends CloudWorkspace {
     this.accountState = null;
     this.confirmTemporaryLoss =
       options.confirmTemporaryLoss || (async () => false);
+    this.saveOriginal = options.saveOriginal;
   }
   async init() {
     const file = path.join(this.root, "account.enc");
@@ -413,6 +414,8 @@ class AccountWorkspace extends CloudWorkspace {
       account: this.accountState,
       materialUseNotice: this.accountState?.reading?.materialUseNotice || null,
       materialConsentAccepted: this.materialConsentAccepted(),
+      materialPurposeAccepted: this.materialAcknowledgement("purpose"),
+      materialRetentionAccepted: this.materialAcknowledgement("retention"),
       taskPreview: this.taskPreview || null,
       jobs: this.readJobs().map(({ request, ...job }) => job),
       capabilities: this.publicCapabilities,
@@ -420,6 +423,7 @@ class AccountWorkspace extends CloudWorkspace {
       loginDevices: this.loginDevices || [],
       originalStorage: this.originalStorage,
       originalNotice: this.originalNotice || "",
+      originalDownload: this.originalDownload || null,
       localSaveNotice: this.space()?.cache.localSaveError || "",
     };
   }
@@ -454,17 +458,16 @@ class AccountWorkspace extends CloudWorkspace {
     )
       throw Error("当前服务尚未支持跨卡片查询与修改建议");
     if (v4) await this.reuploadTemporary(value.packetId);
-    let saved = jobs.find(
+    let saved = jobs.findLast(
       (j) =>
         j.request.packetId === value.packetId &&
         ![
           "done",
           "partial",
           "purged",
-          "cancelled",
-          "error",
-          "conflict",
-          "interrupted",
+          ...(j.actions?.includes("continue")
+            ? []
+            : ["cancelled", "error", "conflict", "interrupted"]),
         ].includes(j.state),
     );
     if (
@@ -472,10 +475,26 @@ class AccountWorkspace extends CloudWorkspace {
       (saved.request.kind !== value.kind ||
         saved.request.instruction !== value.instruction ||
         saved.request.scope !== value.scope ||
+        saved.request.groupId !== value.groupId ||
+        JSON.stringify(saved.request.targets) !==
+          JSON.stringify(value.targets) ||
         saved.request.readAttachments !== value.readAttachments ||
         saved.request.itemId !== value.itemId)
     )
       throw Error("这次投递已有其他 AI 任务，请等待完成");
+    if (saved?.protocol === 4 && saved.actions?.includes("continue")) {
+      // A fresh user retry explicitly resumes the authoritative task. Merely
+      // returning a paused ID leaves it paused forever and loses the UI intent.
+      saved.pendingAction ||= {
+        action: "continue",
+        contractVersion: 1,
+        operationId: randomUUID(),
+        expectedGeneration: saved.generation,
+        expectedRevision: saved.inputRevision,
+        expectedMaintenanceOperation: saved.maintenanceOperation || null,
+      };
+      this.writeJobs(jobs);
+    }
     if (!saved) {
       const request = {
         id: randomUUID(),
@@ -495,6 +514,8 @@ class AccountWorkspace extends CloudWorkspace {
               itemId: value.itemId,
               instruction: value.instruction,
               scope: value.scope,
+              groupId: value.groupId,
+              targets: value.targets,
               readAttachments: value.readAttachments,
             }
           : {}),
@@ -673,12 +694,26 @@ class AccountWorkspace extends CloudWorkspace {
   materialConsentKey() {
     return `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}`;
   }
-  materialConsentAccepted() {
+  materialAcknowledgement(kind) {
     const notice = this.accountState?.reading?.materialUseNotice;
+    if (!notice) return true;
+    const record =
+      this.config.materialAcknowledgements?.[this.materialConsentKey()];
+    if (record)
+      return (
+        record[kind]?.version === notice.version &&
+        record[kind]?.accepted === true
+      );
+    // Existing explicit agreement remains valid; never infer new-user consent.
     return (
-      !notice ||
       this.config.materialConsents?.[this.materialConsentKey()] ===
-        notice.version
+      notice.version
+    );
+  }
+  materialConsentAccepted() {
+    return (
+      this.materialAcknowledgement("purpose") &&
+      this.materialAcknowledgement("retention")
     );
   }
   requireMaterialConsent() {
@@ -686,6 +721,39 @@ class AccountWorkspace extends CloudWorkspace {
       throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
   }
   action(action, value) {
+    if (action === "cardOperation")
+      return this.serial(async () => {
+        if (!this.config.active || !["merge", "undo"].includes(value?.kind))
+          throw Error("请先连接账号并核对卡片");
+        await this.sync({ force: true });
+        if (
+          this.space().client.pendingCount() ||
+          this.space().client.conflicts().length
+        )
+          throw Error("请先处理同步冲突，再合并卡片");
+        const file = this.space().cache.file("card-actions.json");
+        const saved = fs.existsSync(file)
+          ? JSON.parse(fs.readFileSync(file, "utf8"))
+          : {};
+        const key = hash(JSON.stringify(value));
+        saved[key] ||= {
+          contractVersion: 1,
+          epoch: this.config.devices[this.config.active].epoch,
+          operationId: randomUUID(),
+          receiptPacketId: value.targets?.[0]?.packetId,
+          ...value,
+        };
+        atomic(file, JSON.stringify(saved));
+        await this.request(
+          this.config.active,
+          "POST",
+          "/api/v4/cards/" + value.kind,
+          saved[key],
+        );
+        delete saved[key];
+        atomic(file, JSON.stringify(saved));
+        return this.sync({ force: true });
+      });
     if (action === "sync" && value?.force)
       return this.serial(() => this.sync({ force: true }));
     if (action === "taskPreview")
@@ -706,12 +774,40 @@ class AccountWorkspace extends CloudWorkspace {
           typeof value?.accepted !== "boolean"
         )
           throw Error("请先连接账号并刷新资料说明");
+        const key = this.materialConsentKey();
+        const old =
+          this.config.materialAcknowledgements?.[key] ||
+          Object.fromEntries(
+            ["purpose", "retention"].map((kind) => [
+              kind,
+              {
+                version: notice.version,
+                accepted: this.materialAcknowledgement(kind),
+              },
+            ]),
+          );
+        if (
+          value.kind !== undefined &&
+          !["purpose", "retention"].includes(value.kind)
+        )
+          throw Error("无效的用途确认");
+        const updates = Object.fromEntries(
+          (value.kind ? [value.kind] : ["purpose", "retention"]).map((kind) => [
+            kind,
+            {
+              version: notice.version,
+              accepted: value.accepted,
+              at: new Date().toISOString(),
+            },
+          ]),
+        );
         await this.configure({
           ...this.config,
-          materialConsents: {
-            ...this.config.materialConsents,
-            [this.materialConsentKey()]: value.accepted ? notice.version : 0,
+          materialAcknowledgements: {
+            ...this.config.materialAcknowledgements,
+            [key]: { ...old, ...updates },
           },
+          materialConsents: { ...this.config.materialConsents, [key]: 0 },
         });
         return this.status();
       });
@@ -784,6 +880,12 @@ class AccountWorkspace extends CloudWorkspace {
         if (!f || hash(bytes) !== f.hash || bytes.length !== f.size)
           throw Error("下载校验不一致，未保存原件");
         atomic(this.space().cache.file("files/" + f.hash), bytes);
+        if (this.saveOriginal) {
+          const destination = await this.saveOriginal(f, bytes);
+          this.originalDownload = destination
+            ? { saved: true, path: destination }
+            : { saved: false, path: "" };
+        }
         this.originalNotice = "原件已校验并保存到本机，可从材料面板打开";
         return this.status();
       });

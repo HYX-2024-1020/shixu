@@ -772,3 +772,201 @@ test("Windows activation retains an encrypted signing identity across lost repli
   await assert.rejects(cloud.action("sync"), (e) => e.code === "UNAUTHORIZED");
   assert.equal((await cloud.packets()).length, 1);
 });
+const { test: round2test } = require("node:test");
+round2test(
+  "world retry explicitly continues the same paused paid task without creating a replacement",
+  async (t) => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-retry-"));
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const cloud = new AccountWorkspace({
+      root,
+      local: new DesktopStore(path.join(root, "local")),
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    });
+    cloud.config = {
+      active: "synthetic",
+      devices: { synthetic: { userId: "owner" } },
+    };
+    cloud.accountState = { reading: { features: {} } };
+    cloud.space = () => ({
+      cache: { file: (name) => path.join(root, name) },
+      client: {
+        records: () => [{ id: "packet", version: 1 }],
+        pendingCount: () => 0,
+        conflicts: () => [],
+      },
+    });
+    cloud.sync = async () => cloud.status();
+    let task = {
+      id: "paid",
+      packetId: "packet",
+      kind: "organize",
+      protocol: 4,
+      state: "paused",
+      generation: 3,
+      inputRevision: "trusted",
+      actions: ["continue", "purge"],
+      calls: 2,
+    };
+    let continued = 0,
+      created = 0;
+    cloud.request = async (_base, method, url, value) => {
+      if (url === "/api/v4/tasks" && method === "GET") return { tasks: [task] };
+      if (url === "/api/v4/tasks/paid/continue") {
+        continued++;
+        assert.equal(value.expectedGeneration, 3);
+        assert.equal(value.expectedRevision, "trusted");
+        task = { ...task, state: "queued", generation: 4, actions: ["stop"] };
+        return task;
+      }
+      if (url === "/api/v4/tasks" && method === "POST") {
+        created++;
+        throw Error("must not replace paid task");
+      }
+      if (url === "/api/v4/tasks/paid") return task;
+      throw Error(url);
+    };
+    cloud.writeJobs([
+      { ...task, request: { packetId: "packet", kind: "organize" } },
+    ]);
+    await cloud.pollJobs();
+    assert.equal(continued, 0, "refresh never automatically resumes paid work");
+    const result = await cloud.action("ai", {
+      kind: "organize",
+      packetId: "packet",
+    });
+    assert.equal(result.job, "paid");
+    assert.equal(continued, 1);
+    assert.equal(created, 0);
+    assert.equal(cloud.readJobs().length, 1);
+    assert.equal(cloud.readJobs()[0].calls, 2);
+  },
+);
+round2test(
+  "signed Windows multi-card merge is atomic, restart-safe and undo protects later edits without model calls",
+  async (t) => {
+    const { accountUIFixture, fixtureItem } = await import(
+      "../scripts/account-ui-fixture.mjs"
+    );
+    const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-merge-"));
+    const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+    ledger.freezePrice({
+      id: "fixture",
+      model: "fixture",
+      currency: "CNY",
+      source: "synthetic",
+      verifiedAt: 1,
+      inputMicrosPerMillion: 1,
+      cachedMicrosPerMillion: 0,
+      outputMicrosPerMillion: 1,
+    });
+    let calls = 0;
+    const f = await accountUIFixture(
+      {},
+      {
+        reading: {
+          ledger,
+          enabled: true,
+          tenantSafety: true,
+          priceId: "fixture",
+          modelVersion: "fixture",
+          reader() {},
+          provider() {
+            calls++;
+            throw Error("no paid call permitted");
+          },
+        },
+      },
+    );
+    t.after(async () => {
+      await f.close();
+      ledger.close();
+      await fs.rm(root, { recursive: true, force: true });
+    });
+    const options = {
+      root: path.join(root, "client"),
+      local: new DesktopStore(path.join(root, "local")),
+      serviceOrigin: f.base,
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    };
+    let cloud = new AccountWorkspace(options);
+    await cloud.init();
+    await cloud.action("activate", { invite: f.invitation.invite });
+    const packets = ["a", "b"].map((id) => ({
+      id,
+      text: "合成材料",
+      sources: [],
+      attachments: [],
+      doneIds: [],
+      status: "ready",
+      captureDate: "2026-11-13",
+      capturedAt: "2026-11-13T10:00:00Z",
+      updatedAt: "2026-11-13T10:00:00Z",
+      itemIds: [id + "_item"],
+      result: { summary: "合成", warnings: [], items: [fixtureItem(id)] },
+    }));
+    await cloud.call("savePackets", packets, cloud.config.active);
+    await cloud.action("sync", { force: true });
+    let rows = await cloud.packets();
+    const targets = rows.map((p) => ({
+      packetId: p.id,
+      itemId: p.itemIds[0],
+      baseVersion: p.syncVersion,
+    }));
+    await assert.rejects(
+      cloud.action("cardOperation", {
+        kind: "merge",
+        targets: [targets[0], { ...targets[1], baseVersion: 0 }],
+        title: "合并",
+        itemId: "main",
+      }),
+    );
+    assert.equal(
+      (await cloud.packets()).find((p) => p.id === "a").result.items.length,
+      1,
+    );
+    await cloud.action("cardOperation", {
+      kind: "merge",
+      targets,
+      title: "合并",
+      itemId: "main",
+    });
+    rows = await cloud.packets();
+    assert.equal(rows.find((p) => p.id === "a").result.items.length, 2);
+    assert.ok(rows.find((p) => p.id === "b").itemState.b_item.mergedInto);
+    cloud = new AccountWorkspace(options);
+    await cloud.init();
+    await cloud.action("sync", { force: true });
+    rows = await cloud.packets();
+    const main = rows.find((p) => p.id === "a");
+    main.result.items[1].summary = "新补充内容";
+    await cloud.call("savePackets", [main], cloud.config.active);
+    await cloud.action("sync", { force: true });
+    rows = await cloud.packets();
+    const undo = {
+      kind: "undo",
+      targets: [
+        {
+          packetId: "a",
+          itemId: "main",
+          baseVersion: rows.find((p) => p.id === "a").syncVersion,
+        },
+      ],
+    };
+    await assert.rejects(cloud.action("cardOperation", undo), /已有修改/);
+    await cloud.action("cardOperation", { ...undo, preserveEdited: true });
+    rows = await cloud.packets();
+    assert.equal(
+      rows.find((p) => p.id === "a").result.items[1].summary,
+      "新补充内容",
+    );
+    assert.equal(
+      rows.find((p) => p.id === "b").itemState.b_item.mergedInto,
+      null,
+    );
+    assert.equal(calls, 0);
+  },
+);

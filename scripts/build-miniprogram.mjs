@@ -176,7 +176,7 @@ outputs.set(
 );
 const ai = await build({
   stdin: {
-    contents: `export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs'; export { buildGroups } from './shared/relations.mjs';`,
+    contents: `export { mergeCards, undoCardMerge, CardOperationError } from './src/bucket/card-merge'; export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs'; export { buildGroups } from './shared/relations.mjs';`,
     resolveDir: root,
   },
   bundle: true,

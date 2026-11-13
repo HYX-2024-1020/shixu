@@ -2191,3 +2191,30 @@ button:hover:not(:disabled) {
   border: 2px solid #b54d38;
   background: #fff4e9;
 }
+
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 0;
+  position: sticky;
+  top: 0;
+  background: #fff9e6;
+  z-index: 2;
+}
+.settings-tabs button {
+  flex-shrink: 0;
+  border: 2px solid #171713;
+  background: #fffef8;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.settings-tabs button[aria-pressed="true"] {
+  background: #ffd43b;
+  box-shadow: 2px 2px 0 #171713;
+}
+.connection-data[hidden] {
+  display: none;
+}
+
+.bucket-onboarding {margin:16px auto;max-width:720px;padding:16px;background:#fffef8;border:2px solid #171713;border-radius:6px;box-shadow:3px 3px 0 #171713;}

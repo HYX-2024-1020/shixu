@@ -364,7 +364,7 @@ export function TasksPage({ api }: { api: AdminApi }) {
               ? formatBeijingTime(selected.updatedAt)
               : "当前任务协议未采集，以上为本次查询状态"}
           </p>
-          {selected.actions.map((a) => (
+          {selected.actions.filter(a=>a!=="retry").map((a) => (
             <Button
               key={a}
               disabled={busy}

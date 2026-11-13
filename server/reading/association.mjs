@@ -120,7 +120,7 @@ export class ReadingAssociation extends ReadingMerge {
         itemState: Object.fromEntries(
           Object.entries(p.itemState || {}).map(([id, m]) => [
             id,
-            { status: m.status, deletedAt: m.deletedAt, purgedAt: m.purgedAt },
+            { status: m.status, deletedAt: m.deletedAt, purgedAt: m.purgedAt, mergedInto:m.mergedInto },
           ]),
         ),
         result: {
