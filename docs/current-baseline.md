@@ -4,9 +4,9 @@
 
 用户补充R01—R13并完成Q1—Q12访谈，明确下一对话实施；本轮仅文档PR，未修产品、部署或安装。[完整清单与验收](project-continuity/user-feedback-round2-20261113.md)、[逐题问答](project-continuity/acceptance-round2-grill-20261113.md)、[新对话提示词](project-continuity/acceptance-round2-start-prompt-20261113.md)统一跟踪[#118](https://github.com/HYX-2024-1020/shixu/issues/118)。0.3.26运行基线不变，下载续期、旧任务重试等用户复验反馈重新调查；不能凭第一轮CI称其已解决。演出暂保持、双端同步联验后置，不进入小程序；保护#117看板前端交接，固定checkout串行协调，不混用任务分支。
 
-## 2026-11-13 桌面看板方案已确认，留存待实施
+## 2026-11-13 桌面看板第三版已确认，外部前端待接回
 
-用户已确认[模块化桌面看板方案](desktop-board-plan-20261113.md)：主程序独立看板页保存多份规划，事件页默认空白、选择加入或手写，DDL 页默认读取全部主程序 DDL；手写内容与桶分离，长期子事项手动添加并保留完成/归档痕迹，支持小条/窄栏/面板与模块化布局，不增加主动提醒。本轮仅文档留存，关联[#115](https://github.com/HYX-2024-1020/shixu/issues/115)，不代表产品已实现或安装。下一对话按[实施提示词](project-continuity/desktop-board-start-prompt-20261113.md)先核对留存 PR，再另开实现任务；不向网站或既有整改 PR 追加。
+用户确认[最终企划](desktop-board-plan-20261113.md)：小条/窄栏/面板/DDL四入口；窄栏短期/长期双页签，各自新增，长期子事项自动关联短期；取消随手记，小条约250px原地展开，面板改图片/文件资料库。主程序命名规划、来源隔离、完成归档、原生生命周期与旧修复保护保留，外观延续实际主程序。用户已拿到另一位agent的前端，但本轮未查看、验收或接入；[交接记录与小样](project-continuity/desktop-board-handoff-20261113.md)明确状态。本轮仅留存最终文档，实施跟踪[#117](https://github.com/HYX-2024-1020/shixu/issues/117)，不代表功能已完成或安装；下一对话按[接回前端提示词](project-continuity/desktop-board-start-prompt-20261113.md)先收尾文档PR，再从最新主线独立实现，不混入#118整改或已合并#116/#119。
 
 ## 2026-11-13 明亮漫画卡片官网已替换
 
