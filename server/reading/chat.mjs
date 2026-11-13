@@ -145,6 +145,7 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
+      ...(!intent || this.request(id)?.protocol ? { protocol: 2 } : {}),
       ...(["account", "packet", "group", "selected"].includes(chat.scope)
         ? { scope: chat.scope }
         : {}),
@@ -175,6 +176,7 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
+      ...(!intent || this.request(id)?.protocol ? { protocol: 2 } : {}),
       ...(["account", "packet", "group", "selected"].includes(chat.scope)
         ? { scope: chat.scope }
         : {}),
@@ -228,11 +230,15 @@ export class ReadingChat {
       schema: "saved-item-chat/1",
       scope: "已保存的当前事项与本轮指令；没有重新读取原件",
       today: request.day,
-      currentTarget: {
-        packetId: request.packetId,
-        itemId: request.itemId,
-        baseVersion: record.version,
-      },
+      ...(request.protocol
+        ? {
+            currentTarget: {
+              packetId: request.packetId,
+              itemId: request.itemId,
+              baseVersion: record.version,
+            },
+          }
+        : {}),
       currentItem,
       currentState: {
         group: meta.group ?? item.group,
@@ -307,24 +313,75 @@ export class ReadingChat {
         context.relatedItems = context.relatedItems.slice(0, 200);
         context.omittedItems = true;
       }
-      context.scope =
-        ({
-          account: "当前账号最近100份可访问投递",
-          packet: "当前同次投递",
-          group: "明确指定的小组（在最近100份投递内筛选）",
-          selected: "用户明确选定卡片",
-        }[request.scope] || "当前事项") +
-        "；跨卡片修改和真正合并先生成预览，确认后执行";
+      context.scope = !request.protocol
+        ? "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行"
+        : ({
+            account: "当前账号最近100份可访问投递",
+            packet: "当前同次投递",
+            group: "明确指定的小组（在最近100份投递内筛选）",
+            selected: "用户明确选定卡片",
+          }[request.scope] || "当前事项") +
+          "；跨卡片修改和真正合并先生成预览，确认后执行";
+    }
+    const mergedChildren =
+      request.protocol && meta.mergedCard
+        ? meta.mergedCard.sources.map((source) => {
+            const row = this.engine.store.record(source.packetId),
+              child = row?.data,
+              index = child?.itemIds?.indexOf(source.itemId) ?? -1,
+              state = child?.itemState?.[source.itemId] || {};
+            if (
+              !row ||
+              row.deletedAt ||
+              row.purged ||
+              index < 0 ||
+              state.deletedAt ||
+              state.purgedAt ||
+              state.mergedInto?.packetId !== request.packetId ||
+              state.mergedInto.itemId !== request.itemId
+            )
+              return null;
+            return {
+              packetId: row.id,
+              itemId: source.itemId,
+              packet: child,
+              item: absoluteItem(child.result.items[index], child.captureDate),
+              state: {
+                status:
+                  state.status ||
+                  ((child.doneIds || []).includes(index) ? "done" : "active"),
+              },
+            };
+          })
+        : [];
+    if (request.protocol && meta.mergedCard) {
+      context.mergedChildren = mergedChildren
+        .filter(Boolean)
+        .map(({ packet, ...child }) => child);
+      context.missingMergedChildren = mergedChildren.filter(
+        (child) => !child,
+      ).length;
     }
     if (request.readAttachments) {
-      context.originals = (packet.attachments || [])
-        .filter((f) => !f.deletedAt)
+      const sourcePackets = [
+        { packetId: request.packetId, packet },
+        ...mergedChildren.filter(Boolean),
+      ];
+      context.originals = [
+        ...new Map(sourcePackets.map((p) => [p.packetId, p])).values(),
+      ]
+        .flatMap(({ packetId, packet }) =>
+          (packet.attachments || [])
+            .filter((f) => !f.deletedAt)
+            .map((f) => ({ packetId, ...f })),
+        )
         .map((f) => {
           try {
-            const actual = this.engine.store.files.get(request.packetId, f.id, {
+            const actual = this.engine.store.files.get(f.packetId, f.id, {
               forReading: true,
             });
             return {
+              ...(request.protocol ? { packetId: f.packetId } : {}),
               id: actual.id,
               name: actual.name,
               hash: actual.hash,
@@ -332,7 +389,12 @@ export class ReadingChat {
               available: true,
             };
           } catch {
-            return { id: f.id, name: f.name, available: false };
+            return {
+              ...(request.protocol ? { packetId: f.packetId } : {}),
+              id: f.id,
+              name: f.name,
+              available: false,
+            };
           }
         });
       context.scope += "；本轮明确请求核对当前卡片附件，读取覆盖另列";
@@ -362,6 +424,7 @@ export class ReadingChat {
       for (const descriptor of originals.slice(0, 8)) {
         const entry = {
           id: descriptor.id,
+          ...(descriptor.packetId ? { packetId: descriptor.packetId } : {}),
           name: descriptor.name,
           contentComplete: false,
           sources: [],
@@ -370,11 +433,15 @@ export class ReadingChat {
         if (!descriptor.available) entry.missing.push("ORIGINAL_UNAVAILABLE");
         else {
           const file = this.engine.store.files.get(
-            request.packetId,
+            descriptor.packetId || request.packetId,
             descriptor.id,
             { forReading: true },
           );
-          const material = await read(file);
+          const material = await read(
+            descriptor.packetId && descriptor.packetId !== request.packetId
+              ? { ...file, id: descriptor.packetId + "_" + file.id }
+              : file,
+          );
           entry.missing = (material.uncovered || []).map(
             (r) => r.code || "UNREAD_RANGE",
           );
@@ -470,6 +537,7 @@ export class ReadingChat {
     );
     if (
       request.readAttachments ||
+      context.mergedChildren ||
       ["account", "packet", "group", "selected"].includes(request.scope)
     ) {
       if (certified) {
@@ -489,6 +557,8 @@ export class ReadingChat {
               )
               .join("；")
           : "";
+        if (context.mergedChildren)
+          validated.readScope += `；合并主卡包含${context.mergedChildren.length}个独立子项及其来源引用。${context.missingMergedChildren ? `另${context.missingMergedChildren}个子项已不可访问，不能据此断言其内容。` : ""}`;
         if (read.omittedAttachments)
           validated.readScope += `；另${read.omittedAttachments}份附件未读，不能据此断言不存在。`;
         if ((read.attachmentContent || []).some((f) => !f.contentComplete))
@@ -535,6 +605,7 @@ export class ReadingChat {
     }
     if (raw.merge !== undefined) {
       if (
+        !request.protocol ||
         !context.relatedItems ||
         raw.proposals?.length ||
         Object.keys(raw.patch).length ||

@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
 import { defaultCard } from "./default-card";
-import { mergeCards, undoCardMerge } from "./card-merge";
+import { mergeCards, undoCardMerge, mergeCardDeletion } from "./card-merge";
 import { layoutPacket, worldLayout } from "./world-layout";
 import type { Packet } from "./types";
 function packet(id: string): Packet {
@@ -85,6 +85,7 @@ test("merge retains independent source deadlines, completion and originals, and 
     ...changes[1].result!.items[0],
     summary: "合并后补充子项",
   };
+  changes[0].itemState!.merged.deletedAt = "";
   const undone = undoCardMerge(changes, { packetId: "a", itemId: "merged" });
   expect(undone[0].itemState?.a_item.mergedInto).toBeNull();
   expect(undone[1].result?.items[0].summary).toBe("合并后补充子项");
@@ -131,4 +132,57 @@ test("empty groups and hidden type entries survive serialized storage and group 
     layoutPacket([a, setting], { ...layout, groups: [] }).result?.items,
   ).toHaveLength(0);
   expect(a.result?.items).toHaveLength(1);
+});
+
+test("deleting and restoring a merged main tombstones its children without reviving a previously deleted child", () => {
+  const merged = mergeCards(
+    [packet("a"), packet("b")],
+    [
+      { packetId: "a", itemId: "a_item" },
+      { packetId: "b", itemId: "b_item" },
+    ],
+    "main",
+    "统一办理",
+  );
+  merged[1].itemState!.b_item = {
+    ...merged[1].itemState!.b_item,
+    deletedAt: "2026-11-12",
+  };
+  merged[0].itemState!.main.deletedAt = "2026-11-13";
+  const deleted = mergeCardDeletion(
+    merged,
+    { packetId: "a", itemId: "main" },
+    "2026-11-13",
+  );
+  const combined = merged.map((p) => deleted.find((d) => d.id === p.id) || p);
+  expect(combined[0].itemState?.a_item.deletedByMerge).toBe("main");
+  expect(combined[1].itemState?.b_item.deletedAt).toBe("2026-11-12");
+  combined[0].itemState!.main.deletedAt = "";
+  const restored = mergeCardDeletion(
+    combined,
+    { packetId: "a", itemId: "main" },
+    "",
+  );
+  expect(restored[0].itemState?.a_item.deletedAt).toBe("");
+  expect(combined[1].itemState?.b_item.deletedAt).toBe("2026-11-12");
+});
+
+test("local legacy cards without explicit IDs keep their existing identities and item states through merge", () => {
+  const a = packet("a"),
+    b = packet("b");
+  delete a.itemIds;
+  delete b.itemIds;
+  a.itemState = { "a:0": { starred: true } };
+  const merged = mergeCards(
+    [a, b],
+    [
+      { packetId: "a", itemId: "a:0" },
+      { packetId: "b", itemId: "b:0" },
+    ],
+    "main",
+    "兼容合并",
+  );
+  expect(merged[0].itemIds).toEqual(["a:0", "main"]);
+  expect(merged[1].itemIds).toEqual(["b:0"]);
+  expect(merged[0].itemState?.["a:0"].starred).toBe(true);
 });

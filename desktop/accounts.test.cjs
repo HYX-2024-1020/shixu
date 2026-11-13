@@ -937,6 +937,18 @@ round2test(
     rows = await cloud.packets();
     assert.equal(rows.find((p) => p.id === "a").result.items.length, 2);
     assert.ok(rows.find((p) => p.id === "b").itemState.b_item.mergedInto);
+    await assert.rejects(
+      cloud.request(cloud.config.active, "POST", "/api/v3/operations", {
+        epoch: cloud.config.devices[cloud.config.active].epoch,
+        operation: {
+          opId: "protect-merged-source",
+          type: "delete",
+          id: "b",
+          baseVersion: rows.find((p) => p.id === "b").syncVersion,
+        },
+      }),
+      (e) => e.code === "MERGED_SOURCE_REFERENCED",
+    );
     cloud = new AccountWorkspace(options);
     await cloud.init();
     await cloud.action("sync", { force: true });
@@ -968,5 +980,55 @@ round2test(
       null,
     );
     assert.equal(calls, 0);
+  },
+);
+round2test(
+  "purpose and retention acknowledgements persist independently across closure and never imply an unchecked grant",
+  async (t) => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-consent-"));
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const options = {
+      root,
+      local: new DesktopStore(path.join(root, "local")),
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    };
+    const prepare = (cloud) => {
+      cloud.accountState = {
+        reading: { materialUseNotice: { version: 3, text: "合成用途说明" } },
+      };
+      cloud.space = () => ({
+        cache: { file: (name) => path.join(root, name) },
+        client: { pendingCount: () => 0, conflicts: () => [] },
+      });
+    };
+    let cloud = new AccountWorkspace(options);
+    await cloud.init();
+    cloud.config = {
+      active: "synthetic",
+      devices: { synthetic: { userId: "owner" } },
+    };
+    prepare(cloud);
+    assert.equal(cloud.materialConsentAccepted(), false);
+    await cloud.action("materialConsent", { kind: "purpose", accepted: true });
+    assert.equal(cloud.status().materialPurposeAccepted, true);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
+    assert.throws(() => cloud.requireMaterialConsent(), /资料用途/);
+    cloud = new AccountWorkspace(options);
+    await cloud.init();
+    prepare(cloud);
+    assert.equal(cloud.status().materialPurposeAccepted, true);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
+    await cloud.action("materialConsent", {
+      kind: "retention",
+      accepted: true,
+    });
+    assert.equal(cloud.materialConsentAccepted(), true);
+    await cloud.action("materialConsent", { kind: "purpose", accepted: false });
+    assert.equal(cloud.materialConsentAccepted(), false);
+    assert.equal(cloud.status().materialRetentionAccepted, true);
+    cloud.accountState.reading.materialUseNotice.version = 4;
+    assert.equal(cloud.materialConsentAccepted(), false);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
   },
 );

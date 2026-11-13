@@ -726,6 +726,10 @@ class AccountWorkspace extends CloudWorkspace {
         if (!this.config.active || !["merge", "undo"].includes(value?.kind))
           throw Error("请先连接账号并核对卡片");
         await this.sync({ force: true });
+        if (!this.accountState?.reading?.features?.manualCardMerge)
+          throw Error(
+            "当前服务尚未接入多卡合并，请更新服务后重试；资料保持原样",
+          );
         if (
           this.space().client.pendingCount() ||
           this.space().client.conflicts().length

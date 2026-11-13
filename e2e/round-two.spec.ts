@@ -29,6 +29,7 @@ test("failed card choices, persistent overlapping groups and true merge/undo use
           {
             kind: "task",
             title: id,
+            ...(id === "合成甲" ? { group: "已有主题" } : {}),
             summary: "保留各自要求",
             facts: [],
             nextSteps: [],
@@ -54,9 +55,26 @@ test("failed card choices, persistent overlapping groups and true merge/undo use
   await page.reload();
   await world(page);
   await expect(page.locator(".result-card")).toHaveCount(3);
+  await page
+    .getByRole("navigation", { name: "已有标签小组" })
+    .getByRole("button", { name: "已有主题", exact: true })
+    .click();
+  await expect(page.locator(".result-card")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "将「已有主题」保留为我的小组", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("navigation", { name: "我的小组" })
+      .getByRole("button", { name: "已有主题", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "全部小组", exact: true }).click();
   const fallback = page
     .locator(".result-card")
     .filter({ hasText: "合成读取未完成" });
+  await expect(
+    fallback.getByRole("button", { name: "删除事项", exact: true }),
+  ).toHaveCount(0);
   await fallback.getByRole("button", { name: "保留", exact: true }).click();
   await expect(
     page.getByText("已保留，可正常编辑、分组和删除", { exact: true }),
@@ -71,11 +89,9 @@ test("failed card choices, persistent overlapping groups and true merge/undo use
       .getByRole("navigation", { name: "我的小组" })
       .getByRole("button", { name: "校园电动车", exact: true }),
   ).toBeVisible();
-  const a = page
-    .locator(".result-card")
-    .filter({
-      has: page.getByRole("heading", { name: "合成甲", exact: true }),
-    });
+  const a = page.locator(".result-card").filter({
+    has: page.getByRole("heading", { name: "合成甲", exact: true }),
+  });
   await a.locator("summary[aria-label='更多事项操作']").click();
   await a.getByRole("checkbox", { name: "校园电动车", exact: true }).check();
   await a.locator("summary[aria-label='更多事项操作']").click();
@@ -113,7 +129,29 @@ test("failed card choices, persistent overlapping groups and true merge/undo use
   await expect(
     page.getByRole("heading", { name: "统一办理", exact: true }),
   ).toBeVisible();
+  const main = page
+    .locator(".result-card")
+    .filter({
+      has: page.getByRole("heading", { name: "统一办理", exact: true }),
+    });
+  await main.getByRole("button", { name: "删除事项", exact: true }).click();
+  await expect(page.locator(".result-card")).toHaveCount(1);
+  await page.getByLabel("结果范围", { exact: true }).selectOption("trash");
+  await expect(page.locator(".result-card")).toHaveCount(1);
+  await page.getByRole("heading", { name: "统一办理", exact: true }).click();
+  await page.getByRole("button", { name: "恢复事项", exact: true }).click();
+  await page.getByLabel("结果范围", { exact: true }).selectOption("active");
+  await expect(
+    page.getByRole("heading", { name: "统一办理", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "撤销合并", exact: true }).click();
   await expect(page.locator(".result-card")).toHaveCount(3);
+  await expect(
+    page
+      .getByRole("button", { name: "投递桶", exact: true })
+      .locator(".nav-count"),
+  ).toHaveText("3");
+  for (const card of await page.locator(".result-card").all())
+    await expect(card).toHaveCSS("opacity", "1");
   await page.screenshot({ path: info.outputPath("round-two-world.png") });
 });

@@ -1,5 +1,5 @@
 import { allPackets } from "./store";
-import { mergeCards, undoCardMerge } from "./card-merge";
+import { mergeCards, undoCardMerge, mergeCardDeletion } from "./card-merge";
 import { worldLayout, layoutPacket } from "./world-layout";
 import { defaultCard } from "./default-card";
 import CardFiles from "./CardFiles";
@@ -56,6 +56,7 @@ function Results({
   purge,
   onChat,
   onRecords,
+  onTasks,
   onRetry,
   onApplyProposals,
 }: {
@@ -63,6 +64,7 @@ function Results({
   compact?: boolean;
   reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
+  onTasks?: () => void;
   onRetry?: (packet: Packet) => Promise<void>;
   onApplyProposals?: (packetId: string, itemId: string) => Promise<void>;
   packets: Packet[];
@@ -100,8 +102,11 @@ function Results({
     setMergeBusy(true);
     try {
       const current = latestPackets.current;
-      if (window.desktop) {
-        await window.desktop.cloud("cardOperation", {
+      const cloudState = window.desktop
+        ? await window.desktop.cloud("status")
+        : null;
+      if (cloudState?.base) {
+        await window.desktop!.cloud("cardOperation", {
           kind,
           targets: targets.map((t) => ({
             ...t,
@@ -135,6 +140,7 @@ function Results({
   }
   const layout = worldLayout(packets);
   const [activeGroup, setActiveGroup] = useState("");
+  const [legacyGroup, setLegacyGroup] = useState("");
   const [newGroup, setNewGroup] = useState("");
   const [groupManager, setGroupManager] = useState(false);
   const [query, setQuery] = useState(""),
@@ -160,6 +166,9 @@ function Results({
   const [showHistory, setShowHistory] = useState(false);
   const [limit, setLimit] = useState(60);
   const [grouped, setGrouped] = useState(false);
+  useEffect(() => {
+    if (layout.groups.length) setGrouped(false);
+  }, [layout.groups.length]);
   const [selected, setSelected] = useState("");
   const [editing, setEditing] = useState(false);
   const [materials, setMaterials] = useState("");
@@ -175,6 +184,8 @@ function Results({
   useEffect(() => {
     if (!focusPacket) return;
     setOnlyPacket(focusPacket);
+    setActiveGroup("");
+    setLegacyGroup("");
     setScope("active");
     setKind("all");
     setQuery("");
@@ -197,7 +208,15 @@ function Results({
   useEffect(() => {
     if (editing) document.querySelector("dialog[open]")?.scrollTo({ top: 0 });
   }, [editing]);
-  async function update(p: Packet, id: string, changes: Partial<ItemState>) {
+  async function update(
+    p: Packet,
+    id: string,
+    request: Partial<ItemState> | ((state: ItemState) => Partial<ItemState>),
+  ) {
+    let changes =
+      typeof request === "function"
+        ? request(p.itemState?.[id] || {})
+        : request;
     const leaving = !!changes.deletedAt || changes.status === "done";
     if (leaving && mutationLocks.current.has(id)) return;
     if (leaving) mutationLocks.current.add(id);
@@ -207,6 +226,8 @@ function Results({
         .catch(() => {})
         .then(async () => {
           p = latestPackets.current.find((packet) => packet.id === p.id) || p;
+          if (typeof request === "function")
+            changes = request(p.itemState?.[id] || {});
           const index = p.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
           const doneIds = new Set(p.doneIds);
           if (changes.status === "done") doneIds.add(index);
@@ -220,7 +241,28 @@ function Results({
             },
             updatedAt: new Date().toISOString(),
           };
-          await save(next);
+          if (
+            "deletedAt" in changes &&
+            next.itemState?.[id]?.mergedCard &&
+            saveMany
+          ) {
+            const batch = mergeCardDeletion(
+              latestPackets.current.map((row) =>
+                row.id === next.id ? next : row,
+              ),
+              { packetId: next.id, itemId: id },
+              changes.deletedAt || "",
+            );
+            await saveMany(batch);
+            Object.assign(
+              next,
+              batch.find((row) => row.id === next.id),
+            );
+            const revised = new Map(batch.map((p) => [p.id, p]));
+            latestPackets.current = latestPackets.current.map(
+              (p) => revised.get(p.id) || p,
+            );
+          } else await save(next);
           latestPackets.current = latestPackets.current.map((packet) =>
             packet.id === next.id ? next : packet,
           );
@@ -235,9 +277,11 @@ function Results({
         (changes.status === "active" && !changes.checkins)
       )
         setSelected("");
+      return true;
     } catch (e) {
       resetCard(id);
       notify((e as Error).message);
+      return false;
     } finally {
       mutationLocks.current.delete(id);
     }
@@ -357,6 +401,7 @@ function Results({
     (r) =>
       (kind === "all" || r.item.kind === kind) &&
       (!activeGroup || r.meta.groupIds?.includes(activeGroup)) &&
+      (!legacyGroup || r.meta.group === legacyGroup) &&
       (!onlyPacket || r.p.id === onlyPacket) &&
       (!starOnly || r.meta.starred) &&
       (`${r.item.title} ${r.item.summary} ${r.item.facts.join(" ")} ${r.meta.additions?.map((a) => a.text).join(" ") || ""}`
@@ -378,11 +423,22 @@ function Results({
       (a, b) => (positions.get(a.id) ?? 1e9) - (positions.get(b.id) ?? 1e9),
     );
   }
+  const legacyGroups = [
+    ...new Set(
+      scoped
+        .filter((r) => r.meta.groupIds === undefined)
+        .map((r) => r.meta.group?.trim())
+        .filter((name): name is string => !!name),
+    ),
+  ].filter((name) => !layout.groups.some((g) => g.name === name));
   const matchCount = filtered.length;
   filtered.splice(limit);
   const groups = [...new Set(filtered.map((r) => r.meta.group?.trim() || ""))];
+  const draggable = filtered.filter(
+    (r) => r.meta.defaultDecision !== "pending",
+  );
   const drag = useCardDrag(motionRoot, {
-    ids: filtered.map((r) => r.id),
+    ids: draggable.map((r) => r.id),
     enabled:
       !compact &&
       !selected &&
@@ -395,19 +451,29 @@ function Results({
     onPreview: setDragOrder,
     onCommit: async (ids) => {
       if (activeGroup) {
-        for (const [order, id] of ids.entries()) {
+        const complete = mergeCardOrder(
+          scoped
+            .filter((r) => r.meta.groupIds?.includes(activeGroup))
+            .map((r) => r.id),
+          draggable.map((r) => r.id),
+          ids,
+        );
+        for (const [order, id] of complete.entries()) {
           const row = rows.find((r) => r.id === id);
-          if (row)
-            await update(row.p, id, {
+          if (
+            row &&
+            !(await update(row.p, id, {
               groupOrder: { ...row.meta.groupOrder, [activeGroup]: order },
-            });
+            }))
+          )
+            throw Error("小组顺序未全部保存，请刷新后重试");
         }
         setSort("custom");
         return;
       }
       const full = mergeCardOrder(
         scoped.map((r) => r.id),
-        filtered.map((r) => r.id),
+        draggable.map((r) => r.id),
         ids,
       );
       const commit = mutationTail.current
@@ -442,9 +508,8 @@ function Results({
             </span>
           </div>
           <div className="result-controls">
-            <button onClick={onRecords}>
-              {window.desktop ? "整理任务" : "整理记录"}
-            </button>
+            <button onClick={onRecords}>整理记录</button>
+            {onTasks && <button onClick={onTasks}>整理任务</button>}
             {!!mergeSelection.length && (
               <button
                 onClick={() => {
@@ -520,8 +585,11 @@ function Results({
           )}
           <nav className="settings-tabs" aria-label="我的小组">
             <button
-              aria-pressed={!activeGroup}
-              onClick={() => setActiveGroup("")}
+              aria-pressed={!activeGroup && !legacyGroup}
+              onClick={() => {
+                setActiveGroup("");
+                setLegacyGroup("");
+              }}
             >
               全部小组
             </button>
@@ -531,6 +599,7 @@ function Results({
                 aria-pressed={activeGroup === g.id}
                 onClick={() => {
                   setActiveGroup(g.id);
+                  setLegacyGroup("");
                   setSort("custom");
                 }}
               >
@@ -538,6 +607,119 @@ function Results({
               </button>
             ))}
           </nav>
+          {!!legacyGroups.length && (
+            <nav className="settings-tabs" aria-label="已有标签小组">
+              {legacyGroups.map((name) => (
+                <button
+                  key={name}
+                  aria-pressed={legacyGroup === name}
+                  onClick={() => {
+                    setActiveGroup("");
+                    setLegacyGroup(name);
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </nav>
+          )}
+          {!!legacyGroup && (
+            <button
+              onClick={async () => {
+                try {
+                  if (!saveMany) throw Error("当前入口暂不支持保存小组");
+                  const current = latestPackets.current,
+                    id = crypto.randomUUID(),
+                    live = worldLayout(current);
+                  const changes = current.flatMap((p) => {
+                    const itemState = { ...p.itemState };
+                    let changed = false;
+                    (p.result?.items || []).forEach((item, i) => {
+                      const itemId = p.itemIds?.[i] || `${p.id}:${i}`,
+                        meta = itemState[itemId] || {};
+                      const displayed = rows.find((r) => r.id === itemId);
+                      if (
+                        !p.deletedAt &&
+                        !meta.deletedAt &&
+                        !meta.mergedInto &&
+                        displayed?.meta.group === legacyGroup
+                      ) {
+                        itemState[itemId] = {
+                          ...meta,
+                          groupIds: [
+                            ...new Set([...(meta.groupIds || []), id]),
+                          ],
+                        };
+                        changed = true;
+                      }
+                    });
+                    return changed
+                      ? [
+                          {
+                            ...p,
+                            itemState,
+                            updatedAt: new Date().toISOString(),
+                          },
+                        ]
+                      : [];
+                  });
+                  await saveMany([
+                    layoutPacket(current, {
+                      ...live,
+                      groups: [...live.groups, { id, name: legacyGroup }],
+                    }),
+                    ...changes,
+                  ]);
+                  setLegacyGroup("");
+                  setActiveGroup(id);
+                  notify("已保存为长期小组，AI不会改动确认后的归属");
+                } catch (e) {
+                  notify((e as Error).message);
+                }
+              }}
+            >
+              将「{legacyGroup}」保留为我的小组
+            </button>
+          )}
+          {!!mergeSelection.length && !!layout.groups.length && (
+            <label>
+              将选定卡片加入小组
+              <select
+                aria-label="将选卡加入小组"
+                defaultValue=""
+                onChange={async (e) => {
+                  const id = e.target.value;
+                  e.target.value = "";
+                  if (!id) return;
+                  let failed = false;
+                  for (const row of rows.filter((r) =>
+                    mergeSelection.includes(r.id),
+                  ))
+                    if (
+                      !(await update(row.p, row.id, {
+                        groupIds: [
+                          ...new Set([...(row.meta.groupIds || []), id]),
+                        ],
+                      }))
+                    )
+                      failed = true;
+                  setMergeSelection([]);
+                  notify(
+                    failed
+                      ? "部分卡片未保存，请刷新后核对重试；已成功保存的归属保留"
+                      : "选定卡片已加入小组，原有归属保留",
+                  );
+                }}
+              >
+                <option value="">选择目标小组</option>
+                {layout.groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {groupManager && (
             <section className="world-group-manager">
               <form
@@ -681,7 +863,7 @@ function Results({
                   </button>
                 ))}
             </nav>
-            <div className="view-switch">
+            <div className="view-switch" hidden={!!layout.groups.length}>
               <button aria-pressed={!grouped} onClick={() => setGrouped(false)}>
                 卡片
               </button>
@@ -861,7 +1043,7 @@ function Results({
                       {meta.status === "progress" ? " · 正在做" : ""}
                     </span>
                     {meta.pinned && <Pin size={16} aria-label="已置顶" />}
-                    {!deleted && (
+                    {!deleted && meta.defaultDecision !== "pending" && (
                       <button
                         className="card-delete"
                         aria-label="删除事项"
@@ -909,9 +1091,10 @@ function Results({
                       setSelected(id);
                     }}
                   >
-                    {meta.defaultDecision === "kept" && (
-                      <span className="quiet">原样保留 · 未完成AI整理</span>
-                    )}
+                    {meta.defaultDecision &&
+                      meta.defaultDecision !== "pending" && (
+                        <span className="quiet">原样保留 · 未完成AI整理</span>
+                      )}
                     <h2>{cardCopy(item).title}</h2>
                     {cardCopy(item).summary && (
                       <p>
@@ -1141,14 +1324,21 @@ function Results({
                         <button
                           className="collection-tag"
                           key={g.id}
-                          onClick={() => setActiveGroup(g.id)}
+                          onClick={() => {
+                            setActiveGroup(g.id);
+                            setLegacyGroup("");
+                          }}
                         >
                           {g.name}
                         </button>
                       ))}
-                    {!!meta.group?.trim() && (
-                      <span className="collection-tag">{meta.group}</span>
-                    )}
+                    {meta.groupIds === undefined &&
+                      !!meta.group?.trim() &&
+                      !layout.groups.some(
+                        (g) =>
+                          meta.groupIds?.includes(g.id) &&
+                          g.name === meta.group,
+                      ) && <span className="collection-tag">{meta.group}</span>}
                   </div>
                   <CardFiles
                     attachments={p.attachments}
@@ -1194,7 +1384,10 @@ function Results({
                     >
                       查看详情 <ArrowUpRight size={16} />
                     </button>
-                    <details className="card-menu">
+                    <details
+                      className="card-menu"
+                      hidden={meta.defaultDecision === "pending"}
+                    >
                       <summary aria-label="更多事项操作">
                         <MoreHorizontal size={23} />
                       </summary>
@@ -1203,22 +1396,26 @@ function Results({
                           <fieldset>
                             <legend>加入小组（可多选）</legend>
                             {layout.groups.map((g) => (
-                              <label key={g.id}>
-                                <input
-                                  type="checkbox"
-                                  checked={!!meta.groupIds?.includes(g.id)}
-                                  onChange={(e) =>
-                                    void update(p, id, {
-                                      groupIds: e.target.checked
-                                        ? [...(meta.groupIds || []), g.id]
-                                        : (meta.groupIds || []).filter(
-                                            (x) => x !== g.id,
-                                          ),
-                                    })
-                                  }
-                                />
-                                {g.name}
-                              </label>
+                              <GroupMembership
+                                key={g.id}
+                                name={g.name}
+                                checked={!!meta.groupIds?.includes(g.id)}
+                                notify={notify}
+                                change={(checked) =>
+                                  update(p, id, (current) => ({
+                                    groupIds: checked
+                                      ? [
+                                          ...new Set([
+                                            ...(current.groupIds || []),
+                                            g.id,
+                                          ]),
+                                        ]
+                                      : (current.groupIds || []).filter(
+                                          (x) => x !== g.id,
+                                        ),
+                                  }))
+                                }
+                              />
                             ))}
                           </fieldset>
                         )}
@@ -1248,7 +1445,9 @@ function Results({
                     <ItemDialog onClose={() => setSelected("")}>
                       {p.status !== "ready" && (
                         <p>
-                          正在补充读取，本次事项暂不可修改；你可以继续投递或查看其他事项。
+                          {meta.defaultDecision === "pending"
+                            ? "尚未完成AI整理，请先在卡片上选择保留、删除或重试；原样材料仍可查看。"
+                            : "正在补充读取，本次事项暂不可修改；你可以继续投递或查看其他事项。"}
                         </p>
                       )}
                       <fieldset
@@ -1971,6 +2170,46 @@ function Results({
             </article>
           ))}
     </section>
+  );
+}
+function GroupMembership({
+  name,
+  checked,
+  change,
+  notify,
+}: {
+  name: string;
+  checked: boolean;
+  change: (checked: boolean) => Promise<boolean | undefined>;
+  notify: (message: string) => void;
+}) {
+  const [pending, setPending] = useState<boolean | null>(null),
+    [busy, setBusy] = useState(false);
+  useEffect(() => setPending(null), [checked]);
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={pending ?? checked}
+        disabled={busy}
+        aria-busy={busy}
+        onChange={async (e) => {
+          const desired = e.target.checked;
+          setPending(desired);
+          setBusy(true);
+          try {
+            if (!(await change(desired))) setPending(null);
+          } catch (error) {
+            setPending(null);
+            notify((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+      {name}
+      {busy && <span aria-hidden="true"> · 保存中…</span>}
+    </label>
   );
 }
 export default memo(Results);

@@ -9,6 +9,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
   "server/admin-service.mjs",
   "server/admin-backend.mjs",
+  "server/admin-risk.mjs",
   "server/cloud-operations.mjs",
   "server/cloud-backup.mjs",
   "server/reading/price-calendar.mjs",

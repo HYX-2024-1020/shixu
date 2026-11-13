@@ -4,7 +4,9 @@ var CardOperationError = class extends Error {
 };
 function node(packets, target) {
   const packet = packets.find((p) => p.id === target.packetId);
-  const index = packet?.itemIds?.indexOf(target.itemId) ?? -1;
+  const index = packet?.itemIds ? packet.itemIds.indexOf(target.itemId) : packet?.result?.items.findIndex(
+    (_, i) => `${packet.id}:${i}` === target.itemId
+  ) ?? -1;
   const meta = packet?.itemState?.[target.itemId] || {};
   if (!packet?.result || packet.deletedAt || index < 0 || meta.deletedAt || meta.purgedAt || meta.mergedInto || meta.mergedCard || meta.defaultDecision === "pending")
     throw new CardOperationError("目标卡片已变化、删除或参与合并，请重新核对");
@@ -22,7 +24,9 @@ function mergeCards(packets, targets, itemId, title) {
       changes.set(p.id, {
         ...p,
         result: { ...p.result, items: [...p.result.items] },
-        itemIds: [...p.itemIds || []],
+        itemIds: [
+          ...p.itemIds || p.result.items.map((_, i) => `${p.id}:${i}`)
+        ],
         itemState: { ...p.itemState },
         updatedAt: (/* @__PURE__ */ new Date()).toISOString()
       });
@@ -67,7 +71,7 @@ function undoCardMerge(packets, target, preserveEdited = false) {
   const meta = owner?.itemState?.[target.itemId], merge = meta?.mergedCard;
   if (!owner?.result || owner.deletedAt || index < 0 || !merge || meta?.deletedAt)
     throw new CardOperationError("合并已撤销或卡片不可用");
-  const { mergedCard, chat, history, ...state } = meta;
+  const { mergedCard, chat, history, deletedAt, deletedByMerge, ...state } = meta;
   const edited = JSON.stringify(owner.result.items[index]) !== JSON.stringify(merge.initialItem) || JSON.stringify(state) !== merge.initialState || !!chat?.length || !!history?.length;
   if (edited && !preserveEdited)
     throw new CardOperationError(

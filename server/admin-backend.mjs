@@ -7,7 +7,15 @@ import { CloudOperations } from "./cloud-operations.mjs";
 import { serviceFailureSignals } from "./admin-risk.mjs";
 
 const fail = (status, code) => {
-  throw Object.assign(Error(code), { status, code });
+  throw Object.assign(
+    Error(
+      {
+        CLEANUP_PREVIEW_CHANGED:
+          "预演已过期或待释放对象有变化，请刷新后重新预演；尚未执行本次释放。",
+      }[code] || code,
+    ),
+    { status, code },
+  );
 };
 const iso = (at) => new Date(at).toISOString();
 const availableMemory = () =>

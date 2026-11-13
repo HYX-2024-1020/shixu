@@ -2217,4 +2217,24 @@ button:hover:not(:disabled) {
   display: none;
 }
 
-.bucket-onboarding {margin:16px auto;max-width:720px;padding:16px;background:#fffef8;border:2px solid #171713;border-radius:6px;box-shadow:3px 3px 0 #171713;}
+.bucket-onboarding {
+  margin: 16px auto;
+  max-width: 720px;
+  padding: 16px;
+  background: #fffef8;
+  border: 2px solid #171713;
+  border-radius: 6px;
+  box-shadow: 3px 3px 0 #171713;
+}
+
+.results-workspace .settings-tabs {
+  position: static;
+}
+
+.card-menu[hidden] {
+  display: none;
+}
+
+.view-switch[hidden] {
+  display: none;
+}

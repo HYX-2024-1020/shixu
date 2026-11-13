@@ -1,6 +1,7 @@
 import { _electron as electron, expect } from "@playwright/test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import {createHash} from "node:crypto";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { accountUIFixture } from "./account-ui-fixture.mjs";
@@ -508,6 +509,9 @@ scenario: try {
             exact: true,
           }),
         ).toBeVisible();
+        const saved=await readFile(join(fixture.env.SHIXU_DATA_DIR,"synthetic-original-download.txt"));
+        const originalRow=(await page.evaluate(()=>window.desktop.cloud("status"))).originalStorage.originals[0];
+        assert.equal(saved.length,originalRow.size);assert.equal(createHash("sha256").update(saved).digest("hex"),originalRow.hash);
       }
       page.once("dialog", (d) => d.accept());
       await page
@@ -542,7 +546,7 @@ scenario: try {
     if (pdfWindows || archiveWindows)
       await expect(page.getByText(/已检查 19 \/ 19 页/).last()).toBeVisible();
     if (original) {
-      await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+      await page.getByRole("button", { name: "关闭整理任务", exact: true }).click();
       // IPC submission updates the main-process projection; verify persisted
       // cards after the renderer reloads its account workspace.
       await page.reload();

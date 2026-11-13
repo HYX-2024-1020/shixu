@@ -70,7 +70,7 @@ test("account service and protected CLI run from the self-contained release", as
       ).then((r) => r.json());
       assert.equal(cap.features.remainingTasks, true);
       assert.equal(cap.features.readingEnabled, false);
-      assert.equal(cap.materialUseNotice.version, 2);
+      assert.equal(cap.materialUseNotice.version, 3);
     } finally {
       await releasedRuntime.close();
     }
@@ -1240,6 +1240,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       "account-safety.mjs",
       "accounts-v4.mjs",
       "admin-backend.mjs",
+      "admin-risk.mjs",
       "admin-service.mjs",
       "cloud-backup.mjs",
       "cloud-operations.mjs",

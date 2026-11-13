@@ -1,9 +1,51 @@
 import type { Packet, ItemState } from "./types";
 export class CardOperationError extends Error {}
+export function mergeCardDeletion(
+  packets: Packet[],
+  target: CardTarget,
+  deletedAt: string,
+): Packet[] {
+  const owner = packets.find((p) => p.id === target.packetId);
+  const sources = owner?.itemState?.[target.itemId]?.mergedCard?.sources;
+  if (!owner || !sources) return owner ? [owner] : [];
+  const changes = new Map<string, Packet>([[owner.id, owner]]);
+  for (const source of sources) {
+    const p =
+      changes.get(source.packetId) ||
+      packets.find((p) => p.id === source.packetId);
+    const meta = p?.itemState?.[source.itemId];
+    if (
+      !p ||
+      !meta ||
+      meta.mergedInto?.packetId !== owner.id ||
+      meta.mergedInto.itemId !== target.itemId
+    )
+      continue;
+    if (deletedAt ? !!meta.deletedAt : meta.deletedByMerge !== target.itemId)
+      continue;
+    changes.set(p.id, {
+      ...p,
+      itemState: {
+        ...p.itemState,
+        [source.itemId]: {
+          ...meta,
+          deletedAt,
+          deletedByMerge: deletedAt ? target.itemId : null,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return [...changes.values()];
+}
 export type CardTarget = { packetId: string; itemId: string };
 function node(packets: Packet[], target: CardTarget) {
   const packet = packets.find((p) => p.id === target.packetId);
-  const index = packet?.itemIds?.indexOf(target.itemId) ?? -1;
+  const index = packet?.itemIds
+    ? packet.itemIds.indexOf(target.itemId)
+    : (packet?.result?.items.findIndex(
+        (_, i) => `${packet.id}:${i}` === target.itemId,
+      ) ?? -1);
   const meta = packet?.itemState?.[target.itemId] || {};
   if (
     !packet?.result ||
@@ -43,7 +85,9 @@ export function mergeCards(
       changes.set(p.id, {
         ...p,
         result: { ...p.result!, items: [...p.result!.items] },
-        itemIds: [...(p.itemIds || [])],
+        itemIds: [
+          ...(p.itemIds || p.result!.items.map((_, i) => `${p.id}:${i}`)),
+        ],
         itemState: { ...p.itemState },
         updatedAt: new Date().toISOString(),
       });
@@ -103,7 +147,8 @@ export function undoCardMerge(
     meta?.deletedAt
   )
     throw new CardOperationError("合并已撤销或卡片不可用");
-  const { mergedCard, chat, history, ...state } = meta;
+  const { mergedCard, chat, history, deletedAt, deletedByMerge, ...state } =
+    meta;
   const edited =
     JSON.stringify(owner.result.items[index]) !==
       JSON.stringify(merge.initialItem) ||

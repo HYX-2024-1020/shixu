@@ -239,8 +239,9 @@ export function createDeepSeekReadingProvider({
           "patch仅修改当前事项；可读取relatedItems，并对本轮明确要求的其他事项提出proposals，须由用户另行确认后执行。不支持删除、执行文件或发送消息",
         ) +
         ' 跨卡片修改返回额外proposals数组，每项格式{packetId:"给定投递id",itemId:"给定事项id",patch:{}}，最多10项。只使用relatedItems给定的准确ID及同一组合法patch字段。不得声称这些修改已执行；说明待用户核对确认。仅查询时proposals为空或省略。遗漏事项时不可断言全账号不存在。';
-    messages[0].content +=
-      ' 真正合并卡片使用额外merge:{title:"主卡标题",targets:[{packetId:"准确ID",itemId:"准确ID"}]}，至少2至20张，目标仅从currentTarget和relatedItems选择。合并时patch为空且不同时返回proposals，所有原件、日期和状态由系统保留，先预览待确认，不声称已执行。仅当前卡范围没有relatedItems时不能合并或新增卡片，在reply说明需要用户先选择范围。用户已确认的小组关系不可擅改。';
+    if (context.currentTarget)
+      messages[0].content +=
+        ' 真正合并卡片使用额外merge:{title:"主卡标题",targets:[{packetId:"准确ID",itemId:"准确ID"}]}，至少2至20张，目标仅从currentTarget和relatedItems选择。合并时patch为空且不同时返回proposals，所有原件、日期和状态由系统保留，先预览待确认，不声称已执行。仅当前卡范围没有relatedItems时不能合并或新增卡片，在reply说明需要用户先选择范围。用户已确认的小组关系不可擅改。';
     const images = sources.slice(1);
     for (const source of images) validateModelImage(source.image);
     const textBytes = Buffer.byteLength(JSON.stringify(messages));

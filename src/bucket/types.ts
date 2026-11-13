@@ -66,6 +66,7 @@ export interface ItemState {
     }[];
   } | null;
   mergedInto?: { packetId: string; itemId: string } | null;
+  deletedByMerge?: string | null;
   mergedCard?: {
     sources: { packetId: string; itemId: string; title: string }[];
     initialItem: import("../../shared/bucket-engine.mjs").BucketItem;

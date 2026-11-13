@@ -184,6 +184,7 @@ export default function AccountConnection({
   return (
     <dialog
       ref={ref}
+      aria-label={mode === "tasks" ? "整理任务" : "账号与设置"}
       className="bucket-dialog"
       onCancel={onClose}
       onClick={(e) => {
@@ -210,7 +211,10 @@ export default function AccountConnection({
                 : "登录拾序"}
           </h2>
         </div>
-        <button aria-label="关闭设置" onClick={onClose}>
+        <button
+          aria-label={mode === "tasks" ? "关闭整理任务" : "关闭设置"}
+          onClick={onClose}
+        >
           <X size={20} />
         </button>
       </header>
@@ -848,6 +852,11 @@ export default function AccountConnection({
             </p>
           </details>
         </section>
+        {mode === "tasks" && !state?.account?.reading && (
+          <p role="status">
+            当前没有云端整理任务；连接账号后可在这里查看和主动继续。原有投递仍可从世界的整理记录查看。
+          </p>
+        )}
         {!!state?.account?.reading && (
           <section
             className="connection-data"
@@ -863,7 +872,7 @@ export default function AccountConnection({
                   {task.disposition
                     ? task.disposition === "kept"
                       ? "已保留为普通卡"
-                      : "已移入最近删除"
+                      : "已选择删除（恢复后按普通卡管理）"
                     : (
                         {
                           queued: "排队中",

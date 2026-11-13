@@ -15,6 +15,9 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  INVALID_CARD_OPERATION:
+    "卡片操作信息不完整，请刷新后重新选择目标；尚未保存本次修改",
+  REVISION_CONFLICT: "卡片已被其他操作修改，请刷新并重新确认；尚未保存本次修改",
   MATERIAL_DECIDED: "材料已保留或删除，原任务不再继续；普通卡片与已有费用保留",
   MAINTENANCE: "服务器维护中，进度与费用保留；维护完成后请主动继续",
   SITE_MONTH_BUDGET:
@@ -494,6 +497,8 @@ export function createReadingRoutes({
           itemChat: typeof provider.chat === "function",
           attachmentChat: typeof provider.chat === "function",
           accountChatProposals: typeof provider.chat === "function",
+          manualCardMerge: true,
+          scopedItemChat: typeof provider.chat === "function",
           pdfPageVisual:
             reader.pdfVisualWindows === true && provider.imageInput === true,
           pdfTextOnly: !(
@@ -1006,7 +1011,7 @@ export function createReadingRoutes({
         : [...engines.values()].flatMap((e) =>
             e.db
               .prepare(
-                "SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND updated_at>=? AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason",
+                "SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND updated_at>=? AND NOT EXISTS(SELECT 1 FROM sync_records r WHERE r.id=reading_tasks.packet AND json_extract(r.data,'$.defaultCardDisposition.choice') IN ('kept','deleted')) AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason",
               )
               .all(ledger.now() - 10 * 60000)
               .map((r) => ({ account: e.account, ...r })),

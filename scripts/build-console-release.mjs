@@ -34,6 +34,7 @@ const mappings = [
     "dist/fonts/SpaceGrotesk.ttf",
     "dist/desktop-icon.svg",
     "dist/console-icon.svg",
+    "dist/console-xu-v2.ico",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
   ].map((p) => [p, join(root, p)]),

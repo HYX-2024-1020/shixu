@@ -151,6 +151,7 @@ export default function BucketApp() {
     else reveal();
   }
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
   const [firstUse, setFirstUse] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudActive, setCloudActive] = useState(false);
@@ -365,7 +366,13 @@ export default function BucketApp() {
     },
     wait = false,
   ): Promise<Packet[]> {
-    const state = await window.desktop!.cloud("ai", value);
+    let state;
+    try {
+      state = await window.desktop!.cloud("ai", value);
+    } catch (error) {
+      if ((error as Error).message.includes("资料用途")) setSettings(true);
+      throw error;
+    }
     if (wait) {
       const deadline = Date.now() + 245000;
       for (;;) {
@@ -1376,7 +1383,7 @@ export default function BucketApp() {
     ]);
     textarea.current?.focus();
   }
-  const visible = packets.filter((p) => !p.deletedAt),
+  const visible = packets.filter((p) => !p.deletedAt && !p.worldLayout),
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
@@ -1903,6 +1910,7 @@ export default function BucketApp() {
             skin={activeSkin}
             reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
+            onTasks={window.desktop ? () => setTasksOpen(true) : undefined}
             saveMany={saveMany}
             onRetry={retry}
             onApplyProposals={confirmChatProposals}
@@ -1916,6 +1924,25 @@ export default function BucketApp() {
           />
         </div>
         <div hidden={workspace !== "capture"}>
+          {firstUse && (
+            <aside className="bucket-onboarding" aria-label="首次使用拾序">
+              <b>先认识你的拾序空间</b>
+              <p>
+                首次注册或使用已有账号登录后，可继续确认AI资料用途与原件期限。也可以先在本机手动记录。
+              </p>
+              <button onClick={() => setSettings(true)}>
+                注册 / 已有账号登录
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem("shixu.local-onboarding", "local");
+                  setFirstUse(false);
+                }}
+              >
+                先用本机手动记录
+              </button>
+            </aside>
+          )}
           {DEMO && (
             <div className="bucket-demo-note">
               <span>示例空间 · 虚构内容，与个人资料隔离</span>
@@ -2197,6 +2224,9 @@ export default function BucketApp() {
                     reorder={reorderCards}
                     saveMany={saveMany}
                     onRecords={() => setRecordsOpen(true)}
+                    onTasks={
+                      window.desktop ? () => setTasksOpen(true) : undefined
+                    }
                     onChat={editWithAI}
                     onApplyProposals={confirmChatProposals}
                     packets={[currentCapture]}
@@ -2246,34 +2276,17 @@ export default function BucketApp() {
           <span>脑袋放轻一点。</span>
         </footer>
       </main>
-      {firstUse && (
-        <aside className="bucket-onboarding" aria-label="首次使用拾序">
-          <b>先认识你的拾序空间</b>
-          <p>
-            首次注册或使用已有账号登录后，可继续确认AI资料用途与原件期限。也可以先在本机手动记录。
-          </p>
-          <button onClick={() => setSettings(true)}>注册 / 已有账号登录</button>
-          <button
-            onClick={() => {
-              localStorage.setItem("shixu.local-onboarding", "local");
-              setFirstUse(false);
-            }}
-          >
-            先用本机手动记录
-          </button>
-        </aside>
-      )}
-      {recordsOpen && window.desktop && (
+      {tasksOpen && window.desktop && (
         <AccountConnection
           mode="tasks"
           canSwitch={() =>
             !working.current && !submitLock.current && !chatLocks.current.size
           }
-          onClose={() => setRecordsOpen(false)}
+          onClose={() => setTasksOpen(false)}
           notify={notify}
         />
       )}
-      {recordsOpen && !window.desktop && (
+      {recordsOpen && (
         <ItemDialog label="整理记录" onClose={() => setRecordsOpen(false)}>
           {receipts}
         </ItemDialog>
