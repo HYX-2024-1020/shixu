@@ -1,5 +1,9 @@
 # 当前成果与接续入口
 
+## 2026-11-13 第二轮反馈及grill决定已确认，留存待实施
+
+用户补充R01—R13并完成Q1—Q12访谈，明确下一对话实施；本轮仅文档PR，未修产品、部署或安装。[完整清单与验收](project-continuity/user-feedback-round2-20261113.md)、[逐题问答](project-continuity/acceptance-round2-grill-20261113.md)、[新对话提示词](project-continuity/acceptance-round2-start-prompt-20261113.md)统一跟踪[#118](https://github.com/HYX-2024-1020/shixu/issues/118)。0.3.26运行基线不变，下载续期、旧任务重试等用户复验反馈重新调查；不能凭第一轮CI称其已解决。演出暂保持、双端同步联验后置，不进入小程序；保护#117看板前端交接，固定checkout串行协调，不混用任务分支。
+
 ## 2026-11-13 桌面看板方案已确认，留存待实施
 
 用户已确认[模块化桌面看板方案](desktop-board-plan-20261113.md)：主程序独立看板页保存多份规划，事件页默认空白、选择加入或手写，DDL 页默认读取全部主程序 DDL；手写内容与桶分离，长期子事项手动添加并保留完成/归档痕迹，支持小条/窄栏/面板与模块化布局，不增加主动提醒。本轮仅文档留存，关联[#115](https://github.com/HYX-2024-1020/shixu/issues/115)，不代表产品已实现或安装。下一对话按[实施提示词](project-continuity/desktop-board-start-prompt-20261113.md)先核对留存 PR，再另开实现任务；不向网站或既有整改 PR 追加。
