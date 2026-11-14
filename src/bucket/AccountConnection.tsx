@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { allPackets } from "./store";
 import { readableFileName } from "./file-display";
+import { errorMessage } from "./error-message";
 import {
   walletView,
   reuseView,
@@ -96,7 +97,7 @@ export default function AccountConnection({
       setUsername(value.account?.authentication?.username || "");
     } catch (e) {
       setConnectionFailed(true);
-      setError((e as Error).message);
+      setError(errorMessage(e));
       try {
         setState(await window.desktop!.cloud("status"));
       } catch {
@@ -154,7 +155,7 @@ export default function AccountConnection({
         )[name] || "",
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
       try {
         setState(await window.desktop!.cloud("status"));
       } catch {
@@ -683,7 +684,25 @@ export default function AccountConnection({
           </p>
           {state?.conflicts.map((c) => (
             <div key={c.id}>
-              <p>同步冲突：{c.text.slice(0, 80)}</p>
+              <p>
+                {[
+                  "REVISION_CONFLICT",
+                  "DELETED",
+                  "PURGED",
+                  "NOT_DELETED",
+                ].includes(c.code || "")
+                  ? "同步冲突"
+                  : "材料未能同步，后续独立投递仍可继续"}
+                ：{c.text.slice(0, 80)}
+              </p>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void action("recoverFailedDraft", { id: c.id }, true)
+                }
+              >
+                恢复为草稿后修改
+              </button>
               <button
                 disabled={busy}
                 onClick={() => void action("resolve", { id: c.id, keep: true })}
@@ -696,7 +715,7 @@ export default function AccountConnection({
                   void action("resolve", { id: c.id, keep: false })
                 }
               >
-                采用云端版本
+                放弃本次待传修改，采用云端版本
               </button>
             </div>
           ))}
@@ -745,6 +764,8 @@ export default function AccountConnection({
                     {fileNames[f.packetId + "/" + f.id] || f.name}
                   </span>{" "}
                   ·{" "}
+                  {f.packetDeleted &&
+                    "所属投递已删除，请先在最近删除中恢复投递 · "}
                   {["deleted", "cleaned"].includes(f.state)
                     ? "云端已清除"
                     : f.mode === "temporary"
@@ -769,7 +790,7 @@ export default function AccountConnection({
                         下载到本机
                       </button>
                     )}
-                    {f.mode === "retained" && (
+                    {f.mode === "retained" && !f.packetDeleted && (
                       <button
                         disabled={busy || !online}
                         onClick={() => void action("renewOriginal", f)}

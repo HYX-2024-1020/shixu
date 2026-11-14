@@ -55,12 +55,26 @@ class AccountWorkspace extends CloudWorkspace {
     if (
       `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}` !==
       `${next.active}#${next.devices[next.active]?.userId || ""}`
-    )
+    ) {
+      this.identityGeneration = (this.identityGeneration || 0) + 1;
       this.taskPreview = null;
+      this.accountState = null;
+      this.originalStorage = undefined;
+      this.originalDownload = null;
+      this.originalNotice = "";
+      this.deviceList = [];
+      this.loginDevices = [];
+      this.authorization = undefined;
+      this.readSyncBase = undefined;
+      this.nextReadAt = 0;
+      this.retryBase = undefined;
+      this.retryUntil = 0;
+    }
     this.config = next;
     this.lastError = "";
   }
   async request(base, method, api, data, extra = {}) {
+    const identityGeneration = this.identityGeneration || 0;
     if (
       base === this.retryBase &&
       this.retryUntil > Date.now() &&
@@ -118,6 +132,10 @@ class AccountWorkspace extends CloudWorkspace {
       signal: AbortSignal.timeout(15000),
       ...(bytes.length ? { body: bytes } : {}),
     });
+    if (identityGeneration !== (this.identityGeneration || 0))
+      throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+        code: "ACCOUNT_CHANGED",
+      });
     if (!response.ok) {
       if (response.status === 429) {
         const seconds = Number(response.headers?.get?.("retry-after"));
@@ -133,6 +151,11 @@ class AccountWorkspace extends CloudWorkspace {
       if (device && response.status === 401) {
         this.authorization = "invalid";
         this.accountState = null;
+        this.originalStorage = undefined;
+        this.originalDownload = null;
+        this.originalNotice = "";
+        this.deviceList = [];
+        this.taskPreview = null;
       }
       throw Object.assign(
         Error(value.error || "服务暂时不可用，本地资料保留"),
@@ -144,6 +167,10 @@ class AccountWorkspace extends CloudWorkspace {
     const result = extra.binary
       ? Buffer.from(await response.arrayBuffer())
       : await response.json();
+    if (identityGeneration !== (this.identityGeneration || 0))
+      throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+        code: "ACCOUNT_CHANGED",
+      });
     if (api === "/api/v3/account") this.accountState = result;
     return result;
   }
@@ -461,6 +488,8 @@ class AccountWorkspace extends CloudWorkspace {
     let saved = jobs.findLast(
       (j) =>
         j.request.packetId === value.packetId &&
+        !j.disposition &&
+        !(row.data?.defaultCardDisposition && j.request.kind === "organize") &&
         ![
           "done",
           "partial",
@@ -672,7 +701,23 @@ class AccountWorkspace extends CloudWorkspace {
             j.request.kind === "organize" && j.request.packetId === packet.id,
         )
         .at(-1);
-      if (!job || packet.result || packet.deletedAt) return packet;
+      if (packet.result || packet.deletedAt) return packet;
+      if (!job) {
+        if (
+          this.accountState?.reading &&
+          !this.space()
+            .client.records()
+            .find((r) => r.id === packet.id)?.pending &&
+          packet.status === "pending" &&
+          Date.now() - Date.parse(packet.capturedAt) > 30000
+        )
+          return {
+            ...packet,
+            status: "error",
+            error: "这次材料尚未启动整理，可手动保留、删除或主动重试。",
+          };
+        return packet;
+      }
       return {
         ...packet,
         status: [
@@ -815,6 +860,54 @@ class AccountWorkspace extends CloudWorkspace {
         });
         return this.status();
       });
+    if (action === "purgeAttachment")
+      return this.action("stopPacket", { packetId: value.packetId }).then(() =>
+        this.serial(async () => {
+          const { client, cache } = this.space();
+          const row = client.records().find((r) => r.id === value.packetId);
+          if (!row || row.pending || row.conflict || row.deletedAt)
+            throw Error("请先同步并核对所属投递");
+          const file = cache.file("attachment-purge-intents.json");
+          const intents = fs.existsSync(file)
+            ? JSON.parse(fs.readFileSync(file, "utf8"))
+            : {};
+          const key = value.packetId + "/" + value.id;
+          if (!intents[key]) {
+            const storage = await this.request(
+              this.config.active,
+              "GET",
+              `/api/v4/storage?packetId=${encodeURIComponent(value.packetId)}&includeDeleted=true`,
+            );
+            const original = storage.originals.find((f) => f.id === value.id);
+            if (!original) throw Error("未找到云端原件，附件引用尚未移除");
+            intents[key] = {
+              contractVersion: 1,
+              operationId: randomUUID(),
+              packetId: value.packetId,
+              id: value.id,
+              baseVersion: row.version,
+              expectedVersion: original.version,
+              epoch: this.config.devices[this.config.active].epoch,
+            };
+            atomic(file, JSON.stringify(intents));
+          }
+          await this.request(
+            this.config.active,
+            "POST",
+            "/api/v4/originals/purge-reference",
+            intents[key],
+          );
+          await client.sync();
+          this.originalStorage = await this.request(
+            this.config.active,
+            "GET",
+            "/api/v4/storage",
+          );
+          delete intents[key];
+          atomic(file, JSON.stringify(intents));
+          return this.status();
+        }),
+      );
     if (action === "moreOriginals")
       return this.serial(async () => {
         if (this.originalStorage?.hasMore) {
@@ -936,6 +1029,76 @@ class AccountWorkspace extends CloudWorkspace {
           return this.status();
         }
         return this.sync();
+      });
+    if (action === "stopPacket")
+      return this.serial(async () => {
+        const { client } = this.space();
+        const packet = client.records().find((r) => r.id === value.packetId);
+        if (
+          !packet ||
+          packet.deletedAt ||
+          packet.purged ||
+          packet.conflict ||
+          packet.pending
+        )
+          throw Error("材料状态已变化或尚未同步，请刷新后再停止");
+        const remote = await this.request(
+          this.config.active,
+          "GET",
+          "/api/v4/tasks",
+        );
+        for (const task of remote.tasks.filter(
+          (t) =>
+            t.packetId === value.packetId &&
+            !["done", "partial", "purged", "cancelled"].includes(t.state),
+        )) {
+          const jobs = this.readJobs();
+          let local = jobs.find((j) => j.id === task.id);
+          if (!local) {
+            local = {
+              ...task,
+              request: {
+                packetId: task.packetId,
+                kind: task.kind || "organize",
+              },
+            };
+            jobs.push(local);
+          }
+          const intent =
+            local.pendingAction?.action === "stop"
+              ? local.pendingAction
+              : {
+                  action: "stop",
+                  contractVersion: 1,
+                  operationId: randomUUID(),
+                  expectedGeneration: task.generation,
+                  expectedRevision: task.inputRevision,
+                  expectedMaintenanceOperation:
+                    task.maintenanceOperation || null,
+                };
+          local.pendingAction = intent;
+          this.writeJobs(jobs);
+          const { action: _, ...body } = intent;
+          const stopped = await this.request(
+            this.config.active,
+            "POST",
+            `/api/v4/tasks/${task.id}/stop`,
+            body,
+          );
+          this.writeJobs(
+            this.readJobs().map((j) =>
+              j.id === task.id ? { ...j, ...stopped, pendingAction: null } : j,
+            ),
+          );
+        }
+        if (!packet.data.result) {
+          client.put(packet.id, {
+            status: "error",
+            error: "本次整理已停止，原材料保留；可手动保留、删除或主动重试。",
+          });
+          await client.sync();
+        }
+        return this.status();
       });
     if (action === "taskAction")
       return this.serial(async () => {

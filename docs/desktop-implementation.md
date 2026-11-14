@@ -1,6 +1,8 @@
 # 桌面实现入口
 
-当前源码版本 **0.3.27**，Electron 45 + React/TypeScript，复用 `shared/` 的整理、关联和用量逻辑。产品包来源f8771df，原云端与Windows/原管理台已更新，用户原入口确认及无包身份物理回执核验通过，功能集中复验仍待。公开Release仍为0.3.8，运行包、必需CI、部署与安装分层见[第二轮整改记录](project-continuity/acceptance-round2-repair-20261113.md)，复验见[0.3.27指南](guides/product-acceptance-0.3.27.md)；实际状态与未合并成果先读[当前入口](current-baseline.md)。下方历史实现入口继续保留，不能用源码版本替代物理安装证据。
+2026-11-14候选源码升级0.3.28，用户暂停验收并授权基础可靠性集中修复；实际安装/云端仍为下述0.3.27/f8771df。本轮源码、回归、CI、实际交付和剩余风险见[稳定性记录](project-continuity/acceptance-stability-20261114.md)，不得把候选版本当成已运行。
+
+当前源码版本 **0.3.28**，Electron 45 + React/TypeScript，复用 `shared/` 的整理、关联和用量逻辑。实际安装包仍为0.3.27/f8771df，原云端与Windows/原管理台的既有原入口和物理核验保留，功能集中复验已暂停。公开Release仍为0.3.8，上一轮运行包、必需CI、部署与安装分层见[第二轮整改记录](project-continuity/acceptance-round2-repair-20261113.md)；本轮修复按上方稳定性记录接续。下方历史实现入口继续保留，不能用源码版本替代物理安装证据。
 
 - 入口与生命周期：`desktop/main.cjs`，独立窗口、托盘、退出前草稿保存。
 - 安全边界：sandbox/contextIsolation、受限 IPC、静态协议路径校验、外部网页交给系统浏览器。

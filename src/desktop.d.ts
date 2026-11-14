@@ -7,7 +7,7 @@ interface Window {
     ): Promise<{
       base: string;
       pending: number;
-      conflicts: { id: string; text: string }[];
+      conflicts: { id: string; text: string; code?: string }[];
       error: string;
       originalNotice?: string;
       originalDownload?: { saved: boolean; path: string } | null;
@@ -47,6 +47,7 @@ interface Window {
           version: number;
           remind: boolean;
           available: boolean;
+          packetDeleted?: boolean;
           expiresAt: number | null;
           cleanupAt: number | null;
         }[];

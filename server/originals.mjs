@@ -211,6 +211,7 @@ export class OriginalStore {
   }
   transaction(fn) {
     if (this.store.safety) return this.store.safety.transaction(fn);
+    if (this.db.isTransaction) return fn();
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const value = fn();
@@ -544,7 +545,7 @@ export class OriginalStore {
         .get().n,
     };
   }
-  list({ cursor = 0, packetId } = {}) {
+  list({ cursor = 0, packetId, includeDeleted = false } = {}) {
     this.sweep();
     if (
       !Number.isSafeInteger(cursor) ||
@@ -556,7 +557,7 @@ export class OriginalStore {
       packetId === undefined
         ? []
         : (this.store.record(packetId)?.data?.attachments || [])
-            .filter((f) => !f.deletedAt)
+            .filter((f) => includeDeleted || !f.deletedAt)
             .map((f) => f.id);
     const rows = this.db
       .prepare(
@@ -584,16 +585,19 @@ export class OriginalStore {
         version: f.version,
         expiresAt: f.expires,
         cleanupAt: f.cleanup,
+        packetDeleted: !!this.store.record(f.packet)?.deletedAt,
         remind:
           f.state === "legacy_pending_notice" ||
           (f.mode === "retained" &&
             !["deleted", "cleaned"].includes(f.state) &&
             this.now() >= f.expires - 7 * day),
-        available: ["deleted", "cleaned"].includes(f.state)
-          ? false
-          : f.mode === "temporary"
-            ? this.buffers.has(this.key(f.packet, f.id))
-            : !["deleted", "cleaned"].includes(f.state),
+        available:
+          this.store.record(f.packet)?.deletedAt ||
+          ["deleted", "cleaned"].includes(f.state)
+            ? false
+            : f.mode === "temporary"
+              ? this.buffers.has(this.key(f.packet, f.id))
+              : !["deleted", "cleaned"].includes(f.state),
         readingAvailable:
           this.buffers.get(this.key(f.packet, f.id))?.verification === true,
       })),

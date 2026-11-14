@@ -92,6 +92,28 @@ function fixture({
     },
   };
 }
+test("deleted parent originals are visibly unavailable until the parent is restored", () => {
+  const f = fixture();
+  try {
+    f.put("parent");
+    const file = f.file(),
+      submission = f.begin("parent", [file]);
+    f.originals.put(submission.submissionId, file.id, file.body);
+    f.commit(submission);
+    f.put("parent", undefined, "delete");
+    const original = f.originals.list().originals[0];
+    assert.equal(original.packetDeleted, true);
+    assert.equal(original.available, false);
+    assert.throws(
+      () => f.store.files.get("parent", file.id),
+      (e) => e.code === "DELETED",
+    );
+    f.put("parent", undefined, "restore");
+    assert.equal(f.originals.list().originals[0].available, true);
+  } finally {
+    f.close();
+  }
+});
 test("cleared originals can be reverified for reading only: hash, tombstone, quota, download denial and finite memory remain", () => {
   for (const kind of ["deleted", "cleaned"]) {
     const f = fixture();
