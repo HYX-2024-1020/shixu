@@ -216,6 +216,55 @@ test("a retained default card's old paused task cannot block a new chat", async 
   assert.notEqual(result.job, "old");
   assert.equal(cloud.readJobs().length, 2);
 });
+test("a stale stop response can be retried with the fresh generation instead of keeping a poisoned intent", async (t) => {
+  const root = await fixture(t),
+    cloud = new AccountWorkspace({ root });
+  cloud.config = {
+    active: "synthetic",
+    devices: { synthetic: { userId: "owner" } },
+  };
+  cloud.space = () => ({
+    cache: { file: (name) => path.join(root, name) },
+    client: {
+      records: () => [{ id: "packet", data: { result: { items: [] } } }],
+      pendingCount: () => 0,
+      conflicts: () => [],
+    },
+  });
+  let attempts = 0;
+  cloud.request = async (_base, method, url, value) => {
+    if (method === "GET")
+      return {
+        tasks: [
+          {
+            id: "task",
+            packetId: "packet",
+            state: "paused",
+            generation: attempts + 1,
+            inputRevision: "trusted",
+            actions: ["continue", "purge"],
+          },
+        ],
+      };
+    attempts++;
+    assert.equal(value.expectedGeneration, attempts);
+    if (attempts === 1)
+      throw Object.assign(Error("stale"), { status: 409, code: "STALE_TASK" });
+    return {
+      id: "task",
+      packetId: "packet",
+      state: "cancelled",
+      generation: 3,
+      actions: [],
+    };
+  };
+  await assert.rejects(cloud.action("stopPacket", { packetId: "packet" }), {
+    code: "STALE_TASK",
+  });
+  assert.equal(cloud.readJobs()[0].pendingAction, null);
+  await cloud.action("stopPacket", { packetId: "packet" });
+  assert.equal(cloud.readJobs()[0].state, "cancelled");
+});
 test("partial disk write never publishes a hash file and retry saves complete bytes", async (t) => {
   const root = await fixture(t),
     store = new DesktopStore(root);
@@ -330,6 +379,43 @@ test("late response from old identity never repopulates account state", async (t
   });
   await assert.rejects(pending, { code: "ACCOUNT_CHANGED" });
   assert.equal(cloud.accountState, null);
+});
+test("a delayed unauthorized response cannot invalidate the new account", async (t) => {
+  const root = await fixture(t);
+  let releaseBody, bodyStarted;
+  const started = new Promise((resolve) => {
+    bodyStarted = resolve;
+  });
+  const cloud = new AccountWorkspace({
+    root,
+    seal: async (s) => Buffer.from(s),
+    fetcher: async () => ({
+      ok: false,
+      status: 401,
+      json: () => {
+        bodyStarted();
+        return new Promise((r) => {
+          releaseBody = r;
+        });
+      },
+    }),
+  });
+  cloud.config = {
+    active: "account:a",
+    devices: { "account:a": { userId: "a", token: "synthetic" } },
+  };
+  const pending = cloud.request("account:a", "GET", "/api/v3/account");
+  await started;
+  await cloud.configure({
+    active: "account:b",
+    devices: { "account:b": { userId: "b" } },
+  });
+  cloud.authorization = "active";
+  cloud.accountState = { authentication: { username: "B" } };
+  releaseBody({ error: "synthetic revoked" });
+  await assert.rejects(pending, { code: "ACCOUNT_CHANGED" });
+  assert.equal(cloud.authorization, "active");
+  assert.equal(cloud.accountState.authentication.username, "B");
 });
 test("signed cloud original purge is atomic, shared bytes survive and orphan capture can be stopped without AI", async (t) => {
   const { accountUIFixture } = await import(
@@ -466,6 +552,26 @@ test("signed cloud original purge is atomic, shared bytes survive and orphan cap
     ).originals[0].state,
     "available",
   );
+  const requestOriginal = client.request.bind(client);
+  let rejectPurge = true;
+  client.request = async (...args) => {
+    if (args[2] === "/api/v4/originals/purge-reference" && rejectPurge) {
+      rejectPurge = false;
+      throw Object.assign(Error("synthetic changed original"), {
+        status: 409,
+        code: "ORIGINAL_CHANGED",
+      });
+    }
+    return requestOriginal(...args);
+  };
+  await assert.rejects(
+    client.action("purgeAttachment", { packetId: "first", id: "file" }),
+    { code: "ORIGINAL_CHANGED" },
+  );
+  assert.equal(
+    (await client.packets()).find((p) => p.id === "first").attachments.length,
+    1,
+  );
   await client.action("purgeAttachment", { packetId: "first", id: "file" });
   assert.equal(
     (await client.packets()).find((p) => p.id === "first").attachments.length,
@@ -490,5 +596,28 @@ test("signed cloud original purge is atomic, shared bytes survive and orphan cap
     Uint8Array.from(bytes).buffer,
   );
   assert.deepEqual(client.status().account.wallet, walletBefore);
+  const latest = client
+    .space()
+    .client.records()
+    .find((r) => r.id === "first");
+  await client.request(client.config.active, "POST", "/api/v4/tasks", {
+    contractVersion: 1,
+    id: "synthetic-stop-recovery",
+    packetId: "first",
+    kind: "organize",
+    epoch: client.config.devices[client.config.active].epoch,
+    baseVersion: latest.version,
+    expectedCostOperation: null,
+  });
+  await client.action("stopPacket", { packetId: "first" });
+  const stoppedTasks = await client.request(
+    client.config.active,
+    "GET",
+    "/api/v4/tasks",
+  );
+  assert.equal(
+    stoppedTasks.tasks.find((t) => t.id === "synthetic-stop-recovery").state,
+    "cancelled",
+  );
   assert.equal(calls, 0);
 });

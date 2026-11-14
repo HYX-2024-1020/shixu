@@ -148,6 +148,10 @@ class AccountWorkspace extends CloudWorkspace {
             1000;
       }
       const value = await response.json().catch(() => ({}));
+      if (identityGeneration !== (this.identityGeneration || 0))
+        throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+          code: "ACCOUNT_CHANGED",
+        });
       if (device && response.status === 401) {
         this.authorization = "invalid";
         this.accountState = null;
@@ -860,9 +864,16 @@ class AccountWorkspace extends CloudWorkspace {
         });
         return this.status();
       });
-    if (action === "purgeAttachment")
+    if (action === "purgeAttachment") {
+      const identity = this.config.active;
+      const generation = this.identityGeneration || 0;
       return this.action("stopPacket", { packetId: value.packetId }).then(() =>
         this.serial(async () => {
+          if (
+            identity !== this.config.active ||
+            generation !== (this.identityGeneration || 0)
+          )
+            throw Error("账号已切换，请在当前账号重新打开材料后操作");
           const { client, cache } = this.space();
           const row = client.records().find((r) => r.id === value.packetId);
           if (!row || row.pending || row.conflict || row.deletedAt)
@@ -891,12 +902,20 @@ class AccountWorkspace extends CloudWorkspace {
             };
             atomic(file, JSON.stringify(intents));
           }
-          await this.request(
-            this.config.active,
-            "POST",
-            "/api/v4/originals/purge-reference",
-            intents[key],
-          );
+          try {
+            await this.request(
+              this.config.active,
+              "POST",
+              "/api/v4/originals/purge-reference",
+              intents[key],
+            );
+          } catch (error) {
+            if ([400, 403, 404, 409, 422, 426].includes(error.status)) {
+              delete intents[key];
+              atomic(file, JSON.stringify(intents));
+            }
+            throw error;
+          }
           await client.sync();
           this.originalStorage = await this.request(
             this.config.active,
@@ -908,6 +927,7 @@ class AccountWorkspace extends CloudWorkspace {
           return this.status();
         }),
       );
+    }
     if (action === "moreOriginals")
       return this.serial(async () => {
         if (this.originalStorage?.hasMore) {
@@ -1079,12 +1099,23 @@ class AccountWorkspace extends CloudWorkspace {
           local.pendingAction = intent;
           this.writeJobs(jobs);
           const { action: _, ...body } = intent;
-          const stopped = await this.request(
-            this.config.active,
-            "POST",
-            `/api/v4/tasks/${task.id}/stop`,
-            body,
-          );
+          let stopped;
+          try {
+            stopped = await this.request(
+              this.config.active,
+              "POST",
+              `/api/v4/tasks/${task.id}/stop`,
+              body,
+            );
+          } catch (error) {
+            if ([400, 403, 404, 409, 422, 426].includes(error.status))
+              this.writeJobs(
+                this.readJobs().map((j) =>
+                  j.id === task.id ? { ...j, pendingAction: null } : j,
+                ),
+              );
+            throw error;
+          }
           this.writeJobs(
             this.readJobs().map((j) =>
               j.id === task.id ? { ...j, ...stopped, pendingAction: null } : j,
