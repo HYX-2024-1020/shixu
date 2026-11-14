@@ -1,5 +1,9 @@
 # 当前成果与接续入口
 
+## 2026-11-13 第二轮整改0.3.27已部署安装（#118）
+
+独立分支`fix/acceptance-round-two`/PR121实施PR119所存R01—R13。产品包来源f8771df/0.3.27，验证头edbc5c0的Verify43420123281六项全部成功且无审查阻塞；原ECS已在20:01原位升级，钱包/调用/任务摘要不变，真实合成原件、AI合并待确认、事务合并及重启撤销通过。用户20:03完成Windows/原管理台原生联合更新并确认原两入口打开；20:05无包身份只读核验44文件、客户端EXE/ASAR、原快捷方式、进程和网关指纹通过。实际版本、后续文档头CI与诚实遗留见[实施与分层验证](project-continuity/acceptance-round2-repair-20261113.md)，集中步骤见[0.3.27指南](guides/product-acceptance-0.3.27.md)；#118/#107待功能验收保持开放。看板PR120/#117与外部前端独立保留；不进入小程序、双端用户联验或官网。
+
 ## 2026-11-13 第二轮反馈及grill决定已确认，留存待实施
 
 用户补充R01—R13并完成Q1—Q12访谈，明确下一对话实施；本轮仅文档PR，未修产品、部署或安装。[完整清单与验收](project-continuity/user-feedback-round2-20261113.md)、[逐题问答](project-continuity/acceptance-round2-grill-20261113.md)、[新对话提示词](project-continuity/acceptance-round2-start-prompt-20261113.md)统一跟踪[#118](https://github.com/HYX-2024-1020/shixu/issues/118)。0.3.26运行基线不变，下载续期、旧任务重试等用户复验反馈重新调查；不能凭第一轮CI称其已解决。演出暂保持、双端同步联验后置，不进入小程序；保护#117看板前端交接，固定checkout串行协调，不混用任务分支。

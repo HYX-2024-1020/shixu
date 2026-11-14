@@ -92,6 +92,7 @@ try {
     page.getByRole("heading", { name: "手机送来的待办", exact: true }),
   ).toBeVisible();
   await page.locator(".bucket-settings").click();
+  await page.getByRole("button",{name:"同步",exact:true}).click();
   await Promise.all([
     page.waitForEvent("load"),
     page.getByRole("button", { name: "切回本机资料", exact: true }).click(),

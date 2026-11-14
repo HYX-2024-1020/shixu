@@ -1,3 +1,8 @@
+import {
+  mergeCards,
+  undoCardMerge,
+  CardOperationError,
+} from "../generated/ai-core.mjs";
 import { ReadingWindowMaintenance } from "./window-maintenance.mjs";
 import { ReadingTasks } from "./tasks.mjs";
 import { createReadingScheduler } from "./scheduler.mjs";
@@ -10,6 +15,10 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  INVALID_CARD_OPERATION:
+    "卡片操作信息不完整，请刷新后重新选择目标；尚未保存本次修改",
+  REVISION_CONFLICT: "卡片已被其他操作修改，请刷新并重新确认；尚未保存本次修改",
+  MATERIAL_DECIDED: "材料已保留或删除，原任务不再继续；普通卡片与已有费用保留",
   MAINTENANCE: "服务器维护中，进度与费用保留；维护完成后请主动继续",
   SITE_MONTH_BUDGET:
     "全站月预算不足，进度保留；维护者调整预算或下月恢复后请主动继续",
@@ -253,8 +262,11 @@ export function createReadingRoutes({
         (shutdownMessages[displayReason] || displayReason || "") +
         (displayReason && diagnostic ? `；报告编号 ${diagnostic.id}` : ""),
       protocol: 4,
+      disposition:
+        e.store.record(t.packet)?.data?.defaultCardDisposition?.choice || null,
       actions:
-        t.state === "purged"
+        t.state === "purged" ||
+        e.store.record(t.packet)?.data?.defaultCardDisposition
           ? []
           : [
               ...(active.includes(t.state) ? ["stop"] : []),
@@ -454,8 +466,8 @@ export function createReadingRoutes({
         serverTime: new Date().toISOString(),
         materialUseNotice: materialNoticeRequired
           ? {
-              version: 2,
-              text: "连接账号后资料同步至拾序服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。云端原件通常保存30天，到期后7天待清理，可下载、续期或删除；临时整理不长期保存原件，清理后继续需补传。云端删除不删除已下载的本机副本。服务器每天一致性备份，最近两份成功备份各自最长保留7天；删除不等于立即从已有备份消失，恢复仍须通过费用与安全记录核对。",
+              version: 3,
+              text: "连接账号后资料同步至拾序服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。云端原件通常保存30天，到期后7天待清理，可下载、续期或删除；临时整理不长期保存原件，清理后继续需补传。云端删除不删除已下载的本机副本。服务器每天一致性备份，最近两份成功备份通常保留7天；最后一份校验有效备份在新备份可用前继续保留，避免清空恢复点；删除不等于立即从已有备份消失，恢复仍须通过费用与安全记录核对。",
             }
           : null,
         features: {
@@ -485,6 +497,8 @@ export function createReadingRoutes({
           itemChat: typeof provider.chat === "function",
           attachmentChat: typeof provider.chat === "function",
           accountChatProposals: typeof provider.chat === "function",
+          manualCardMerge: true,
+          scopedItemChat: typeof provider.chat === "function",
           pdfPageVisual:
             reader.pdfVisualWindows === true && provider.imageInput === true,
           pdfTextOnly: !(
@@ -631,6 +645,112 @@ export function createReadingRoutes({
     }) {
       authorize(account, device);
       if (closed) fail(503, "MAINTENANCE");
+      if (
+        ["/api/v4/cards/merge", "/api/v4/cards/undo"].includes(url.pathname) &&
+        method === "POST"
+      ) {
+        if (
+          value.contractVersion !== 1 ||
+          value.epoch !== store.epoch ||
+          !/^[\w-]{1,80}$/.test(value.operationId || "") ||
+          !Array.isArray(value.targets) ||
+          value.targets.length < 1 ||
+          value.targets.length > 20 ||
+          value.targets.some(
+            (t) =>
+              !t ||
+              typeof t.packetId !== "string" ||
+              typeof t.itemId !== "string" ||
+              !Number.isSafeInteger(t.baseVersion),
+          ) ||
+          (url.pathname.endsWith("/merge") &&
+            (typeof value.title !== "string" ||
+              typeof value.itemId !== "string"))
+        )
+          fail(422, "INVALID_CARD_OPERATION");
+        if (!store.safety) fail(503, "SAFETY_RECONCILIATION");
+        return store.safety.transaction(() => {
+          const prior = store.db
+            .prepare(
+              "SELECT fingerprint FROM sync_operations WHERE device_id=? AND op_id=?",
+            )
+            .get(device, value.operationId + "_receipt");
+          const identity = JSON.stringify(value);
+          if (prior) {
+            const receipt = store.record(value.receiptPacketId)?.data
+              ?.cardOperations?.[value.operationId];
+            if (!receipt || receipt !== identity)
+              fail(409, "IDEMPOTENCY_CONFLICT");
+            return { accepted: true };
+          }
+          const records = store.db
+            .prepare(
+              "SELECT id FROM sync_records WHERE deleted_at IS NULL AND purged=0",
+            )
+            .all()
+            .map((r) => store.record(r.id));
+          for (const target of value.targets) {
+            const r = records.find((r) => r.id === target.packetId);
+            if (!r || r.version !== target.baseVersion)
+              fail(409, "REVISION_CONFLICT");
+          }
+          const packets = records.map((r) => r.data);
+          let changes;
+          try {
+            changes = url.pathname.endsWith("/merge")
+              ? mergeCards(packets, value.targets, value.itemId, value.title)
+              : undoCardMerge(
+                  packets,
+                  value.targets[0],
+                  value.preserveEdited === true,
+                );
+          } catch (error) {
+            if (error instanceof CardOperationError)
+              throw new SyncError(409, "CARD_OPERATION_CHANGED", error.message);
+            throw error;
+          }
+          // All source membership and main-card changes commit in one tenant
+          // safety transaction; no attachments are copied or re-uploaded.
+          for (const [i, p] of changes.entries()) {
+            const data = { ...p };
+            delete data.remote;
+            delete data.remoteDirty;
+            delete data.deletedAt;
+            delete data.syncVersion;
+            store.apply(
+              device,
+              {
+                opId: value.operationId + "_" + i,
+                id: p.id,
+                type: "put",
+                baseVersion: store.record(p.id).version,
+                data,
+              },
+              store.epoch,
+            );
+          }
+          const receipt = store.record(value.receiptPacketId);
+          if (!receipt || !changes.some((p) => p.id === receipt.id))
+            fail(422, "INVALID_CARD_OPERATION");
+          store.apply(
+            device,
+            {
+              opId: value.operationId + "_receipt",
+              id: receipt.id,
+              type: "put",
+              baseVersion: receipt.version,
+              data: {
+                cardOperations: {
+                  ...receipt.data.cardOperations,
+                  [value.operationId]: identity,
+                },
+              },
+            },
+            store.epoch,
+          );
+          return { accepted: true };
+        });
+      }
       if (store.originals) {
         const originals = store.originals;
         if (url.pathname === "/api/v4/storage" && method === "GET")
@@ -795,6 +915,8 @@ export function createReadingRoutes({
                   itemId: value.itemId,
                   instruction: value.instruction,
                   scope: value.scope,
+                  groupId: value.groupId,
+                  targets: value.targets,
                   readAttachments: value.readAttachments,
                   baseVersion: value.baseVersion,
                   epoch: value.epoch,
@@ -889,9 +1011,9 @@ export function createReadingRoutes({
         : [...engines.values()].flatMap((e) =>
             e.db
               .prepare(
-                "SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason",
+                "SELECT reason,COUNT(*) count FROM reading_tasks WHERE state IN ('paused','error','interrupted') AND updated_at>=? AND NOT EXISTS(SELECT 1 FROM sync_records r WHERE r.id=reading_tasks.packet AND json_extract(r.data,'$.defaultCardDisposition.choice') IN ('kept','deleted')) AND reason IN ('READING_TASK_FAILED','NO_READABLE_MATERIAL','READING_TIMEOUT','SHUTDOWN_TIMEOUT') GROUP BY reason",
               )
-              .all()
+              .all(ledger.now() - 10 * 60000)
               .map((r) => ({ account: e.account, ...r })),
           ),
     }),

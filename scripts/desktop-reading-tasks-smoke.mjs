@@ -1,6 +1,7 @@
 import { _electron as electron, expect } from "@playwright/test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import {createHash} from "node:crypto";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { accountUIFixture } from "./account-ui-fixture.mjs";
@@ -270,13 +271,18 @@ scenario: try {
     });
   }, original);
   await page.locator(".bucket-settings").click();
+  await page.getByRole("button", { name: "AI与用量", exact: true }).click();
+  await expect(page.getByText(/累计已消费/)).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.getByRole("button",{name:"整理结果",exact:true}).click();
+  await page.getByRole("button",{name:"整理任务",exact:true}).click();
   if (partialRemaining) {
     await waitForPageState(page, async () => {
       await window.desktop.cloud("sync");
       const job = (await window.desktop.cloud("status")).jobs[0];
       return job?.completedBlocks === 1 && job.calls === 2 && job.actions.includes("accept-partial");
     });
-    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "刷新任务", exact: true }).click();
     await page.getByRole("button", { name: "查看已完成内容", exact: true }).click();
     await expect(page.getByText(/尚未保存到世界/)).toBeVisible();
     await page.getByRole("button", { name: "收下有效部分", exact: true }).click();
@@ -292,7 +298,7 @@ scenario: try {
       await window.desktop.store("savePackets", [p]); await window.desktop.cloud("sync");
       return p.itemIds[0];
     });
-    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "刷新任务", exact: true }).click();
     await page.getByRole("button", { name: "完成剩余材料", exact: true }).click();
     await waitForPageState(page, async () => {
       await window.desktop.cloud("sync");
@@ -319,7 +325,7 @@ scenario: try {
       },
       readFailure,
     );
-    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "刷新任务", exact: true }).click();
     await expect(
       page.locator(".bucket-dialog[open]").getByText(
         readFailure === "EXECUTION_LIMIT"
@@ -342,7 +348,7 @@ scenario: try {
         operationId:crypto.randomUUID(),expectedGeneration:review.generation,expectedWatermark:review.watermark,
         ...(auditUnknownTime ? {expectedLedgerSequence:review.ledgerSequence} : {newLimitMs:3600000}),evidenceHash:"a".repeat(64),
       },"synthetic-maintainer");
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       await expect(page.locator(".bucket-dialog[open]").getByText(auditUnknownTime ? /活跃时间已核对并保守补计/ : /维护核对已延长本投递时限/)).toBeVisible();
       await page.getByRole("button",{name:"继续",exact:true}).click();
       try {
@@ -356,7 +362,7 @@ scenario: try {
         console.error(JSON.stringify({synthetic:true,stage:'audit-time-continue-timeout',jobs}));
         throw error;
       }
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
       const after=await page.evaluate(()=>window.desktop.cloud("status"));
       assert.ok(after.jobs[0].rootActiveMs >= review.activeMs);
@@ -383,13 +389,12 @@ scenario: try {
       }),
     );
   } else {
-    await expect(page.getByText(/累计已消费/)).toBeVisible();
     if(costAudit) {
       await waitForPageState(page,async()=>{
         await window.desktop.cloud("sync");
         return (await window.desktop.cloud("status")).jobs[0]?.reason==="UNKNOWN_COST";
       });
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       const before=await page.evaluate(()=>window.desktop.cloud("status"));
       const task=before.jobs[0],account=fixture.invitation.userId;
@@ -403,7 +408,7 @@ scenario: try {
         expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence,
         callId:call.id,evidenceHash},"synthetic-maintainer");
       assert.equal(calls,2);
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       await expect(page.locator(".bucket-dialog[open]").getByText(/缺失结果继续整理可能再次计费/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toBeVisible();
     } else {
@@ -413,27 +418,28 @@ scenario: try {
     await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
     if (safetyRollback) {
       await expect.poll(()=>fixture.service.readingRoutes.snapshot().accounts).toBe(0);
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       const before=await page.evaluate(()=>window.desktop.cloud("status"));
       const task=before.jobs.find(j=>j.packetId==="task-ui");
       assert.ok(task.rootActiveMs > 0);
       const db=openSyntheticTenantWriter(fixture.service,fixture.invitation.userId);
       try {db.prepare("UPDATE reading_tasks SET active_ms=0 WHERE id=?").run(task.id);} finally {db.close();}
-      await page.getByRole("button",{name:"立即同步",exact:true}).click();
+      await page.getByRole("button",{name:"刷新任务",exact:true}).click();
       await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       const after=await page.evaluate(()=>window.desktop.cloud("status"));
       assert.ok(after.jobs[0].rootActiveMs >= task.rootActiveMs);
       assert.equal(calls,1);assert.equal(after.account.wallet.spent,before.account.wallet.spent);
       await page.reload();
-      await page.locator(".bucket-settings").click();
+      await page.getByRole("button",{name:"整理结果",exact:true}).click();
+  await page.getByRole("button",{name:"整理任务",exact:true}).click();
       await expect(page.locator(".bucket-dialog[open]").getByText(/资料进度与安全记录不一致/)).toBeVisible();
       await expect(page.getByRole("button",{name:"继续",exact:true})).toHaveCount(0);
       console.log(JSON.stringify({synthetic:true,realProviderCalls:0,electronSourceUI:true,safetyRollback:true,
         sameTimeFloor:true,noContinue:true,reloadGatePreserved:true,simulatedCalls:calls,spentMicros:after.account.wallet.spent}));
       break scenario;
     }
-    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "刷新任务", exact: true }).click();
     }
     await page.getByRole("button", { name: "继续", exact: true }).click();
     await waitForPageState(page, async () => {
@@ -443,7 +449,7 @@ scenario: try {
           ?.result?.items?.length > 0
       );
     });
-    await page.getByRole("button", { name: "立即同步", exact: true }).click();
+    await page.getByRole("button", { name: "刷新任务", exact: true }).click();
     await expect(page.getByText(/已发布 · 本任务已调用/)).toBeVisible();
     await expect(
       page.getByText(/该投递累计 \d+ 次 · 活跃 \d+ 秒/),
@@ -457,7 +463,8 @@ scenario: try {
     }
     assert.ok(status.jobs.find((j) => j.packetId === "task-ui")?.calls > 1);
     if (lifecycle) {
-      await page.getByRole("button", { name: "立即同步", exact: true }).click();
+      await page.getByRole("button", { name: "刷新任务", exact: true }).click();
+      await page.getByRole("button",{name:"管理云端原件",exact:true}).click();
       await expect(
         page.getByRole("heading", { name: "云端原件", exact: true }),
       ).toBeVisible();
@@ -496,14 +503,18 @@ scenario: try {
             version + 1,
           before,
         );
+        await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},join(fixture.env.SHIXU_DATA_DIR,"synthetic-original-download.txt"));
         await page
           .getByRole("button", { name: "下载到本机", exact: true })
           .click();
         await expect(
-          page.getByText("原件已校验并保存到本机，可从材料面板打开", {
+          page.getByText("原件已校验并保存至：" + join(fixture.env.SHIXU_DATA_DIR,"synthetic-original-download.txt"), {
             exact: true,
           }),
         ).toBeVisible();
+        const saved=await readFile(join(fixture.env.SHIXU_DATA_DIR,"synthetic-original-download.txt"));
+        const originalRow=(await page.evaluate(()=>window.desktop.cloud("status"))).originalStorage.originals[0];
+        assert.equal(saved.length,originalRow.size);assert.equal(createHash("sha256").update(saved).digest("hex"),originalRow.hash);
       }
       page.once("dialog", (d) => d.accept());
       await page
@@ -517,6 +528,7 @@ scenario: try {
       ).originalStorage;
       assert.equal(storage.usedBytes, 0);
       assert.equal(storage.originals[0].state, "deleted");
+      await page.getByRole("button", { name: "返回整理任务", exact: true }).click();
     }
     if (revisionReuse) {
       const previousCalls = calls;
@@ -531,14 +543,14 @@ scenario: try {
         const jobs = (await window.desktop.cloud("status")).jobs;
         return jobs.some(j => j.state === "done" && j.reusedBlocks > 0);
       });
-      await page.getByRole("button", { name: "立即同步", exact: true }).click();
+      await page.getByRole("button", { name: "刷新任务", exact: true }).click();
       await expect(page.getByText(/复用 [1-9]\d* 个已付费块（已核验当前材料）/)).toBeVisible();
       assert.equal(calls, previousCalls + 1);
     }
     if (pdfWindows || archiveWindows)
       await expect(page.getByText(/已检查 19 \/ 19 页/).last()).toBeVisible();
     if (original) {
-      await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+      await page.getByRole("button", { name: "关闭整理任务", exact: true }).click();
       // IPC submission updates the main-process projection; verify persisted
       // cards after the renderer reloads its account workspace.
       await page.reload();

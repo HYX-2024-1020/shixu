@@ -83,6 +83,15 @@ else {
       const cloud = new AccountWorkspace({
         root: path.join(app.getPath("userData"), "cloud"),
         local: store,
+        saveOriginal: async (file, bytes) => {
+          const selected = await dialog.showSaveDialog(mainWindow, {
+            title: "将原件保存到本机",
+            defaultPath: path.join(app.getPath("downloads"), path.basename(file.name.replaceAll("\\", "/"))),
+          });
+          if (selected.canceled || !selected.filePath) return null;
+          await require("node:fs/promises").writeFile(selected.filePath, bytes);
+          return selected.filePath;
+        },
         confirmTemporaryLoss: async () =>
           (
             await dialog.showMessageBox(mainWindow, {

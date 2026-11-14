@@ -10,9 +10,12 @@ interface Window {
       conflicts: { id: string; text: string }[];
       error: string;
       originalNotice?: string;
+      originalDownload?: { saved: boolean; path: string } | null;
       localSaveNotice?: string;
       materialUseNotice?: { version: number; text: string } | null;
       materialConsentAccepted?: boolean;
+      materialPurposeAccepted?: boolean;
+      materialRetentionAccepted?: boolean;
       taskPreview?: {
         taskId: string;
         readOnly: boolean;
@@ -66,7 +69,14 @@ interface Window {
       }[];
       job?: string;
       jobs?: {
-          diagnostic?: { id: string; at: number; code: string; phase: string; version: string } | null;
+        disposition?: "kept" | "deleted" | null;
+        diagnostic?: {
+          id: string;
+          at: number;
+          code: string;
+          phase: string;
+          version: string;
+        } | null;
         id: string;
         packetId?: string;
         state: string;
@@ -92,7 +102,14 @@ interface Window {
       }[];
       account?: {
         aiAvailability?: { available: boolean; reason: string };
-        usageSummary?: { day: string; timezone: string; sampledAt: number; daySpentMicro: number; personalRemainingMicro: number; siteRemainingMicro: number } | null;
+        usageSummary?: {
+          day: string;
+          timezone: string;
+          sampledAt: number;
+          daySpentMicro: number;
+          personalRemainingMicro: number;
+          siteRemainingMicro: number;
+        } | null;
         activation: string;
         authentication?: {
           passwordChangeRequired?: boolean;

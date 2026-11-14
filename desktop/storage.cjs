@@ -299,6 +299,22 @@ class DesktopStore {
             attachments: await this.decode(state.draft.attachments),
           };
         case "savePackets":
+          for (const p of value)
+            if (
+              p.deletedAt &&
+              state.packets.some((row) =>
+                Object.values(row.itemState || {}).some(
+                  (meta) =>
+                    !meta.purgedAt &&
+                    meta.mergedCard?.sources?.some(
+                      (source) => source.packetId === p.id,
+                    ),
+                ),
+              )
+            )
+              throw Error(
+                "此投递仍被合并主卡引用，请先撤销合并；卡片与原件尚未删除",
+              );
           for (const p of value) {
             if (state.tombstones?.includes(p.id))
               throw new Error(
@@ -365,6 +381,20 @@ class DesktopStore {
           ];
           break;
         case "removePacket":
+          if (
+            state.packets.some((row) =>
+              Object.values(row.itemState || {}).some(
+                (meta) =>
+                  !meta.purgedAt &&
+                  meta.mergedCard?.sources?.some(
+                    (source) => source.packetId === value,
+                  ),
+              ),
+            )
+          )
+            throw Error(
+              "此投递仍被合并主卡引用，请先撤销合并；卡片与原件尚未删除",
+            );
           state.tombstones = [...new Set([...(state.tombstones || []), value])];
           state.packets = state.packets.filter((p) => p.id !== value);
           break;

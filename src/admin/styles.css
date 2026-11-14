@@ -1161,3 +1161,15 @@ th.num {
   margin-top: 16px;
   color: #55675d;
 }
+
+/* Shared product palette and explicit action feedback. */
+:root { --paper:#fff9e6; --panel:#fffef8; --panel-raise:#fffef8; --ink:#171713; --ink-soft:#45453b; --line:#d8d0b5; --line-strong:#171713; --green:#7251a3; --green-deep:#50317b; --focus:#7251a3; }
+.btn { border:2px solid #171713; border-radius:6px; transition:transform .1s,box-shadow .1s; }
+.btn-primary { background:#ffd43b; color:#171713; box-shadow:3px 3px 0 #171713; }
+.btn-ghost { background:#fffef8; }
+.btn-danger { background:#f8d5dc; color:#7b182f; border-color:#7b182f; }
+.btn:hover:not(:disabled) { transform:translateY(-1px);box-shadow:3px 3px 0 #171713; }
+.btn:active:not(:disabled) { transform:translate(2px,2px);box-shadow:none; }
+.btn:disabled { opacity:.55;cursor:not-allowed;box-shadow:none; }
+.btn[aria-busy="true"] { background:#e8ddf6;opacity:1; }
+[role="alert"] { border-left:4px solid #b3402e;background:#fff0eb;padding:10px; }

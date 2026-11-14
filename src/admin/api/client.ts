@@ -101,7 +101,13 @@ export interface AdminApi {
   getOperations?(): Promise<OperationsReport>;
   requestOperation?(
     kind: string,
-    args: { reason: string; snapshotId?: string; releaseId?: string },
+    args: {
+      reason: string;
+      snapshotId?: string;
+      releaseId?: string;
+      cleanupBefore?: number;
+      cleanupFingerprint?: string;
+    },
     operationId: string,
   ): Promise<CloudJob>;
   getBudget?(): Promise<Budget>;
@@ -206,6 +212,15 @@ export interface CloudJob {
   result: Record<string, unknown> | null;
 }
 export interface OperationsReport {
+  cleanupPreview?: {
+    at: number;
+    fingerprint: string;
+    originals: number;
+    logicalBytes: number;
+    reusablePageBytes: number;
+    expiredBackups: number;
+    protected: string;
+  };
   maintenance: { paused: boolean; reason: string | null };
   jobs: CloudJob[];
   inventory: {

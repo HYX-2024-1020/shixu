@@ -7,7 +7,7 @@ const mb = (n: number) => (n / 1048576).toFixed(2) + " MiB";
 const labels: Record<string, string> = {
   backup: "立即备份",
   restore: "恢复所选备份",
-  cleanup: "清理已到期资料 / 回收空闲页",
+  cleanup: "预演安全释放存储",
   restart: "重启拾序服务",
   rollback: "切换所选兼容发布",
   resume: "恢复上传与 AI 的维护权限",
@@ -43,6 +43,7 @@ export function OperationsPanel({
       kind: string;
       id: string;
       target?: string;
+      cleanupPreview?: import("./api/client").OperationsReport["cleanupPreview"];
     } | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -52,7 +53,14 @@ export function OperationsPanel({
     return () => clearInterval(timer);
   }, [retry]);
   const begin = (kind: string, target?: string) => {
-    setPending({ kind, id: newOperationId(), target });
+    setPending({
+      kind,
+      id: newOperationId(),
+      target,
+      ...(kind === "cleanup" && state.phase === "ready"
+        ? { cleanupPreview: state.data.cleanupPreview }
+        : {}),
+    });
     setReason("");
     setError("");
     setSubmitted("");
@@ -284,6 +292,29 @@ export function OperationsPanel({
         </>
       )}
       {submitted && <p role="status">{submitted}</p>}
+      {pending?.kind === "cleanup" && (
+        <section aria-label="存储释放预演">
+          <h3>预演结果（尚未删除）</h3>
+          {pending.cleanupPreview ? (
+            <>
+              <p>
+                已符合期限的原件：{pending.cleanupPreview.originals}份 /{" "}
+                {mb(pending.cleanupPreview.logicalBytes)}；SQLite可回收空闲页：
+                {mb(pending.cleanupPreview.reusablePageBytes)}；到期备份：
+                {pending.cleanupPreview.expiredBackups}份（最后有效备份保留）。
+              </p>
+              <p>{pending.cleanupPreview.protected}</p>
+              <p>
+                预演2分钟有效；对象变化时需刷新重做，实际物理回收量可能小于逻辑原件大小。
+              </p>
+            </>
+          ) : (
+            <p role="alert">
+              当前服务未提供安全预演，不能执行。请刷新或更新服务。
+            </p>
+          )}
+        </section>
+      )}
       <ConfirmDialog
         inline
         open={!!pending}
@@ -309,6 +340,10 @@ export function OperationsPanel({
         error={error}
         onCancel={() => setPending(null)}
         onConfirm={async () => {
+          if (pending?.kind === "cleanup" && !pending.cleanupPreview) {
+            setError("请先获取有效的安全预演");
+            return;
+          }
           if (!pending || !reason.trim()) {
             setError("请填写操作原因");
             return;
@@ -319,6 +354,12 @@ export function OperationsPanel({
               pending.kind,
               {
                 reason: reason.trim(),
+                ...(pending.kind === "cleanup"
+                  ? {
+                      cleanupBefore: pending.cleanupPreview!.at,
+                      cleanupFingerprint: pending.cleanupPreview!.fingerprint,
+                    }
+                  : {}),
                 ...(pending.kind === "restore"
                   ? { snapshotId: pending.target }
                   : {}),

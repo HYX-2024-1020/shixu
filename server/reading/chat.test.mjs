@@ -646,3 +646,200 @@ test("chat status and correction metadata follow the existing manual card rules"
   assert.equal(packet.itemState.item1.completedAt, "2026-10-30T08:00:00.000Z");
   assert.equal(packet.itemState.item1.history.length, 1);
 });
+
+for (const scope of ["packet", "group", "selected"])
+  test(`explicit ${scope} scope yields a merge preview without adding or modifying source cards`, async (t) => {
+    const f = fixture(t, {
+      chatProvider: async (sources) => {
+        const context = JSON.parse(sources[0].text);
+        assert.equal(context.relatedItems.length, 1);
+        assert.equal(context.relatedItems[0].itemId, "item2");
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            reply: "待确认合并",
+            patch: {},
+            merge: {
+              title: "合并事项",
+              targets: [context.currentTarget, context.relatedItems[0]],
+            },
+          },
+        };
+      },
+    });
+    const before = f.store.record("packet").data;
+    f.put({
+      itemState: { item2: { ...before.itemState.item2, groupIds: ["theme"] } },
+    });
+    f.input.chat = {
+      ...f.input.chat,
+      scope,
+      groupId: "theme",
+      targets: [{ packetId: "packet", itemId: "item2" }],
+      baseVersion: f.store.record("packet").version,
+    };
+    f.enqueue();
+    assert.equal((await finish(f.tasks)).state, "done");
+    const after = f.store.record("packet").data;
+    assert.deepEqual(after.result.items, before.result.items);
+    assert.equal(after.itemState.item1.chatMerge.targets.length, 2);
+    assert.equal(after.itemState.item2.mergedInto, undefined);
+    assert.equal(f.calls().chat, 1);
+  });
+
+test("pre-round-two saved chat requests keep their original context hash and paid publication shape", async (t) => {
+  const f = fixture(t, {
+    chatProvider: async (sources) => {
+      const context = JSON.parse(sources[0].text);
+      assert.equal(context.currentTarget, undefined);
+      assert.ok(
+        context.scope.startsWith(
+          "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行",
+        ),
+      );
+      assert.equal(context.originals[0].packetId, undefined);
+      assert.ok(
+        context.attachmentContent[0].sources.some((s) =>
+          s.text.includes("旧原件"),
+        ),
+      );
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: { reply: "旧请求仍可继续", patch: { starred: true } },
+      };
+    },
+  });
+  const { sha256 } = await import("./material.mjs");
+  const prepare = f.tasks.chat.prepare.bind(f.tasks.chat);
+  f.tasks.chat.prepare = (...args) => {
+    const saved = prepare(...args);
+    delete saved.request.protocol;
+    saved.requestHash = f.tasks.chat.requestHash(saved.request);
+    saved.contextHash = sha256(
+      JSON.stringify(f.tasks.chat.context(saved.request)),
+    );
+    return saved;
+  };
+  const original = f.store.files.put("packet", "legacy-file", {
+    name: "旧原件.txt",
+    body: Buffer.from("旧原件保留内容"),
+    epoch: f.store.epoch,
+  });
+  f.put({ attachments: [original] });
+  f.input.chat.baseVersion = f.store.record("packet").version;
+  f.input.chat.readAttachments = true;
+  f.input.chat.scope = "account";
+  f.enqueue();
+  assert.equal(f.tasks.chat.request("chat1").protocol, undefined);
+  await f.tasks.run("chat1");
+  const apply = f.store.apply.bind(f.store);
+  f.store.apply = () => {
+    throw Error("INJECTED_LEGACY_PUBLICATION_FAILURE");
+  };
+  assert.equal((await f.tasks.run("chat1")).state, "paused");
+  f.store.apply = apply;
+  const restarted = new ReadingTasks(f.args),
+    task = restarted.get("chat1");
+  restarted.action(
+    "chat1",
+    {
+      operationId: "legacy-continue",
+      expectedGeneration: task.generation,
+      expectedRevision: task.input_revision,
+      expectedMaintenanceOperation: restarted.maintenanceOperation("chat1"),
+    },
+    "continue",
+    f.device,
+  );
+  assert.equal((await finish(restarted)).state, "done");
+  restarted.close();
+  assert.equal(f.calls().chat, 1);
+  assert.equal(f.store.record("packet").data.itemState.item1.starred, true);
+});
+
+test("merged main chat reads referenced child requirements and original bytes with explicit missing-child coverage", async (t) => {
+  const f = fixture(t, {
+    chatProvider: async (sources) => {
+      const context = JSON.parse(sources[0].text);
+      assert.equal(context.mergedChildren.length, 1);
+      assert.equal(context.missingMergedChildren, 1);
+      assert.equal(context.mergedChildren[0].item.title, "独立子项");
+      assert.equal(context.attachmentContent[0].packetId, "child-packet");
+      assert.ok(
+        context.attachmentContent[0].sources.some((s) =>
+          s.text.includes("子项原件尾部唯一标记"),
+        ),
+      );
+      return {
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+        result: { reply: "已读取可访问子项，缺失来源不能猜测", patch: {} },
+      };
+    },
+  });
+  const child = {
+    text: "独立子项要求",
+    captureDate: "2026-10-29",
+    status: "ready",
+    doneIds: [],
+    itemIds: ["child-item"],
+    itemState: {
+      "child-item": { mergedInto: { packetId: "packet", itemId: "item1" } },
+    },
+    attachments: [],
+    result: {
+      summary: "子项",
+      warnings: [],
+      items: [
+        { ...f.store.record("packet").data.result.items[0], title: "独立子项" },
+      ],
+    },
+  };
+  const put = (data) =>
+    f.store.apply(
+      f.device,
+      {
+        id: "child-packet",
+        opId: crypto.randomUUID(),
+        type: "put",
+        baseVersion: f.store.record("child-packet")?.version || 0,
+        data,
+      },
+      f.store.epoch,
+      { taskId: "synthetic-seed" },
+    );
+  put(child);
+  const original = f.store.files.put("child-packet", "child-file", {
+    name: "子项.txt",
+    body: Buffer.from("子项原件尾部唯一标记"),
+    epoch: f.store.epoch,
+  });
+  put({ attachments: [original] });
+  f.put({
+    itemState: {
+      item1: {
+        mergedCard: {
+          sources: [
+            {
+              packetId: "child-packet",
+              itemId: "child-item",
+              title: "独立子项",
+            },
+            { packetId: "missing", itemId: "missing", title: "不可访问" },
+          ],
+        },
+      },
+    },
+  });
+  f.input.chat = {
+    ...f.input.chat,
+    readAttachments: true,
+    baseVersion: f.store.record("packet").version,
+  };
+  f.enqueue();
+  assert.equal((await finish(f.tasks)).state, "done");
+  assert.match(
+    f.store.record("packet").data.itemState.item1.chat.at(-1).text,
+    /另1个子项已不可访问/,
+  );
+  assert.equal(f.calls().chat, 1);
+});

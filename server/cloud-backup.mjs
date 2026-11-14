@@ -279,9 +279,20 @@ export function rotateCloudSnapshots(root, { now = Date.now() } = {}) {
       if (info.expiresAt <= now) removePartial(root, path, info.files);
     }
   const rows = listCloudSnapshots(root, { now, verifyHashes: false });
+  // Keep the most recent checksum-valid snapshot even beyond its normal TTL.
+  // Expiry must never leave a host without its final known recovery copy.
+  let lastGood = null;
+  for (const row of rows) {
+    try {
+      verifyCloudSnapshot(root, row.id, { now, allowExpired: true });
+      lastGood = row.id;
+      break;
+    } catch {}
+  }
   let kept = 0;
   for (const row of rows) {
     if (row.available && kept++ < 2) continue;
+    if (row.id === lastGood) continue;
     if (row.code && (!row.expiresAt || Date.parse(row.expiresAt) > now))
       continue;
     const { directory, manifest } = verifyCloudSnapshot(root, row.id, {
@@ -539,7 +550,7 @@ export function recoverCloudMaintenance(config, operationId) {
     lease.release();
   }
 }
-export function cleanCloudStorage(config) {
+export function cleanCloudStorage(config, { now = Date.now() } = {}) {
   const lease = acquireDataLease(config.directory, "maintenance");
   let ledger;
   try {
@@ -565,7 +576,10 @@ export function cleanCloudStorage(config) {
       try {
         createAttachmentStore(store);
         jobs = createJobQueue(store, null, {}, { archiveLegacy: true });
-        originals = new OriginalStore(store, { safety: { ledger, account } });
+        originals = new OriginalStore(store, {
+          safety: { ledger, account },
+          now: () => now,
+        });
         tasks = new ReadingTasks({
           store,
           account,
@@ -600,7 +614,7 @@ export function cleanCloudStorage(config) {
       }
       freed += Math.max(0, before - lstatSync(path).size);
     }
-    rotateCloudSnapshots(config.backupRoot);
+    rotateCloudSnapshots(config.backupRoot, { now });
     const request = {
       operationId: "cleanup-" + randomUUID(),
       actor: "cloud-operations",

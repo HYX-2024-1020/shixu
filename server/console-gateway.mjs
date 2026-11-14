@@ -142,6 +142,7 @@ export function createConsoleGateway({
             "/fonts/SpaceGrotesk.ttf",
             "/desktop-icon.svg",
             "/console-icon.svg",
+            "/console-xu-v2.ico",
           ].includes(path))
       ) {
         asset = "." + path;
@@ -152,6 +153,7 @@ export function createConsoleGateway({
           woff: "font/woff",
           woff2: "font/woff2",
           svg: "image/svg+xml",
+          ico: "image/x-icon",
         }[path.split(".").at(-1)];
       } else
         return json(404, {

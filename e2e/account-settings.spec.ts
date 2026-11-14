@@ -53,12 +53,14 @@ test("账号服务不可用时结束加载、保留本机备份，并能重试�
     page.getByText("正在读取账号连接方式…", { exact: true }),
   ).toHaveCount(0);
   await expect(page.getByLabel("注册邀请码", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "本机备份", exact: true }).click();
   await expect(
     page.getByRole("button", {
       name: "备份全部资料（含草稿、最近删除与原件）",
       exact: true,
     }),
   ).toBeEnabled();
+  await page.getByRole("button", { name: "账号", exact: true }).click();
   await page.getByRole("button", { name: "重试连接方式", exact: true }).click();
   await expect(page.getByLabel("账号名称", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
@@ -117,6 +119,7 @@ test("已连接账号清楚可见，改密使用本区当前密码并保留错�
   ).toBeVisible();
   await expect(page.getByText(/当前账号：fixture-user/)).toBeVisible();
   await expect(page.getByLabel("登录密码", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "设备与密码", exact: true }).click();
   await page.getByLabel("当前密码", { exact: true }).fill("synthetic-current");
   await page.getByLabel("新密码", { exact: true }).fill("synthetic-new");
   await page
@@ -130,6 +133,7 @@ test("已连接账号清楚可见，改密使用本区当前密码并保留错�
     "synthetic-current",
   );
   await page.screenshot({ path: info.outputPath("password-feedback.png") });
+  await page.getByRole("button", { name: "账号", exact: true }).click();
   await page.getByRole("button", { name: "切换账号", exact: true }).click();
   await expect(page.getByLabel("账号名称", { exact: true })).toHaveValue(
     "fixture-user",

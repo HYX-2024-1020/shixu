@@ -1,5 +1,5 @@
-import { ensureDatabaseSchema } from './database-schema.mjs';
-import { TENANT_SYNC_SCHEMA } from './database-schemas.mjs';
+import { ensureDatabaseSchema } from "./database-schema.mjs";
+import { TENANT_SYNC_SCHEMA } from "./database-schemas.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -91,22 +91,53 @@ function mergeData(before, patch, id, maxBytes = 800000) {
 }
 
 function patchResult(before, patch) {
-  const invalid = () => { throw new SyncError(422, "INVALID_RESULT_PATCH", "事项修改无效，请先同步最新资料"); };
-  if (!before || !Array.isArray(before.items) || !patch ||
-      Object.keys(patch).sort().join(",") !== "fields,items" ||
-      !patch.fields || typeof patch.fields !== "object" || Array.isArray(patch.fields) ||
-      Object.keys(patch.fields).some(key => !["summary", "warnings"].includes(key)) ||
-      !Array.isArray(patch.items) || patch.items.length > before.items.length) invalid();
+  const invalid = () => {
+    throw new SyncError(
+      422,
+      "INVALID_RESULT_PATCH",
+      "事项修改无效，请先同步最新资料",
+    );
+  };
+  if (
+    !before ||
+    !Array.isArray(before.items) ||
+    !patch ||
+    Object.keys(patch).sort().join(",") !== "fields,items" ||
+    !patch.fields ||
+    typeof patch.fields !== "object" ||
+    Array.isArray(patch.fields) ||
+    Object.keys(patch.fields).some(
+      (key) => !["summary", "warnings"].includes(key),
+    ) ||
+    !Array.isArray(patch.items) ||
+    patch.items.length > before.items.length
+  )
+    invalid();
   assertJSON(patch);
   if (Buffer.byteLength(JSON.stringify(patch)) > 800000)
     throw new SyncError(413, "TOO_LARGE", "本次事项修改超过限制，请分次保存");
-  if (("summary" in patch.fields && typeof patch.fields.summary !== "string") ||
-      ("warnings" in patch.fields && (!Array.isArray(patch.fields.warnings) || patch.fields.warnings.some(s => typeof s !== "string")))) invalid();
-  const items = [...before.items], changed = new Set();
+  if (
+    ("summary" in patch.fields && typeof patch.fields.summary !== "string") ||
+    ("warnings" in patch.fields &&
+      (!Array.isArray(patch.fields.warnings) ||
+        patch.fields.warnings.some((s) => typeof s !== "string")))
+  )
+    invalid();
+  const items = [...before.items],
+    changed = new Set();
   for (const edit of patch.items) {
-    if (!edit || Object.keys(edit).sort().join(",") !== "index,value" ||
-        !Number.isSafeInteger(edit.index) || edit.index < 0 || edit.index >= items.length ||
-        changed.has(edit.index) || !edit.value || typeof edit.value !== "object" || Array.isArray(edit.value)) invalid();
+    if (
+      !edit ||
+      Object.keys(edit).sort().join(",") !== "index,value" ||
+      !Number.isSafeInteger(edit.index) ||
+      edit.index < 0 ||
+      edit.index >= items.length ||
+      changed.has(edit.index) ||
+      !edit.value ||
+      typeof edit.value !== "object" ||
+      Array.isArray(edit.value)
+    )
+      invalid();
     changed.add(edit.index);
     items[edit.index] = edit.value;
   }
@@ -244,7 +275,9 @@ export class SyncStore {
   }
   apply(deviceId, operation, epoch, internal = {}) {
     if (this.safety && !this.safety.active)
-      return this.safety.transaction(() => this.apply(deviceId, operation, epoch, internal));
+      return this.safety.transaction(() =>
+        this.apply(deviceId, operation, epoch, internal),
+      );
     if (epoch !== this.epoch)
       fail("RESET_REQUIRED", "服务器资料版本已变化，请先核对本地资料", {
         epoch: this.epoch,
@@ -253,8 +286,19 @@ export class SyncStore {
       throw new SyncError(400, "INVALID_OPERATION", "同步操作无效");
     const { opId, id, baseVersion, type, resultPatch } = operation;
     let { data } = operation;
-    if (resultPatch !== undefined && (type !== "put" || !data || typeof data !== "object" || Array.isArray(data) || "result" in data))
-      throw new SyncError(422, "INVALID_RESULT_PATCH", "分项修改不能同时替换完整结果");
+    if (
+      resultPatch !== undefined &&
+      (type !== "put" ||
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data) ||
+        "result" in data)
+    )
+      throw new SyncError(
+        422,
+        "INVALID_RESULT_PATCH",
+        "分项修改不能同时替换完整结果",
+      );
     if (
       !isId(opId) ||
       !isId(id) ||
@@ -310,6 +354,18 @@ export class SyncStore {
         return response;
       }
       const current = this.record(id);
+      if (
+        ["delete", "purge"].includes(type) &&
+        this.db
+          .prepare(
+            "SELECT 1 FROM sync_records r, json_each(r.data,'$.itemState') m, json_each(m.value,'$.mergedCard.sources') s WHERE r.purged=0 AND json_extract(m.value,'$.purgedAt') IS NULL AND json_extract(s.value,'$.packetId')=? LIMIT 1",
+          )
+          .get(id)
+      )
+        fail(
+          "MERGED_SOURCE_REFERENCED",
+          "此投递仍被合并主卡引用，请先撤销合并；卡片与原件尚未删除",
+        );
       // Trusted in-process task integration only; HTTP handlers never accept
       // this context. Guards run inside the same write transaction.
       this.validateOperation?.(operation, internal);
@@ -344,7 +400,11 @@ export class SyncStore {
         fail("NOT_DELETED", "请先移入最近删除", { current });
       if (type === "restore" && !current.deletedAt)
         fail("NOT_DELETED", "投递当前不在最近删除中", { current });
-      if (resultPatch !== undefined) data = { ...data, result: patchResult(current?.data?.result, resultPatch) };
+      if (resultPatch !== undefined)
+        data = {
+          ...data,
+          result: patchResult(current?.data?.result, resultPatch),
+        };
       const version = this.sequence + 1;
       const nextData =
         type === "put"

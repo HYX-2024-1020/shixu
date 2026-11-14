@@ -1,6 +1,8 @@
-import { ensureDatabaseSchema } from './database-schema.mjs';
-import { TENANT_ORIGINALS_SCHEMA } from './database-schemas.mjs';
-import { TenantSafety } from './tenant-safety.mjs';
+import { statfsSync } from "node:fs";
+import { dirname } from "node:path";
+import { ensureDatabaseSchema } from "./database-schema.mjs";
+import { TENANT_ORIGINALS_SCHEMA } from "./database-schemas.mjs";
+import { TenantSafety } from "./tenant-safety.mjs";
 import { createHash } from "node:crypto";
 import { SyncError } from "./sync-store.mjs";
 
@@ -49,9 +51,11 @@ export class OriginalStore {
       pool = originalMemoryPool(),
       stagingMs = 15 * 60000,
       safety,
+      freeSpace,
     } = {},
   ) {
     Object.assign(this, { store, db: store.db, quota, now, pool, stagingMs });
+    this.freeSpace = freeSpace;
     this.buffers = new Map();
     const version = this.db
       .prepare("SELECT value FROM sync_meta WHERE key='originals_v4'")
@@ -68,8 +72,9 @@ export class OriginalStore {
     this.db
       .prepare("INSERT OR IGNORE INTO sync_meta VALUES('originals_v4','1')")
       .run();
-    if (!this.db.prepare('SELECT 1 FROM original_safety_checkpoint').get()) this.db
-      .exec(`INSERT OR IGNORE INTO original_files(packet,id,hash,name,type,size,mode,state)
+    if (!this.db.prepare("SELECT 1 FROM original_safety_checkpoint").get())
+      this.db
+        .exec(`INSERT OR IGNORE INTO original_files(packet,id,hash,name,type,size,mode,state)
       SELECT a.packet_id,a.id,a.hash,a.name,a.type,b.size,'retained','legacy_pending_notice' FROM sync_attachments a JOIN sync_blobs b ON a.hash=b.hash;`);
     const files = store.files;
     const get = files.get.bind(files),
@@ -176,8 +181,11 @@ export class OriginalStore {
         this.db.prepare("DELETE FROM original_trash WHERE packet=?").run(op.id);
     };
     if (safety) new TenantSafety(store, safety.ledger, safety.account, safety);
-    else if (store.meta('tenant_safety') || this.db.prepare('SELECT 1 FROM original_safety_checkpoint').get())
-      throw Error('TENANT_SAFETY_REQUIRED');
+    else if (
+      store.meta("tenant_safety") ||
+      this.db.prepare("SELECT 1 FROM original_safety_checkpoint").get()
+    )
+      throw Error("TENANT_SAFETY_REQUIRED");
     this.timer = setInterval(() => {
       try {
         this.sweep();
@@ -315,6 +323,7 @@ export class OriginalStore {
         (n, f, i) => n + (known[i] ? 0 : f.size),
         0,
       );
+      if (extra > 0) this.assertUploadSpace(extra);
       const used = this.usage();
       const mode =
         known.length && known.every(Boolean)
@@ -381,6 +390,7 @@ export class OriginalStore {
     this.verify(f, bytes);
     const key = this.key(packet, id);
     if (!this.buffers.has(key)) {
+      this.assertUploadSpace(bytes.length);
       this.store.validateOriginalMutation?.(packet);
       if (
         [...this.buffers.values()].reduce((n, b) => n + b.body.length, 0) +
@@ -656,7 +666,12 @@ export class OriginalStore {
             .prepare(
               "UPDATE original_files SET state='available',expires=?,cleanup=?,version=version+1 WHERE packet=? AND id=?",
             )
-            .run(this.now() + 30 * day, this.now() + 37 * day, f.packet, f.id);
+            .run(
+              Math.max(this.now(), f.expires || 0) + 30 * day,
+              Math.max(this.now(), f.expires || 0) + 37 * day,
+              f.packet,
+              f.id,
+            );
         } else this.remove(f, "deleted");
         return {
           id: f.id,
@@ -708,21 +723,23 @@ export class OriginalStore {
     for (const t of this.db
       .prepare("SELECT packet FROM original_trash WHERE cleanup<=?")
       .all(now))
-      (this.db.isTransaction ? fn => fn() : fn => this.transaction(fn))(() => {
-        this.store.files.purge(t.packet);
-        const version = this.store.sequence + 1;
-        this.db
-          .prepare(
-            "UPDATE sync_records SET data=NULL,purged=1,version=? WHERE id=?",
-          )
-          .run(version, t.packet);
-        this.db
-          .prepare("UPDATE sync_meta SET value=? WHERE key='sequence'")
-          .run(String(version));
-        this.db
-          .prepare("DELETE FROM original_trash WHERE packet=?")
-          .run(t.packet);
-      });
+      (this.db.isTransaction ? (fn) => fn() : (fn) => this.transaction(fn))(
+        () => {
+          this.store.files.purge(t.packet);
+          const version = this.store.sequence + 1;
+          this.db
+            .prepare(
+              "UPDATE sync_records SET data=NULL,purged=1,version=? WHERE id=?",
+            )
+            .run(version, t.packet);
+          this.db
+            .prepare("UPDATE sync_meta SET value=? WHERE key='sequence'")
+            .run(String(version));
+          this.db
+            .prepare("DELETE FROM original_trash WHERE packet=?")
+            .run(t.packet);
+        },
+      );
     for (const f of this.db
       .prepare(
         "SELECT * FROM original_files WHERE mode='retained' AND state='pending_cleanup' AND cleanup<=?",
@@ -736,6 +753,23 @@ export class OriginalStore {
       if (this.db.isTransaction) this.remove(f, "cleaned");
       else this.transaction(() => this.remove(f, "cleaned"));
     }
+  }
+  assertUploadSpace(bytes) {
+    const file = this.db.location();
+    const free = this.freeSpace
+      ? this.freeSpace()
+      : file
+        ? (() => {
+            const s = statfsSync(dirname(file));
+            return s.bavail * s.bsize;
+          })()
+        : Infinity;
+    if (free < Math.max(256 * 1048576, bytes * 2))
+      fail(
+        503,
+        "STORAGE_PRESSURE",
+        "服务器空间不足，已暂停新上传；查看、手动编辑和已有资料保留，请稍后重试",
+      );
   }
   close() {
     clearInterval(this.timer);

@@ -31,29 +31,31 @@ const error = (code) =>
   new SyncError(
     409,
     code,
-    code === "ASSOCIATION_INPUT_CHANGED"
-      ? "历史事项已变化，已付费进度保留；可收下本次结果或重新整理"
-      : code === "REMAINDER_REQUIRED"
-        ? "这次投递已收下部分事项，请选择完成剩余材料；如需重新整理全部，请另建投递以保留已收下事项"
-        : code === "ACTIVE_TIME_RECONCILIATION"
-          ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
-          : code === "CHECKPOINT_NO_PROGRESS"
-            ? "累计24次调用未取得新增有效块，需核对后继续"
-            : code === "CHECKPOINT_RECONCILIATION"
-              ? "历史任务的累计调用检查点待核对，已完成进度保留"
-              : code === "TASK_SLOT_FULL"
-                ? "还有一项任务正在处理，请等它完成或暂停后重试；本次资料已保留"
-                : code === "STALE_TASK"
-                  ? "任务状态已变化，请刷新后再操作"
-                  : code === "EXECUTION_LIMIT"
-                    ? "该投递累计活跃时间已用尽，请联系维护者核对"
-                    : code === "WINDOW_STATE_RECONCILIATION"
-                      ? "读取进度与独立记录不一致，已暂停；请联系维护者核对"
-                      : code === "SAFETY_RECONCILIATION"
-                        ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
-                        : code === "SERVICE_CLOSING"
-                          ? "服务正在关闭，请稍后重试"
-                          : code,
+    code === "MATERIAL_DECIDED"
+      ? "材料已保留或删除，原任务不再继续；普通卡片与已有费用保留"
+      : code === "ASSOCIATION_INPUT_CHANGED"
+        ? "历史事项已变化，已付费进度保留；可收下本次结果或重新整理"
+        : code === "REMAINDER_REQUIRED"
+          ? "这次投递已收下部分事项，请选择完成剩余材料；如需重新整理全部，请另建投递以保留已收下事项"
+          : code === "ACTIVE_TIME_RECONCILIATION"
+            ? "任务活跃时间待核对，请联系维护者；已完成进度保留"
+            : code === "CHECKPOINT_NO_PROGRESS"
+              ? "累计24次调用未取得新增有效块，需核对后继续"
+              : code === "CHECKPOINT_RECONCILIATION"
+                ? "历史任务的累计调用检查点待核对，已完成进度保留"
+                : code === "TASK_SLOT_FULL"
+                  ? "还有一项任务正在处理，请等它完成或暂停后重试；本次资料已保留"
+                  : code === "STALE_TASK"
+                    ? "任务状态已变化，请刷新后再操作"
+                    : code === "EXECUTION_LIMIT"
+                      ? "该投递累计活跃时间已用尽，请联系维护者核对"
+                      : code === "WINDOW_STATE_RECONCILIATION"
+                        ? "读取进度与独立记录不一致，已暂停；请联系维护者核对"
+                        : code === "SAFETY_RECONCILIATION"
+                          ? "资料进度与安全记录不一致，请联系维护者核对；累计费用与时间保留"
+                          : code === "SERVICE_CLOSING"
+                            ? "服务正在关闭，请稍后重试"
+                            : code,
   );
 const versions = {
   reader: READER_VERSION,
@@ -554,6 +556,11 @@ export class ReadingTasks {
       }
       const task = this.get(id);
       if (!task) throw error("TASK_NOT_FOUND");
+      if (
+        ["continue", "accept-partial"].includes(action) &&
+        this.store.record(task.packet)?.data?.defaultCardDisposition
+      )
+        throw error("MATERIAL_DECIDED");
       if (task.state === "purged") throw error("INVALID_TASK_TRANSITION");
       if (
         task.generation !== expectedGeneration ||
@@ -1053,8 +1060,12 @@ export class ReadingTasks {
           ...versions,
           reader: "saved-item/1",
           normalization: "json/1",
-          prompt: "item-chat/1",
-          schema: "item-chat/1",
+          prompt: this.chat.request(id)?.protocol
+            ? "item-chat/2"
+            : "item-chat/1",
+          schema: this.chat.request(id)?.protocol
+            ? "item-chat/2"
+            : "item-chat/1",
         }
       : versions;
     const root = this.roots.checkpoint(id);

@@ -98,6 +98,7 @@ const MIME = {
   woff: "font/woff",
   woff2: "font/woff2",
   svg: "image/svg+xml",
+  ico: "image/x-icon",
 };
 
 /** Independent loopback HTTP listener. No account, tenant or ledger is opened. */
@@ -547,6 +548,7 @@ export function createAdminService({
             "/fonts/SpaceGrotesk.ttf",
             "/desktop-icon.svg",
             "/console-icon.svg",
+            "/console-xu-v2.ico",
           ].includes(path))
       ) {
         const bytes = await readAsset(`.${path}`);

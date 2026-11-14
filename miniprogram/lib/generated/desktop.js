@@ -883,7 +883,7 @@ function itemMap(packets) {
     packet.result.items.forEach((item, index) => {
       var _a, _b, _c;
       const meta = (_b = packet.itemState) == null ? void 0 : _b[((_a = packet.itemIds) == null ? void 0 : _a[index]) || `${packet.id}:${index}`];
-      if ((meta == null ? void 0 : meta.deletedAt) || (meta == null ? void 0 : meta.purgedAt)) return;
+      if ((meta == null ? void 0 : meta.deletedAt) || (meta == null ? void 0 : meta.purgedAt) || (meta == null ? void 0 : meta.mergedInto)) return;
       const ref = itemRef(packet.id, ((_c = packet.itemIds) == null ? void 0 : _c[index]) || index);
       map.set(ref, {
         ref,
