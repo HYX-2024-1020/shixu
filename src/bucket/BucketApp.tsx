@@ -2267,6 +2267,7 @@ export default function BucketApp() {
                 </div>
               )}
               {currentCapture.result &&
+                workspace === "capture" &&
                 (currentCapture.result.items.length ? (
                   <Results
                     skin={activeSkin}
