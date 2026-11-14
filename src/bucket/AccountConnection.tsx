@@ -766,6 +766,12 @@ export default function AccountConnection({
                   ·{" "}
                   {f.packetDeleted &&
                     "所属投递已删除，请先在最近删除中恢复投递 · "}
+                  {!f.packetDeleted &&
+                    f.attachmentDeleted &&
+                    "附件已移入最近删除，请从材料面板恢复附件后下载 · "}
+                  {!f.packetDeleted &&
+                    f.unlinked &&
+                    "此原件已无对应附件引用，无法下载，可删除云端副本释放空间 · "}
                   {["deleted", "cleaned"].includes(f.state)
                     ? "云端已清除"
                     : f.mode === "temporary"
@@ -790,14 +796,17 @@ export default function AccountConnection({
                         下载到本机
                       </button>
                     )}
-                    {f.mode === "retained" && !f.packetDeleted && (
-                      <button
-                        disabled={busy || !online}
-                        onClick={() => void action("renewOriginal", f)}
-                      >
-                        续期30天
-                      </button>
-                    )}
+                    {f.mode === "retained" &&
+                      !f.packetDeleted &&
+                      !f.attachmentDeleted &&
+                      !f.unlinked && (
+                        <button
+                          disabled={busy || !online}
+                          onClick={() => void action("renewOriginal", f)}
+                        >
+                          续期30天
+                        </button>
+                      )}
                     <button
                       disabled={busy || !online}
                       onClick={() => {

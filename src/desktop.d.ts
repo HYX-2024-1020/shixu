@@ -48,6 +48,8 @@ interface Window {
           remind: boolean;
           available: boolean;
           packetDeleted?: boolean;
+          attachmentDeleted?: boolean;
+          unlinked?: boolean;
           expiresAt: number | null;
           cleanupAt: number | null;
         }[];

@@ -586,6 +586,12 @@ export class OriginalStore {
         expiresAt: f.expires,
         cleanupAt: f.cleanup,
         packetDeleted: !!this.store.record(f.packet)?.deletedAt,
+        attachmentDeleted: !!this.store
+          .record(f.packet)
+          ?.data?.attachments?.find((a) => a.id === f.id)?.deletedAt,
+        unlinked: !this.store
+          .record(f.packet)
+          ?.data?.attachments?.some((a) => a.id === f.id),
         remind:
           f.state === "legacy_pending_notice" ||
           (f.mode === "retained" &&
@@ -593,6 +599,9 @@ export class OriginalStore {
             this.now() >= f.expires - 7 * day),
         available:
           this.store.record(f.packet)?.deletedAt ||
+          !this.store
+            .record(f.packet)
+            ?.data?.attachments?.some((a) => a.id === f.id && !a.deletedAt) ||
           ["deleted", "cleaned"].includes(f.state)
             ? false
             : f.mode === "temporary"
