@@ -45,6 +45,9 @@ test("failed material offers three visible actions in the bucket and manual edit
   const dialog = page.getByRole("dialog");
   await dialog.locator("input[name=title]").fill("验收合成材料");
   await dialog.getByRole("button", { name: "保存修改", exact: true }).click();
+  await expect(
+    page.getByText("修改已保存，原始来源保留", { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
   await expect(page.locator(".result-card")).toContainText("验收合成材料");
