@@ -26,6 +26,7 @@ import {
 import ItemDialog from "./ItemDialog";
 import DeliverySources from "./DeliverySources";
 import ItemChat from "./ItemChat";
+import AccountConnection from "./AccountConnection";
 import { cardCopy } from "./card-copy";
 import LinkText from "./LinkText";
 import { leaveCard, resetCard } from "./motion";
@@ -87,6 +88,7 @@ function Results({
     },
   ) => Promise<ItemState>;
 }) {
+  const [conflictPacket, setConflictPacket] = useState("");
   const [mergeSelection, setMergeSelection] = useState<string[]>([]);
   const [mergePreview, setMergePreview] = useState(false);
   const [mergeTitle, setMergeTitle] = useState("");
@@ -890,6 +892,7 @@ function Results({
             : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
         </div>
       )}
+      {conflictPacket && window.desktop && <AccountConnection conflictPacket={conflictPacket} canSwitch={() => false} onClose={() => { setConflictPacket(""); window.dispatchEvent(new Event("focus")); }} notify={notify} />}
       {mergePreview && (
         <ItemDialog
           label="核对多卡合并"
@@ -1105,6 +1108,7 @@ function Results({
                       </p>
                     )}
                   </div>
+                  {p.syncConflict && window.desktop && <button onClick={() => setConflictPacket(p.id)}>处理此卡同步冲突</button>}
                   {meta.defaultDecision === "pending" && !deleted && (
                     <section
                       className="default-card-decision"
@@ -1201,6 +1205,7 @@ function Results({
                               }
                             } catch (e) {
                               notify(errorMessage(e));
+                              if (/冲突/.test(errorMessage(e))) setConflictPacket(p.id);
                             } finally {
                               adoptionLock.current.delete(id);
                               setAdopting("");

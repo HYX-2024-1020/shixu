@@ -16,7 +16,9 @@ export default function AccountConnection({
   onClose,
   notify,
   mode = "settings",
+  conflictPacket,
 }: {
+  conflictPacket?: string;
   mode?: "settings" | "tasks";
   canSwitch: () => boolean;
   onClose: () => void;
@@ -24,7 +26,7 @@ export default function AccountConnection({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [showMore, setShowMore] = useState(false);
-  const [section, setSection] = useState("account");
+  const [section, setSection] = useState(conflictPacket ? "sync" : "account");
   const [taskOriginals, setTaskOriginals] = useState(false);
   const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const [invite, setInvite] = useState(""),
@@ -660,7 +662,7 @@ export default function AccountConnection({
           <h3>同步</h3>
           <p>
             {state?.base
-              ? `${state.pending} 个操作待同步${state.error ? " · 暂时未连接，队列保留" : " · 云空间已打开"}`
+              ? `${state.pending} 个操作待同步 · ${state.conflicts.length} 个冲突或失败待处理${state.error ? " · 暂时未连接，队列保留" : " · 云空间已打开"}`
               : "本机空间，不自动上传"}
           </p>
           {state?.base && (
@@ -682,7 +684,8 @@ export default function AccountConnection({
           <p>
             激活会打开独立账号空间；原本机投递和草稿保留。同步会将云空间的原文、事项和原件上传到我们的服务器。
           </p>
-          {state?.conflicts.map((c) => (
+          {conflictPacket && !state?.conflicts.some(c => c.id === conflictPacket) && <p role="status">这张卡当前没有待处理冲突，可关闭后继续操作。</p>}
+          {state?.conflicts.filter(c => !conflictPacket || c.id === conflictPacket).map((c) => (
             <div key={c.id}>
               <p>
                 {[
@@ -695,6 +698,7 @@ export default function AccountConnection({
                   : "材料未能同步，后续独立投递仍可继续"}
                 ：{c.text.slice(0, 80)}
               </p>
+              <p>云端版本与本机待传修改不同，系统已保留两边，未自动覆盖。另存副本会保留本机原文和附件引用，云端原卡不变；采用云端会放弃本次待传修改，已有云端内容保留；恢复草稿适合修改后重新投递，不会自动再次调用AI。</p>
               <button
                 disabled={busy}
                 onClick={() =>

@@ -132,6 +132,10 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: readonly unknown[]
   }, [...deps, tick]);
 
   const retry = useCallback(() => setTick((t) => t + 1), []);
+  useEffect(() => {
+    window.addEventListener("shixu-admin-updated", retry);
+    return () => window.removeEventListener("shixu-admin-updated", retry);
+  }, [retry]);
   return { state, retry };
 }
 
