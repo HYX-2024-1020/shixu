@@ -222,7 +222,7 @@ export default function ItemChat({
                 try {
                   await applyProposals();
                 } catch (e) {
-                  setError((e as Error).message);
+                  setError(errorMessage(e));
                 } finally {
                   setBusy(false);
                 }
@@ -285,7 +285,7 @@ export default function ItemChat({
             });
             setText("");
           } catch (e) {
-            setError((e as Error).message);
+            setError(errorMessage(e));
           } finally {
             locked.current = false;
             setBusy(false);
