@@ -954,6 +954,39 @@ export class AdminBackend {
         };
       });
   }
+  handleAlert(id, operation, actor) {
+    if (!/^\d{1,20}$/.test(id)) fail(400, "INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=?").get(id);
+    if (!alert) fail(404, "ALERT_NOT_FOUND");
+    return this.mutate("alert-handle", "alert:" + id, operation, actor, { reason: "核对并处理告警" }, () => {
+      let settled = 0;
+      if (alert.kind === "unknown-cost") {
+        // Only already captured, request-bound supplier usage is evidence.
+        // Never infer nonbilling from cancellation, an HTTP error or a note.
+        for (const call of this.ledger.db.prepare("SELECT id FROM reading_calls WHERE account=? AND state='unknown'").all(alert.object)) {
+          if (this.ledger.receipts.latest(call.id)?.status !== "linked") continue;
+          const usage = this.ledger.receipts.usage(call.id);
+          if (!usage) continue;
+          this.ledger.receipts.assertUsable(call.id);
+          this.ledger.settle(call.id, usage);
+          settled++;
+        }
+        this.ledger.audit(alert.object);
+      }
+      if (alert.kind === "backup-missing" && !alert.recovered_at && !this.cloudOperations.jobs().some(j => j.id === operation))
+        this.cloudOperations.request("backup", { reason: "从告警创建一致备份" }, operation, actor);
+      this.sample();
+      const current = this.db.prepare("SELECT recovered_at FROM alerts WHERE id=?").get(id);
+      const recovered = !!current?.recovered_at;
+      const message = recovered
+        ? `问题已恢复，已退出待处理列表${settled ? `；已核对${settled}次调用费用` : ""}。`
+        : alert.kind === "unknown-cost"
+          ? `已核对现有回执${settled ? `并结算${settled}次调用` : ""}；仍有请求缺少供应商费用凭据，预留与原任务门禁保留。请核对供应商账单后由维护者完成可信费用核对，无需重复调用或填写处置进展。`
+          : alert.kind === "backup-missing" ? "已提交一致备份，完成后告警自动关闭；可查看执行回执。"
+          : "已重新检测，问题仍存在；请使用下方处理入口。恢复后会自动退出待处理，不会自动继续旧任务。";
+      return { accepted: true, recovered, settled, message };
+    });
+  }
   followAlert(id, state, note, operation, actor) {
     if (
       !/^\d{1,20}$/.test(id) ||

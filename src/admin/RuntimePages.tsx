@@ -78,18 +78,6 @@ export function AlertsPage({ api }: { api: AdminApi }) {
   const operations = useRef<Record<string, string>>({});
   const [receipt, setReceipt] = useState("");
   const [history, setHistory] = useState(false);
-  const [followup, setFollowup] = useState<{
-    id: string;
-    state: string;
-    note: string;
-    operation: string;
-  } | null>(null);
-  const followLabels: Record<string, string> = {
-    following: "跟进中",
-    developer: "待开发修复",
-    "user-action": "待用户主动继续",
-    reviewed: "恢复已核实",
-  };
   const { state, retry } = useAsyncData(
     () => (api.getAlerts ? api.getAlerts() : Promise.resolve([])),
     [],
@@ -103,7 +91,7 @@ export function AlertsPage({ api }: { api: AdminApi }) {
       <h1>告警中心</h1>
       <p>持续故障更新原记录，恢复保留历史。已读不代表故障解决。</p>
       <p>
-        侧栏数字表示未恢复故障数，包含已读故障。跟进记录保留在审计中；只有实际检测恢复后才可核实收尾。
+        侧栏数字表示尚未恢复的问题。点击处理会核对真实状态；可自动处理的立即执行，恢复后自动关闭，历史保留。
       </p>
       <Button onClick={retry}>刷新告警</Button>
       <Button onClick={() => setHistory(!history)}>
@@ -143,13 +131,6 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                   <p>恢复：{formatBeijingTime(a.recoveredAt)}</p>
                 )}
                 <p>{a.suggestion}</p>
-                {a.followup && (
-                  <p>
-                    处置进度：
-                    {followLabels[a.followup.state] || a.followup.state} ·{" "}
-                    {a.followup.note} · {formatBeijingTime(a.followup.at)}
-                  </p>
-                )}
                 <p>
                   {a.readAt ? `已读 · ${formatBeijingTime(a.readAt)}` : "未读"}
                 </p>
@@ -179,93 +160,17 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                 )}
                 {error && <p role="alert">{error}</p>}
                 <a href={a.actionHref}>{a.actionLabel}</a>
-                {api.followAlert && (
-                  <Button
-                    onClick={() => {
-                      setError("");
-                      setFollowup({
-                        id: a.id,
-                        state: a.recoveredAt ? "reviewed" : "following",
-                        note: "",
-                        operation: newOperationId(),
-                      });
-                    }}
-                  >
-                    记录处置进展
-                  </Button>
-                )}
-                {followup?.id === a.id && (
-                  <div className="inline-confirm">
-                    <label>
-                      处置状态
-                      <select
-                        aria-label="处置状态"
-                        value={followup.state}
-                        onChange={(e) =>
-                          setFollowup({
-                            ...followup,
-                            state: e.target.value,
-                            operation: newOperationId(),
-                          })
-                        }
-                      >
-                        {Object.entries(followLabels)
-                          .filter(
-                            ([key]) => key !== "reviewed" || !!a.recoveredAt,
-                          )
-                          .map(([key, label]) => (
-                            <option key={key} value={key}>
-                              {label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      处置说明
-                      <input
-                        aria-label="处置说明"
-                        maxLength={200}
-                        value={followup.note}
-                        onChange={(e) =>
-                          setFollowup({
-                            ...followup,
-                            note: e.target.value,
-                            operation: newOperationId(),
-                          })
-                        }
-                      />
-                    </label>
-                    <p>
-                      只记录实际跟进，不改变故障检测、任务或费用，不自动继续任务。
-                    </p>
-                    <Button
-                      disabled={!followup.note.trim() || !!busy}
-                      onClick={async () => {
-                        setBusy(a.id);
-                        setError("");
-                        try {
-                          await api.followAlert!(
-                            a.id,
-                            followup.state,
-                            followup.note,
-                            followup.operation,
-                          );
-                          setReceipt("处置进展已记入审计。");
-                          setFollowup(null);
-                          retry();
-                        } catch (e) {
-                          setError(
-                            e instanceof Error ? e.message : "记录失败，请重试",
-                          );
-                        } finally {
-                          setBusy("");
-                        }
-                      }}
-                    >
-                      保存处置记录
-                    </Button>
-                    <Button onClick={() => setFollowup(null)}>取消</Button>
-                  </div>
+                {!a.recoveredAt && api.handleAlert && (
+                  <Button disabled={!!busy} busy={busy === a.id} onClick={async () => {
+                    setBusy(a.id); setError("");
+                    try {
+                      const result = await api.handleAlert!(a.id, newOperationId());
+                      setReceipt(result.message);
+                      window.dispatchEvent(new Event("shixu-admin-updated"));
+                      retry();
+                    } catch (e) { setError(e instanceof Error ? e.message : "处理失败，请重试"); }
+                    finally { setBusy(""); }
+                  }}>{a.kind === "unknown-cost" ? "核对并处理费用" : a.kind === "backup-missing" ? "创建备份并处理" : "处理并核对恢复"}</Button>
                 )}
                 <details>
                   <summary>技术信息</summary>

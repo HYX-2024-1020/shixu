@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { AdminApi } from "./api";
 import { formatBeijingTime, newOperationId } from "./format";
 import { Button, ConfirmDialog, ErrorState, Field, useAsyncData } from "./ui";
@@ -7,7 +7,7 @@ const mb = (n: number) => (n / 1048576).toFixed(2) + " MiB";
 const labels: Record<string, string> = {
   backup: "立即备份",
   restore: "恢复所选备份",
-  cleanup: "预演安全释放存储",
+  cleanup: "释放到期存储",
   restart: "重启拾序服务",
   rollback: "切换所选兼容发布",
   resume: "恢复上传与 AI 的维护权限",
@@ -48,6 +48,13 @@ export function OperationsPanel({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [submitted, setSubmitted] = useState("");
+  const completed = useRef("");
+  useEffect(() => {
+    if (state.phase !== "ready") return;
+    const signature = state.data.jobs.filter(j => ["succeeded", "failed"].includes(j.state)).map(j => j.id + j.updatedAt).join(",");
+    if (completed.current && completed.current !== signature) window.dispatchEvent(new Event("shixu-admin-updated"));
+    completed.current = signature;
+  }, [state]);
   useEffect(() => {
     const timer = setInterval(retry, 5000);
     return () => clearInterval(timer);
@@ -119,7 +126,7 @@ export function OperationsPanel({
                     {labels.backup}
                   </Button>{" "}
                   <Button onClick={() => begin("cleanup")}>
-                    {labels.cleanup}
+                    预演并释放到期存储
                   </Button>
                   <div className="table-wrap">
                     <table className="data">
@@ -286,6 +293,12 @@ export function OperationsPanel({
                 <p>
                   {j.code} · {j.actor} · {formatBeijingTime(j.updatedAt)}
                 </p>
+                {j.kind === "cleanup" && j.result && (
+                  <p role="status">
+                    实际回收 {mb(Number(j.result.physicalBytesReclaimed || 0))}（{Number(j.result.physicalBytesReclaimed || 0).toLocaleString()} 字节）
+                    {Number(j.result.physicalBytesReclaimed || 0) === 0 ? "；本次没有可回收的物理空间，有效资料和保留期内备份仍受保护，无需重启。" : "；有效资料、共享原件、账本及审计保留，无需再重启释放。"}
+                  </p>
+                )}
                 <code>{j.id}</code>
               </article>
             ))}
@@ -307,6 +320,7 @@ export function OperationsPanel({
               <p>
                 预演2分钟有效；对象变化时需刷新重做，实际物理回收量可能小于逻辑原件大小。
               </p>
+              <p>下一步点击“确认释放”才会执行；仅预演不删除内容，重启不替代清理。</p>
             </>
           ) : (
             <p role="alert">
@@ -337,6 +351,7 @@ export function OperationsPanel({
               : "保留用户资料、账本和审计；旧任务仍需用户主动继续。失败保持上传/AI暂停并展示原因。"
         }
         busy={busy}
+        confirmLabel={pending?.kind === "cleanup" ? "确认释放" : "确认执行"}
         error={error}
         onCancel={() => setPending(null)}
         onConfirm={async () => {
@@ -344,7 +359,7 @@ export function OperationsPanel({
             setError("请先获取有效的安全预演");
             return;
           }
-          if (!pending || !reason.trim()) {
+          if (!pending || (pending.kind !== "cleanup" && !reason.trim())) {
             setError("请填写操作原因");
             return;
           }
@@ -353,7 +368,7 @@ export function OperationsPanel({
             const result = await api.requestOperation!(
               pending.kind,
               {
-                reason: reason.trim(),
+                reason: reason.trim() || "确认释放已预演的到期存储",
                 ...(pending.kind === "cleanup"
                   ? {
                       cleanupBefore: pending.cleanupPreview!.at,

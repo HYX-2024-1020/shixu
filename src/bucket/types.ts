@@ -23,6 +23,7 @@ export interface Packet {
     hiddenKinds: string[];
   };
   syncVersion?: number;
+  syncConflict?: boolean;
   syncAutoOrganize?: boolean;
   receipt?: {
     created: number;
