@@ -161,23 +161,44 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                 {error && <p role="alert">{error}</p>}
                 <a href={a.actionHref}>{a.actionLabel}</a>
                 {!a.recoveredAt && api.handleAlert && (
-                  <Button disabled={!!busy} busy={busy === a.id} onClick={async () => {
-                    setBusy(a.id); setError("");
-                    try {
-                      const result = await api.handleAlert!(a.id, newOperationId());
-                      setReceipt(result.message);
-                      window.dispatchEvent(new Event("shixu-admin-updated"));
-                      retry();
-                    } catch (e) { setError(e instanceof Error ? e.message : "处理失败，请重试"); }
-                    finally { setBusy(""); }
-                  }}>{a.kind === "unknown-cost" ? "核对并处理费用" : a.kind === "backup-missing" ? "创建备份并处理" : "处理并核对恢复"}</Button>
+                  <Button
+                    disabled={!!busy}
+                    busy={busy === a.id}
+                    onClick={async () => {
+                      setBusy(a.id);
+                      setError("");
+                      try {
+                        const result = await api.handleAlert!(
+                          a.id,
+                          newOperationId(),
+                        );
+                        setReceipt(result.message);
+                        window.dispatchEvent(new Event("shixu-admin-updated"));
+                        retry();
+                      } catch (e) {
+                        setError(
+                          e instanceof Error ? e.message : "处理失败，请重试",
+                        );
+                      } finally {
+                        setBusy("");
+                      }
+                    }}
+                  >
+                    {a.kind === "unknown-cost"
+                      ? "核对并处理费用"
+                      : a.kind === "backup-missing"
+                        ? "创建备份并处理"
+                        : "处理并核对恢复"}
+                  </Button>
                 )}
                 <details>
                   <summary>技术信息</summary>
                   <p>
                     对象 {a.object} · 类型 {a.kind || "未提供"} · 记录 {a.id}
                   </p>
-                  {a.technicalMessage !== a.message && <p>{a.technicalMessage}</p>}
+                  {a.technicalMessage !== a.message && (
+                    <p>{a.technicalMessage}</p>
+                  )}
                 </details>
               </div>
             </article>

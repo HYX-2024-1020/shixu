@@ -23,13 +23,16 @@ export default function AttachmentPreview({
   const [available, setAvailable] = useState(0);
   const viewport = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const scale = zoom === "fit"
-    ? Math.min(1, available / (size.width || 1), 560 / (size.height || 1))
-    : zoom;
+  const scale =
+    zoom === "fit"
+      ? Math.min(1, available / (size.width || 1), 560 / (size.height || 1))
+      : zoom;
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => setAvailable(element.clientWidth));
+    const observer = new ResizeObserver(() =>
+      setAvailable(element.clientWidth),
+    );
     observer.observe(element);
     setAvailable(element.clientWidth);
     return () => observer.disconnect();
@@ -178,9 +181,25 @@ export default function AttachmentPreview({
         </strong>
         {(image || pdf) && (
           <div className="preview-zoom-controls" aria-label="预览缩放">
-            <button disabled={!size.width || scale <= 0.1} onClick={() => setZoom(Math.max(0.1, Math.round(scale * 80) / 100))}>缩小</button>
-            <output aria-label="当前缩放比例">{Math.round(scale * 100)}%</output>
-            <button disabled={!size.width || scale >= 4} onClick={() => setZoom(Math.min(4, Math.round(scale * 125) / 100))}>放大</button>
+            <button
+              disabled={!size.width || scale <= 0.1}
+              onClick={() =>
+                setZoom(Math.max(0.1, Math.round(scale * 80) / 100))
+              }
+            >
+              缩小
+            </button>
+            <output aria-label="当前缩放比例">
+              {Math.round(scale * 100)}%
+            </output>
+            <button
+              disabled={!size.width || scale >= 4}
+              onClick={() =>
+                setZoom(Math.min(4, Math.round(scale * 125) / 100))
+              }
+            >
+              放大
+            </button>
             <button onClick={() => setZoom("fit")}>适合窗口</button>
             <button onClick={() => setZoom(1)}>原始比例</button>
           </div>
@@ -188,49 +207,52 @@ export default function AttachmentPreview({
       </header>
       {loading && <p role="status">正在打开材料…</p>}
       <div className="preview-viewport" ref={viewport}>
-      {image && url && (
-        <img
-          className="preview-image"
-          src={url}
-          alt={attachment.name}
-          style={{ width: size.width ? size.width * scale : "auto" }}
-          onLoad={(e) => {
-            setSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight });
-            setLoading(false);
-          }}
-          onError={() => {
-            setError("图片暂时无法显示");
-            setLoading(false);
-          }}
-        />
-      )}
-      {pdf && (
-        <>
-          <div className="preview-pages">
-            <button
-              disabled={page <= 1 || loading}
-              onClick={() => setPage((n) => n - 1)}
-            >
-              上一页
-            </button>
-            <span>
-              {page} / {pages || "…"}
-            </span>
-            <button
-              disabled={page >= pages || loading}
-              onClick={() => setPage((n) => n + 1)}
-            >
-              下一页
-            </button>
-          </div>
-          <canvas
-            ref={canvas}
-            style={{ width: size.width ? size.width * scale : "100%" }}
-            aria-label={`PDF 第 ${page} 页`}
-            hidden={!!error}
+        {image && url && (
+          <img
+            className="preview-image"
+            src={url}
+            alt={attachment.name}
+            style={{ width: size.width ? size.width * scale : "auto" }}
+            onLoad={(e) => {
+              setSize({
+                width: e.currentTarget.naturalWidth,
+                height: e.currentTarget.naturalHeight,
+              });
+              setLoading(false);
+            }}
+            onError={() => {
+              setError("图片暂时无法显示");
+              setLoading(false);
+            }}
           />
-        </>
-      )}
+        )}
+        {pdf && (
+          <>
+            <div className="preview-pages">
+              <button
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((n) => n - 1)}
+              >
+                上一页
+              </button>
+              <span>
+                {page} / {pages || "…"}
+              </span>
+              <button
+                disabled={page >= pages || loading}
+                onClick={() => setPage((n) => n + 1)}
+              >
+                下一页
+              </button>
+            </div>
+            <canvas
+              ref={canvas}
+              style={{ width: size.width ? size.width * scale : "100%" }}
+              aria-label={`PDF 第 ${page} 页`}
+              hidden={!!error}
+            />
+          </>
+        )}
       </div>
       {!image && !pdf && text && (
         <>

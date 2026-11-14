@@ -2,70 +2,6 @@
 // src/bucket/card-merge.ts
 var CardOperationError = class extends Error {
 };
-function node(packets, target) {
-  const packet = packets.find((p) => p.id === target.packetId);
-  const index = packet?.itemIds ? packet.itemIds.indexOf(target.itemId) : packet?.result?.items.findIndex(
-    (_, i) => `${packet.id}:${i}` === target.itemId
-  ) ?? -1;
-  const meta = packet?.itemState?.[target.itemId] || {};
-  if (!packet?.result || packet.deletedAt || index < 0 || meta.deletedAt || meta.purgedAt || meta.mergedInto || meta.mergedCard || meta.defaultDecision === "pending")
-    throw new CardOperationError("目标卡片已变化、删除或参与合并，请重新核对");
-  return { packet, index, meta, item: packet.result.items[index] };
-}
-function mergeCards(packets, targets, itemId, title) {
-  if (targets.length < 2 || targets.length > 20 || !title.trim() || title.length > 150 || !/^[\w-]{1,100}$/.test(itemId) || new Set(targets.map((t) => t.packetId + "#" + t.itemId)).size !== targets.length)
-    throw new CardOperationError("请选择2至20张不同卡片并填写合并标题");
-  const nodes = targets.map((t) => node(packets, t));
-  if (packets.some((p) => p.itemIds?.includes(itemId)))
-    throw new CardOperationError("合并编号已存在");
-  const changes = /* @__PURE__ */ new Map();
-  const copy = (p) => {
-    if (!changes.has(p.id))
-      changes.set(p.id, {
-        ...p,
-        result: { ...p.result, items: [...p.result.items] },
-        itemIds: [
-          ...p.itemIds || p.result.items.map((_, i) => `${p.id}:${i}`)
-        ],
-        itemState: { ...p.itemState },
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    return changes.get(p.id);
-  };
-  const host = copy(nodes[0].packet);
-  const item = {
-    ...nodes[0].item,
-    kind: "note",
-    title: title.trim(),
-    summary: nodes.map((n) => n.item.title + "：" + n.item.summary).join("\n").slice(0, 2e3),
-    facts: [],
-    nextSteps: [],
-    uncertainties: [],
-    due: null,
-    sourceIds: [...new Set(nodes.flatMap((n) => n.item.sourceIds || []))],
-    evidence: []
-  };
-  const base = {
-    status: "active",
-    groupIds: [...new Set(nodes.flatMap((n) => n.meta.groupIds || []))]
-  };
-  host.result.items.push(item);
-  host.itemIds.push(itemId);
-  host.itemState[itemId] = {
-    ...base,
-    mergedCard: {
-      sources: targets.map((t, i) => ({ ...t, title: nodes[i].item.title })),
-      initialItem: item,
-      initialState: JSON.stringify(base)
-    }
-  };
-  for (const [i, t] of targets.entries())
-    copy(nodes[i].packet).itemState[t.itemId] = {
-      ...nodes[i].meta,
-      mergedInto: { packetId: host.id, itemId }
-    };
-  return [...changes.values()];
-}
 function undoCardMerge(packets, target, preserveEdited = false) {
   const owner = packets.find((p) => p.id === target.packetId), index = owner?.itemIds?.indexOf(target.itemId) ?? -1;
   const meta = owner?.itemState?.[target.itemId], merge = meta?.mergedCard;
@@ -659,6 +595,218 @@ function setDeadline(item, due, captureDay) {
   };
 }
 
+// src/bucket/chat-proposals.ts
+var contentFields = [
+  "title",
+  "summary",
+  "facts",
+  "kind",
+  "due",
+  "dueCleared"
+];
+var editable = /* @__PURE__ */ new Set([
+  ...contentFields,
+  "group",
+  "importance",
+  "status",
+  "starred",
+  "pinned"
+]);
+function applyChatProposals(packets, ownerPacket, ownerItem) {
+  const owner = packets.find((p) => p.id === ownerPacket);
+  const proposal = owner?.itemState?.[ownerItem]?.chatProposals;
+  if (!owner || owner.deletedAt || !proposal?.items.length || owner.itemState?.[ownerItem]?.deletedAt)
+    throw Error("修改建议已失效，请重新发起对话");
+  const changes = /* @__PURE__ */ new Map();
+  for (const target of proposal.items) {
+    const packet = packets.find((p) => p.id === target.packetId);
+    const index = packet?.itemIds?.indexOf(target.itemId) ?? -1;
+    const meta = packet?.itemState?.[target.itemId] || {};
+    if (!packet?.result || packet.deletedAt || index < 0 || meta.deletedAt || meta.purgedAt)
+      throw Error("有目标事项已删除，尚未保存任何建议，请重新核对");
+    const item = { ...packet.result.items[index] };
+    for (const key of contentFields)
+      if (key in meta)
+        Object.assign(item, { [key]: meta[key] });
+    const state = {
+      status: meta.status,
+      starred: meta.starred,
+      group: meta.group,
+      pinned: meta.pinned,
+      importance: meta.importance
+    };
+    if (JSON.stringify(absoluteItem(item, packet.captureDate)) !== JSON.stringify(target.beforeItem) || JSON.stringify(state) !== JSON.stringify(target.beforeState))
+      throw Error("目标事项已有新修改，尚未保存任何建议，请重新核对");
+    if (Object.keys(target.patch).some((key) => !editable.has(key)))
+      throw Error("修改建议包含不支持的操作");
+    const next = changes.get(packet.id) || {
+      ...packet,
+      result: { ...packet.result, items: [...packet.result.items] },
+      itemState: { ...packet.itemState },
+      doneIds: [...packet.doneIds]
+    };
+    const nextMeta = { ...meta };
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    for (const [key, value] of Object.entries(target.patch)) {
+      if (contentFields.includes(key))
+        next.result.items[index] = {
+          ...next.result.items[index],
+          [key]: value
+        };
+      nextMeta[key] = value;
+    }
+    const done = new Set(next.doneIds);
+    if (target.patch.status === "done") done.add(index);
+    else if (target.patch.status) done.delete(index);
+    next.doneIds = [...done];
+    if (target.patch.status)
+      nextMeta.completedAt = target.patch.status === "done" ? at : "";
+    nextMeta.corrected = true;
+    nextMeta.history = [
+      ...meta.history || [],
+      ...Object.entries(target.patch).map(([field, value]) => ({
+        at,
+        field,
+        before: JSON.stringify(
+          meta[field] ?? item[field]
+        ) || "",
+        after: JSON.stringify(value),
+        source: "用户确认跨卡片AI建议"
+      }))
+    ];
+    next.itemState[target.itemId] = nextMeta;
+    next.updatedAt = at;
+    changes.set(packet.id, next);
+  }
+  const nextOwner = changes.get(ownerPacket) || {
+    ...owner,
+    itemState: { ...owner.itemState }
+  };
+  nextOwner.itemState = {
+    ...nextOwner.itemState,
+    [ownerItem]: { ...nextOwner.itemState?.[ownerItem], chatProposals: null }
+  };
+  changes.set(ownerPacket, nextOwner);
+  return [...changes.values()];
+}
+
+// src/bucket/chat-creations.ts
+function applyChatChanges(packets, ownerPacket, ownerItem, expectedId) {
+  const owner = packets.find((p) => p.id === ownerPacket);
+  const meta = owner?.itemState?.[ownerItem];
+  const creation = meta?.chatCreations;
+  const proposal = creation || meta?.chatProposals;
+  if (expectedId && proposal?.id !== expectedId)
+    throw Error("建议已变化，请重新核对；尚未保存");
+  if (!creation) return applyChatProposals(packets, ownerPacket, ownerItem);
+  const source = packets.find((p) => p.id === creation.packetId);
+  const index = source?.itemIds?.indexOf(creation.itemId) ?? -1;
+  const state = source?.itemState?.[creation.itemId] || {};
+  if (!owner || owner.deletedAt || meta?.deletedAt || meta?.purgedAt || !source?.result || source.deletedAt || index < 0 || state.deletedAt || state.purgedAt || state.mergedCard || state.mergedInto)
+    throw Error("来源或对话卡已删除或状态变化，尚未保存任何新卡");
+  const item = { ...source.result.items[index] };
+  for (const field of [
+    "title",
+    "summary",
+    "facts",
+    "kind",
+    "due",
+    "dueCleared"
+  ])
+    if (field in state)
+      Object.assign(item, {
+        [field]: state[field]
+      });
+  const currentItem = absoluteItem(item, source.captureDate);
+  const currentState = {
+    ...state,
+    status: state.status || (source.doneIds?.includes(index) ? "done" : "active"),
+    group: state.group ?? item.group
+  };
+  if (JSON.stringify(currentItem) !== JSON.stringify(creation.beforeItem) || ["group", "status", "importance", "starred", "pinned", "groupIds"].some(
+    (key) => JSON.stringify(currentState[key]) !== JSON.stringify(creation.beforeState[key])
+  ))
+    throw Error("来源卡已有新修改，尚未新增或删除任何卡片，请重新核对");
+  if (!["create", "split"].includes(creation.mode) || creation.patches.length < (creation.mode === "split" ? 2 : 1) || creation.patches.length > 10)
+    throw Error("新增卡片建议无效");
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  const next = structuredClone(source);
+  const done = new Set(next.doneIds || []);
+  const allowed = /* @__PURE__ */ new Set([
+    "title",
+    "summary",
+    "facts",
+    "kind",
+    "due",
+    "dueCleared",
+    "group",
+    "importance",
+    "status",
+    "starred",
+    "pinned"
+  ]);
+  for (const [i, patch] of creation.patches.entries()) {
+    if (Object.keys(patch).some((key) => !allowed.has(key)) || typeof patch.title !== "string" || !patch.title.trim() || typeof patch.summary !== "string" || !Array.isArray(patch.facts))
+      throw Error("新增建议包含无效内容");
+    const id = `${creation.id}_new_${i}`;
+    if (packets.some((p) => p.itemIds?.includes(id)))
+      throw Error("这些卡片已保存，请刷新核对，未重复创建");
+    const child = { ...currentItem };
+    const childState = {
+      status: state.status || (source.doneIds?.includes(index) ? "done" : "active"),
+      starred: state.starred,
+      pinned: state.pinned,
+      importance: state.importance,
+      group: state.group,
+      groupIds: state.groupIds,
+      origin: `从「${currentItem.title}」${creation.mode === "split" ? "拆分" : "新建"}`,
+      history: [
+        {
+          at,
+          field: "created",
+          before: "",
+          after: String(patch.title),
+          source: "用户确认AI新增卡片"
+        }
+      ]
+    };
+    for (const [field, value] of Object.entries(patch)) {
+      if (["title", "summary", "facts", "kind", "due", "dueCleared"].includes(
+        field
+      ))
+        Object.assign(child, { [field]: value });
+      else Object.assign(childState, { [field]: value });
+    }
+    next.result.items.push(child);
+    next.itemIds.push(id);
+    next.itemState = { ...next.itemState, [id]: childState };
+    if (childState.status === "done") done.add(next.result.items.length - 1);
+  }
+  next.doneIds = [...done];
+  next.updatedAt = at;
+  if (creation.mode === "split")
+    next.itemState = {
+      ...next.itemState,
+      [creation.itemId]: {
+        ...state,
+        deletedAt: at,
+        origin: "拆分前原卡，保留以便恢复"
+      }
+    };
+  const changes = /* @__PURE__ */ new Map([[next.id, next]]);
+  const nextOwner = changes.get(owner.id) || structuredClone(owner);
+  nextOwner.itemState = {
+    ...nextOwner.itemState,
+    [ownerItem]: {
+      ...nextOwner.itemState?.[ownerItem],
+      chatCreations: null,
+      chatProposals: null
+    }
+  };
+  changes.set(nextOwner.id, nextOwner);
+  return [...changes.values()];
+}
+
 // shared/usage.mjs
 var PRICE_DATE = "2026-10-22";
 function rateFor(model) {
@@ -1169,10 +1317,10 @@ function buildGroups(packets) {
     }
   }
   const components = /* @__PURE__ */ new Map();
-  for (const node2 of nodes.values()) {
-    const root = graph.find(node2.ref);
+  for (const node of nodes.values()) {
+    const root = graph.find(node.ref);
     if (!components.has(root)) components.set(root, []);
-    components.get(root).push(node2);
+    components.get(root).push(node);
   }
   return [...components.values()].filter((rows) => rows.length > 1).map((rows) => {
     rows.sort(
@@ -1181,10 +1329,10 @@ function buildGroups(packets) {
     const refs = rows.map((n) => n.ref), memberSet = new Set(refs);
     const links = edges.filter((e) => memberSet.has(e.from) && memberSet.has(e.target)).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
     const units = /* @__PURE__ */ new Map();
-    for (const node2 of rows) {
-      const root = same.find(node2.ref);
+    for (const node of rows) {
+      const root = same.find(node.ref);
       if (!units.has(root)) units.set(root, []);
-      units.get(root).push(node2);
+      units.get(root).push(node);
     }
     return {
       id: [...refs].sort()[0],
@@ -1213,9 +1361,9 @@ export {
   CardOperationError,
   DEFAULT_MODEL,
   absoluteItem,
+  applyChatChanges,
   buildGroups,
   chatWithItem,
-  mergeCards,
   organizePacket,
   undoCardMerge,
   validateChatUpdate,

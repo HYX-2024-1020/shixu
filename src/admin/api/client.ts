@@ -245,6 +245,7 @@ export interface OperationsReport {
   } | null;
 }
 export interface StorageReport {
+  categoriesSampledAt?: string | null;
   categories?: {
     dataTreeBytes: number;
     authorityBytes: number;

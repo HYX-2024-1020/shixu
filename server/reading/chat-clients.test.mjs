@@ -115,3 +115,39 @@ test(
     }
   },
 );
+
+
+test("third round: native confirmation commits split once, refuses stale revisions and preserves source bytes", { timeout: 30000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "shixu-chat-split-clients-"));
+  try {
+    await runClientLoop({ directory, tenantSafety: true, reader: (f,o) => readMaterial(f,o), original: { name: "合成.txt", type: "text/plain", body: Buffer.from("合成事项甲和乙分别办理。".repeat(18000) + "尾部唯一标记") },
+      itemChat: {
+        provider: async sources => { const context = JSON.parse(sources[0].text); return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { reply: "拆分建议待确认", patch: {}, creations: { mode: "split", ...context.currentTarget, patches: [{ title: "独立事项甲", summary: "甲分别办理", facts: ["办理甲"] }, { title: "独立事项乙", summary: "乙分别办理", facts: ["办理乙"] }] } } }; },
+        verify: async ({ cloud, service, ledger, account }) => {
+          let packet = (await cloud.packets()).find(p => p.id === "packet"); const itemId = packet.itemIds[0]; const originalAttachments = packet.attachments;
+          await cloud.createAI({kind:"chat",packetId:"packet",itemId,instruction:"拆分成两张独立卡",scope:"account"});
+          while (service.readingRoutes.snapshot().accounts) await new Promise(r => setTimeout(r,10));
+          await cloud.action("sync");
+          packet = (await cloud.packets()).find(p => p.id === "packet");
+          const proposalId = packet.itemState[itemId].chatCreations.id;
+          const value = {kind:"apply-chat",ownerPacket:"packet",ownerItem:itemId,proposalId,targets:[{packetId:"packet",itemId,baseVersion:packet.syncVersion}]};
+          await assert.rejects(cloud.action("cardOperation",{...value,targets:[{...value.targets[0],baseVersion:packet.syncVersion-1}]}));
+          assert.equal((await cloud.packets())[0].result.items.length,packet.result.items.length);
+          const request = cloud.request.bind(cloud); let drop = true;
+          cloud.request = async (...args) => { const response = await request(...args); if (drop && args[2] === "/api/v4/cards/apply-chat") { drop = false; throw Error("synthetic acknowledgement loss"); } return response; };
+          await assert.rejects(cloud.action("cardOperation",value), /acknowledgement loss/);
+          await cloud.action("cardOperation",value);
+          const after = (await cloud.packets()).find(p => p.id === "packet");
+          assert.equal(after.result.items.length,packet.result.items.length+2);
+          assert.ok(after.itemState[itemId].deletedAt);
+          assert.equal(after.itemState[itemId].chatCreations,null);
+          assert.deepEqual(after.attachments.map(a=>a.hash),originalAttachments.map(a=>a.hash));
+          const spent=ledger.wallet(account).spent;
+          await assert.rejects(cloud.action("cardOperation",value));
+          assert.equal((await cloud.packets()).find(p=>p.id==="packet").result.items.length,after.result.items.length);
+          assert.equal(ledger.wallet(account).spent,spent);
+        }
+      }
+    });
+  } finally { await rm(directory,{recursive:true,force:true}); }
+});

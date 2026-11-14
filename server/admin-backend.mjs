@@ -347,6 +347,7 @@ export class AdminBackend {
       disk: this.resources,
       backup: this.overview().backup,
       categories: this.cloudOperations.inventory()?.storage || null,
+      categoriesSampledAt: this.cloudOperations.inventory()?.sampledAt || null,
     };
   }
   changeBudget(value, operation, actor) {

@@ -295,7 +295,7 @@ export function OperationsPanel({
                 </p>
                 {j.kind === "cleanup" && j.result && (
                   <p role="status">
-                    实际回收 {mb(Number(j.result.physicalBytesReclaimed || 0))}（{Number(j.result.physicalBytesReclaimed || 0).toLocaleString()} 字节）
+                    {j.state === "failed" ? "清理未全部完成，以下是已执行部分：" : ""}实际回收 {mb(Number(j.result.physicalBytesReclaimed || 0))}（{Number(j.result.physicalBytesReclaimed || 0).toLocaleString()} 字节）
                     {Number(j.result.physicalBytesReclaimed || 0) === 0 ? "；本次没有可回收的物理空间，有效资料和保留期内备份仍受保护，无需重启。" : "；有效资料、共享原件、账本及审计保留，无需再重启释放。"}
                   </p>
                 )}
@@ -451,7 +451,7 @@ export function StoragePage({ api }: { api: AdminApi }) {
                 {mb(state.data.categories.backupBytes)} · 读取临时目录{" "}
                 {mb(state.data.categories.temporaryBytes)} · 主机系统日志{" "}
                 {mb(state.data.categories.systemJournalBytes)}
-                。目录统计与表内逻辑额度不可相加。
+                。目录统计与表内逻辑额度不可相加。目录采样：{state.data.categoriesSampledAt ? formatBeijingTime(state.data.categoriesSampledAt) : "时间待核对"}。
               </p>
             )}
             <div className="table-wrap">

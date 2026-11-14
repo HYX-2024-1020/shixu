@@ -50,16 +50,8 @@ export default function ItemChat({
   meta,
   send,
   applyProposals,
-  groups = [],
-  selectedTargets = [],
-  expansionTargets = [],
-  mergeProposal,
 }: {
   meta: ItemState;
-  groups?: { id: string; name: string }[];
-  selectedTargets?: { packetId: string; itemId: string; title: string }[];
-  expansionTargets?: { packetId: string; itemId: string; title: string }[];
-  mergeProposal?: () => Promise<void>;
   send: (
     text: string,
     options?: {
@@ -75,111 +67,75 @@ export default function ItemChat({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const locked = useRef(false);
-  const [scope, setScope] = useState("item");
-  const [expansion, setExpansion] = useState("");
-  const [readAttachments, setReadAttachments] = useState(!!window.desktop);
   return (
     <section className="item-supplement" aria-label="卡片对话">
       <h3>和 AI 说一声</h3>
       <p className="quiet">
         {window.desktop
-          ? "可核对本卡片附件，或查询当前账号的其他卡片；发送会产生调用费用。跨卡片修改先列建议，确认后才执行。"
+          ? "可查找当前账号的卡片并核对必要附件，修改、新建或拆成独立卡。发送会产生费用；跨卡片与新增卡片先预览，确认后保存。"
           : "依据已保存事项和本轮指令处理；发送会产生调用费用。附件实际读取与跨卡片能力请在云端Windows客户端使用。"}
       </p>
-      {!!window.desktop && (
-        <div className="chat-scope-controls">
-          <label>
-            查询范围
-            <select
-              aria-label="卡片AI查询范围"
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
+      {!!meta.chatCreations && (
+        <section className="chat-proposals">
+          <h4>
+            {meta.chatCreations.mode === "split"
+              ? "待确认的拆分"
+              : "待确认的新卡片"}
+          </h4>
+          <p>
+            来源：{meta.chatCreations.beforeItem.title}。原件和来源引用保留；
+            {meta.chatCreations.mode === "split"
+              ? "确认后原卡移入最近删除，可恢复。"
+              : "原卡保持原样。"}
+          </p>
+          {meta.chatCreations.patches.map((patch, index) => (
+            <div key={index}>
+              <b>{String(patch.title)}</b>
+              <p>{String(patch.summary || "")}</p>
+              <p>{proposalValue("facts", patch.facts || [])}</p>
+              <p>
+                截止：
+                {patch.due === undefined && !meta.chatCreations!.beforeItem.due
+                  ? "无截止时间"
+                  : proposalValue(
+                      "due",
+                      patch.due === undefined
+                        ? meta.chatCreations!.beforeItem.due
+                        : patch.due,
+                    )}
+              </p>
+              <p>
+                状态：
+                {proposalValue(
+                  "status",
+                  patch.status ??
+                    meta.chatCreations!.beforeState.status ??
+                    "active",
+                )}
+              </p>
+            </div>
+          ))}
+          {applyProposals && (
+            <button
+              disabled={busy}
+              onClick={async () => {
+                if (locked.current) return;
+                locked.current = true;
+                setBusy(true);
+                setError("");
+                try {
+                  await applyProposals();
+                } catch (e) {
+                  setError(errorMessage(e));
+                } finally {
+                  locked.current = false;
+                  setBusy(false);
+                }
+              }}
             >
-              <option value="item">当前卡片</option>
-              <option value="packet">同次投递</option>
-              {groups.map((g) => (
-                <option key={g.id} value={"group:" + g.id}>
-                  小组：{g.name}
-                </option>
-              ))}
-              <option value="selected" disabled={!selectedTargets.length}>
-                选定卡片（{selectedTargets.length}）
-              </option>
-              <option value="account">当前账号的卡片</option>
-            </select>
-          </label>
-          <label className="consent-check">
-            <input
-              type="checkbox"
-              checked={readAttachments}
-              onChange={(e) => setReadAttachments(e.target.checked)}
-            />
-            核对当前卡片附件实际内容
-          </label>
-        </div>
-      )}
-      {!!meta.chatMerge && (
-        <section className="chat-proposals">
-          <h4>待确认的真正合并：{meta.chatMerge.title}</h4>
-          <p>
-            合并后显示一张主卡，每个子项的日期、完成状态、原件与来源独立保留；可撤销。
-          </p>
-          {meta.chatMerge.targets.map((t) => (
-            <p key={t.packetId + t.itemId}>{t.title}</p>
-          ))}
-          <button
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                await mergeProposal?.();
-              } catch (e) {
-                setError(errorMessage(e));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            核对并确认合并
-          </button>
-        </section>
-      )}
-      {!!expansion && (
-        <section className="chat-proposals">
-          <h4>需要扩大处理范围</h4>
-          <p>
-            当前卡范围不足。以下是同次投递或当前小组内可供核对的目标，尚未发送给AI：
-          </p>
-          {expansionTargets.map((t) => (
-            <p key={t.packetId + t.itemId}>{t.title}</p>
-          ))}
-          <button
-            disabled={busy || expansionTargets.length < 2}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                await send(expansion, {
-                  scope: "selected",
-                  targets: expansionTargets.map(({ packetId, itemId }) => ({
-                    packetId,
-                    itemId,
-                  })),
-                  readAttachments,
-                });
-                setExpansion("");
-                setText("");
-              } catch (e) {
-                setError(errorMessage(e));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            确认以上目标并继续
-          </button>
-          <button onClick={() => setExpansion("")}>取消</button>
+              确认保存这些卡片
+            </button>
+          )}
         </section>
       )}
       {!!meta.chatProposals?.items.length && (
@@ -255,33 +211,13 @@ export default function ItemChat({
         onSubmit={async (e) => {
           e.preventDefault();
           if (!text.trim() || locked.current) return;
-          if (
-            window.desktop &&
-            scope === "item" &&
-            /合并|其他卡片|同组|同次投递|全部卡片/.test(text)
-          ) {
-            setExpansion(text.trim());
-            return;
-          }
           locked.current = true;
           setBusy(true);
           setError("");
           try {
-            const kind = scope.startsWith("group:")
-              ? "group"
-              : (scope as "item" | "account" | "packet" | "selected");
             await send(text.trim(), {
-              scope: kind,
-              readAttachments,
-              ...(kind === "group" ? { groupId: scope.slice(6) } : {}),
-              ...(kind === "selected"
-                ? {
-                    targets: selectedTargets.map(({ packetId, itemId }) => ({
-                      packetId,
-                      itemId,
-                    })),
-                  }
-                : {}),
+              scope: "account",
+              readAttachments: !!window.desktop,
             });
             setText("");
           } catch (e) {

@@ -1,5 +1,5 @@
 import {
-  mergeCards,
+  applyChatChanges,
   undoCardMerge,
   CardOperationError,
 } from "../generated/ai-core.mjs";
@@ -15,6 +15,7 @@ import { ReadingMaintenance } from "./maintenance.mjs";
 const active = ["queued", "running", "applying"];
 const recoverable = ["cancelled", "paused", "interrupted", "error"];
 const shutdownMessages = {
+  CARD_MERGE_REMOVED: "合并功能已移除，已有卡片、原件与来源保持可用",
   INVALID_CARD_OPERATION:
     "卡片操作信息不完整，请刷新后重新选择目标；尚未保存本次修改",
   REVISION_CONFLICT: "卡片已被其他操作修改，请刷新并重新确认；尚未保存本次修改",
@@ -497,7 +498,9 @@ export function createReadingRoutes({
           itemChat: typeof provider.chat === "function",
           attachmentChat: typeof provider.chat === "function",
           accountChatProposals: typeof provider.chat === "function",
-          manualCardMerge: true,
+          manualCardMerge: false,
+          cardChatCreations: true,
+          legacyCardUndo: true,
           scopedItemChat: typeof provider.chat === "function",
           pdfPageVisual:
             reader.pdfVisualWindows === true && provider.imageInput === true,
@@ -646,8 +649,9 @@ export function createReadingRoutes({
     }) {
       authorize(account, device);
       if (closed) fail(503, "MAINTENANCE");
+      if (method === "POST" && url.pathname === "/api/v4/cards/merge") fail(410, "CARD_MERGE_REMOVED");
       if (
-        ["/api/v4/cards/merge", "/api/v4/cards/undo"].includes(url.pathname) &&
+        ["/api/v4/cards/apply-chat", "/api/v4/cards/undo"].includes(url.pathname) &&
         method === "POST"
       ) {
         if (
@@ -664,9 +668,8 @@ export function createReadingRoutes({
               typeof t.itemId !== "string" ||
               !Number.isSafeInteger(t.baseVersion),
           ) ||
-          (url.pathname.endsWith("/merge") &&
-            (typeof value.title !== "string" ||
-              typeof value.itemId !== "string"))
+          (url.pathname.endsWith("/apply-chat") &&
+            (![value.ownerPacket, value.ownerItem, value.proposalId].every(v => typeof v === "string" && /^[\w-]{1,110}$/.test(v))))
         )
           fail(422, "INVALID_CARD_OPERATION");
         if (!store.safety) fail(503, "SAFETY_RECONCILIATION");
@@ -698,18 +701,19 @@ export function createReadingRoutes({
           const packets = records.map((r) => r.data);
           let changes;
           try {
-            changes = url.pathname.endsWith("/merge")
-              ? mergeCards(packets, value.targets, value.itemId, value.title)
+            changes = url.pathname.endsWith("/apply-chat")
+              ? applyChatChanges(packets, value.ownerPacket, value.ownerItem, value.proposalId)
               : undoCardMerge(
                   packets,
                   value.targets[0],
                   value.preserveEdited === true,
                 );
           } catch (error) {
-            if (error instanceof CardOperationError)
+            if (error instanceof CardOperationError || url.pathname.endsWith("/apply-chat"))
               throw new SyncError(409, "CARD_OPERATION_CHANGED", error.message);
             throw error;
           }
+          if (url.pathname.endsWith("/apply-chat") && changes.some(p => !value.targets.some(t => t.packetId === p.id))) fail(422, "INVALID_CARD_OPERATION");
           // All source membership and main-card changes commit in one tenant
           // safety transaction; no attachments are copied or re-uploaded.
           for (const [i, p] of changes.entries()) {

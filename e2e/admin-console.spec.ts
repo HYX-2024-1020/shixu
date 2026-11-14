@@ -368,16 +368,12 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       safetyAlert.getByRole("button", { name: "标为已读", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
-    await safetyAlert.getByRole("button", { name: "记录处置进展" }).click();
-    await safetyAlert.getByLabel("处置状态").selectOption("developer");
-    await safetyAlert
-      .getByLabel("处置说明")
-      .fill("已定位安全配置，等待维护者按证据修复。");
-    await safetyAlert.getByRole("button", { name: "保存处置记录" }).click();
-    await expect(safetyAlert).toContainText("待开发修复");
+    await expect(page.getByRole("button", { name: "记录处置进展" })).toHaveCount(0);
+    await safetyAlert.getByRole("button", { name: "处理并核对恢复" }).click();
+    await expect(page.getByRole("status").filter({hasText:"已重新检测"})).toContainText("问题仍存在");
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
     await page.reload();
-    await expect(safetyAlert).toContainText("已定位安全配置");
+    await expect(safetyAlert).toBeVisible();
     expect(ledger.wallet(userId).spent).toBe(0);
     await page.getByRole("link", { name: "运维与审计", exact: true }).click();
     await expect(page.locator(".audit-row")).toHaveCount(4);
