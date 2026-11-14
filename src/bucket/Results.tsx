@@ -2,6 +2,7 @@ import { allPackets } from "./store";
 import { mergeCards, undoCardMerge, mergeCardDeletion } from "./card-merge";
 import { worldLayout, layoutPacket } from "./world-layout";
 import { defaultCard } from "./default-card";
+import { errorMessage } from "./error-message";
 import CardFiles from "./CardFiles";
 import { sourceLocation } from "../../shared/reading-view.mjs";
 import { ADMIN_TEST } from "./edition";
@@ -1010,6 +1011,7 @@ function Results({
                       </button>
                     )}
                     <button
+                      hidden={meta.defaultDecision === "pending"}
                       className={
                         "completion-orbit" +
                         (completing.has(id) ? " is-checking" : "")
@@ -1058,6 +1060,7 @@ function Results({
                     )}
                     <button
                       className="card-star"
+                      hidden={meta.defaultDecision === "pending"}
                       aria-label={meta.starred ? "取消星标" : "星标"}
                       aria-pressed={!!meta.starred}
                       disabled={p.status !== "ready" || !!deleted}
@@ -1112,6 +1115,7 @@ function Results({
                       {(["kept", "deleted", "retry"] as const).map((choice) => (
                         <button
                           key={choice}
+                          className="decision-action"
                           disabled={adopting === id}
                           onClick={async () => {
                             if (adoptionLock.current.has(id)) return;
@@ -1135,14 +1139,21 @@ function Results({
                                     "sync",
                                     { force: true },
                                   );
-                                  for (const task of state.jobs?.filter(
-                                    (t) =>
-                                      t.packetId === p.id &&
-                                      t.actions?.includes("stop"),
-                                  ) || [])
-                                    await window.desktop.cloud("taskAction", {
-                                      id: task.id,
-                                      action: "stop",
+                                  if (
+                                    state.jobs?.some(
+                                      (t) =>
+                                        t.packetId === p.id &&
+                                        (t.actions?.includes("stop") ||
+                                          [
+                                            "paused",
+                                            "interrupted",
+                                            "error",
+                                            "conflict",
+                                          ].includes(t.state)),
+                                    )
+                                  )
+                                    await window.desktop.cloud("stopPacket", {
+                                      packetId: p.id,
                                     });
                                 }
                                 if (window.desktop) {
@@ -1189,7 +1200,7 @@ function Results({
                                 );
                               }
                             } catch (e) {
-                              notify((e as Error).message);
+                              notify(errorMessage(e));
                             } finally {
                               adoptionLock.current.delete(id);
                               setAdopting("");
@@ -1384,6 +1395,17 @@ function Results({
                     >
                       查看详情 <ArrowUpRight size={16} />
                     </button>
+                    {!deleted && meta.defaultDecision !== "pending" && (
+                      <button
+                        className="card-detail-link"
+                        onClick={() => {
+                          setEditing(true);
+                          setSelected(id);
+                        }}
+                      >
+                        手动编辑
+                      </button>
+                    )}
                     <details
                       className="card-menu"
                       hidden={meta.defaultDecision === "pending"}
@@ -2054,6 +2076,9 @@ function Results({
                         </div>
                         {!deleted && (
                           <div className="dialog-footer">
+                            <button onClick={() => setEditing((v) => !v)}>
+                              {editing ? "返回详情" : "手动编辑"}
+                            </button>
                             <details className="detail-action-menu">
                               <summary aria-label="卡片操作">
                                 <MoreHorizontal size={23} />

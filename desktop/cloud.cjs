@@ -161,6 +161,7 @@ class CloudWorkspace {
       conflicts: (space?.client.conflicts() || []).map((c) => ({
         id: c.id,
         text: c.local.data?.text || "投递",
+        code: c.code,
       })),
       error: this.lastError,
     };
@@ -372,7 +373,27 @@ class CloudWorkspace {
         if (!prior || syncAutoOrganize === true)
           data.desktopOwner = this.config.devices[this.config.active]?.deviceId;
         if (prior?.conflict) throw Error("请先在云同步中处理这次投递的冲突");
+        if (
+          attachments.length > 20 ||
+          attachments.reduce(
+            (n, a) => n + (a.bytes ? Buffer.from(a.bytes).length : a.size),
+            0,
+          ) >
+            20 * 1024 * 1024
+        )
+          throw Error(
+            "每次投递最多20份原件，合计不能超过20 MiB；原材料仍保留，请移除超限附件后提交",
+          );
         for (const a of attachments) {
+          const size = a.bytes ? Buffer.from(a.bytes).length : a.size;
+          if (
+            !Number.isSafeInteger(size) ||
+            size < 1 ||
+            size > 10 * 1024 * 1024
+          )
+            throw Error(
+              "同步原件应在 1 字节至 10 MiB 之间；请移除超限附件后提交",
+            );
           let descriptor;
           if (a.bytes) {
             const bytes = Buffer.from(a.bytes);
@@ -394,6 +415,12 @@ class CloudWorkspace {
           } else {
             if (!/^[a-f0-9]{64}$/.test(a.hash))
               throw Error("原件缺失：" + a.name);
+            const localFile = cache.file("files/" + a.hash);
+            if (fs.existsSync(localFile)) {
+              const bytes = fs.readFileSync(localFile);
+              if (bytes.length !== a.size || hash(bytes) !== a.hash)
+                throw Error("本机原件校验失败，未提交损坏的引用：" + a.name);
+            }
             if (
               !fs.existsSync(cache.file("files/" + a.hash)) &&
               !prior?.data?.attachments?.some(
@@ -442,6 +469,23 @@ class CloudWorkspace {
   }
   action(action, value) {
     return this.serial(async () => {
+      if (action === "recoverFailedDraft") {
+        const { client, cache } = this.space();
+        const conflict = client.conflicts().find((c) => c.id === value.id);
+        if (!conflict?.local?.data) throw Error("未找到可恢复的材料");
+        const draft = await cache.call("draft");
+        if (draft.text.trim() || draft.attachments.length)
+          throw Error("请先保存或处理当前草稿，再恢复失败材料");
+        const attachments = await cache.decode(
+          conflict.local.data.attachments || [],
+        );
+        await cache.call("saveDraft", {
+          text: conflict.local.data.text || "",
+          attachments,
+        });
+        client.acceptRemote(value.id);
+        return this.status();
+      }
       if (action === "status") return this.status();
       if (action === "connect") return this.connect(value);
       if (action === "local") {

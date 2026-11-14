@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { ItemState } from "./types";
 import LinkText from "./LinkText";
+import { errorMessage } from "./error-message";
 function proposalValue(field: string, value: unknown): string {
   if (["starred", "pinned", "dueCleared"].includes(field))
     return value ? "是" : "否";
@@ -134,7 +135,7 @@ export default function ItemChat({
               try {
                 await mergeProposal?.();
               } catch (e) {
-                setError((e as Error).message);
+                setError(errorMessage(e));
               } finally {
                 setBusy(false);
               }
@@ -170,7 +171,7 @@ export default function ItemChat({
                 setExpansion("");
                 setText("");
               } catch (e) {
-                setError((e as Error).message);
+                setError(errorMessage(e));
               } finally {
                 setBusy(false);
               }
@@ -221,7 +222,7 @@ export default function ItemChat({
                 try {
                   await applyProposals();
                 } catch (e) {
-                  setError((e as Error).message);
+                  setError(errorMessage(e));
                 } finally {
                   setBusy(false);
                 }
@@ -284,7 +285,7 @@ export default function ItemChat({
             });
             setText("");
           } catch (e) {
-            setError((e as Error).message);
+            setError(errorMessage(e));
           } finally {
             locked.current = false;
             setBusy(false);

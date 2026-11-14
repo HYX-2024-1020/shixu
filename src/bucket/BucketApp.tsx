@@ -1,4 +1,5 @@
 import AccountConnection from "./AccountConnection";
+import { errorMessage } from "./error-message";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -104,7 +105,7 @@ function message(error: unknown) {
       return "整理超时，原文和附件已经保留，可以重试";
     if (error instanceof TypeError)
       return "暂时连不上服务，内容已经保留，请检查网络后重试";
-    return error.message;
+    return errorMessage(error);
   }
   return "暂时没整理好，内容已经保留";
 }
@@ -155,6 +156,7 @@ export default function BucketApp() {
   const [firstUse, setFirstUse] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudActive, setCloudActive] = useState(false);
+  const [stoppingPacket, setStoppingPacket] = useState(false);
   const [cloudUsage, setCloudUsage] =
     useState<
       NonNullable<
@@ -1081,16 +1083,20 @@ export default function BucketApp() {
     if (!files) return;
     const next = [...attachments];
     for (const file of Array.from(files)) {
-      if (file.size > 32 * 1024 * 1024) {
-        notify(`${file.name} 超过32MB`);
+      const cloud = !!window.desktop && cloudActive;
+      if (file.size > (cloud ? 10 : 32) * 1024 * 1024) {
+        notify(`${file.name} 超过${cloud ? 10 : 32} MiB，请选择较小的文件`);
         continue;
       }
       if (next.length >= 8) {
         notify("一次最多放入8个附件");
         break;
       }
-      if (next.reduce((n, a) => n + a.size, 0) + file.size > 96 * 1024 * 1024) {
-        notify("这一组附件合计不能超过96MB");
+      if (
+        next.reduce((n, a) => n + a.size, 0) + file.size >
+        (cloud ? 20 : 96) * 1024 * 1024
+      ) {
+        notify(`这一组附件合计不能超过${cloud ? 20 : 96} MiB`);
         break;
       }
       if (file.name.length > 200) {
@@ -1392,6 +1398,10 @@ export default function BucketApp() {
     visible.find(
       (p) => !p.result && ["error", "processing", "pending"].includes(p.status),
     );
+  useEffect(() => {
+    if (currentCapture?.id && !currentCaptureId)
+      setCurrentCaptureId(currentCapture.id);
+  }, [currentCapture?.id, currentCaptureId]);
   const receipts = useMemo(
     () => (
       <section className="delivery-receipts" aria-label="整理回执">
@@ -2193,29 +2203,71 @@ export default function BucketApp() {
                         "正在整理这次的材料…"
                       : !online
                         ? "已收好，联网后继续整理"
-                        : !apiKey && !health?.modelReady
+                        : !apiKey && !health?.modelReady && !cloudReady
                           ? "已收好，连接后开始整理"
                           : "已收好，等它消化一下…"}
                   </span>
+                  {window.desktop && cloudActive && (
+                    <button
+                      disabled={stoppingPacket}
+                      onClick={async () => {
+                        if (stoppingPacket) return;
+                        if (
+                          !confirm(
+                            "停止本次整理？原材料和已完成内容保留；已发出的调用仍可能结算费用，不会自动重试。",
+                          )
+                        )
+                          return;
+                        setStoppingPacket(true);
+                        try {
+                          await window.desktop!.cloud("stopPacket", {
+                            packetId: currentCapture.id,
+                          });
+                          const rows = await allPackets();
+                          packetsRef.current = rows;
+                          setPackets(rows);
+                          notify("本次整理已停止，原材料保留");
+                        } catch (e) {
+                          notify(message(e));
+                        } finally {
+                          setStoppingPacket(false);
+                        }
+                      }}
+                    >
+                      {stoppingPacket ? "正在停止…" : "停止本次整理"}
+                    </button>
+                  )}
                 </div>
               )}
-              {currentCapture.status === "error" && (
-                <div className="current-delivery-status" role="status">
-                  <span>
-                    原样材料已保存，AI尚未完成整理。
-                    {currentCapture.error || "这次没整理完，材料已经收好。"}
-                  </span>
+              {currentCapture.status === "error" && workspace === "capture" && (
+                <div className="current-failed-material">
+                  <p>
+                    原样材料已保存，本次未完成整理。请选择保留、删除或重试；只有重试可能新增AI费用。
+                  </p>
                   <button
                     onClick={() => goWorkspace("results", currentCapture.id)}
                   >
                     查看原样材料
                   </button>
-                  <button onClick={() => void retry(currentCapture)}>
-                    重试
-                  </button>
+                  <Results
+                    skin={activeSkin}
+                    compact
+                    packets={[currentCapture]}
+                    save={save}
+                    reorder={reorderCards}
+                    onRecords={() => setRecordsOpen(true)}
+                    onChat={editWithAI}
+                    saveMany={saveMany}
+                    focusPacket=""
+                    onFocusConsumed={clearFocus}
+                    notify={notify}
+                    purge={purgePacket}
+                    onRetry={retry}
+                  />
                 </div>
               )}
               {currentCapture.result &&
+                workspace === "capture" &&
                 (currentCapture.result.items.length ? (
                   <Results
                     skin={activeSkin}

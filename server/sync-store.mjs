@@ -83,7 +83,39 @@ function mergeData(before, patch, id, maxBytes = 800000) {
         Array.isArray(changes)
       )
         throw new SyncError(400, "INVALID_DATA", "事项修改格式无效");
-      next.itemState[itemId] = { ...before?.itemState?.[itemId], ...changes };
+      const purgedAt =
+        before?.itemState?.[itemId]?.purgedAt || changes.purgedAt;
+      next.itemState[itemId] = purgedAt
+        ? { purgedAt }
+        : { ...before?.itemState?.[itemId], ...changes };
+    }
+  }
+  for (const [itemId, meta] of Object.entries(next.itemState || {})) {
+    if (meta.purgedAt) {
+      next.itemState = {
+        ...next.itemState,
+        [itemId]: { purgedAt: meta.purgedAt },
+      };
+      // A stale client may submit a full result after a tombstone. Never restore
+      // the purged item's content via that independent top-level field.
+      const index = (next.itemIds || before?.itemIds)?.indexOf(itemId) ?? -1;
+      if (index >= 0 && next.result?.items?.[index]) {
+        const items = [...next.result.items];
+        items[index] = {
+          kind: "other",
+          title: "已永久删除",
+          summary: "",
+          facts: [],
+          nextSteps: [],
+          uncertainties: [],
+          evidence: [],
+          sourceIds: [],
+          due: null,
+        };
+        next.result = { ...next.result, items };
+      }
+      if (next.doneIds?.includes(itemId))
+        next.doneIds = next.doneIds.filter((id) => id !== itemId);
     }
   }
   validateData(next, id, maxBytes);

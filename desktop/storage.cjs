@@ -226,29 +226,79 @@ class DesktopStore {
             hash = crypto.createHash("sha256").update(data).digest("hex");
           if (data.length > 32 * 1024 * 1024)
             throw new Error("单文件超过 32MB");
-          await fs
-            .writeFile(this.file("files/" + hash), data, { flag: "wx" })
-            .catch((e) => {
-              if (e.code !== "EEXIST") {
-                if (!this.allowVolatileOriginals) throw e;
-                this.keepVolatile(hash, data);
-              }
-            });
+          await this.persistOriginal(hash, data).catch((e) => {
+            if (!this.allowVolatileOriginals) throw e;
+            this.keepVolatile(hash, data);
+          });
           return {
             ...a,
+            size: data.length,
             hash,
             ...(this.volatileOriginals.has(hash) ? { localSaved: false } : {}),
           };
         }
         if (!/^[a-f0-9]{64}$/.test(a.hash))
           throw new Error("附件原件缺失：" + a.name);
-        await fs.access(this.file("files/" + a.hash)).catch(() => {
-          if (this.volatileOriginals.has(a.hash)) return;
-          throw new Error("原件已清理或缺失，无法恢复：" + a.name);
-        });
+        await fs
+          .readFile(this.file("files/" + a.hash))
+          .then((data) => {
+            if (
+              crypto.createHash("sha256").update(data).digest("hex") !==
+                a.hash ||
+              data.length !== a.size
+            )
+              throw Error("原件校验失败：" + a.name);
+          })
+          .catch((e) => {
+            const data = this.volatileOriginals.get(a.hash);
+            if (
+              data &&
+              data.length === a.size &&
+              crypto.createHash("sha256").update(data).digest("hex") === a.hash
+            )
+              return;
+            if (e.code !== "ENOENT") throw e;
+            throw new Error("原件已清理或缺失，无法恢复：" + a.name);
+          });
         return a;
       }),
     );
+  }
+  async persistOriginal(hash, bytes) {
+    const target = this.file("files/" + hash);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    try {
+      const existing = await fs.readFile(target);
+      if (
+        existing.length === bytes.length &&
+        crypto.createHash("sha256").update(existing).digest("hex") === hash
+      ) {
+        this.volatileOriginals.delete(hash);
+        return;
+      }
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+    const temporary = target + "." + crypto.randomUUID() + ".tmp";
+    try {
+      const handle = await fs.open(temporary, "wx");
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      const saved = await fs.readFile(temporary);
+      if (
+        saved.length !== bytes.length ||
+        crypto.createHash("sha256").update(saved).digest("hex") !== hash
+      )
+        throw Error("原件写入校验失败，未提交引用");
+      await fs.rename(temporary, target);
+      this.volatileOriginals.delete(hash);
+    } finally {
+      await fs.rm(temporary, { force: true }).catch(() => {});
+    }
   }
   async decode(attachments) {
     return Promise.all(

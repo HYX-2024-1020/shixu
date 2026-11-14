@@ -508,6 +508,7 @@ export function createReadingRoutes({
           originalLifecycle: true,
           originalReverification: true,
           submissionManifest: true,
+          purgeOriginalReference: true,
         },
         limits: {
           windowCharacters: 120000,
@@ -756,10 +757,82 @@ export function createReadingRoutes({
         if (url.pathname === "/api/v4/storage" && method === "GET")
           return originals.list({
             cursor: Number(url.searchParams.get("cursor") || 0),
+            includeDeleted: url.searchParams.get("includeDeleted") === "true",
             ...(url.searchParams.has("packetId")
               ? { packetId: url.searchParams.get("packetId") }
               : {}),
           });
+        if (
+          url.pathname === "/api/v4/originals/purge-reference" &&
+          method === "POST"
+        ) {
+          if (
+            value.contractVersion !== 1 ||
+            typeof value.operationId !== "string" ||
+            !/^[\w-]{1,90}$/.test(value.operationId)
+          )
+            fail(422, "INVALID_ORIGINAL_ACTION");
+          const record = store.record(value.packetId);
+          if (!record || record.purged || record.deletedAt)
+            fail(409, "DELETED", "请先恢复所属投递后再管理其中附件");
+          // Let SyncStore handle replay and current version checks atomically.
+          const attachment = record.data.attachments?.find(
+            (a) => a.id === value.id,
+          );
+          if (attachment && !attachment.deletedAt)
+            fail(409, "NOT_DELETED", "请先将附件移入最近删除");
+          return store.apply(
+            device,
+            {
+              opId: value.operationId,
+              id: value.packetId,
+              type: "put",
+              baseVersion: value.baseVersion,
+              data: {
+                attachments: (record.data.attachments || []).filter(
+                  (a) => a.id !== value.id,
+                ),
+              },
+            },
+            value.epoch,
+            {
+              beforeValidate: () => {
+                if (
+                  store.db
+                    .prepare(
+                      "SELECT 1 FROM sync_records r, json_each(r.data,'$.itemState') m, json_each(m.value,'$.mergedCard.sources') s WHERE r.purged=0 AND json_extract(m.value,'$.purgedAt') IS NULL AND json_extract(s.value,'$.packetId')=? LIMIT 1",
+                    )
+                    .get(value.packetId)
+                )
+                  fail(
+                    409,
+                    "MERGED_SOURCE_REFERENCED",
+                    "此原件仍被合并主卡引用，请先撤销合并；原件与引用尚未删除",
+                  );
+                const result = originals.action("delete", {
+                  operationId: value.operationId + "_original",
+                  ids: [
+                    {
+                      packetId: value.packetId,
+                      id: value.id,
+                      expectedVersion: value.expectedVersion,
+                    },
+                  ],
+                });
+                if (
+                  result.results.some(
+                    (r) => !["OK", "ORIGINAL_DELETED"].includes(r.code),
+                  )
+                )
+                  fail(
+                    409,
+                    "ORIGINAL_CHANGED",
+                    "原件状态已变化，请刷新后再删除；引用尚未移除",
+                  );
+              },
+            },
+          );
+        }
         if (url.pathname === "/api/v4/submissions" && method === "POST")
           return originals.begin(value);
         const verification =
