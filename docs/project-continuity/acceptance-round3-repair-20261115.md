@@ -4,7 +4,7 @@
 
 ## 实施与交付边界
 
-T01—T08全部属于本任务；当前正在诊断和实现，尚未交付。实际Windows/原管理台/原ECS仍0.3.28，包源08d38fa。保留#118/#107的用户集中验收；看板PR120/#117、官网、小程序发布及手机联验不进入。
+T01—T08全部属于本任务，源码和原ECS已升级0.3.29；Windows/原本地管理台联合更新器已准备，待用户本人运行和独立物理核验。上次安装为0.3.28/08d38fa。保留#118/#107的用户集中验收；看板PR120/#117、官网、小程序发布及手机联验不进入。
 
 必须保留0.3.27/0.3.28的普通卡手动编辑/删除恢复、失败材料三选一、停止及原任务主动续接、可信账本和迟到结果屏障、超限队列隔离、原件原子写入/下载续期、账号缓存隔离、共享原件引用保护、墓碑清字段；小组多归属/删组不删卡、DDL明确与推定时刻/日期区间、来源及重启持久化继续回归。图标接受现状，不继续改。
 
@@ -22,7 +22,7 @@ T01—T08全部属于本任务；当前正在诊断和实现，尚未交付。�
 
 ## 验证与交付
 
-待实现后逐项记录；模拟、真实服务、源包、部署、用户原生安装及体验分别核对。未测不记通过，不能承诺零Bug。原生安装仍由用户本人运行，代理不操作桌面UI、不代跑安装器、不伪造回执。先自查和交付，再一次提供精简清单供用户自主统一反馈。
+模拟、真实服务、源包、部署、用户原生安装及体验分别核对。未测不记通过，不能承诺零Bug。原生安装仍由用户本人运行，代理不操作桌面UI、不代跑安装器、不伪造回执。完成自查后提供[精简自主集中复验清单](../guides/product-acceptance-0.3.29.md)，不恢复分步带验。
 
 
 ## 实现与验证进展
@@ -43,4 +43,14 @@ T05移除处置进展填写，处理按钮只按已有绑定供应商回执自�
 
 提示词二（夜灯）：Use case: stylized-concept. Asset type: final transparent PNG skin mascot for the Shixu productivity app. Create one original little owl, full body perched sitting upright with two tiny visible feet and folded wings, rounded but natural silhouette, softly alert almond eyes with a calm thoughtful expression. Simple, cute, refined and quietly humorous for adults; not babyish, not a plastic toy, no huge sparkling eyes. Hand-inked dark charcoal outline with a little organic variation, restrained cel shading, slate blue-grey feathers, soft warm cream face and belly, tiny muted gold beak. Keep feather details minimal so it reads beautifully at 150px. Center entire isolated character on genuine transparent alpha, generous 10% padding, no props, perch, floor, external drop shadow, scene, text, logo or watermark. One character one pose, square canvas. Match the tasteful inked illustration feel of an oatmeal-brown capybara companion while keeping this a distinct owl. Deliver usable app artwork, not a UI mockup.
 
-CI、源包密封、原ECS部署、用户本人运行联合更新器及独立物理回执尚待。测试号历史28172微元未知预留仍未解除，不能用程序升级冒称账单已核实；用户原账号冲突恢复及安装版声音听感尚未确认。
+## 同头CI、成品和实际云端交付
+
+产品包来源固定为d4365e4a1bce0aecaddb228e066e25e772fd36f9。Verify43643481245核心/浏览器通过，Windows旧停止夹具等候abort，因新停止语义不再中断已发请求而超时；没有放大等待或回退费用修复。88522ea3bf1b62908196c1a5f01368b53927fa8b仅将测试供应商改为停止后显式返回凭据，停止/暂停/清除三项专项通过；相对包源只改该测试脚本，生产代码和资源相同。该头Verify43644588507六项必需检查全部成功，完整浏览器和Windows UI/读取各格式/账号等回归通过，reviews/threads为空。后续文档提交仍独立核对检查，不能借此绿灯。
+
+已封装Windows安装包0.3.29（SHA256 700fc642a46eeba3cd6eaadd9719b870227144beab5d53282f0256a93cee42cc），ASAR fab8896434de08e58a5b8951199628d8ed0e5348e2b7248ff542cf17a26028a2。原管理台不可变资源cloud-3f6fac29f98e9739efb65d49c38e24ab319b81ba，32项资源逐个核验。私有联合更新器SHA256 8fca7483a3e53db2b43c5a8fcc90441bbd27459b9a87dee8a3f730a7b40eea3c，含44个受管文件及原受保护连接，不公开上传。无界面成品桥接检查包内源码/真实资源、原样材料、登录、新皮肤选择与重载保留，以及真实云端匿名会话查询通过；这是临时合成浏览器桥接，不是运行原生客户端或用户安装。
+
+2026-11-15 05:59 CST，原ECS完成六库一致备份snapshot-fc43040f-7fdd-4c9e-b28a-a4f0c2d65df5后，原位切换至releases/deploy-d4365e4a1bce0aecaddb228e066e25e772fd36f9。切换前后钱包及全部调用摘要、消费/额度、历史任务状态摘要完全一致；无在途任务或reserved/sent调用，唯一历史unknown原样保留。云服务、读取broker和运维定时器健康；原同步服务/nginx进程与启动时间、官网三页哈希未变。启动探针首次连接失败后重试达到cloud-ready，最终保护断言全部通过；不能把启动期间一次重试写成持续故障。
+
+部署后在本轮专用测试号、独立临时设备上只发送新建的合成卡（scope packet、不读其他卡正文及附件），真实模型1次，花费1373微元（约0.001373元）。提出拆分、签名事务确认后得到两张独立卡，要求甲/乙及共同截止日期、进行中状态、星标、小组均保留；原卡软删除可恢复，相同确认操作重放未增加记录版本或卡数。旧28172微元unknown完全未变，未重试模型。临时校验设备已在finally撤销，不撤销用户设备。私有回执在外层outputs/acceptance-account-20261115，不进Git。
+
+已向用户提供联合更新器，实际Windows/原本地控制台安装、无包身份物理回执及两个原入口仍待用户本人运行后确认；不得读取代理镜像目录冒充物理更新。测试号历史28172微元未知预留仍需可信供应商账单，用户原账号冲突恢复及安装版声音听感尚未确认。#118/#107保持开放。

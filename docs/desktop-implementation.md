@@ -1,6 +1,6 @@
 # 桌面实现入口
 
-2026-11-15第三轮候选源码0.3.29，#125 / PR126。卡片冲突直达、原件缩放、账号内AI新建/拆分及服务端一次确认、移除新合并、告警直接处理、存储真实回执、媒体Range和两款新皮肤已实现，完整CI与实际交付尚待。[实施与限制](project-continuity/acceptance-round3-repair-20261115.md)。当前实际Windows/原控制台/原ECS仍0.3.28/08d38fa；下文0.3.28是已安装基线，不是新候选已交付。
+2026-11-15源码及原ECS0.3.29，#125 / PR126。卡片冲突直达、原件缩放、账号内AI新建/拆分及服务端一次确认、移除新合并、告警直接处理、存储真实回执、媒体Range和两款新皮肤已实现。产品源d4365e4、验证头88522ea六项CI成功，真实合成拆卡通过。[实施与限制](project-continuity/acceptance-round3-repair-20261115.md)。Windows/原本地控制台联合更新器已备妥，实际安装和物理核验仍待用户本人运行；下文0.3.28是上一已安装基线。
 
 2026-11-14源码及原云端升级0.3.28/08d38fa，六项必需CI成功，合成服务闭环无新增模型调用。用户已运行Windows/原管理台联合更新器，无包身份只读核验44文件、真实EXE/ASAR、原入口和运行指纹通过，功能体验仍待。[稳定性记录](project-continuity/acceptance-stability-20261114.md)分别记录源码、包来源、验证、部署与用户体验。
 
@@ -11,7 +11,7 @@
 - 数据、原件与备份：`desktop/storage.cjs`、`backup.cjs`，专属 profile、原件去重、最近删除与一致性保护。
 - 文件处理：`archive.cjs`、`office.cjs`、`src/bucket/ingest.ts`；明确返回覆盖说明，代码只作文本，不执行宏或脚本。
 - 当前 UI 与皮肤：`src/bucket/`，卡片原位开合、长按排序、本次投喂与皮肤共用当前桌面基线。
-- 绯樱狐使用同一时间轴的30fps透明视频与Opus原声，不另开音频播放器；`shixu:`本地资源协议启用`stream`以支持视频解码，仍通过既有路径校验和`net.fetch(file:)`取本地文件；未增加外部网络能力。协议标志含义见[Electron官方文档](https://www.electronjs.org/docs/latest/api/protocol)。
+- 绯樱狐使用同一时间轴的30fps透明视频与Opus原声，不另开音频播放器；`shixu:`本地资源协议启用`stream`，媒体通过既有路径校验后由`desktop/media-response.cjs`按实际字节响应GET/HEAD和Range，其他静态资源仍用`net.fetch(file:)`；未增加外部网络能力。协议标志含义见[Electron官方文档](https://www.electronjs.org/docs/latest/api/protocol)。
 - 验证：`test:desktop` 与 `test:desktop:ui`（当前套件以package.json和CI为准）；`SHIXU_PACKAGED_EXE` 可指向实际 exe，使用隔离 profile。
 
 详细目录见 [架构](architecture.md)，操作命令见 [开发指南](guides/development.md)。[历史日志](archive/desktop-implementation-2026-10.md)仅供追溯，实际发行验证见 [0.3.8](releases/windows-0.3.8.md)和对应 Release 报告。
