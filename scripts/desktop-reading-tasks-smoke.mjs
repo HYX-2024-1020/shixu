@@ -108,6 +108,7 @@ ledger.freezePrice({
   outputMicrosPerMillion: 1000000,
 });
 let calls = 0;
+let completeFirstProvider;
 let auditedReads = 0;
 const auditedLimitReader = executionLimitReader((f, options) => readMaterial(f, options));
 const reading = {
@@ -167,11 +168,9 @@ const reading = {
     if (partialRemaining && calls === 2) return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { invalid: true } };
     if(costAudit && calls===2)throw Error("synthetic missing usage and response");
     if (calls === 1 && !auditTime && !auditUnknownTime && !costAudit && !partialRemaining)
-      await new Promise((done) => {
-        signal.addEventListener("abort", () => setTimeout(done, 30), {
-          once: true,
-        });
-      });
+      // A dispatched request now outlives Stop so its billable receipt can settle.
+      // Release this synthetic supplier explicitly after the UI stops the task.
+      await new Promise((done) => { completeFirstProvider = done; });
     return {
       usage: { prompt_tokens: 10, completion_tokens: 10 },
       result: {
@@ -416,6 +415,7 @@ scenario: try {
       await expect.poll(() => calls, { timeout: 20000 }).toBeGreaterThan(0);
     await page.getByRole("button", { name: "停止", exact: true }).click();
     await expect(page.getByText(/已停止 · 本任务已调用/)).toBeVisible();
+    completeFirstProvider?.();
     if (safetyRollback) {
       await expect.poll(()=>fixture.service.readingRoutes.snapshot().accounts).toBe(0);
       await page.getByRole("button",{name:"刷新任务",exact:true}).click();
