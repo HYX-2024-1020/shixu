@@ -2,7 +2,26 @@
 
 关联 [#118](https://github.com/HYX-2024-1020/shixu/issues/118)，范围与验收以 [R01—R13](user-feedback-round2-20261113.md) 和 [Q1—Q12](acceptance-round2-grill-20261113.md) 为准。
 
-2026-11-13，从已合入文档 PR119 的主线6cde830建立 `fix/acceptance-round-two`，固定checkout起点检查通过。看板文档PR120、外部前端及#117保持独立，本修复不接入看板。当前是开发中的Draft交付；尚未部署、安装或通过用户集中复验，运行包仍为0.3.26。
+2026-11-13，从已合入文档 PR119 的主线6cde830建立 `fix/acceptance-round-two`，固定checkout起点检查通过。看板文档PR120、外部前端及#117保持独立，本修复不接入看板。0.3.27已完成实现、原ECS部署、Windows/原管理台原生联合更新；用户确认原两个入口打开，无包身份物理文件及运行指纹核验通过，功能集中复验继续保留。PR最终状态以GitHub为准；下文早期“尚未部署”等段落为过程快照，以本节为准。
+
+## 当前交付状态
+
+| 层次 | 已有证据与尚待项 |
+| --- | --- |
+| 产品包来源 | `f8771df9150b080a2dee0c333e6d367fcbad8dda` / 0.3.27；后续仅原生测试导航、指南与交付记录，不改写不可变包来源 |
+| 必需CI/审查 | 验证头edbc5c0的[Verify43420123281](https://github.com/HYX-2024-1020/shixu/actions/runs/43420123281)六项全部success；部署前reviews及review_threads均空。后续交付文档头继续按最新实际检查，不冒称已通过 |
+| 原ECS | 北京时间2026-11-13 20:01原位切换，云端及reader进程20:01:27启动，HTTP就绪校验通过；current指向`/opt/shixu-cloud/releases/deploy-f8771df9150b080a2dee0c333e6d367fcbad8dda`，云端/真实Linux reader/运维计时器均active |
+| 切换保护 | 5库备份`snapshot-0f336a87-fbe7-464e-870a-efe04311fcae`；切换无在途任务，钱包、调用、历史任务状态摘要前后一致，12项旧暂停未自动继续；旧同步和nginx进程信息、官网三页哈希一致 |
+| 实际服务与模型 | 原ECS上专用合成账号：原件实际延长30天、下载字节校验、新AI合并协议只生成待确认目标、确认事务合并、重启及撤销通过。仅新增1次真实调用，估算1196微元，无预留或费用不明；确认/撤销不新增调用。源Windows适配器测试，不是用户安装客户端，不声称本次聊天实际调用了Linux附件reader |
+| 成品自查 | 实际ASAR的主进程/账号/存储模块与源码一致，32项控制台资源逐份哈希、ICO HTTP/多尺寸图像帧与headless合成流程通过；宽窄世界、原文与登录截图等待动画结束后目视核对 |
+| Windows/原控制台 | 用户普通Windows会话20:03:21完成联合更新，原生回执0.3.27/f8771df、44个受管文件；用户明确确认原两个入口打开。20:05:27独立无包身份只读核验原EXE/ASAR、44文件、原快捷方式/序v2图标路径、客户端进程及网关指纹全部通过 |
+| 用户验收 | [0.3.27集中步骤](../guides/product-acceptance-0.3.27.md)已准备，#118/#107保持开放；入口打开与用户总体验收分别记录 |
+
+真实服务初探因本次专用18888转发未运行而连接拒绝，未派发调用；重建本次独立转发后接续原合成验收，付费意图先持久化，只创建上述1个任务。完成后按PID、启动时间、程序路径和监听端口核对并停止本次转发，未停止用户原18788/18789连接。未使用个人正文、未清理其他账号/项目、未操作本机桌面UI。
+
+私有证据保存在工作区外层`outputs/acceptance-feedback-round2-20261113/`：完整回归与构建日志、`cloud-activation-f8771df.log`、前后账本及基础设施摘要、`real-service-smoke.json`、`package-smoke.json`和目视截图。安装器包含专用连接材料，仅本机私有交付，不上传公共PR或Release。构建包与实际安装严格区分。
+
+安装只读核验进程`GetCurrentPackageFullName`返回15700，真实物理根目录仍为`%LOCALAPPDATA%/Programs/shixu`和`%LOCALAPPDATA%/Shixu/AdminConsole`，客户端ASAR及控制台指纹与下文候选封装一致。用户回执和独立核验分别保留在`user-native-install-f8771df.json`、`user-native-install-verified-f8771df.json`和`user-native-verifier-context.json`。没有通过代理环境重跑安装器、写造用户回执或自动操作桌面UI。图标日常DPI视觉、原始意外增卡链和未复现杂音仍由用户集中复验，不把文件核验当作这些现象已全部解决。
 
 ## 已定位链路与首批实现
 

@@ -10,7 +10,7 @@
 
 ## 先用起来
 
-源码 **0.3.27** 正在进行第二轮集中整改，见[实施与验证记录](docs/project-continuity/acceptance-round2-repair-20261113.md)；当前尚未完成部署和原生安装。
+第二轮 **0.3.27** 已完成代码整改、适用回归、原阿里云部署和Windows/原管理台原生联合更新；用户确认原两个入口打开，无包身份只读核验物理文件、44个受管文件及运行指纹通过。必需CI、真实合成服务/模型、运行包来源与诚实遗留见[实施与验证记录](docs/project-continuity/acceptance-round2-repair-20261113.md)，集中体验见[0.3.27指南](docs/guides/product-acceptance-0.3.27.md)；安装及入口确认不等于用户功能总体验收。
 
 上一轮实际运行 **0.3.26** 已完成代码整改、适用回归、原阿里云服务部署及Windows/原本地控制台实际安装。用户确认原两个入口打开，物理回执、43个受管文件、客户端及控制台运行版本已核验；最后交付记录仍按PR最新头完成必需CI与收尾。实际版本、C01—C28对照、真实服务证据及已知问题见[逐项整改记录](docs/project-continuity/acceptance-repair-20261112.md)，普通复验见[0.3.26指南](docs/guides/product-acceptance-0.3.26.md)。部署、用户安装和用户验收分别核对。
 
