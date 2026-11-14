@@ -48,11 +48,11 @@
     "mini:preview:sync": "node scripts/sync-miniprogram-preview.mjs"
   },
   "dependencies": {
-    "7zip-bin-full": "26.5.1",
+    "7zip-bin-full": "26.6.0",
     "fflate": "^0.8.3",
     "jpeg-js": "0.4.4",
     "lucide-react": "^0.468.0",
-    "pdfjs-dist": "^6.2.108",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sax": "1.6.1",
@@ -60,18 +60,18 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.0",
+    "@playwright/test": "^1.65.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.4.0",
-    "electron": "^45.0.0",
-    "electron-builder": "^26.15.3",
-    "esbuild": "0.25.12",
-    "prettier": "^3.6.2",
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "0.28.2",
+    "prettier": "^3.10.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "main": "desktop/main.cjs",
   "build": {
