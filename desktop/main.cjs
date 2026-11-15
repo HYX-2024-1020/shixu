@@ -23,6 +23,7 @@ const { readOffice } = require("./office.cjs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { resolveAsset } = require("./paths.cjs");
+const { mediaType, mediaResponse } = require("./media-response.cjs");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -181,6 +182,7 @@ else {
       });
       protocol.handle("shixu", (request) => {
         const file = resolveAsset(path.join(__dirname, "../dist"), request.url);
+        if (file && mediaType(file)) return mediaResponse(file, request);
         return file
           ? net.fetch(pathToFileURL(file).href)
           : new Response("Not found", { status: 404 });

@@ -23,6 +23,7 @@ export interface Packet {
     hiddenKinds: string[];
   };
   syncVersion?: number;
+  syncConflict?: boolean;
   syncAutoOrganize?: boolean;
   receipt?: {
     created: number;
@@ -56,6 +57,15 @@ export interface Packet {
   association?: Association;
 }
 export interface ItemState {
+  chatCreations?: {
+    mode: "create" | "split";
+    packetId: string;
+    itemId: string;
+    patches: Record<string, unknown>[];
+    beforeItem: import("../../shared/bucket-engine.mjs").BucketItem;
+    beforeState: Record<string, unknown>;
+    id: string;
+  } | null;
   chatMerge?: {
     title: string;
     targets: {

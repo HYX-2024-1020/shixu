@@ -1,6 +1,7 @@
+import { mergeCards } from "../../test-fixtures/legacy-card-merge";
 import { test, expect } from "vitest";
 import { defaultCard } from "./default-card";
-import { mergeCards, undoCardMerge, mergeCardDeletion } from "./card-merge";
+import { undoCardMerge, mergeCardDeletion } from "./card-merge";
 import { layoutPacket, worldLayout } from "./world-layout";
 import type { Packet } from "./types";
 function packet(id: string): Packet {

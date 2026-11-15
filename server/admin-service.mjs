@@ -387,6 +387,12 @@ export function createAdminService({
             );
             return;
           }
+          const handleAlert = /^\/admin\/v1\/alerts\/(\d{1,20})\/handle$/.exec(path);
+          if (req.method === "POST" && handleAlert) {
+            if (Object.keys(await readJson(req)).length) throw failure(400, "INVALID_OPERATION", "操作内容无效");
+            json(200, await backend.handleAlert(handleAlert[1], req.headers["x-operation-id"], username));
+            return;
+          }
           const readAlert = /^\/admin\/v1\/alerts\/(\d{1,20})\/read$/.exec(
             path,
           );

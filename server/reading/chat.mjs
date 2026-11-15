@@ -145,7 +145,7 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
-      ...(!intent || this.request(id)?.protocol ? { protocol: 2 } : {}),
+      ...(!intent || this.request(id)?.protocol ? { protocol: this.request(id)?.protocol || 3 } : {}),
       ...(["account", "packet", "group", "selected"].includes(chat.scope)
         ? { scope: chat.scope }
         : {}),
@@ -176,7 +176,7 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
-      ...(!intent || this.request(id)?.protocol ? { protocol: 2 } : {}),
+      ...(!intent || this.request(id)?.protocol ? { protocol: this.request(id)?.protocol || 3 } : {}),
       ...(["account", "packet", "group", "selected"].includes(chat.scope)
         ? { scope: chat.scope }
         : {}),
@@ -255,7 +255,7 @@ export class ReadingChat {
     if (["account", "packet", "group", "selected"].includes(request.scope)) {
       let records = this.db
         .prepare(
-          "SELECT id,version,data FROM sync_records WHERE purged=0 AND deleted_at IS NULL ORDER BY version DESC LIMIT 101",
+          "SELECT id,version,data FROM sync_records WHERE purged=0 AND deleted_at IS NULL ORDER BY version DESC" + (request.protocol >= 3 ? "" : " LIMIT 101"),
         )
         .all();
       if (request.scope === "packet")
@@ -270,7 +270,7 @@ export class ReadingChat {
             data: JSON.stringify(r.data),
           }));
       records = [...new Map(records.map((r) => [r.id, r])).values()];
-      context.relatedItems = records.slice(0, 100).flatMap((row) => {
+      context.relatedItems = records.slice(0, request.protocol >= 3 ? records.length : 100).flatMap((row) => {
         const p = JSON.parse(row.data);
         return (p.itemIds || []).flatMap((itemId, i) => {
           const meta = p.itemState?.[itemId] || {};
@@ -308,20 +308,28 @@ export class ReadingChat {
           ];
         });
       });
-      context.omittedPackets = records.length > 100;
+      context.omittedPackets = request.protocol < 3 && records.length > 100;
       if (context.relatedItems.length > 200) {
+        if (request.protocol >= 3) {
+          const query = request.instruction.replace(/\s+/g, "");
+          const terms = [...new Set(Array.from({ length: Math.max(0, query.length - 1) }, (_, i) => query.slice(i, i + 2)))];
+          context.relatedItems = context.relatedItems.map((target, index) => {
+            const text = JSON.stringify(target.item);
+            return { target, index, score: terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0) };
+          }).sort((a,b) => b.score - a.score || a.index - b.index).map(entry => entry.target);
+        }
         context.relatedItems = context.relatedItems.slice(0, 200);
         context.omittedItems = true;
       }
       context.scope = !request.protocol
         ? "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行"
         : ({
-            account: "当前账号最近100份可访问投递",
+            account: request.protocol >= 3 ? "当前账号可访问事项（超过本轮容量时按指令相关性选取，并明确说明未读范围）" : "当前账号最近100份可访问投递",
             packet: "当前同次投递",
             group: "明确指定的小组（在最近100份投递内筛选）",
             selected: "用户明确选定卡片",
           }[request.scope] || "当前事项") +
-          "；跨卡片修改和真正合并先生成预览，确认后执行";
+          (request.protocol >= 3 ? "；跨卡片修改、新建与拆分先生成预览，确认后执行" : "；跨卡片修改和真正合并先生成预览，确认后执行");
     }
     const mergedChildren =
       request.protocol && meta.mergedCard
@@ -366,6 +374,7 @@ export class ReadingChat {
       const sourcePackets = [
         { packetId: request.packetId, packet },
         ...mergedChildren.filter(Boolean),
+        ...(request.protocol >= 3 ? [...new Set((context.relatedItems || []).map(t => t.packetId))].filter(id => id !== request.packetId).map(packetId => ({ packetId, packet: this.engine.store.record(packetId).data })) : []),
       ];
       context.originals = [
         ...new Map(sourcePackets.map((p) => [p.packetId, p])).values(),
@@ -517,6 +526,7 @@ export class ReadingChat {
             "reply",
             "proposals",
             "merge",
+            "creations",
             ...(certified ? ["readScope"] : []),
           ].includes(key),
       ) ||
@@ -535,6 +545,7 @@ export class ReadingChat {
       request.instruction,
       request.day,
     );
+    if (request.protocol >= 3) validated.reply = validated.reply.replaceAll("attachmentContent", "已读取的附件内容").replaceAll("omittedAttachments", "本轮未读取的附件数量").replaceAll("contentComplete", "读取是否完整");
     if (
       request.readAttachments ||
       context.mergedChildren ||
@@ -553,7 +564,7 @@ export class ReadingChat {
             (read.attachmentContent || [])
               .map(
                 (f) =>
-                  `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（" + f.missing.join("、") + "）" : ""}`,
+                  `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（原件不可用、内容超出本次读取范围或仍需人工核对）" : ""}`,
               )
               .join("；")
           : "";
@@ -565,7 +576,7 @@ export class ReadingChat {
           validated.readScope +=
             "。本轮仍有未读范围，答复不表示未读范围内不存在所查内容。";
         if (["account", "packet", "group", "selected"].includes(request.scope))
-          validated.readScope += `\n\n本轮跨卡片范围：${context.scope}，共${context.relatedItems.length}个其他事项摘要，未重读其他卡片附件。${context.omittedPackets || context.omittedItems ? "还有卡片或事项未纳入，不能据此断言整个账号不存在所查内容。" : ""}修改建议尚未执行，须确认后保存。`;
+          validated.readScope += `\n\n本轮跨卡片范围：${context.scope}，共${context.relatedItems.length}个其他事项摘要，${request.protocol >= 3 && request.readAttachments ? "必要附件读取情况见上方" : "未重读其他卡片附件"}。${context.omittedPackets || context.omittedItems ? "还有卡片或事项未纳入，不能据此断言整个账号不存在所查内容。" : ""}修改建议尚未执行，须确认后保存。`;
       }
     }
     if (raw.proposals !== undefined) {
@@ -604,6 +615,7 @@ export class ReadingChat {
       });
     }
     if (raw.merge !== undefined) {
+      if (request.protocol >= 3) fail("INVALID_CHAT");
       if (
         !request.protocol ||
         !context.relatedItems ||
@@ -644,6 +656,23 @@ export class ReadingChat {
           };
         }),
       };
+    }
+    if (raw.creations !== undefined) {
+      const creation = raw.creations;
+      if (request.protocol !== 3 || !creation || !["create", "split"].includes(creation.mode) || Object.keys(raw.patch).length || raw.proposals?.length || raw.merge ||
+          !Array.isArray(creation.patches) || creation.patches.length < (creation.mode === "split" ? 2 : 1) || creation.patches.length > 10) fail("INVALID_CHAT");
+      const allowed = [{ ...context.currentTarget, item: context.currentItem, state: context.currentState }, ...(context.relatedItems || [])];
+      const source = allowed.find(t => t.packetId === creation.packetId && t.itemId === creation.itemId);
+      if (!source) fail("INVALID_CHAT");
+      const patches = creation.patches.map(patch => {
+        patch = { ...patch };
+        if (certified) delete patch.dueCleared;
+        if (typeof patch.title !== "string" || !patch.title.trim() || typeof patch.summary !== "string" || !Array.isArray(patch.facts)) fail("INVALID_CHAT");
+        // Dates may be inherited verbatim from the already absolute saved item;
+        // a new relative date still needs grounding in this turn's instruction.
+        return validateChatUpdate({ reply: "待确认", patch }, source.item, request.instruction, request.day).patch;
+      });
+      validated.creations = { mode: creation.mode, packetId: source.packetId, itemId: source.itemId, patches, beforeItem: source.item, beforeState: { ...source.state, status: source.state.status || (this.engine.store.record(source.packetId)?.data.doneIds?.includes(this.engine.store.record(source.packetId)?.data.itemIds?.indexOf(source.itemId)) ? "done" : "active"), group: source.state.group ?? source.item.group, groupIds: this.engine.store.record(source.packetId)?.data.itemState?.[source.itemId]?.groupIds } };
     }
     return JSON.parse(JSON.stringify(validated));
   }
@@ -794,6 +823,7 @@ export class ReadingChat {
             })),
           ],
           chatMerge: output.merge || null,
+          chatCreations: output.creations ? { ...output.creations, id: task.id } : null,
           chatProposals: output.proposals
             ? { id: task.id, items: output.proposals }
             : null,

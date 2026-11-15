@@ -2889,3 +2889,25 @@ test("image quote privacy cap retains locator-only paid reuse and its already-gr
     "18:00",
   );
 });
+
+for (const action of ["stop", "pause", "purge"]) test(`third round: ${action} drains an already sent receipt without publishing late content`, async (t) => {
+  let release, started, paidSignal;
+  const dispatched = new Promise(resolve => { started = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const f = fixture(t, { provider: async (sources, signal) => {
+    paidSignal = signal; started(); await gate;
+    return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: result(sources) };
+  }});
+  f.enqueue();
+  const running = f.tasks.run("task");
+  await dispatched;
+  f.action(action);
+  assert.equal(paidSignal.aborted, false);
+  assert.equal(f.store.record("packet").data.result, null);
+  release(); await running;
+  assert.equal(f.ledger.wallet("synthetic").unknownRisk, 0);
+  assert.equal(f.ledger.wallet("synthetic").reserved, 0);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+  assert.equal(f.store.record("packet").data.result, null);
+  assert.equal(f.calls(), 1);
+});

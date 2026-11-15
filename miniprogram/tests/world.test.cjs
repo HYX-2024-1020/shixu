@@ -1700,7 +1700,7 @@ test("ice voices select distinct single-shot assets, stop before replay and pers
   page.openSkins();
   assert.deepEqual(
     Array.from(page.data.skins, (s) => s.id),
-    ["whale", "ice", "bunny"],
+    ["whale", "ice", "bunny", "capybara", "owl"],
   );
   page.previewSkin(event("ice"));
   page.interactSkin();

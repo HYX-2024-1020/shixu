@@ -1984,7 +1984,13 @@
   gap: 10px;
   margin-bottom: 12px;
   overflow-wrap: anywhere;
+  flex-wrap: wrap;
 }
+.preview-zoom-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.preview-zoom-controls output { min-width: 4ch; text-align: center; }
+.preview-viewport { overflow: auto; max-height: 650px; width: 100%; }
+.attachment-preview .preview-viewport .preview-image,
+.attachment-preview .preview-viewport canvas { max-width: none; max-height: none; height: auto; margin: 0 auto; }
 .preview-toolbar strong {
   font-size: 16px;
 }

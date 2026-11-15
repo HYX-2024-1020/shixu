@@ -772,18 +772,19 @@ class AccountWorkspace extends CloudWorkspace {
   action(action, value) {
     if (action === "cardOperation")
       return this.serial(async () => {
-        if (!this.config.active || !["merge", "undo"].includes(value?.kind))
+        if (value?.kind === "merge") throw Error("合并功能已移除，已有内容和原件保留");
+        if (!this.config.active || !["apply-chat", "undo"].includes(value?.kind))
           throw Error("请先连接账号并核对卡片");
         await this.sync({ force: true });
-        if (!this.accountState?.reading?.features?.manualCardMerge)
+        if (!(value.kind === "undo" ? this.accountState?.reading?.features?.legacyCardUndo : this.accountState?.reading?.features?.cardChatCreations))
           throw Error(
-            "当前服务尚未接入多卡合并，请更新服务后重试；资料保持原样",
+            "当前服务尚未接入此项卡片操作，请更新服务后重试；资料保持原样",
           );
         if (
           this.space().client.pendingCount() ||
           this.space().client.conflicts().length
         )
-          throw Error("请先处理同步冲突，再合并卡片");
+          throw Error("请先处理同步冲突，再确认卡片修改");
         const file = this.space().cache.file("card-actions.json");
         const saved = fs.existsSync(file)
           ? JSON.parse(fs.readFileSync(file, "utf8"))

@@ -36,6 +36,7 @@ import {
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { withDatabaseWriteAuthority } from "./database-schema.mjs";
 import { createMultiUserService } from "./sync-multi-user.mjs";
 const require = createRequire(import.meta.url),
   { AccountWorkspace } = require("../desktop/accounts.cjs"),
@@ -446,4 +447,20 @@ test("protected account CLI selects the configured v4 data and its safety author
   } finally {
     db.close();
   }
+});
+
+
+test("third round: storage execution measures real reclaimed file bytes and a second cleanup cannot invent another release",async t=>{
+  const f=await fixture(t);
+  const path=join(f.config.directory,"users",f.account,"workspace.sqlite");
+  const db=new DatabaseSync(path);
+  withDatabaseWriteAuthority(db,()=>db.exec("CREATE TABLE synthetic_free_space(body BLOB); INSERT INTO synthetic_free_space VALUES(zeroblob(2097152)); DROP TABLE synthetic_free_space; PRAGMA wal_checkpoint(TRUNCATE);"));db.close();
+  const before=new DatabaseSync(f.config.ledgerPath,{readOnly:true});
+  const wallet=before.prepare("SELECT granted,spent FROM reading_wallets WHERE account=?").get(f.account);before.close();
+  const first=cleanCloudStorage(f.config);
+  assert.ok(first.physicalBytesReclaimed>1048576,JSON.stringify(first));
+  assert.equal(first.physicalBytesReclaimed,first.physicalBytesBefore-first.physicalBytesAfter);
+  const second=cleanCloudStorage(f.config);
+  assert.equal(second.physicalBytesReclaimed,0);
+  const after=new DatabaseSync(f.config.ledgerPath,{readOnly:true});assert.deepEqual(after.prepare("SELECT granted,spent FROM reading_wallets WHERE account=?").get(f.account),wallet);after.close();
 });

@@ -60,11 +60,13 @@ export default function SkinArt({
         skin.art === "custom"
           ? skin.image
           : import.meta.env.BASE_URL +
-            (skin.art === "ice"
-              ? "ice.png"
-              : skin.art === "bunny"
-                ? "bunny.png"
-                : "mascot.png")
+            (["capybara", "owl"].includes(skin.art)
+              ? skin.art + ".webp"
+              : skin.art === "ice"
+                ? "ice.png"
+                : skin.art === "bunny"
+                  ? "bunny.png"
+                  : "mascot.png")
       }
       alt={skin.name}
       draggable={false}

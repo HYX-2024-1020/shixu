@@ -264,7 +264,7 @@ export async function tick() {
         "维护失败：" + code(e) + "；上传和AI保持暂停，基本读取尽量保留",
         job.id,
       );
-      ops.event(job.id, "failed", code(e));
+      ops.event(job.id, "failed", code(e), ops.jobs().find(j => j.id === job.id)?.result || {});
       if (stopped || previous) {
         systemctl("start");
         try {
@@ -313,6 +313,7 @@ async function main() {
       else throw Error("INVALID_OPERATION");
       ops.event(id, "running", "", result);
     } catch (e) {
+      if (e.cleanupResult) ops.event(id, "running", code(e), e.cleanupResult);
       throw Error(code(e));
     } finally {
       ops.close();

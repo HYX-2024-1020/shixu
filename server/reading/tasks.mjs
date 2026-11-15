@@ -1666,8 +1666,9 @@ export class ReadingTasks {
         try {
           response = await callProvider(
             sources,
-            AbortSignal.any([
-              controller.signal,
+            // Stopping a task cancels future work/publication, not an already
+            // dispatched billable request. Drain its bounded receipt so user
+            // cancellation does not manufacture unknown-cost reservations.
               AbortSignal.timeout(
                 Math.max(
                   1,
@@ -1681,7 +1682,6 @@ export class ReadingTasks {
                   ),
                 ),
               ),
-            ]),
             {
               prepared,
               captureDate: packet.captureDate,

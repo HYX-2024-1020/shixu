@@ -18,7 +18,7 @@ import {
   validateResult,
 } from "../../shared/bucket-engine.mjs";
 import { localDate } from "../organize";
-import { applyChatProposals } from "./chat-proposals";
+import { applyChatChanges } from "./chat-creations";
 import {
   allPackets,
   putPacket,
@@ -313,9 +313,19 @@ export default function BucketApp() {
             throw Error("请先处理同步冲突，再确认跨卡片修改");
         }
         const current = await allPackets();
-        const changes = applyChatProposals(current, packetId, itemId);
-        await saveMany(changes);
-        notify("已确认保存跨卡片修改；同步状态可在设置中核对。");
+        const owner = current.find(p => p.id === packetId);
+        const meta = owner?.itemState?.[itemId];
+        const creation = meta?.chatCreations;
+        const proposal = creation || meta?.chatProposals;
+        if (!proposal) throw Error("建议已失效，请刷新核对");
+        if (window.desktop && (await window.desktop.cloud("status")).base) {
+          const targets = creation ? [{ packetId: creation.packetId, itemId: creation.itemId }] : meta!.chatProposals!.items;
+          const allTargets = [...targets, { packetId, itemId }];
+          await window.desktop.cloud("cardOperation", { kind: "apply-chat", ownerPacket: packetId, ownerItem: itemId, proposalId: proposal.id,
+            targets: [...new Map(allTargets.map(t => [t.packetId, { packetId: t.packetId, itemId: t.itemId, baseVersion: current.find(p => p.id === t.packetId)?.syncVersion }])).values()] });
+          const rows = await allPackets(); packetsRef.current = rows; setPackets(rows);
+        } else await saveMany(applyChatChanges(current, packetId, itemId, proposal.id));
+        notify("已确认保存卡片修改，原件与来源保留。");
       } finally {
         chatLocks.current.delete(packetId);
       }

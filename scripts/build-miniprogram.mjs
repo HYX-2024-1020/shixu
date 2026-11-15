@@ -176,7 +176,7 @@ outputs.set(
 );
 const ai = await build({
   stdin: {
-    contents: `export { mergeCards, undoCardMerge, CardOperationError } from './src/bucket/card-merge'; export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs'; export { buildGroups } from './shared/relations.mjs';`,
+    contents: `export { undoCardMerge, CardOperationError } from './src/bucket/card-merge'; export { applyChatChanges } from './src/bucket/chat-creations'; export { organizePacket, DEFAULT_MODEL, validateResult } from './shared/bucket-engine.mjs'; export { chatWithItem, validateChatUpdate } from './src/bucket/item-chat'; export { absoluteItem } from './shared/deadlines.mjs'; export { buildGroups } from './shared/relations.mjs';`,
     resolveDir: root,
   },
   bundle: true,
@@ -205,6 +205,8 @@ outputs.set(
 // Artwork and single-utterance audio are copied byte-for-byte from desktop assets.
 for (const name of [
   "ice.png",
+  "capybara.webp",
+  "owl.webp",
   "ice-voice-1.mp3",
   "ice-voice-2.mp3",
   "bunny.png",

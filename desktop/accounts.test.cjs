@@ -443,12 +443,19 @@ for (const scenario of ["stop", "settlement"])
       stopped.jobs.find((j) => j.id === submitted.job).state,
       "cancelled",
     );
-    assert.equal(aborted, true);
+    assert.equal(aborted, false);
     assert.equal(ledger.wallet(fixture.invitation.userId).spent, 0);
     assert.ok(
       ledger.wallet(fixture.invitation.userId).reserved > 0,
       "in-flight cost remains reserved until final evidence",
     );
+    finish();
+    while (fixture.service.readingRoutes.snapshot().accounts) await new Promise(resolve => setTimeout(resolve,10));
+    assert.equal(ledger.wallet(fixture.invitation.userId).spent,20);
+    assert.equal(ledger.wallet(fixture.invitation.userId).reserved,0);
+    assert.equal(ledger.wallet(fixture.invitation.userId).unknownRisk,0);
+    await client.action("sync");
+    assert.equal((await client.packets()).find(p=>p.id==="stop-xlsx").result,null);
   });
 
 test("installed account adapter can enter restricted temporary-password login and change password before any material sync", async (t) => {
@@ -844,7 +851,7 @@ round2test(
   },
 );
 round2test(
-  "signed Windows multi-card merge is atomic, restart-safe and undo protects later edits without model calls",
+  "removed merge rejects new requests while historical cards remain restart-safe and undo protects later edits",
   async (t) => {
     const { accountUIFixture, fixtureItem } = await import(
       "../scripts/account-ui-fixture.mjs"
@@ -928,12 +935,10 @@ round2test(
       (await cloud.packets()).find((p) => p.id === "a").result.items.length,
       1,
     );
-    await cloud.action("cardOperation", {
-      kind: "merge",
-      targets,
-      title: "合并",
-      itemId: "main",
-    });
+    await assert.rejects(cloud.action("cardOperation", {kind:"merge",targets,title:"合并",itemId:"main"}),/已移除/);
+    const {mergeCards}=await import("../test-fixtures/legacy-card-merge.ts");
+    await cloud.call("savePackets", mergeCards(await cloud.packets(),targets,"main","历史主卡"),cloud.config.active);
+    await cloud.action("sync",{force:true});
     rows = await cloud.packets();
     assert.equal(rows.find((p) => p.id === "a").result.items.length, 2);
     assert.ok(rows.find((p) => p.id === "b").itemState.b_item.mergedInto);

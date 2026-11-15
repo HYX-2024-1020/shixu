@@ -250,6 +250,7 @@ class CloudWorkspace {
             updatedAt: new Date(0).toISOString(),
             ...r.data,
             syncVersion: r.version,
+            syncConflict: !!r.conflict,
             syncAutoOrganize:
               r.data.desktopOwner ===
               this.config.devices[this.config.active]?.deviceId,
@@ -364,6 +365,7 @@ class CloudWorkspace {
           attachments,
           syncVersion,
           syncAutoOrganize,
+          syncConflict,
           ...data
         } = p;
         data.attachments = [];

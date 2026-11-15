@@ -550,10 +550,24 @@ export function recoverCloudMaintenance(config, operationId) {
     lease.release();
   }
 }
+function storageBytes(path) {
+  if (!path || !existsSync(path)) return 0;
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink()) throw Error("STORAGE_PATH_REJECTED");
+  if (stat.isDirectory()) return readdirSync(path).reduce((n, name) => n + storageBytes(join(path, name)), 0);
+  return stat.isFile() ? stat.size : 0;
+}
 export function cleanCloudStorage(config, { now = Date.now() } = {}) {
   const lease = acquireDataLease(config.directory, "maintenance");
   let ledger;
+  // Include WAL, retired versions and backup rotation in the measured bytes.
+  // Authority/ledger/audit directories are outside this cleanup scope.
+  const measure = () => storageBytes(config.directory) +
+    (config.backupRoot && (isAbsolute(relative(config.directory, config.backupRoot)) || relative(config.directory, config.backupRoot).startsWith("..")) ? storageBytes(config.backupRoot) : 0);
+  let physicalBefore;
+  let count = 0;
   try {
+    physicalBefore = measure();
     const selected = resolveDataVersion(lease, {
       ledgerPath: config.ledgerPath,
     });
@@ -563,8 +577,6 @@ export function cleanCloudStorage(config, { now = Date.now() } = {}) {
         .prepare("SELECT body FROM reading_prices ORDER BY id LIMIT 1")
         .get().body,
     );
-    let count = 0,
-      freed = 0;
     for (const member of members(selected.directory).filter((p) =>
       p.startsWith("users/"),
     )) {
@@ -572,7 +584,6 @@ export function cleanCloudStorage(config, { now = Date.now() } = {}) {
         account = member.split("/")[1],
         store = new SyncStore(path);
       let jobs, originals, tasks;
-      const before = lstatSync(path).size;
       try {
         createAttachmentStore(store);
         jobs = createJobQueue(store, null, {}, { archiveLegacy: true });
@@ -612,7 +623,6 @@ export function cleanCloudStorage(config, { now = Date.now() } = {}) {
         originals?.close();
         store.close();
       }
-      freed += Math.max(0, before - lstatSync(path).size);
     }
     rotateCloudSnapshots(config.backupRoot, { now });
     const request = {
@@ -621,7 +631,14 @@ export function cleanCloudStorage(config, { now = Date.now() } = {}) {
     };
     if (selected.version) purgeRetiredData(lease, request, () => true);
     purgeAbandonedShadows(lease, request, () => true);
-    return { tenants: count, physicalBytesReclaimed: freed };
+    const physicalAfter = measure();
+    return { tenants: count, physicalBytesBefore: physicalBefore, physicalBytesAfter: physicalAfter, physicalBytesReclaimed: Math.max(0, physicalBefore - physicalAfter), sampledAt: new Date().toISOString() };
+  } catch (error) {
+    if (physicalBefore !== undefined) {
+      const physicalAfter = measure();
+      error.cleanupResult = { tenants: count, partial: true, physicalBytesBefore: physicalBefore, physicalBytesAfter: physicalAfter, physicalBytesReclaimed: Math.max(0, physicalBefore - physicalAfter), sampledAt: new Date().toISOString() };
+    }
+    throw error;
   } finally {
     ledger?.close();
     lease.release();

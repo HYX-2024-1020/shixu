@@ -648,7 +648,7 @@ test("chat status and correction metadata follow the existing manual card rules"
 });
 
 for (const scope of ["packet", "group", "selected"])
-  test(`explicit ${scope} scope yields a merge preview without adding or modifying source cards`, async (t) => {
+  test(`explicit ${scope} scope rejects the removed merge capability without modifying source cards`, async (t) => {
     const f = fixture(t, {
       chatProvider: async (sources) => {
         const context = JSON.parse(sources[0].text);
@@ -679,10 +679,10 @@ for (const scope of ["packet", "group", "selected"])
       baseVersion: f.store.record("packet").version,
     };
     f.enqueue();
-    assert.equal((await finish(f.tasks)).state, "done");
+    assert.notEqual((await finish(f.tasks)).state, "done");
     const after = f.store.record("packet").data;
     assert.deepEqual(after.result.items, before.result.items);
-    assert.equal(after.itemState.item1.chatMerge.targets.length, 2);
+    assert.equal(after.itemState.item1?.chatMerge, undefined);
     assert.equal(after.itemState.item2.mergedInto, undefined);
     assert.equal(f.calls().chat, 1);
   });
@@ -842,4 +842,36 @@ test("merged main chat reads referenced child requirements and original bytes wi
     /另1个子项已不可访问/,
   );
   assert.equal(f.calls().chat, 1);
+});
+
+for (const mode of ["create", "split"]) test(`third round: ${mode} produces a durable confirmed proposal with original provenance and no immediate new cards`, async (t) => {
+  const f = fixture(t, { chatProvider: async sources => {
+    const context = JSON.parse(sources[0].text);
+    return { usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { reply: "已列出待确认卡片", patch: {}, creations: { mode, ...context.currentTarget, patches: [{ title: "独立甲", summary: "甲要求", facts: ["要求甲"] }, { title: "独立乙", summary: "乙要求", facts: ["要求乙"] }] } } };
+  }});
+  f.input.chat.instruction = "把当前卡拆成两张独立卡，保留原件和要求";
+  f.input.chat.scope = "account";
+  f.enqueue(); assert.equal((await finish(f.tasks)).state, "done");
+  const before = f.store.record("packet").data;
+  assert.equal(before.result.items.length, 2);
+  assert.equal(before.itemState.item1.chatCreations.patches.length, 2);
+  const { applyChatChanges } = await import("../generated/ai-core.mjs");
+  const changes = applyChatChanges([before], "packet", "item1", "chat1");
+  const next = changes[0];
+  assert.equal(next.result.items.length, 4);
+  assert.deepEqual(next.attachments, before.attachments);
+  assert.deepEqual(next.result.items[2].sourceIds, before.result.items[0].sourceIds);
+  assert.equal(next.itemState.item1.chatCreations, null);
+  assert.equal(!!next.itemState.item1.deletedAt, mode === "split");
+  assert.throws(() => applyChatChanges([next], "packet", "item1", "chat1"));
+  const changed = structuredClone(before); changed.result.items[0].title = "用户刚刚编辑";
+  assert.throws(() => applyChatChanges([changed], "packet", "item1", "chat1"), /新修改/);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
+});
+
+test("third round: new cards cannot name a source outside the current tenant context", async (t) => {
+  const f = fixture(t, { chatProvider: async () => ({ usage: { prompt_tokens: 10, completion_tokens: 10 }, result: { reply: "待确认", patch: {}, creations: { mode: "create", packetId: "another-account", itemId: "secret", patches: [{ title: "越界", summary: "", facts: [] }] } } }) });
+  f.enqueue(); assert.notEqual((await finish(f.tasks)).state, "done");
+  assert.equal(f.store.record("packet").data.result.items.length, 2);
+  assert.equal(f.ledger.wallet("synthetic").spent, 20);
 });

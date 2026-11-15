@@ -1,5 +1,5 @@
 import { allPackets } from "./store";
-import { mergeCards, undoCardMerge, mergeCardDeletion } from "./card-merge";
+import { undoCardMerge, mergeCardDeletion } from "./card-merge";
 import { worldLayout, layoutPacket } from "./world-layout";
 import { defaultCard } from "./default-card";
 import { errorMessage } from "./error-message";
@@ -26,6 +26,7 @@ import {
 import ItemDialog from "./ItemDialog";
 import DeliverySources from "./DeliverySources";
 import ItemChat from "./ItemChat";
+import AccountConnection from "./AccountConnection";
 import { cardCopy } from "./card-copy";
 import LinkText from "./LinkText";
 import { leaveCard, resetCard } from "./motion";
@@ -87,13 +88,12 @@ function Results({
     },
   ) => Promise<ItemState>;
 }) {
-  const [mergeSelection, setMergeSelection] = useState<string[]>([]);
-  const [mergePreview, setMergePreview] = useState(false);
-  const [mergeTitle, setMergeTitle] = useState("");
+  const [conflictPacket, setConflictPacket] = useState("");
+  const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [mergeBusy, setMergeBusy] = useState(false);
   const mergeLock = useRef(false);
   async function cardOperation(
-    kind: "merge" | "undo",
+    kind: "undo",
     targets: { packetId: string; itemId: string }[],
     title = "",
     preserveEdited = false,
@@ -122,18 +122,11 @@ function Results({
       } else {
         if (!saveMany) throw Error("当前入口暂不支持批量保存");
         await saveMany(
-          kind === "merge"
-            ? mergeCards(current, targets, crypto.randomUUID(), title)
-            : undoCardMerge(current, targets[0], preserveEdited),
+          undoCardMerge(current, targets[0], preserveEdited),
         );
       }
-      setMergeSelection([]);
-      setMergePreview(false);
-      notify(
-        kind === "merge"
-          ? "已合并为一张主卡，各子项和原件来源保留"
-          : "已撤销合并，源卡已恢复",
-      );
+      setSelectedCards([]);
+      notify("已恢复历史合并的源卡，原内容保留");
     } finally {
       mergeLock.current = false;
       setMergeBusy(false);
@@ -511,16 +504,6 @@ function Results({
           <div className="result-controls">
             <button onClick={onRecords}>整理记录</button>
             {onTasks && <button onClick={onTasks}>整理任务</button>}
-            {!!mergeSelection.length && (
-              <button
-                onClick={() => {
-                  setMergeTitle("合并事项");
-                  setMergePreview(true);
-                }}
-              >
-                合并已选卡片（{mergeSelection.length}）
-              </button>
-            )}
             <button
               aria-expanded={groupManager}
               onClick={() => setGroupManager(!groupManager)}
@@ -682,7 +665,7 @@ function Results({
               将「{legacyGroup}」保留为我的小组
             </button>
           )}
-          {!!mergeSelection.length && !!layout.groups.length && (
+          {!!selectedCards.length && !!layout.groups.length && (
             <label>
               将选定卡片加入小组
               <select
@@ -694,7 +677,7 @@ function Results({
                   if (!id) return;
                   let failed = false;
                   for (const row of rows.filter((r) =>
-                    mergeSelection.includes(r.id),
+                    selectedCards.includes(r.id),
                   ))
                     if (
                       !(await update(row.p, row.id, {
@@ -704,7 +687,7 @@ function Results({
                       }))
                     )
                       failed = true;
-                  setMergeSelection([]);
+                  setSelectedCards([]);
                   notify(
                     failed
                       ? "部分卡片未保存，请刷新后核对重试；已成功保存的归属保留"
@@ -890,54 +873,7 @@ function Results({
             : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
         </div>
       )}
-      {mergePreview && (
-        <ItemDialog
-          label="核对多卡合并"
-          onClose={() => {
-            if (!mergeBusy) setMergePreview(false);
-          }}
-        >
-          <p>
-            以下源卡将退出普通列表，成为一张主卡中的独立子项。各自日期、完成状态、全部原件及来源保留，可撤销。
-          </p>
-          {mergeSelection.map((id) => {
-            const row = rows.find((r) => r.id === id);
-            return (
-              <p key={id}>
-                {row
-                  ? `${row.item.title} · ${row.item.due ? deadlineLabel(row.item.due) : "无截止时间"} · ${row.done ? "已完成" : "待处理"} · ${row.p.attachments.length}份原件`
-                  : "目标已变化，请取消后重选"}
-              </p>
-            );
-          })}
-          <label>
-            主卡标题
-            <input
-              value={mergeTitle}
-              maxLength={150}
-              onChange={(e) => setMergeTitle(e.target.value)}
-            />
-          </label>
-          <button
-            disabled={
-              mergeBusy || mergeSelection.length < 2 || !mergeTitle.trim()
-            }
-            onClick={() =>
-              void cardOperation(
-                "merge",
-                mergeSelection.map((id) => {
-                  const row = rows.find((r) => r.id === id);
-                  if (!row) throw Error("目标已变化");
-                  return { packetId: row.p.id, itemId: id };
-                }),
-                mergeTitle,
-              ).catch((e) => notify(e.message))
-            }
-          >
-            {mergeBusy ? "正在合并…" : "确认合并"}
-          </button>
-        </ItemDialog>
-      )}
+      {conflictPacket && window.desktop && <AccountConnection conflictPacket={conflictPacket} canSwitch={() => false} onClose={() => { setConflictPacket(""); window.dispatchEvent(new Event("focus")); }} notify={notify} />}
       {(grouped ? groups : [""]).map((group) => (
         <section className="result-group" key={group}>
           {grouped && group && (
@@ -1105,6 +1041,7 @@ function Results({
                       </p>
                     )}
                   </div>
+                  {p.syncConflict && window.desktop && <button onClick={() => setConflictPacket(p.id)}>处理此卡同步冲突</button>}
                   {meta.defaultDecision === "pending" && !deleted && (
                     <section
                       className="default-card-decision"
@@ -1201,6 +1138,7 @@ function Results({
                               }
                             } catch (e) {
                               notify(errorMessage(e));
+                              if (/冲突/.test(errorMessage(e))) setConflictPacket(p.id);
                             } finally {
                               adoptionLock.current.delete(id);
                               setAdopting("");
@@ -1225,13 +1163,13 @@ function Results({
                       <label className="merge-select">
                         <input
                           type="checkbox"
-                          aria-label={"选择合并 " + item.title}
-                          checked={mergeSelection.includes(id)}
+                          aria-label={"选择卡片 " + item.title}
+                          checked={selectedCards.includes(id)}
                           onChange={(e) =>
-                            setMergeSelection(
+                            setSelectedCards(
                               e.target.checked
-                                ? [...mergeSelection, id]
-                                : mergeSelection.filter((x) => x !== id),
+                                ? [...selectedCards, id]
+                                : selectedCards.filter((x) => x !== id),
                             )
                           }
                         />
@@ -1710,59 +1648,6 @@ function Results({
                           />
                           {!deleted && (
                             <ItemChat
-                              groups={layout.groups}
-                              selectedTargets={rows
-                                .filter((r) => mergeSelection.includes(r.id))
-                                .map((r) => ({
-                                  packetId: r.p.id,
-                                  itemId: r.id,
-                                  title: r.item.title,
-                                }))}
-                              expansionTargets={rows
-                                .filter(
-                                  (r) =>
-                                    !r.deleted &&
-                                    !r.meta.mergedInto &&
-                                    (r.p.id === p.id ||
-                                      r.meta.groupIds?.some((g) =>
-                                        meta.groupIds?.includes(g),
-                                      )),
-                                )
-                                .map((r) => ({
-                                  packetId: r.p.id,
-                                  itemId: r.id,
-                                  title: r.item.title,
-                                }))}
-                              mergeProposal={async () => {
-                                if (!meta.chatMerge)
-                                  throw Error("合并建议已失效");
-                                for (const target of meta.chatMerge.targets) {
-                                  const packet = latestPackets.current.find(
-                                      (p) => p.id === target.packetId,
-                                    ),
-                                    i =
-                                      packet?.itemIds?.indexOf(target.itemId) ??
-                                      -1;
-                                  if (
-                                    !packet?.result ||
-                                    i < 0 ||
-                                    JSON.stringify(
-                                      absoluteItem(
-                                        packet.result.items[i],
-                                        packet.captureDate,
-                                      ),
-                                    ) !== JSON.stringify(target.beforeItem)
-                                  )
-                                    throw Error(
-                                      "目标卡片已修改，请重新核对合并建议",
-                                    );
-                                }
-                                await cardOperation(
-                                  "merge",
-                                  meta.chatMerge.targets,
-                                  meta.chatMerge.title,
-                                );
-                              }}
                               meta={meta}
                               applyProposals={
                                 onApplyProposals

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { world } from "./current-ui";
-test("failed card choices, persistent overlapping groups and true merge/undo use the ordinary world", async ({
+test("failed card choices, persistent overlapping groups and historical merge/undo use the ordinary world", async ({
   page,
 }, info) => {
   await page.route("**/api/**", (route) =>
@@ -108,18 +108,14 @@ test("failed card choices, persistent overlapping groups and true merge/undo use
     .click();
   await expect(page.locator(".result-card")).toHaveCount(1);
   await page.getByRole("button", { name: "全部小组", exact: true }).click();
-  await page
-    .getByRole("checkbox", { name: "选择合并 合成甲", exact: true })
-    .check();
-  await page
-    .getByRole("checkbox", { name: "选择合并 合成乙", exact: true })
-    .check();
-  await page
-    .getByRole("button", { name: "合并已选卡片（2）", exact: true })
-    .click();
-  const preview = page.getByRole("dialog", { name: "核对多卡合并" });
-  await preview.getByLabel("主卡标题").fill("统一办理");
-  await preview.getByRole("button", { name: "确认合并", exact: true }).click();
+  await expect(page.getByRole("button", { name: /合并已选/ })).toHaveCount(0);
+  // Manufacture only the historical format; the production merge capability is removed.
+  await page.evaluate(async () => {
+    const storeUrl = "/src/bucket/store.ts", fixtureUrl = "/test-fixtures/legacy-card-merge.ts";
+    const store = await import(storeUrl), fixture = await import(fixtureUrl);
+    await store.putPackets(fixture.mergeCards(await store.allPackets(), [{ packetId: "合成甲", itemId: "合成甲_item" }, { packetId: "合成乙", itemId: "合成乙_item" }], "legacy-main", "统一办理"));
+  });
+  await page.reload(); await world(page);
   await expect(page.locator(".result-card")).toHaveCount(2);
   await expect(
     page.getByRole("heading", { name: "统一办理", exact: true }),

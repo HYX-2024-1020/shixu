@@ -46,9 +46,9 @@ export default function SkinMascot({
     );
     return () => clearTimeout(timeout);
   }, [feedSignal]);
+  const source = skinSound(skin, iceVoice);
   useEffect(() => {
     setHappy(false);
-    const source = skinSound(skin, iceVoice);
     if (source && skin.art !== "bunny") {
       const sound = new Audio(import.meta.env.BASE_URL + source);
       sound.loop = false;
@@ -58,10 +58,11 @@ export default function SkinMascot({
     }
     return () => {
       clearTimeout(timer.current);
-      audio.current?.pause();
+      const sound = audio.current;
+      if (sound) { sound.onended = null; sound.onerror = null; sound.pause(); }
       audio.current = null;
     };
-  }, [skin.id, iceVoice]);
+  }, [skin.id, source]);
   useEffect(() => {
     if (state !== "idle" || suspended) {
       setHappy(false);
@@ -85,7 +86,7 @@ export default function SkinMascot({
       const sound = audio.current;
       if (skin.art !== "whale" || sound.ended) sound.currentTime = 0;
       sound.onended = () => {
-        setHappy(false);
+        if (audio.current === sound) setHappy(false);
       };
       sound.onerror = () => setHappy(false);
       void sound.play().catch(() => {
