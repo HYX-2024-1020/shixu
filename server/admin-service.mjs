@@ -388,6 +388,15 @@ export function createAdminService({
             return;
           }
           const handleAlert = /^\/admin\/v1\/alerts\/(\d{1,20})\/handle$/.exec(path);
+          const coverCost = /^\/admin\/v1\/alerts\/(\d{1,20})\/platform-cost$/.exec(path);
+          if (coverCost && req.method === "GET") {
+            json(200, backend.platformCostReview(coverCost[1]));
+            return;
+          }
+          if (coverCost && req.method === "POST") {
+            json(200, await backend.coverAlertCost(coverCost[1], await readJson(req), req.headers["x-operation-id"], username));
+            return;
+          }
           if (req.method === "POST" && handleAlert) {
             if (Object.keys(await readJson(req)).length) throw failure(400, "INVALID_OPERATION", "操作内容无效");
             json(200, await backend.handleAlert(handleAlert[1], req.headers["x-operation-id"], username));

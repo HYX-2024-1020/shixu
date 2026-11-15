@@ -195,6 +195,26 @@ function fixture(t, { disposition = "usage", mutateProof = (p) => p } = {}) {
   };
 }
 
+test("platform coverage fences old continue intents, preserves time/progress and never auto-runs a paused task", async t => {
+  const f=fixture(t);await f.pause();
+  const before=f.tasks.roots.stats("t"),old=f.tasks.maintenanceOperation("t"),spent=f.ledger.wallet("a").spent;
+  const review=f.ledger.platform.preview("a");f.ledger.platform.cover("a",review.fingerprint,"platform-cover-root","maintainer");
+  assert.equal(f.calls(),2);assert.equal(f.tasks.get("t").state,"paused");assert.equal(f.tasks.roots.stats("t").unknownRisk,0);assert.equal(f.ledger.wallet("a").spent,spent);
+  assert.equal(f.tasks.roots.stats("t").calls,before.calls);assert.equal(f.tasks.roots.stats("t").activeMs,before.activeMs);
+  assert.throws(()=>f.action("continue",old),e=>e.code==="STALE_TASK");
+  f.restart();assert.equal(f.tasks.get("t").state,"paused");assert.equal(f.ledger.wallet("a").unknownRisk,0);
+  f.action("continue");assert.equal((await f.finish()).state,"done");assert.ok(f.calls()>2);assert.equal(f.ledger.audit().valid,true);
+});
+
+test("trusted nonbilling evidence after platform coverage clears only supplier risk and preserves the commercial decision",async t=>{
+  const f=fixture(t,{disposition:"not-billed"});await f.pause();
+  const original=f.review().request.callId,r=f.ledger.platform.preview("a");f.ledger.platform.cover("a",r.fingerprint,"cover-before-proof","maintainer");
+  const wallet=f.ledger.wallet("a"),review=f.maintenance.preview("t","maintainer");
+  f.maintenance.reconcile("t",{operationId:"supplier-unbilled-proof",callId:original,evidenceHash:"b".repeat(64),expectedGeneration:review.generation,expectedWatermark:review.watermark,expectedLedgerSequence:review.ledgerSequence},"maintainer");
+  assert.equal(f.ledger.call(original).state,"released");assert.equal(f.ledger.wallet("a").spent,wallet.spent);assert.equal(f.ledger.wallet("a").available,wallet.available);
+  assert.equal(f.ledger.budget().riskMicro,0);assert.ok(f.ledger.platform.covered(original));assert.equal(f.ledger.audit().valid,true);
+});
+
 for (const disposition of ["usage", "not-billed"])
   test(`audited ${disposition} preserves archive paid blocks, counters, action fence and exact full text after restart`, async (t) => {
     const f = fixture(t, { disposition });

@@ -5,10 +5,43 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { request as httpRequest } from "node:http";
 import { createAdminService, hashAdminPassword } from "./admin-service.mjs";
+import { AdminBackend } from "./admin-backend.mjs";
+import { AccountRegistry } from "./sync-accounts.mjs";
+import { AccountsV4 } from "./accounts-v4.mjs";
+import { ReadingLedger } from "./reading/ledger.mjs";
 
 const username = "test-admin";
 const password = "synthetic-admin-password";
 const passwordHash = await hashAdminPassword(password);
+
+test("platform coverage requires admin session, CSRF and explicit reviewed confirmation; retries close one alert once",async t=>{
+ const directory=await mkdtemp(join(tmpdir(),"platform-admin-http-"));
+ const registry=new AccountRegistry(directory,"synthetic-secret-".repeat(4)),ledger=new ReadingLedger(join(directory,"ledger.sqlite"));
+ const credentials=new AccountsV4(registry);
+ const account=registry.generate(1)[0].userId;ledger.grantInitial(account);
+ ledger.freezePrice({id:"fixture",model:"synthetic",currency:"CNY",source:"synthetic",verifiedAt:1,inputMicrosPerMillion:1000000,cachedMicrosPerMillion:0,outputMicrosPerMillion:1000000});
+ ledger.reserve({callId:"unknown-call",account,task:"stopped",block:"b",generation:1,priceId:"fixture",maxPromptTokens:100,maxOutputTokens:100});ledger.sent("unknown-call");ledger.unknown("unknown-call");
+ const backend=new AdminBackend({path:join(directory,"operations.sqlite"),registry,ledger,directory,routes:{snapshot:()=>({running:0,waiting:0})}});
+ const {request,login}=await start(t,{backend});
+ t.after(()=>{backend.close();credentials.close();registry.close();ledger.close();return rm(directory,{recursive:true,force:true});});
+ const alert=backend.alerts().find(a=>a.kind==="unknown-cost"),path=`/admin/v1/alerts/${alert.id}/platform-cost`;
+ assert.equal((await request(path)).status,401);
+ const auth=await login(),options={cookie:auth.cookie,csrf:auth.session.csrfToken},preview=await request(path,options);assert.equal(preview.status,200);const review=await preview.json();
+ assert.equal(review.totalMicro,200);assert.equal(review.canConfirm,true);
+ const body={confirmed:true,fingerprint:review.fingerprint},headers={"X-Operation-Id":"platform-confirm-once"};
+ assert.equal((await request(path,{method:"POST",body,cookie:auth.cookie,headers})).status,403);
+ assert.equal((await request(path,{method:"POST",body:{...body,confirmed:false},...options,headers})).status,400);
+ assert.equal((await request(path,{method:"POST",body:{...body,account:"another"},...options,headers})).status,400);
+ backend.control(account,true,"manual-pause-stays","test-admin");
+ const before=ledger.wallet(account);
+ const result=await request(path,{method:"POST",body,...options,headers});assert.equal(result.status,200);assert.equal((await result.json()).recovered,true);
+ assert.equal((await request(path,{method:"POST",body,...options,headers})).status,200);
+ assert.equal(ledger.wallet(account).available,before.available+200);assert.equal(ledger.call("unknown-call").state,"unknown");
+ assert.equal(ledger.wallet(account).spent,0);assert.equal(ledger.budget().riskMicro,200);assert.equal(backend.paused(account),true);
+ assert.equal(ledger.db.prepare("SELECT count(*) n FROM reading_platform_cost_operations").get().n,1);
+ assert.equal(backend.db.prepare("SELECT count(*) n FROM audit WHERE action='platform-cost-cover'").get().n,1);
+ assert.ok(backend.alerts().find(a=>a.id===alert.id).recoveredAt);backend.sample();assert.equal(backend.alerts().filter(a=>a.kind==="unknown-cost"&&!a.recoveredAt).length,0);
+});
 
 async function start(t, options = {}) {
   const events = [];

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { AdminApi } from "./api";
+import type { PlatformCostReview } from "./api/client";
 import { formatBeijingTime, newOperationId } from "./format";
 import { Button, ErrorState, useAsyncData } from "./ui";
 import { BudgetPanel } from "./ManagementPages";
@@ -78,6 +79,7 @@ export function AlertsPage({ api }: { api: AdminApi }) {
   const operations = useRef<Record<string, string>>({});
   const [receipt, setReceipt] = useState("");
   const [history, setHistory] = useState(false);
+  const [coverage, setCoverage] = useState<{ review: PlatformCostReview; operation: string } | null>(null);
   const { state, retry } = useAsyncData(
     () => (api.getAlerts ? api.getAlerts() : Promise.resolve([])),
     [],
@@ -191,6 +193,32 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                         : "处理并核对恢复"}
                   </Button>
                 )}
+                {!a.recoveredAt && a.kind === "unknown-cost" && api.getPlatformCostReview && api.coverAlertCost && (
+                  coverage?.review.alertId === a.id ? (
+                    <div className="inline-confirm">
+                      <h3>由平台承担并结案</h3>
+                      <p>账号：{coverage.review.username} · {coverage.review.calls.length}次调用 · 释放用户风险预留：¥{(coverage.review.totalMicro / 1e6).toFixed(6)}</p>
+                      <p>{coverage.review.message}</p>
+                      <ul>{coverage.review.calls.map(c => <li key={c.id}>{c.day} · 调用 {c.id} · ¥{(c.reservedMicro / 1e6).toFixed(6)}</li>)}</ul>
+                      <p>这是平台免除用户承担责任的决定，不代表供应商没有收费。平台侧费用风险和原始记录保留。</p>
+                      {coverage.review.canConfirm && <Button busy={busy === a.id} disabled={!!busy} onClick={async () => {
+                        setBusy(a.id); setError("");
+                        try {
+                          const result = await api.coverAlertCost!(a.id, coverage.review.fingerprint, coverage.operation);
+                          setReceipt(result.message); setCoverage(null);
+                          window.dispatchEvent(new Event("shixu-admin-updated")); retry();
+                        } catch(e) { setError(e instanceof Error ? e.message : "结案失败，可重试同一操作"); }
+                        finally { setBusy(""); }
+                      }}>确认由平台承担并结案</Button>}
+                      <Button disabled={!!busy} onClick={() => { setCoverage(null); setError(""); }}>取消</Button>
+                    </div>
+                  ) : <Button disabled={!!busy} onClick={async () => {
+                    setBusy(a.id); setError("");
+                    try { const review = await api.getPlatformCostReview!(a.id); setCoverage({review, operation:newOperationId()}); }
+                    catch(e) { setError(e instanceof Error ? e.message : "核对失败，请刷新后重试"); }
+                    finally { setBusy(""); }
+                  }}>由平台承担并结案</Button>
+                )}
                 <details>
                   <summary>技术信息</summary>
                   <p>
@@ -255,7 +283,7 @@ export function AuditPage({ api }: { api: AdminApi }) {
       {state.phase === "ready" &&
         state.data.items.map((a) => (
           <div className="audit-row" key={a.id}>
-            {formatBeijingTime(a.at)} · {a.actor} · {a.action} · {a.detail} ·{" "}
+            {formatBeijingTime(a.at)} · {a.actor} · {a.action === "platform-cost-cover" ? "平台承担未知费用并结案" : a.action} · {a.detail} ·{" "}
             {a.operationId}
           </div>
         ))}

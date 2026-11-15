@@ -12,6 +12,10 @@ const fail = (status, code) => {
       {
         CLEANUP_PREVIEW_CHANGED:
           "预演已过期或待释放对象有变化，请刷新后重新预演；尚未执行本次释放。",
+        STALE_PLATFORM_COST_REVIEW: "费用状态已变化，本次未结案。请取消后重新核对，再确认实际对象和金额。",
+        TASK_STILL_DRAINING: "账号仍有在途计费，请等待请求结束后重新核对。",
+        INVALID_PLATFORM_COST_REVIEW: "当前没有可结案的未知调用，或数量超出本次范围，请刷新核对。",
+        PLATFORM_COST_RECONCILIATION: "平台承担记录与可信账本不一致，已拒绝操作，请联系维护者核对。",
       }[code] || code,
     ),
     { status, code },
@@ -27,7 +31,7 @@ const availableMemory = () =>
       ) * 1024
     : freemem();
 
-// Separate operational state: never edits account credentials, safety records or billing.
+// Separate operational state. Billing decisions go through the independent ledger.
 export class AdminBackend {
   constructor({
     path,
@@ -678,6 +682,7 @@ export class AdminBackend {
       spentMicro: w.spent,
       reservedMicro: w.reserved,
       unknownRiskMicro: w.unknownRisk,
+      platformCoveredRiskMicro: this.ledger.db.prepare("SELECT COALESCE(SUM(c.reserved),0) n FROM reading_calls c JOIN reading_platform_cost_calls p ON p.call_id=c.id WHERE c.account=? AND c.state='unknown'").get(id).n,
       availableMicro: w.available,
       aiPausedReason: this.paused(id)
         ? control?.reason || "管理员暂停（含全站控制）"
@@ -987,6 +992,30 @@ export class AdminBackend {
           : "已重新检测，问题仍存在；请使用下方处理入口。恢复后会自动退出待处理，不会自动继续旧任务。";
       return { accepted: true, recovered, settled, message };
     });
+  }
+  platformCostReview(id) {
+    if (!/^\d{1,20}$/.test(id)) fail(400, "INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=? AND kind='unknown-cost'").get(id);
+    if (!alert) fail(404, "ALERT_NOT_FOUND");
+    const review = this.ledger.platform.preview(alert.object);
+    return { alertId: id, username: this.user(alert.object).username, fingerprint: review.fingerprint,
+      calls: review.calls.map(c => ({ id: c.id, day: c.day, reservedMicro: c.reserved })),
+      totalMicro: review.totalMicro, canConfirm: !alert.recovered_at && !review.draining && review.calls.length > 0 && review.calls.length <= 100,
+      message: review.draining ? "该账号仍有在途计费，请等待请求结束后重新核对。" : review.calls.length > 100 ? "待核对调用较多，请联系维护者分批核对。" : !review.calls.length ? "当前没有可由此入口结案的调用；历史旧账需按原可信核对流程处理。" : "确认后由平台承担所列调用，释放用户风险预留；原调用仍保留未知，后续可信费用不再向用户补扣。不会继续旧任务或解除其他暂停。" };
+  }
+  coverAlertCost(id, value, operation, actor) {
+    if (!/^\d{1,20}$/.test(id) || Object.keys(value || {}).sort().join(",") !== "confirmed,fingerprint" || value.confirmed !== true || !/^[a-f0-9]{64}$/.test(value.fingerprint || "")) fail(400,"INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=? AND kind='unknown-cost'").get(id);
+    if (!alert) fail(404,"ALERT_NOT_FOUND");
+    return this.mutate("platform-cost-cover", alert.object, operation, actor,
+      { reason: "管理员确认由平台承担未知费用，不向用户收费", alertId: id, fingerprint: value.fingerprint }, () => {
+        let result;
+        try { result = this.ledger.platform.cover(alert.object,value.fingerprint,operation,actor); }
+        catch(e) { fail(409,e.message); }
+        this.sample();
+        const recovered = !!this.db.prepare("SELECT recovered_at FROM alerts WHERE id=?").get(id)?.recovered_at;
+        return { ...result,recovered,message: `已由平台承担${result.coveredCalls}次调用，释放用户风险预留${(result.releasedMicro/1e6).toFixed(6)}元。原始未知记录与审计保留，后续不向用户补扣；${recovered ? "该告警已结案。" : "其他费用问题仍需处理。"}` };
+      });
   }
   followAlert(id, state, note, operation, actor) {
     if (

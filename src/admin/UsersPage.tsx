@@ -521,6 +521,10 @@ export function UsersPage({ api }: { api: AdminApi }) {
                   累计额度 − 已消费 − 在途预留 − 费用不明风险。
                 </p>
 
+                {!!detail.platformCoveredRiskMicro && <p className="wallet-note">
+                  平台已承担、供应商账单待核对：¥{((detail.platformCoveredRiskMicro || 0) / 1e6).toFixed(6)}。不再冻结此账号额度，后续不向用户补扣。
+                </p>}
+
                 {resetResult && (
                   <p className="login-notice" role="status">
                     临时密码：
@@ -770,7 +774,7 @@ export function UsersPage({ api }: { api: AdminApi }) {
                   detail.recentAudit.map((a) => (
                     <div key={a.id} className="audit-row">
                       <div className="meta">
-                        {a.action}
+                        {a.action === "platform-cost-cover" ? "平台承担未知费用并结案" : a.action}
                         <span className="sub">{a.detail}</span>
                         <span className="op">
                           {formatBeijingTime(a.at)} · {a.actor} ·{" "}
