@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import {
   CloudOperations,
   isSealedCloudRelease,
+  MIN_LEDGER_CORE_VERSION,
   openHostCloudOperations,
   writeHostAuthorityFloor,
 } from "../server/cloud-operations.mjs";
@@ -231,7 +232,7 @@ export async function tick() {
             target = join(ROOT, "releases", job.args.releaseId);
           if (
             !releases().some(
-              (r) => r.id === job.args.releaseId && r.ledgerCoreVersion >= 8,
+              (r) => r.id === job.args.releaseId && r.ledgerCoreVersion >= MIN_LEDGER_CORE_VERSION,
             )
           )
             throw Error("RELEASE_SCHEMA_INCOMPATIBLE");

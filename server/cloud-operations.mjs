@@ -9,6 +9,8 @@ import {
   renameSync,
 } from "node:fs";
 import { dirname } from "node:path";
+import { LEDGER_CORE_SCHEMA } from "./database-schemas.mjs";
+export const MIN_LEDGER_CORE_VERSION = LEDGER_CORE_SCHEMA.at(-1).version;
 
 export function writeHostAuthorityFloor(path, value) {
   if (process.getuid?.() !== 0) throw Error("HOST_ADMIN_REQUIRED");
@@ -72,7 +74,7 @@ export function isSealedCloudRelease(value) {
     value.source === "committed-source-archive-plus-platform-build" &&
     /^[a-f0-9]{40}$/.test(value.sourceRevision || "") &&
     Number.isSafeInteger(value.ledgerCoreVersion) &&
-    value.ledgerCoreVersion >= 8 &&
+    value.ledgerCoreVersion >= MIN_LEDGER_CORE_VERSION &&
     Array.isArray(value.files) &&
     [
       "server/reading-runtime.mjs",
