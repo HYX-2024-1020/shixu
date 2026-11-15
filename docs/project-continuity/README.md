@@ -2,7 +2,7 @@
 
 ## 当前接续（2026-11-15 平台承担费用结案）
 
-用户确认管理员可选择“平台承担并结案”，#127 / fix/platform-cost-resolution。候选管理台/云端0.3.30，实际仍0.3.29；独立权威、兼容和交付记录见[实施说明](platform-cost-resolution-20261115.md)。不向已合并PR126追加，不要求重装Windows用户客户端，不触及看板、官网及手机发布。
+用户确认管理员可选择“平台承担并结案”，#127 / Draft PR128 / fix/platform-cost-resolution。云端0.3.30源6a54e53六项CI通过、原ECS已备份后升级且账本/历史任务不变；控制台cf1a656来源单独更新器已提供，实际安装及物理核验待用户。Windows用户客户端继续0.3.29，无需重装。[实施与分层证据](platform-cost-resolution-20261115.md) · [用户操作](../guides/platform-cost-resolution.md)。不向已合并PR126追加，不触及看板、官网及手机发布。
 
 ## 当前接续（2026-11-15第三轮整改实施）
 
