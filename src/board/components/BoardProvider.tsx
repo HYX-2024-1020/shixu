@@ -234,7 +234,7 @@ export function BoardProvider({
       <div className="sx-state" role="status">
         <span className="sx-state-mark">序</span>
         <strong>正在展开看板…</strong>
-        <span>通过 adapter 读取规划与来源数据</span>
+        <span>正在读取已保存的规划与来源资料</span>
       </div>
     );
   }

@@ -103,7 +103,7 @@ export function ShortPlans() {
 
   const openSource = async (sourceId: string) => {
     if (!adapter.openSource) {
-      setNotice("打开主程序详情需由接入方提供 openSource 回调。");
+      setNotice("当前环境不能打开来源详情，请在主程序中查看。");
       return;
     }
     try {
