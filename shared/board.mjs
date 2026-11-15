@@ -24,6 +24,13 @@ const id = (s) =>
   text(s) && !["__proto__", "constructor", "prototype"].includes(s);
 const date = (s) =>
   s === null || (typeof s === "string" && Number.isFinite(Date.parse(s)));
+// A compact change fingerprint, not an authorization credential. Native writes
+// also compare the store/queue revision; cloud writes retain server CAS.
+function changeToken(value) {
+  let a=2166136261,b=2654435769;
+  for(const c of JSON.stringify(value)){const n=c.codePointAt(0);a=Math.imul(a^n,16777619)>>>0;b=Math.imul(b^n,2246822519)>>>0;}
+  return a.toString(16).padStart(8,'0')+b.toString(16).padStart(8,'0');
+}
 export function validateBoard(s) {
   if (
     !s ||
@@ -158,7 +165,7 @@ export function sourceRows(packets) {
             dueLabel: item.due
               ? `${item.due.startDate ? item.due.startDate + " " + (item.due.startTime || "") + " 至 " : ""}${item.due.date} ${clock.time || "23:59"}${clock.timeReason ? " · " + clock.timeReason : ""}`
               : "",
-            token: JSON.stringify([
+          token: changeToken([
               p.syncVersion || 0,
               p.updatedAt,
               raw,

@@ -608,6 +608,15 @@ var fail = (s) => {
 var text = (s, max = 120) => typeof s === "string" && s.length > 0 && s.length <= max;
 var id = (s) => text(s) && !["__proto__", "constructor", "prototype"].includes(s);
 var date = (s) => s === null || typeof s === "string" && Number.isFinite(Date.parse(s));
+function changeToken(value) {
+  let a = 2166136261, b = 2654435769;
+  for (const c of JSON.stringify(value)) {
+    const n = c.codePointAt(0);
+    a = Math.imul(a ^ n, 16777619) >>> 0;
+    b = Math.imul(b ^ n, 2246822519) >>> 0;
+  }
+  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
+}
 function validateBoard(s) {
   if (!s || s.version !== 1 || !Array.isArray(s.plans) || !s.plans.length || s.plans.length > 100 || !Array.isArray(s.tasks) || s.tasks.length > 2e3 || !Array.isArray(s.longPlans) || s.longPlans.length > 500 || !Array.isArray(s.resources) || s.resources.length > 20)
     fail("看板结构无效或超过容量（100份规划、2000事项、20份资料）");
@@ -672,7 +681,7 @@ function sourceRows(packets) {
           timePrecision: clock2.timeInferred ? "inferred" : "explicit",
           sourceLabel: "主程序",
           dueLabel: item.due ? `${item.due.startDate ? item.due.startDate + " " + (item.due.startTime || "") + " 至 " : ""}${item.due.date} ${clock2.time || "23:59"}${clock2.timeReason ? " · " + clock2.timeReason : ""}` : "",
-          token: JSON.stringify([
+          token: changeToken([
             p.syncVersion || 0,
             p.updatedAt,
             raw,

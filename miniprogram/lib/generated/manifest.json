@@ -6,7 +6,7 @@
     "miniprogram/lib/generated/desktop.js": "a40605b51ec0f639bbaa9c101654e173fb1ce04aa9e13255367b6a36f534f296",
     "server/generated/ai-core.mjs": "0cc17bb2ef292d12942833d21881fe71f030f3fd624875a74d0f5a76349c25ae",
     "desktop/generated/sync-client.cjs": "9c45165824e17581f078ac165bd26f1ce0c5cf9a84232d49ee971c57e0f6ee4a",
-    "desktop/generated/board.cjs": "e3a59f33bbdd08cb3e0828fa187c7704698139b98fac71ca4c8e579aa9ad47ee",
+    "desktop/generated/board.cjs": "2fa5c59e617180915477a1ea6912a4aff511d08711602f09c5933a0be90644b6",
     "desktop/generated/reading-transport.cjs": "6695aa05ac7b545a35b43d320a851bd4fc469898fb2709c8c9a882259dc2fc2c",
     "miniprogram/assets/ice.png": "f26e5f6a29006cc5017be0acf24fe08920bfc98c5874f00305ad4d5e3e1dc982",
     "miniprogram/assets/capybara.webp": "16b5538a0ef358f34f1ecda083a991b5a1cdff6d8d61b0cb11da4587477ad3c1",
