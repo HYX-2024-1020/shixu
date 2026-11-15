@@ -117,6 +117,8 @@ export interface AdminApi {
   ): Promise<Budget>;
   getAlerts?(): Promise<import("./types").AlertItem[]>;
   handleAlert?(id: string, operationId: string): Promise<{ accepted: boolean; recovered: boolean; message: string }>;
+  getPlatformCostReview?(id: string): Promise<PlatformCostReview>;
+  coverAlertCost?(id: string, fingerprint: string, operationId: string): Promise<{ accepted: boolean; recovered: boolean; message: string }>;
   followAlert?(
     id: string,
     state: string,
@@ -191,6 +193,16 @@ export interface AdminApi {
       maintenanceOperation?: string | null;
     },
   ): Promise<void>;
+}
+
+export interface PlatformCostReview {
+  alertId: string;
+  username: string;
+  fingerprint: string;
+  calls: { id: string; day: string; reservedMicro: number }[];
+  totalMicro: number;
+  canConfirm: boolean;
+  message: string;
 }
 
 export interface Budget {

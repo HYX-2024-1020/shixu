@@ -110,7 +110,7 @@ export class ReadingRoots {
       const totals = this.ledger.db
         .prepare(
           `SELECT COUNT(*) calls,COALESCE(SUM(actual),0) spent,
-        COALESCE(SUM(CASE WHEN state='unknown' THEN reserved ELSE 0 END),0) risk
+        COALESCE(SUM(CASE WHEN state='unknown' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id) THEN reserved ELSE 0 END),0) risk
         FROM reading_calls c WHERE account=? AND task IN (${ids.map(() => "?").join(",")}) AND (state IN ('sent','settled','unknown') OR (state='released' AND EXISTS(SELECT 1 FROM reading_events e WHERE e.account=c.account AND e.operation='sent:'||c.id)))`,
         )
         .get(this.account, ...ids);

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { isSealedCloudRelease } from "../../server/cloud-operations.mjs";
+import { isSealedCloudRelease, MIN_LEDGER_CORE_VERSION } from "../../server/cloud-operations.mjs";
 test("an incomplete cloud build is never selectable as a compatible release", () => {
   const files = [
     "server/reading-runtime.mjs",
@@ -21,7 +21,7 @@ test("an incomplete cloud build is never selectable as a compatible release", ()
     nodeMajor: 24,
     source: "committed-source-archive-plus-platform-build",
     sourceRevision: "a".repeat(40),
-    ledgerCoreVersion: 8,
+    ledgerCoreVersion: MIN_LEDGER_CORE_VERSION,
     files,
   };
   assert.equal(isSealedCloudRelease(m), true);
@@ -31,7 +31,7 @@ test("an incomplete cloud build is never selectable as a compatible release", ()
     isSealedCloudRelease({ ...m, files: files.slice(0, -1) }),
     false,
   );
-  assert.equal(isSealedCloudRelease({ ...m, ledgerCoreVersion: 7 }), false);
+  assert.equal(isSealedCloudRelease({ ...m, ledgerCoreVersion: MIN_LEDGER_CORE_VERSION - 1 }), false);
 });
 test("invalid source identity fails before creating any partial deployment directory", () => {
   const root = mkdtempSync(join(tmpdir(), "shixu-cloud-package-")),

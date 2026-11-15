@@ -123,7 +123,7 @@ export class ReadingMaintenance {
       if (
         this.db
           .prepare(
-            "SELECT 1 FROM reading_calls WHERE account=? AND state IN ('sent','unknown') LIMIT 1",
+            "SELECT 1 FROM reading_calls c WHERE account=? AND (state='sent' OR (state='unknown' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id))) LIMIT 1",
           )
           .get(this.engine.account)
       )

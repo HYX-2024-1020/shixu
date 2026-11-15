@@ -1308,6 +1308,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       "pdf-visual.mjs",
       "pdf-window.mjs",
       "pdf.mjs",
+      "platform-cost.mjs",
       "price-calendar.mjs",
       "provider-receipts.mjs",
       "remainders.mjs",

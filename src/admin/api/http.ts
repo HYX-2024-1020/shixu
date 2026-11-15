@@ -146,6 +146,8 @@ export function createHttpApi(): AdminApi {
       post("/budget", value, operationId) as Promise<import("./client").Budget>,
     getAlerts: () => request("/alerts"),
     handleAlert: (id, operationId) => post(`/alerts/${encodeURIComponent(id)}/handle`, {}, operationId) as Promise<{ accepted: boolean; recovered: boolean; message: string }>,
+    getPlatformCostReview: (id) => request(`/alerts/${encodeURIComponent(id)}/platform-cost`),
+    coverAlertCost: (id, fingerprint, operationId) => post(`/alerts/${encodeURIComponent(id)}/platform-cost`, { confirmed: true, fingerprint }, operationId) as Promise<{ accepted: boolean; recovered: boolean; message: string }>,
     followAlert: (id, state, note, operationId) =>
       post(
         `/alerts/${encodeURIComponent(id)}/followup`,
