@@ -1,4 +1,5 @@
 import AccountConnection from "./AccountConnection";
+import BoardApp from '../board/BoardApp';
 import { errorMessage } from "./error-message";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -111,6 +112,7 @@ function message(error: unknown) {
 }
 
 export default function BucketApp() {
+  const [boardOpened,setBoardOpened]=useState(false);
   const [skinMarket, setSkinMarket] = useState(false);
   const [feedSignal, setFeedSignal] = useState(0);
   const [skinCollection, setSkinCollection] = useState(() =>
@@ -131,6 +133,8 @@ export default function BucketApp() {
     results: 0,
   });
   const clearFocus = useCallback(() => setFocusPacket(""), []);
+  const openBoardSource=useCallback((id:string)=>{try {const [packetId]=JSON.parse(id);setFocusPacket(packetId);setWorkspace('results');} catch {}},[]);
+  useEffect(()=>window.desktop?.board?.onSource?.(packetId=>{setFocusPacket(packetId);setWorkspace('results');}),[]);
   const workspaceMotion = useRef<ViewTransition | null>(null);
   const workspaceSequence = useRef(0);
   function goWorkspace(next: string, packetId?: string) {
@@ -301,6 +305,12 @@ export default function BucketApp() {
     setPackets(next);
   }, []);
   const save = useCallback((packet: Packet) => saveMany([packet]), [saveMany]);
+  useEffect(()=>{
+    const refresh=()=>{if(!loaded||working.current||submitLock.current)return;void allPackets().then(rows=>{if(!working.current&&!submitLock.current){packetsRef.current=rows;setPackets(rows);}}).catch(()=>{});};
+    window.addEventListener('shixu-board-changed',refresh);
+    const off=window.desktop?.board?.onChanged(refresh);
+    return()=>{window.removeEventListener('shixu-board-changed',refresh);off?.();};
+  },[loaded]);
   const confirmChatProposals = useCallback(
     async (packetId: string, itemId: string) => {
       if (chatLocks.current.has(packetId))
@@ -1886,6 +1896,7 @@ export default function BucketApp() {
           )}
         </button>
         <nav className="workspace-nav" aria-label="主工作区">
+          <button aria-label="看板" aria-pressed={workspace==='board'} onClick={()=>{setBoardOpened(true);goWorkspace('board');}}><span>看板</span><span className="nav-count">▦</span></button>
           <button
             aria-label="投递桶"
             aria-pressed={workspace === "capture"}
@@ -1915,6 +1926,7 @@ export default function BucketApp() {
         </nav>
       </header>
       <main className="bucket-main">
+        {loaded&&boardOpened?<div hidden={workspace!=='board'}><BoardApp onSource={openBoardSource}/></div>:null}
         <div hidden={workspace !== "ddl"}>
           <DDL
             skin={activeSkin}

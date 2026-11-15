@@ -19,7 +19,7 @@ function itemsFor(records) {
     .map((r) => ({ ...r.data, deletedAt: r.deletedAt || undefined }));
   const groups = buildGroups(packets);
   return records.flatMap((record) => {
-    if (!record.data || record.purged) return [];
+    if (!record.data || record.purged || record.data.recordType === 'board-workspace') return [];
     const p = record.data;
     return (p.result && Array.isArray(p.result.items) ? p.result.items : [])
       .map((rawItem, index) => {

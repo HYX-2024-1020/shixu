@@ -101,3 +101,6 @@ Windows 控制台将本机 Node.js 24 运行文件与当前静态页面一起固
 ## 第三轮新增原创皮肤（2026-11-15）
 
 `public/capybara.webp`（慢慢水豚）与`public/owl.webp`（知更猫头鹰）由本项目使用OpenAI内置imagegen生成，非第三方角色/素材下载；原始透明PNG通过机械缩放和WebP编码生成512px交付资源，透明通道保留，小程序由mini:build逐字节复制。生成提示与验证见[实施记录](docs/project-continuity/acceptance-round3-repair-20261115.md)。项目按自身MIT条款提供这两份生成素材，不据此承诺生成内容在所有法域具备排他著作权，不扩写为旧角色已完成来源许可审计。两款使用安静的现有动作互动，没有挪用旧角色音频。
+# 用户提供的桌面看板前端
+
+2026-11-15按用户明确授权将其提供的拾序看板React组件、类型、工具与CSS接入src/board；原件由用户的前端代理交付，归档和核验见docs/project-continuity/desktop-board-integration-20261115.md。未带入演示数据、外部构建体系、字体或新图片；React与lucide-react继续沿用本仓库已有依赖及许可，不宣称外部工作区整体或其所有文件自动适用本仓库MIT。

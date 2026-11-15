@@ -1,6 +1,9 @@
 interface Window {
+  boardHost?: BoardHost;
+  flushBoardDraft?: () => Promise<void>;
   flushDesktopDraft?: () => Promise<void>;
   desktop?: {
+    board?: BoardHost;
     cloud(
       action: string,
       value?: unknown,
@@ -146,4 +149,10 @@ interface Window {
     ): Promise<{ name: string; bytes?: ArrayBuffer; error?: string }[]>;
     office(bytes: ArrayBuffer, extension: string): Promise<string>;
   };
+}
+
+interface BoardHost {
+  invoke(action: string, value?: unknown): Promise<any>;
+  onChanged(listener: () => void): () => void;
+  onSource?(listener: (packetId: string) => void): () => void;
 }

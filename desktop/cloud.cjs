@@ -1,4 +1,5 @@
 const fs = require("node:fs");
+const { boardSourceIds } = require("./board-links.cjs");
 const path = require("node:path");
 const { createHash, randomUUID } = require("node:crypto");
 const { DesktopStore } = require("./storage.cjs");
@@ -232,6 +233,7 @@ class CloudWorkspace {
   }
   async packets() {
     const { client, cache } = this.space();
+    const boardSources=boardSourceIds(client.records().map(r=>r.data));
     return Promise.all(
       client
         .records()
@@ -249,6 +251,7 @@ class CloudWorkspace {
             captureDate: "1970-01-01",
             updatedAt: new Date(0).toISOString(),
             ...r.data,
+            ...(boardSources.has(r.id)?{localVersion:hash(JSON.stringify(r.data))}:{}),
             syncVersion: r.version,
             syncConflict: !!r.conflict,
             syncAutoOrganize:
@@ -355,6 +358,7 @@ class CloudWorkspace {
     const { client, cache } = space;
     if (method === "packets") return this.packets();
     if (method === "savePackets") {
+      const boardSources=boardSourceIds(client.records().map(r=>r.data));
       // Persist originals before queuing their references. An interrupted save can only leave an unreferenced cache file.
       const prepared = [];
       for (const p of value) {
@@ -366,10 +370,12 @@ class CloudWorkspace {
           syncVersion,
           syncAutoOrganize,
           syncConflict,
+          localVersion,
           ...data
         } = p;
         data.attachments = [];
         const prior = client.records().find((r) => r.id === p.id);
+        if(prior && localVersion!==undefined && localVersion!==hash(JSON.stringify(prior.data)) && boardSources.has(p.id))throw Error('来源已有新修改，请刷新后重试；本次输入尚未保存');
         if (prior && prior.version !== (syncVersion ?? 0))
           throw Error("云端已有新修改，请刷新后再编辑；这次输入尚未保存");
         if (!prior || syncAutoOrganize === true)
@@ -447,6 +453,9 @@ class CloudWorkspace {
         prepared.push({ id: p.id, data: clone(data), deletedAt, prior });
       }
       // Each accepted packet has its own durable operation chain; an error never clears the draft.
+      if (prepared.every(p => !p.deletedAt && !p.prior?.deletedAt)) {
+        client.putMany(prepared.map(({id,data}) => ({id,patch:data})));
+      } else {
       for (const { id, data, deletedAt, prior } of prepared) {
         if (prior?.deletedAt && !deletedAt) client.restore(id);
         if (!deletedAt) {
@@ -455,6 +464,7 @@ class CloudWorkspace {
           if (!prior) client.put(id, data);
           client.remove(id);
         }
+      }
       }
       const rows = await this.packets();
       return value.map((p) => rows.find((r) => r.id === p.id));

@@ -73,7 +73,7 @@ export async function upgradeDesktopProfile() {
     });
   localStorage.setItem("shixu-native-store-v1", "complete");
 }
-function database() {
+export function database() {
   return (promise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, 3);
     request.onupgradeneeded = () => {
@@ -115,9 +115,9 @@ export async function putUsage(record: UsageRecord) {
       reject(new Error("用量记录未保存，请到官方控制台核对账单"));
   });
 }
-export async function allPackets(): Promise<Packet[]> {
+export async function allPackets(includeBoard = false): Promise<Packet[]> {
   if (window.desktop)
-    return (await window.desktop.store("packets")).map(
+    return (await window.desktop.store("packets")).filter((p: Packet) => includeBoard || p.recordType !== 'board-workspace').map(
       (p: Packet & { attachments: StoredAttachment[] }) => ({
         ...p,
         attachments: decodeAttachments(p.attachments),
@@ -129,7 +129,7 @@ export async function allPackets(): Promise<Packet[]> {
       r = tx.objectStore("packets").getAll();
     tx.oncomplete = () =>
       resolve(
-        r.result
+        r.result.filter((p: Packet) => includeBoard || p.recordType !== 'board-workspace')
           .map(
             (
               p: Omit<Packet, "attachments"> & {

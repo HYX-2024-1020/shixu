@@ -1,4 +1,5 @@
 const fs = require("node:fs/promises");
+const { boardSourceIds } = require("./board-links.cjs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const empty = () => ({
@@ -333,11 +334,13 @@ class DesktopStore {
   call(method, value) {
     return this.serial(async () => {
       const state = await this.load();
+      const boardSources=boardSourceIds(state.packets);
       switch (method) {
         case "packets":
           return Promise.all(
             state.packets.map(async (p) => ({
               ...p,
+              ...(boardSources.has(p.id)?{localVersion:p.localVersion||0}:{}),
               attachments: await this.decode(p.attachments),
             })),
           );
@@ -372,6 +375,7 @@ class DesktopStore {
               );
             const index = state.packets.findIndex((x) => x.id === p.id);
             const previous = state.packets[index];
+            if(previous && p.localVersion!==undefined && p.localVersion!==(previous.localVersion||0) && boardSources.has(p.id))throw Error('来源已有新修改，请刷新后重试；本次输入尚未保存');
             state.attachmentTombstones = [
               ...new Set([
                 ...(state.attachmentTombstones || []),
@@ -403,6 +407,7 @@ class DesktopStore {
               });
             const encoded = {
               ...p,
+              ...(p.localVersion!==undefined?{localVersion:(previous?.localVersion||0)+1}:{}),
               attachments: await this.encode(attachments),
             };
             if (previous?.itemState)

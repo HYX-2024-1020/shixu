@@ -17,6 +17,8 @@ export interface Attachment {
   blob?: Blob;
 }
 export interface Packet {
+  localVersion?:number|string;
+  recordType?: 'board-workspace';
   defaultCardDisposition?: { choice: "kept" | "deleted"; at: string };
   worldLayout?: {
     groups: { id: string; name: string }[];
