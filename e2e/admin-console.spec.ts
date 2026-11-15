@@ -279,6 +279,9 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
     "synthetic",
   );
   ledger.grantInitial(userId);
+  ledger.freezePrice({id:"platform-fixture",model:"synthetic",currency:"CNY",source:"synthetic",verifiedAt:1,inputMicrosPerMillion:1000000,cachedMicrosPerMillion:0,outputMicrosPerMillion:1000000});
+  ledger.reserve({callId:"platform-fixture-call",account:userId,task:"cancelled-fixture",block:"synthetic",generation:1,priceId:"platform-fixture",maxPromptTokens:100,maxOutputTokens:100});
+  ledger.sent("platform-fixture-call");ledger.unknown("platform-fixture-call");
   registry.generate(1);
   registry.pauseAI(true);
   const backend = new AdminBackend({
@@ -368,19 +371,31 @@ test("真实管理 HTTP 数据、行内暂停、独立告警与审计", async ({
       safetyAlert.getByRole("button", { name: "标为已读", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
-    await safetyAlert.getByRole("button", { name: "记录处置进展" }).click();
-    await safetyAlert.getByLabel("处置状态").selectOption("developer");
-    await safetyAlert
-      .getByLabel("处置说明")
-      .fill("已定位安全配置，等待维护者按证据修复。");
-    await safetyAlert.getByRole("button", { name: "保存处置记录" }).click();
-    await expect(safetyAlert).toContainText("待开发修复");
+    await expect(page.getByRole("button", { name: "记录处置进展" })).toHaveCount(0);
+    await safetyAlert.getByRole("button", { name: "处理并核对恢复" }).click();
+    await expect(page.getByRole("status").filter({hasText:"已重新检测"})).toContainText("问题仍存在");
     await expect(page.locator('a[href="#/alerts"]')).toHaveText(unresolved);
     await page.reload();
-    await expect(safetyAlert).toContainText("已定位安全配置");
+    await expect(safetyAlert).toBeVisible();
     expect(ledger.wallet(userId).spent).toBe(0);
+    const costAlert=page.getByRole("article").filter({hasText:"有调用费用需要核对"});
+    const beforeCoverage=ledger.wallet(userId);
+    await costAlert.getByRole("button",{name:"由平台承担并结案",exact:true}).click();
+    const confirm=costAlert.locator(".inline-confirm");
+    await expect(confirm).toContainText("fixture-owner");await expect(confirm).toContainText("0.000200");
+    await confirm.getByRole("button",{name:"取消",exact:true}).click();
+    expect(ledger.wallet(userId).unknownRisk).toBe(200);
+    await costAlert.getByRole("button",{name:"由平台承担并结案",exact:true}).click();
+    await confirm.getByRole("button",{name:"确认由平台承担并结案",exact:true}).click();
+    await expect(page.getByRole("status").filter({hasText:"已由平台承担"})).toContainText("该告警已结案");
+    await expect(costAlert).toHaveCount(0);expect(ledger.wallet(userId).available).toBe(beforeCoverage.available+200);
+    expect(ledger.call("platform-fixture-call").state).toBe("unknown");expect(ledger.budget().riskMicro).toBe(200);
+    expect(registry.aiPaused()).toBe(true);expect(backend.paused(userId)).toBe(true);
+    await page.getByRole("link",{name:"用户管理",exact:true}).click();await page.locator("tbody tr").first().click();
+    await expect(page.locator(".drawer")).toContainText("平台已承担、供应商账单待核对");
+    await page.locator(".drawer").getByRole("button",{name:"关闭",exact:true}).click();
     await page.getByRole("link", { name: "运维与审计", exact: true }).click();
-    await expect(page.locator(".audit-row")).toHaveCount(4);
+    await expect(page.locator(".audit-row")).toHaveCount(5);
   } finally {
     // Close the test context before its servers, including unused preconnections.
     await page.context().close();

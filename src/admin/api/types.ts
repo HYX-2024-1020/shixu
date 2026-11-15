@@ -119,6 +119,7 @@ export interface AdminUser {
   personalAiPaused?: boolean;
   siteAiPaused?: boolean;
   unknownRiskMicro?: number;
+  platformCoveredRiskMicro?: number;
   id: string;
   username: string;
   status: AdminUserStatus;

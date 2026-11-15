@@ -184,6 +184,7 @@ try {
   await page
     .getByRole("button", { name: "重试连接方式", exact: true })
     .waitFor();
+  await page.getByRole("button", { name: "本机备份", exact: true }).click();
   assert.equal(
     await page
       .getByRole("button", {

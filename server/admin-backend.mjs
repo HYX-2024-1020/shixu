@@ -4,9 +4,22 @@ import { statfsSync, readFileSync, existsSync, lstatSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { CloudOperations } from "./cloud-operations.mjs";
+import { serviceFailureSignals } from "./admin-risk.mjs";
 
 const fail = (status, code) => {
-  throw Object.assign(Error(code), { status, code });
+  throw Object.assign(
+    Error(
+      {
+        CLEANUP_PREVIEW_CHANGED:
+          "预演已过期或待释放对象有变化，请刷新后重新预演；尚未执行本次释放。",
+        STALE_PLATFORM_COST_REVIEW: "费用状态已变化，本次未结案。请取消后重新核对，再确认实际对象和金额。",
+        TASK_STILL_DRAINING: "账号仍有在途计费，请等待请求结束后重新核对。",
+        INVALID_PLATFORM_COST_REVIEW: "当前没有可结案的未知调用，或数量超出本次范围，请刷新核对。",
+        PLATFORM_COST_RECONCILIATION: "平台承担记录与可信账本不一致，已拒绝操作，请联系维护者核对。",
+      }[code] || code,
+    ),
+    { status, code },
+  );
 };
 const iso = (at) => new Date(at).toISOString();
 const availableMemory = () =>
@@ -18,7 +31,7 @@ const availableMemory = () =>
       ) * 1024
     : freemem();
 
-// Separate operational state: never edits account credentials, safety records or billing.
+// Separate operational state. Billing decisions go through the independent ledger.
 export class AdminBackend {
   constructor({
     path,
@@ -52,6 +65,17 @@ export class AdminBackend {
       CREATE TRIGGER IF NOT EXISTS intents_no_update BEFORE UPDATE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
       CREATE TRIGGER IF NOT EXISTS intents_no_delete BEFORE DELETE ON operation_intents BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`);
     this.operations = new Map();
+    // An active service alert has already passed the observation window.
+    // Recheck its live threshold immediately after restart instead of recording
+    // a false recovery while a fresh in-memory observation matures.
+    this.failureObservations = new Map(
+      this.db
+        .prepare(
+          "SELECT kind FROM alerts WHERE kind LIKE 'task-%' AND object='site' AND recovered_at IS NULL",
+        )
+        .all()
+        .map(({ kind }) => [kind.slice(5), now() - 120000]),
+    );
     this.cloudOperations = new CloudOperations(path, { now });
     this.cpu = this.cpuTimes();
     this.sample();
@@ -241,7 +265,7 @@ export class AdminBackend {
   budget() {
     return this.ledger.budget();
   }
-  storage() {
+  storage(cutoff = this.now()) {
     const root = dirname(this.registry.db.location());
     const users = this.users(new URLSearchParams("pageSize=100")).items.map(
       (user) => {
@@ -271,6 +295,20 @@ export class AdminBackend {
                 )
                 .all()
             : [];
+          const hasTasks = db
+            .prepare("SELECT 1 FROM sqlite_master WHERE name='reading_tasks'")
+            .get();
+          const eligible = has
+            ? db
+                .prepare(
+                  "SELECT packet,id,version,size,cleanup FROM original_files f WHERE mode='retained' AND state NOT IN ('deleted','cleaned') AND cleanup<=?" +
+                    (hasTasks
+                      ? " AND NOT EXISTS(SELECT 1 FROM reading_tasks t WHERE t.packet=f.packet AND t.state IN ('queued','running','applying'))"
+                      : "") +
+                    " ORDER BY packet,id",
+                )
+                .all(cutoff)
+            : [];
           const page = db.prepare("PRAGMA page_size").get().page_size;
           return {
             accountId: user.id,
@@ -293,6 +331,11 @@ export class AdminBackend {
                   .get().n
               : 0,
             originals,
+            cleanupEligibleCount: eligible.length,
+            cleanupEligibleBytes: eligible.reduce((n, f) => n + f.size, 0),
+            cleanupStamp: createHash("sha256")
+              .update(JSON.stringify(eligible))
+              .digest("hex"),
           };
         } finally {
           db.close();
@@ -308,6 +351,7 @@ export class AdminBackend {
       disk: this.resources,
       backup: this.overview().backup,
       categories: this.cloudOperations.inventory()?.storage || null,
+      categoriesSampledAt: this.cloudOperations.inventory()?.sampledAt || null,
     };
   }
   changeBudget(value, operation, actor) {
@@ -397,12 +441,42 @@ export class AdminBackend {
     if (Number(disk.bavail) / Number(disk.blocks) <= 0.2)
       fail(503, "DISK_FULL");
   }
+  cleanupPreview(cutoff = this.now()) {
+    const storage = this.storage(cutoff);
+    const snapshots = this.cloudOperations.inventory()?.snapshots || [];
+    const source = {
+      cutoff,
+      originals: storage.users.map((u) => [u.accountId, u.cleanupStamp || ""]),
+      snapshots: snapshots.map((s) => [s.id, s.expiresAt, s.available]),
+    };
+    return {
+      at: cutoff,
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify(source))
+        .digest("hex"),
+      originals: storage.users.reduce(
+        (n, u) => n + (u.cleanupEligibleCount || 0),
+        0,
+      ),
+      logicalBytes: storage.users.reduce(
+        (n, u) => n + (u.cleanupEligibleBytes || 0),
+        0,
+      ),
+      reusablePageBytes: storage.freePageBytes,
+      expiredBackups: snapshots.filter(
+        (s) => s.expiresAt && Date.parse(s.expiresAt) <= cutoff,
+      ).length,
+      protected:
+        "有效原件引用、在途任务、卡片、账本、安全审计及最后一份校验有效备份保留；物理回收量以执行结果为准",
+    };
+  }
   operationsStatus() {
     return {
       maintenance: this.cloudOperations.maintenance(),
       jobs: this.cloudOperations.jobs(),
       budget: this.budget(),
       inventory: this.cloudOperations.inventory(),
+      cleanupPreview: this.cleanupPreview(),
     };
   }
   requestOperation(value, operation, actor) {
@@ -414,8 +488,27 @@ export class AdminBackend {
       operation,
       actor,
       { ...value, reason: value.args?.reason || "" },
-      () =>
-        this.cloudOperations.request(value.kind, value.args, operation, actor),
+      () => {
+        if (
+          value.kind === "cleanup" &&
+          !this.cloudOperations.jobs().some((j) => j.id === operation)
+        ) {
+          if (
+            !Number.isSafeInteger(value.args.cleanupBefore) ||
+            value.args.cleanupBefore > this.now() ||
+            this.now() - value.args.cleanupBefore > 120000 ||
+            value.args.cleanupFingerprint !==
+              this.cleanupPreview(value.args.cleanupBefore).fingerprint
+          )
+            fail(409, "CLEANUP_PREVIEW_CHANGED");
+        }
+        return this.cloudOperations.request(
+          value.kind,
+          value.args,
+          operation,
+          actor,
+        );
+      },
     );
   }
   control(scope, paused, operation, actor, reason = "") {
@@ -589,6 +682,7 @@ export class AdminBackend {
       spentMicro: w.spent,
       reservedMicro: w.reserved,
       unknownRiskMicro: w.unknownRisk,
+      platformCoveredRiskMicro: this.ledger.db.prepare("SELECT COALESCE(SUM(c.reserved),0) n FROM reading_calls c JOIN reading_platform_cost_calls p ON p.call_id=c.id WHERE c.account=? AND c.state='unknown'").get(id).n,
       availableMicro: w.available,
       aiPausedReason: this.paused(id)
         ? control?.reason || "管理员暂停（含全站控制）"
@@ -710,13 +804,13 @@ export class AdminBackend {
         "全站月预算不足，保留进度，核对预算后需主动继续",
       );
     const priceError = this.pricingHealth();
-    for (const failure of this.routes.snapshot().failures || [])
-      add(
-        "task-" + failure.reason,
-        failure.account,
-        "warning",
-        `${failure.count} 个任务等待处理：${failure.reason}；请核对用户任务及累计费用`,
-      );
+    signals.push(
+      ...serviceFailureSignals(
+        this.routes.snapshot().failures,
+        this.failureObservations,
+        at,
+      ),
+    );
     if (priceError)
       add("tariff", "site", "critical", `模型价格验证门禁：${priceError}`);
     if (this.routes.snapshot().waiting >= 10)
@@ -789,7 +883,7 @@ export class AdminBackend {
         const taskFailure = r.kind.startsWith("task-");
         const userIssue = ["unknown-cost", "ledger"].includes(r.kind);
         const friendlyMessage = taskFailure
-          ? `${r.message.match(/^\d+/)?.[0] || "部分"} 个任务尚未完成，资料与累计费用保留；请查看具体任务的处理报告。`
+          ? r.message
           : r.kind === "operation-failed"
             ? "最近的维护操作未完成，维护权限仍暂停；请核对执行回执并修复原因。"
             : r.kind === "operation-pending"
@@ -821,7 +915,7 @@ export class AdminBackend {
         return {
           id: String(r.id),
           title: taskFailure
-            ? "有整理任务需要跟进"
+            ? "多人持续处理异常，需要核对服务"
             : titles[r.kind] || "服务状态需要核对",
           kind: r.kind,
           technicalMessage: r.message,
@@ -840,7 +934,7 @@ export class AdminBackend {
                 ? "查看备份与维护回执"
                 : "核对运行与审计",
           actionHref: taskFailure
-            ? "#/tasks?account=" + encodeURIComponent(r.object)
+            ? "#/tasks"
             : userIssue
               ? "#/users?account=" + encodeURIComponent(r.object)
               : ["backup-missing", "operation-failed"].includes(r.kind)
@@ -864,6 +958,63 @@ export class AdminBackend {
               }
             : null,
         };
+      });
+  }
+  handleAlert(id, operation, actor) {
+    if (!/^\d{1,20}$/.test(id)) fail(400, "INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=?").get(id);
+    if (!alert) fail(404, "ALERT_NOT_FOUND");
+    return this.mutate("alert-handle", "alert:" + id, operation, actor, { reason: "核对并处理告警" }, () => {
+      let settled = 0;
+      if (alert.kind === "unknown-cost") {
+        // Only already captured, request-bound supplier usage is evidence.
+        // Never infer nonbilling from cancellation, an HTTP error or a note.
+        for (const call of this.ledger.db.prepare("SELECT id FROM reading_calls WHERE account=? AND state='unknown'").all(alert.object)) {
+          if (this.ledger.receipts.latest(call.id)?.status !== "linked") continue;
+          const usage = this.ledger.receipts.usage(call.id);
+          if (!usage) continue;
+          this.ledger.receipts.assertUsable(call.id);
+          this.ledger.settle(call.id, usage);
+          settled++;
+        }
+        this.ledger.audit(alert.object);
+      }
+      if (alert.kind === "backup-missing" && !alert.recovered_at && !this.cloudOperations.jobs().some(j => j.id === operation))
+        this.cloudOperations.request("backup", { reason: "从告警创建一致备份" }, operation, actor);
+      this.sample();
+      const current = this.db.prepare("SELECT recovered_at FROM alerts WHERE id=?").get(id);
+      const recovered = !!current?.recovered_at;
+      const message = recovered
+        ? `问题已恢复，已退出待处理列表${settled ? `；已核对${settled}次调用费用` : ""}。`
+        : alert.kind === "unknown-cost"
+          ? `已核对现有回执${settled ? `并结算${settled}次调用` : ""}；仍有请求缺少供应商费用凭据，预留与原任务门禁保留。请核对供应商账单后由维护者完成可信费用核对，无需重复调用或填写处置进展。`
+          : alert.kind === "backup-missing" ? "已提交一致备份，完成后告警自动关闭；可查看执行回执。"
+          : "已重新检测，问题仍存在；请使用下方处理入口。恢复后会自动退出待处理，不会自动继续旧任务。";
+      return { accepted: true, recovered, settled, message };
+    });
+  }
+  platformCostReview(id) {
+    if (!/^\d{1,20}$/.test(id)) fail(400, "INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=? AND kind='unknown-cost'").get(id);
+    if (!alert) fail(404, "ALERT_NOT_FOUND");
+    const review = this.ledger.platform.preview(alert.object);
+    return { alertId: id, username: this.user(alert.object).username, fingerprint: review.fingerprint,
+      calls: review.calls.map(c => ({ id: c.id, day: c.day, reservedMicro: c.reserved })),
+      totalMicro: review.totalMicro, canConfirm: !alert.recovered_at && !review.draining && review.calls.length > 0 && review.calls.length <= 100,
+      message: review.draining ? "该账号仍有在途计费，请等待请求结束后重新核对。" : review.calls.length > 100 ? "待核对调用较多，请联系维护者分批核对。" : !review.calls.length ? "当前没有可由此入口结案的调用；历史旧账需按原可信核对流程处理。" : "确认后由平台承担所列调用，释放用户风险预留；原调用仍保留未知，后续可信费用不再向用户补扣。不会继续旧任务或解除其他暂停。" };
+  }
+  coverAlertCost(id, value, operation, actor) {
+    if (!/^\d{1,20}$/.test(id) || Object.keys(value || {}).sort().join(",") !== "confirmed,fingerprint" || value.confirmed !== true || !/^[a-f0-9]{64}$/.test(value.fingerprint || "")) fail(400,"INVALID_OPERATION");
+    const alert = this.db.prepare("SELECT * FROM alerts WHERE id=? AND kind='unknown-cost'").get(id);
+    if (!alert) fail(404,"ALERT_NOT_FOUND");
+    return this.mutate("platform-cost-cover", alert.object, operation, actor,
+      { reason: "管理员确认由平台承担未知费用，不向用户收费", alertId: id, fingerprint: value.fingerprint }, () => {
+        let result;
+        try { result = this.ledger.platform.cover(alert.object,value.fingerprint,operation,actor); }
+        catch(e) { fail(409,e.message); }
+        this.sample();
+        const recovered = !!this.db.prepare("SELECT recovered_at FROM alerts WHERE id=?").get(id)?.recovered_at;
+        return { ...result,recovered,message: `已由平台承担${result.coveredCalls}次调用，释放用户风险预留${(result.releasedMicro/1e6).toFixed(6)}元。原始未知记录与审计保留，后续不向用户补扣；${recovered ? "该告警已结案。" : "其他费用问题仍需处理。"}` };
       });
   }
   followAlert(id, state, note, operation, actor) {

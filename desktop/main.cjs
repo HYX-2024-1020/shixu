@@ -23,6 +23,7 @@ const { readOffice } = require("./office.cjs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { resolveAsset } = require("./paths.cjs");
+const { mediaType, mediaResponse } = require("./media-response.cjs");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -83,6 +84,15 @@ else {
       const cloud = new AccountWorkspace({
         root: path.join(app.getPath("userData"), "cloud"),
         local: store,
+        saveOriginal: async (file, bytes) => {
+          const selected = await dialog.showSaveDialog(mainWindow, {
+            title: "将原件保存到本机",
+            defaultPath: path.join(app.getPath("downloads"), path.basename(file.name.replaceAll("\\", "/"))),
+          });
+          if (selected.canceled || !selected.filePath) return null;
+          await require("node:fs/promises").writeFile(selected.filePath, bytes);
+          return selected.filePath;
+        },
         confirmTemporaryLoss: async () =>
           (
             await dialog.showMessageBox(mainWindow, {
@@ -172,6 +182,7 @@ else {
       });
       protocol.handle("shixu", (request) => {
         const file = resolveAsset(path.join(__dirname, "../dist"), request.url);
+        if (file && mediaType(file)) return mediaResponse(file, request);
         return file
           ? net.fetch(pathToFileURL(file).href)
           : new Response("Not found", { status: 404 });

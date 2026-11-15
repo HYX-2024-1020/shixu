@@ -1,3 +1,8 @@
+import { allPackets } from "./store";
+import { undoCardMerge, mergeCardDeletion } from "./card-merge";
+import { worldLayout, layoutPacket } from "./world-layout";
+import { defaultCard } from "./default-card";
+import { errorMessage } from "./error-message";
 import CardFiles from "./CardFiles";
 import { sourceLocation } from "../../shared/reading-view.mjs";
 import { ADMIN_TEST } from "./edition";
@@ -21,6 +26,7 @@ import {
 import ItemDialog from "./ItemDialog";
 import DeliverySources from "./DeliverySources";
 import ItemChat from "./ItemChat";
+import AccountConnection from "./AccountConnection";
 import { cardCopy } from "./card-copy";
 import LinkText from "./LinkText";
 import { leaveCard, resetCard } from "./motion";
@@ -45,12 +51,14 @@ function Results({
   reorder,
   packets,
   save,
+  saveMany,
   focusPacket,
   onFocusConsumed,
   notify,
   purge,
   onChat,
   onRecords,
+  onTasks,
   onRetry,
   onApplyProposals,
 }: {
@@ -58,10 +66,12 @@ function Results({
   compact?: boolean;
   reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
+  onTasks?: () => void;
   onRetry?: (packet: Packet) => Promise<void>;
   onApplyProposals?: (packetId: string, itemId: string) => Promise<void>;
   packets: Packet[];
   save: (p: Packet) => Promise<void>;
+  saveMany?: (p: Packet[]) => Promise<void>;
   focusPacket: string;
   onFocusConsumed: () => void;
   notify: (s: string) => void;
@@ -70,9 +80,63 @@ function Results({
     packetId: string,
     itemId: string,
     text: string,
-    options?: { scope: "item" | "account"; readAttachments: boolean },
+    options?: {
+      scope: "item" | "account" | "packet" | "group" | "selected";
+      readAttachments: boolean;
+      groupId?: string;
+      targets?: { packetId: string; itemId: string }[];
+    },
   ) => Promise<ItemState>;
 }) {
+  const [conflictPacket, setConflictPacket] = useState("");
+  const [selectedCards, setSelectedCards] = useState<string[]>([]);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const mergeLock = useRef(false);
+  async function cardOperation(
+    kind: "undo",
+    targets: { packetId: string; itemId: string }[],
+    title = "",
+    preserveEdited = false,
+  ) {
+    if (mergeLock.current) return;
+    mergeLock.current = true;
+    setMergeBusy(true);
+    try {
+      const current = latestPackets.current;
+      const cloudState = window.desktop
+        ? await window.desktop.cloud("status")
+        : null;
+      if (cloudState?.base) {
+        await window.desktop!.cloud("cardOperation", {
+          kind,
+          targets: targets.map((t) => ({
+            ...t,
+            baseVersion: current.find((p) => p.id === t.packetId)?.syncVersion,
+          })),
+          title,
+          itemId: crypto.randomUUID(),
+          preserveEdited,
+        });
+        // The root's normal refresh pulls the canonical, atomic server result.
+        window.dispatchEvent(new Event("focus"));
+      } else {
+        if (!saveMany) throw Error("当前入口暂不支持批量保存");
+        await saveMany(
+          undoCardMerge(current, targets[0], preserveEdited),
+        );
+      }
+      setSelectedCards([]);
+      notify("已恢复历史合并的源卡，原内容保留");
+    } finally {
+      mergeLock.current = false;
+      setMergeBusy(false);
+    }
+  }
+  const layout = worldLayout(packets);
+  const [activeGroup, setActiveGroup] = useState("");
+  const [legacyGroup, setLegacyGroup] = useState("");
+  const [newGroup, setNewGroup] = useState("");
+  const [groupManager, setGroupManager] = useState(false);
   const [query, setQuery] = useState(""),
     [scope, setScope] = useState("active"),
     [kind, setKind] = useState("all");
@@ -96,6 +160,9 @@ function Results({
   const [showHistory, setShowHistory] = useState(false);
   const [limit, setLimit] = useState(60);
   const [grouped, setGrouped] = useState(false);
+  useEffect(() => {
+    if (layout.groups.length) setGrouped(false);
+  }, [layout.groups.length]);
   const [selected, setSelected] = useState("");
   const [editing, setEditing] = useState(false);
   const [materials, setMaterials] = useState("");
@@ -111,6 +178,8 @@ function Results({
   useEffect(() => {
     if (!focusPacket) return;
     setOnlyPacket(focusPacket);
+    setActiveGroup("");
+    setLegacyGroup("");
     setScope("active");
     setKind("all");
     setQuery("");
@@ -133,7 +202,15 @@ function Results({
   useEffect(() => {
     if (editing) document.querySelector("dialog[open]")?.scrollTo({ top: 0 });
   }, [editing]);
-  async function update(p: Packet, id: string, changes: Partial<ItemState>) {
+  async function update(
+    p: Packet,
+    id: string,
+    request: Partial<ItemState> | ((state: ItemState) => Partial<ItemState>),
+  ) {
+    let changes =
+      typeof request === "function"
+        ? request(p.itemState?.[id] || {})
+        : request;
     const leaving = !!changes.deletedAt || changes.status === "done";
     if (leaving && mutationLocks.current.has(id)) return;
     if (leaving) mutationLocks.current.add(id);
@@ -143,6 +220,8 @@ function Results({
         .catch(() => {})
         .then(async () => {
           p = latestPackets.current.find((packet) => packet.id === p.id) || p;
+          if (typeof request === "function")
+            changes = request(p.itemState?.[id] || {});
           const index = p.itemIds?.indexOf(id) ?? Number(id.split(":").pop());
           const doneIds = new Set(p.doneIds);
           if (changes.status === "done") doneIds.add(index);
@@ -156,7 +235,28 @@ function Results({
             },
             updatedAt: new Date().toISOString(),
           };
-          await save(next);
+          if (
+            "deletedAt" in changes &&
+            next.itemState?.[id]?.mergedCard &&
+            saveMany
+          ) {
+            const batch = mergeCardDeletion(
+              latestPackets.current.map((row) =>
+                row.id === next.id ? next : row,
+              ),
+              { packetId: next.id, itemId: id },
+              changes.deletedAt || "",
+            );
+            await saveMany(batch);
+            Object.assign(
+              next,
+              batch.find((row) => row.id === next.id),
+            );
+            const revised = new Map(batch.map((p) => [p.id, p]));
+            latestPackets.current = latestPackets.current.map(
+              (p) => revised.get(p.id) || p,
+            );
+          } else await save(next);
           latestPackets.current = latestPackets.current.map((packet) =>
             packet.id === next.id ? next : packet,
           );
@@ -171,9 +271,11 @@ function Results({
         (changes.status === "active" && !changes.checkins)
       )
         setSelected("");
+      return true;
     } catch (e) {
       resetCard(id);
       notify((e as Error).message);
+      return false;
     } finally {
       mutationLocks.current.delete(id);
     }
@@ -231,7 +333,7 @@ function Results({
     [packets],
   );
   const searchTerm = query.toLowerCase();
-  const rows = packets.flatMap((p) =>
+  const rows = packets.map(defaultCard).flatMap((p) =>
     (p.result?.items || []).map((rawItem, index) => {
       const id = p.itemIds?.[index] || `${p.id}:${index}`,
         storedMeta = p.itemState?.[id] || {};
@@ -266,6 +368,7 @@ function Results({
   const scoped = rows.filter(
     (r) =>
       !r.meta.purgedAt &&
+      !r.meta.mergedInto &&
       (scope === "trash"
         ? !!r.deleted
         : !r.deleted && (scope === "done" ? r.done : !r.done)),
@@ -280,7 +383,10 @@ function Results({
       importance: r.meta.importance ?? r.item.importance ?? 1,
       pinned: !!r.meta.pinned,
       createdAt: r.p.capturedAt,
-      order: r.meta.order ?? r.index,
+      order:
+        (activeGroup ? r.meta.groupOrder?.[activeGroup] : undefined) ??
+        r.meta.order ??
+        r.index,
     });
     return compareItems(rank(a), rank(b), sort, day);
   };
@@ -288,6 +394,8 @@ function Results({
   const filtered = scoped.filter(
     (r) =>
       (kind === "all" || r.item.kind === kind) &&
+      (!activeGroup || r.meta.groupIds?.includes(activeGroup)) &&
+      (!legacyGroup || r.meta.group === legacyGroup) &&
       (!onlyPacket || r.p.id === onlyPacket) &&
       (!starOnly || r.meta.starred) &&
       (`${r.item.title} ${r.item.summary} ${r.item.facts.join(" ")} ${r.meta.additions?.map((a) => a.text).join(" ") || ""}`
@@ -309,11 +417,22 @@ function Results({
       (a, b) => (positions.get(a.id) ?? 1e9) - (positions.get(b.id) ?? 1e9),
     );
   }
+  const legacyGroups = [
+    ...new Set(
+      scoped
+        .filter((r) => r.meta.groupIds === undefined)
+        .map((r) => r.meta.group?.trim())
+        .filter((name): name is string => !!name),
+    ),
+  ].filter((name) => !layout.groups.some((g) => g.name === name));
   const matchCount = filtered.length;
   filtered.splice(limit);
   const groups = [...new Set(filtered.map((r) => r.meta.group?.trim() || ""))];
+  const draggable = filtered.filter(
+    (r) => r.meta.defaultDecision !== "pending",
+  );
   const drag = useCardDrag(motionRoot, {
-    ids: filtered.map((r) => r.id),
+    ids: draggable.map((r) => r.id),
     enabled:
       !compact &&
       !selected &&
@@ -325,9 +444,30 @@ function Results({
       : undefined,
     onPreview: setDragOrder,
     onCommit: async (ids) => {
+      if (activeGroup) {
+        const complete = mergeCardOrder(
+          scoped
+            .filter((r) => r.meta.groupIds?.includes(activeGroup))
+            .map((r) => r.id),
+          draggable.map((r) => r.id),
+          ids,
+        );
+        for (const [order, id] of complete.entries()) {
+          const row = rows.find((r) => r.id === id);
+          if (
+            row &&
+            !(await update(row.p, id, {
+              groupOrder: { ...row.meta.groupOrder, [activeGroup]: order },
+            }))
+          )
+            throw Error("小组顺序未全部保存，请刷新后重试");
+        }
+        setSort("custom");
+        return;
+      }
       const full = mergeCardOrder(
         scoped.map((r) => r.id),
-        filtered.map((r) => r.id),
+        draggable.map((r) => r.id),
         ids,
       );
       const commit = mutationTail.current
@@ -363,6 +503,13 @@ function Results({
           </div>
           <div className="result-controls">
             <button onClick={onRecords}>整理记录</button>
+            {onTasks && <button onClick={onTasks}>整理任务</button>}
+            <button
+              aria-expanded={groupManager}
+              onClick={() => setGroupManager(!groupManager)}
+            >
+              管理小组与类型入口
+            </button>
             <input
               aria-label="搜索整理结果"
               placeholder="搜索标题、原文或文件名"
@@ -420,6 +567,264 @@ function Results({
               正在查看本次投递 · 显示全部
             </button>
           )}
+          <nav className="settings-tabs" aria-label="我的小组">
+            <button
+              aria-pressed={!activeGroup && !legacyGroup}
+              onClick={() => {
+                setActiveGroup("");
+                setLegacyGroup("");
+              }}
+            >
+              全部小组
+            </button>
+            {layout.groups.map((g) => (
+              <button
+                key={g.id}
+                aria-pressed={activeGroup === g.id}
+                onClick={() => {
+                  setActiveGroup(g.id);
+                  setLegacyGroup("");
+                  setSort("custom");
+                }}
+              >
+                {g.name}
+              </button>
+            ))}
+          </nav>
+          {!!legacyGroups.length && (
+            <nav className="settings-tabs" aria-label="已有标签小组">
+              {legacyGroups.map((name) => (
+                <button
+                  key={name}
+                  aria-pressed={legacyGroup === name}
+                  onClick={() => {
+                    setActiveGroup("");
+                    setLegacyGroup(name);
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </nav>
+          )}
+          {!!legacyGroup && (
+            <button
+              onClick={async () => {
+                try {
+                  if (!saveMany) throw Error("当前入口暂不支持保存小组");
+                  const current = latestPackets.current,
+                    id = crypto.randomUUID(),
+                    live = worldLayout(current);
+                  const changes = current.flatMap((p) => {
+                    const itemState = { ...p.itemState };
+                    let changed = false;
+                    (p.result?.items || []).forEach((item, i) => {
+                      const itemId = p.itemIds?.[i] || `${p.id}:${i}`,
+                        meta = itemState[itemId] || {};
+                      const displayed = rows.find((r) => r.id === itemId);
+                      if (
+                        !p.deletedAt &&
+                        !meta.deletedAt &&
+                        !meta.mergedInto &&
+                        displayed?.meta.group === legacyGroup
+                      ) {
+                        itemState[itemId] = {
+                          ...meta,
+                          groupIds: [
+                            ...new Set([...(meta.groupIds || []), id]),
+                          ],
+                        };
+                        changed = true;
+                      }
+                    });
+                    return changed
+                      ? [
+                          {
+                            ...p,
+                            itemState,
+                            updatedAt: new Date().toISOString(),
+                          },
+                        ]
+                      : [];
+                  });
+                  await saveMany([
+                    layoutPacket(current, {
+                      ...live,
+                      groups: [...live.groups, { id, name: legacyGroup }],
+                    }),
+                    ...changes,
+                  ]);
+                  setLegacyGroup("");
+                  setActiveGroup(id);
+                  notify("已保存为长期小组，AI不会改动确认后的归属");
+                } catch (e) {
+                  notify((e as Error).message);
+                }
+              }}
+            >
+              将「{legacyGroup}」保留为我的小组
+            </button>
+          )}
+          {!!selectedCards.length && !!layout.groups.length && (
+            <label>
+              将选定卡片加入小组
+              <select
+                aria-label="将选卡加入小组"
+                defaultValue=""
+                onChange={async (e) => {
+                  const id = e.target.value;
+                  e.target.value = "";
+                  if (!id) return;
+                  let failed = false;
+                  for (const row of rows.filter((r) =>
+                    selectedCards.includes(r.id),
+                  ))
+                    if (
+                      !(await update(row.p, row.id, {
+                        groupIds: [
+                          ...new Set([...(row.meta.groupIds || []), id]),
+                        ],
+                      }))
+                    )
+                      failed = true;
+                  setSelectedCards([]);
+                  notify(
+                    failed
+                      ? "部分卡片未保存，请刷新后核对重试；已成功保存的归属保留"
+                      : "选定卡片已加入小组，原有归属保留",
+                  );
+                }}
+              >
+                <option value="">选择目标小组</option>
+                {layout.groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {groupManager && (
+            <section className="world-group-manager">
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await save(
+                      layoutPacket(latestPackets.current, {
+                        ...layout,
+                        groups: [
+                          ...layout.groups,
+                          { id: crypto.randomUUID(), name: newGroup.trim() },
+                        ],
+                      }),
+                    );
+                    setNewGroup("");
+                  } catch (e) {
+                    notify((e as Error).message);
+                  }
+                }}
+              >
+                <input
+                  aria-label="新小组名称"
+                  value={newGroup}
+                  maxLength={80}
+                  onChange={(e) => setNewGroup(e.target.value)}
+                />
+                <button disabled={!newGroup.trim()}>建立小组</button>
+              </form>
+              {layout.groups.map((g, i) => (
+                <div key={g.id}>
+                  <b>{g.name}</b>
+                  <button
+                    onClick={async () => {
+                      const name = prompt("小组新名称", g.name);
+                      if (name?.trim())
+                        try {
+                          await save(
+                            layoutPacket(latestPackets.current, {
+                              ...layout,
+                              groups: layout.groups.map((x) =>
+                                x.id === g.id ? { ...x, name: name.trim() } : x,
+                              ),
+                            }),
+                          );
+                        } catch (e) {
+                          notify((e as Error).message);
+                        }
+                    }}
+                  >
+                    改名
+                  </button>
+                  <button
+                    disabled={!i}
+                    onClick={async () => {
+                      const groups = [...layout.groups];
+                      [groups[i - 1], groups[i]] = [groups[i], groups[i - 1]];
+                      try {
+                        await save(
+                          layoutPacket(latestPackets.current, {
+                            ...layout,
+                            groups,
+                          }),
+                        );
+                      } catch (e) {
+                        notify((e as Error).message);
+                      }
+                    }}
+                  >
+                    上移
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (
+                        !confirm("删除小组？组内卡片保留，其他小组不受影响。")
+                      )
+                        return;
+                      try {
+                        await save(
+                          layoutPacket(latestPackets.current, {
+                            ...layout,
+                            groups: layout.groups.filter((x) => x.id !== g.id),
+                          }),
+                        );
+                        if (activeGroup === g.id) setActiveGroup("");
+                      } catch (e) {
+                        notify((e as Error).message);
+                      }
+                    }}
+                  >
+                    删除小组
+                  </button>
+                </div>
+              ))}
+              <p>显示类型入口（隐藏不删除内容）</p>
+              {Object.entries(categories).map(([k, label]) => (
+                <label key={k}>
+                  <input
+                    type="checkbox"
+                    checked={!layout.hiddenKinds.includes(k)}
+                    onChange={async (e) => {
+                      try {
+                        await save(
+                          layoutPacket(latestPackets.current, {
+                            ...layout,
+                            hiddenKinds: e.target.checked
+                              ? layout.hiddenKinds.filter((x) => x !== k)
+                              : [...layout.hiddenKinds, k],
+                          }),
+                        );
+                        if (kind === k) setKind("all");
+                      } catch (e) {
+                        notify((e as Error).message);
+                      }
+                    }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </section>
+          )}
           <div className="world-browsebar">
             <nav className="category-nav" aria-label="内容分类">
               <button
@@ -428,19 +833,21 @@ function Results({
               >
                 全部 {scoped.length}
               </button>
-              {kinds.map((k) => (
-                <button
-                  key={k}
-                  className={"kind-" + k}
-                  aria-pressed={kind === k}
-                  onClick={() => setKind(k)}
-                >
-                  {categories[k]}{" "}
-                  {scoped.filter((r) => r.item.kind === k).length}
-                </button>
-              ))}
+              {kinds
+                .filter((k) => !layout.hiddenKinds.includes(k))
+                .map((k) => (
+                  <button
+                    key={k}
+                    className={"kind-" + k}
+                    aria-pressed={kind === k}
+                    onClick={() => setKind(k)}
+                  >
+                    {categories[k]}{" "}
+                    {scoped.filter((r) => r.item.kind === k).length}
+                  </button>
+                ))}
             </nav>
-            <div className="view-switch">
+            <div className="view-switch" hidden={!!layout.groups.length}>
               <button aria-pressed={!grouped} onClick={() => setGrouped(false)}>
                 卡片
               </button>
@@ -459,59 +866,14 @@ function Results({
           )}
         </>
       )}
-      {!filtered.length &&
-        !packets.some(
-          (p) =>
-            !p.deletedAt &&
-            !p.result &&
-            p.status === "error" &&
-            scope === "active" &&
-            !starOnly &&
-            ["all", "note"].includes(kind),
-        ) && (
-          <div className="result-empty">
-            {compact
-              ? "这次的事情都处理好了。"
-              : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
-          </div>
-        )}
-      {scope === "active" &&
-        !starOnly &&
-        ["all", "note"].includes(kind) &&
-        packets
-          .filter(
-            (p) =>
-              !p.deletedAt &&
-              !p.result &&
-              p.status === "error" &&
-              (!onlyPacket || p.id === onlyPacket) &&
-              `${p.text} ${p.attachments.map((a) => a.name).join(" ")}`
-                .toLowerCase()
-                .includes(searchTerm),
-          )
-          .map((p) => (
-            <article className="result-card raw-material-card" key={p.id}>
-              <h2>原样保存 · AI尚未完成整理</h2>
-              <p>
-                {p.text.slice(0, 160) || "文件材料已保留，可打开查看原件。"}
-              </p>
-              <p className="quiet">
-                {p.error || "本次未得到通过核对的整理结果。"}{" "}
-                原始资料仍可使用，后续可主动再整理。
-              </p>
-              <CardFiles
-                attachments={p.attachments}
-                packet={p}
-                onOpen={() => setMaterials(p.id)}
-              />
-              <div className="result-actions">
-                <button onClick={() => setMaterials(p.id)}>查看原样材料</button>
-                {onRetry && (
-                  <button onClick={() => void onRetry(p)}>后续再整理</button>
-                )}
-              </div>
-            </article>
-          ))}
+      {!filtered.length && (
+        <div className="result-empty">
+          {compact
+            ? "这次的事情都处理好了。"
+            : "这里暂时没有内容。试试调整筛选，或往投递桶放一些材料。"}
+        </div>
+      )}
+      {conflictPacket && window.desktop && <AccountConnection conflictPacket={conflictPacket} canSwitch={() => false} onClose={() => { setConflictPacket(""); window.dispatchEvent(new Event("focus")); }} notify={notify} />}
       {(grouped ? groups : [""]).map((group) => (
         <section className="result-group" key={group}>
           {grouped && group && (
@@ -585,6 +947,7 @@ function Results({
                       </button>
                     )}
                     <button
+                      hidden={meta.defaultDecision === "pending"}
                       className={
                         "completion-orbit" +
                         (completing.has(id) ? " is-checking" : "")
@@ -618,7 +981,7 @@ function Results({
                       {meta.status === "progress" ? " · 正在做" : ""}
                     </span>
                     {meta.pinned && <Pin size={16} aria-label="已置顶" />}
-                    {!deleted && (
+                    {!deleted && meta.defaultDecision !== "pending" && (
                       <button
                         className="card-delete"
                         aria-label="删除事项"
@@ -633,6 +996,7 @@ function Results({
                     )}
                     <button
                       className="card-star"
+                      hidden={meta.defaultDecision === "pending"}
                       aria-label={meta.starred ? "取消星标" : "星标"}
                       aria-pressed={!!meta.starred}
                       disabled={p.status !== "ready" || !!deleted}
@@ -666,6 +1030,10 @@ function Results({
                       setSelected(id);
                     }}
                   >
+                    {meta.defaultDecision &&
+                      meta.defaultDecision !== "pending" && (
+                        <span className="quiet">原样保留 · 未完成AI整理</span>
+                      )}
                     <h2>{cardCopy(item).title}</h2>
                     {cardCopy(item).summary && (
                       <p>
@@ -673,6 +1041,219 @@ function Results({
                       </p>
                     )}
                   </div>
+                  {p.syncConflict && window.desktop && <button onClick={() => setConflictPacket(p.id)}>处理此卡同步冲突</button>}
+                  {meta.defaultDecision === "pending" && !deleted && (
+                    <section
+                      className="default-card-decision"
+                      aria-label="未完成整理的材料"
+                    >
+                      <p>{p.error || "本次整理未完成，原件已保留。"}</p>
+                      <p>选择保留为普通卡、移入最近删除，或用原任务重试。</p>
+                      {(["kept", "deleted", "retry"] as const).map((choice) => (
+                        <button
+                          key={choice}
+                          className="decision-action"
+                          disabled={adopting === id}
+                          onClick={async () => {
+                            if (adoptionLock.current.has(id)) return;
+                            adoptionLock.current.add(id);
+                            setAdopting(id);
+                            try {
+                              let original = latestPackets.current.find(
+                                (row) => row.id === p.id,
+                              );
+                              if (
+                                !original ||
+                                original.deletedAt ||
+                                original.result
+                              )
+                                throw Error("材料状态已变化，请刷新后核对");
+                              if (choice === "retry") {
+                                await onRetry?.(original);
+                              } else {
+                                if (window.desktop) {
+                                  const state = await window.desktop.cloud(
+                                    "sync",
+                                    { force: true },
+                                  );
+                                  if (
+                                    state.jobs?.some(
+                                      (t) =>
+                                        t.packetId === p.id &&
+                                        (t.actions?.includes("stop") ||
+                                          [
+                                            "paused",
+                                            "interrupted",
+                                            "error",
+                                            "conflict",
+                                          ].includes(t.state)),
+                                    )
+                                  )
+                                    await window.desktop.cloud("stopPacket", {
+                                      packetId: p.id,
+                                    });
+                                }
+                                if (window.desktop) {
+                                  const canonical = (await allPackets()).find(
+                                    (row) => row.id === p.id,
+                                  );
+                                  if (
+                                    !canonical ||
+                                    canonical.deletedAt ||
+                                    canonical.result
+                                  )
+                                    throw Error(
+                                      "材料已完成或状态变化，请关闭后刷新核对",
+                                    );
+                                  original = canonical;
+                                }
+                                const next = defaultCard(original);
+                                await save({
+                                  ...next,
+                                  status: "ready",
+                                  defaultCardDisposition: {
+                                    choice,
+                                    at: new Date().toISOString(),
+                                  },
+                                  error: "",
+                                  itemState: {
+                                    ...next.itemState,
+                                    [id]: {
+                                      ...next.itemState?.[id],
+                                      defaultDecision: choice,
+                                      ...(choice === "deleted"
+                                        ? {
+                                            deletedAt: new Date().toISOString(),
+                                          }
+                                        : {}),
+                                    },
+                                  },
+                                  updatedAt: new Date().toISOString(),
+                                });
+                                notify(
+                                  choice === "kept"
+                                    ? "已保留，可正常编辑、分组和删除"
+                                    : "已移入最近删除",
+                                );
+                              }
+                            } catch (e) {
+                              notify(errorMessage(e));
+                              if (/冲突/.test(errorMessage(e))) setConflictPacket(p.id);
+                            } finally {
+                              adoptionLock.current.delete(id);
+                              setAdopting("");
+                            }
+                          }}
+                        >
+                          {adopting === id
+                            ? "处理中…"
+                            : choice === "kept"
+                              ? "保留"
+                              : choice === "deleted"
+                                ? "删除"
+                                : "重试"}
+                        </button>
+                      ))}
+                    </section>
+                  )}
+                  {!compact &&
+                    !deleted &&
+                    !meta.mergedCard &&
+                    meta.defaultDecision !== "pending" && (
+                      <label className="merge-select">
+                        <input
+                          type="checkbox"
+                          aria-label={"选择卡片 " + item.title}
+                          checked={selectedCards.includes(id)}
+                          onChange={(e) =>
+                            setSelectedCards(
+                              e.target.checked
+                                ? [...selectedCards, id]
+                                : selectedCards.filter((x) => x !== id),
+                            )
+                          }
+                        />
+                        选择卡片
+                      </label>
+                    )}
+                  {meta.mergedCard && (
+                    <section
+                      className="merged-card-parts"
+                      aria-label="合并子项"
+                    >
+                      {meta.mergedCard.sources.map((source) => {
+                        const packet = packets.find(
+                            (p) => p.id === source.packetId,
+                          ),
+                          i = packet?.itemIds?.indexOf(source.itemId) ?? -1,
+                          child = packet?.result?.items[i],
+                          state = packet?.itemState?.[source.itemId] || {};
+                        return (
+                          <div key={source.itemId}>
+                            <b>{child?.title || source.title}</b>
+                            <p>{child?.summary}</p>
+                            <p>
+                              {child?.due
+                                ? deadlineLabel(child.due)
+                                : "无截止时间"}
+                            </p>
+                            {packet && child && (
+                              <>
+                                <button
+                                  aria-pressed={
+                                    state.status === "done" ||
+                                    packet.doneIds.includes(i)
+                                  }
+                                  onClick={() =>
+                                    void toggleCompletion(packet, source.itemId)
+                                  }
+                                >
+                                  {state.status === "done" ||
+                                  packet.doneIds.includes(i)
+                                    ? "已完成 · 撤销"
+                                    : "完成子项"}
+                                </button>
+                                <button onClick={() => setMaterials(packet.id)}>
+                                  查看此项全部原件与来源
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <button
+                        disabled={mergeBusy}
+                        onClick={async () => {
+                          try {
+                            await cardOperation("undo", [
+                              { packetId: p.id, itemId: id },
+                            ]);
+                          } catch (e) {
+                            const text = (e as Error).message;
+                            if (
+                              text.includes("已有修改") &&
+                              confirm(
+                                text + "。将主卡保留为一张独立卡并恢复源卡？",
+                              )
+                            )
+                              try {
+                                await cardOperation(
+                                  "undo",
+                                  [{ packetId: p.id, itemId: id }],
+                                  "",
+                                  true,
+                                );
+                              } catch (error) {
+                                notify((error as Error).message);
+                              }
+                            else notify(text);
+                          }
+                        }}
+                      >
+                        撤销合并
+                      </button>
+                    </section>
+                  )}
                   <div className="card-context">
                     {item.due && (
                       <span
@@ -686,9 +1267,27 @@ function Results({
                         {item.due.date < day && !done ? " · 已过期" : ""}
                       </span>
                     )}
-                    {!!meta.group?.trim() && (
-                      <span className="collection-tag">{meta.group}</span>
-                    )}
+                    {layout.groups
+                      .filter((g) => meta.groupIds?.includes(g.id))
+                      .map((g) => (
+                        <button
+                          className="collection-tag"
+                          key={g.id}
+                          onClick={() => {
+                            setActiveGroup(g.id);
+                            setLegacyGroup("");
+                          }}
+                        >
+                          {g.name}
+                        </button>
+                      ))}
+                    {meta.groupIds === undefined &&
+                      !!meta.group?.trim() &&
+                      !layout.groups.some(
+                        (g) =>
+                          meta.groupIds?.includes(g.id) &&
+                          g.name === meta.group,
+                      ) && <span className="collection-tag">{meta.group}</span>}
                   </div>
                   <CardFiles
                     attachments={p.attachments}
@@ -734,11 +1333,52 @@ function Results({
                     >
                       查看详情 <ArrowUpRight size={16} />
                     </button>
-                    <details className="card-menu">
+                    {!deleted && meta.defaultDecision !== "pending" && (
+                      <button
+                        className="card-detail-link"
+                        onClick={() => {
+                          setEditing(true);
+                          setSelected(id);
+                        }}
+                      >
+                        手动编辑
+                      </button>
+                    )}
+                    <details
+                      className="card-menu"
+                      hidden={meta.defaultDecision === "pending"}
+                    >
                       <summary aria-label="更多事项操作">
                         <MoreHorizontal size={23} />
                       </summary>
                       <div>
+                        {!!layout.groups.length && (
+                          <fieldset>
+                            <legend>加入小组（可多选）</legend>
+                            {layout.groups.map((g) => (
+                              <GroupMembership
+                                key={g.id}
+                                name={g.name}
+                                checked={!!meta.groupIds?.includes(g.id)}
+                                notify={notify}
+                                change={(checked) =>
+                                  update(p, id, (current) => ({
+                                    groupIds: checked
+                                      ? [
+                                          ...new Set([
+                                            ...(current.groupIds || []),
+                                            g.id,
+                                          ]),
+                                        ]
+                                      : (current.groupIds || []).filter(
+                                          (x) => x !== g.id,
+                                        ),
+                                  }))
+                                }
+                              />
+                            ))}
+                          </fieldset>
+                        )}
                         <button
                           onClick={() => {
                             setEditing(true);
@@ -765,7 +1405,9 @@ function Results({
                     <ItemDialog onClose={() => setSelected("")}>
                       {p.status !== "ready" && (
                         <p>
-                          正在补充读取，本次事项暂不可修改；你可以继续投递或查看其他事项。
+                          {meta.defaultDecision === "pending"
+                            ? "尚未完成AI整理，请先在卡片上选择保留、删除或重试；原样材料仍可查看。"
+                            : "正在补充读取，本次事项暂不可修改；你可以继续投递或查看其他事项。"}
                         </p>
                       )}
                       <fieldset
@@ -1319,6 +1961,9 @@ function Results({
                         </div>
                         {!deleted && (
                           <div className="dialog-footer">
+                            <button onClick={() => setEditing((v) => !v)}>
+                              {editing ? "返回详情" : "手动编辑"}
+                            </button>
                             <details className="detail-action-menu">
                               <summary aria-label="卡片操作">
                                 <MoreHorizontal size={23} />
@@ -1435,6 +2080,46 @@ function Results({
             </article>
           ))}
     </section>
+  );
+}
+function GroupMembership({
+  name,
+  checked,
+  change,
+  notify,
+}: {
+  name: string;
+  checked: boolean;
+  change: (checked: boolean) => Promise<boolean | undefined>;
+  notify: (message: string) => void;
+}) {
+  const [pending, setPending] = useState<boolean | null>(null),
+    [busy, setBusy] = useState(false);
+  useEffect(() => setPending(null), [checked]);
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={pending ?? checked}
+        disabled={busy}
+        aria-busy={busy}
+        onChange={async (e) => {
+          const desired = e.target.checked;
+          setPending(desired);
+          setBusy(true);
+          try {
+            if (!(await change(desired))) setPending(null);
+          } catch (error) {
+            setPending(null);
+            notify((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+      {name}
+      {busy && <span aria-hidden="true"> · 保存中…</span>}
+    </label>
   );
 }
 export default memo(Results);

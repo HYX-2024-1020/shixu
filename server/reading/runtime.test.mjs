@@ -436,7 +436,7 @@ test("opt-in runtime exposes v4 accounts and all task capabilities without enabl
     ).then((r) => r.json());
     assert.equal(result.features.submissionManifest, true);
     assert.equal(result.features.readingEnabled, false);
-    assert.equal(result.materialUseNotice.version, 2);
+    assert.equal(result.materialUseNotice.version, 3);
     assert.ok(runtime.service.credentials);
     const [invitation] = runtime.service.registry.generate(1);
     assert.throws(

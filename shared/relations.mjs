@@ -14,7 +14,7 @@ export function itemMap(packets) {
     packet.result.items.forEach((item, index) => {
       const meta =
         packet.itemState?.[packet.itemIds?.[index] || `${packet.id}:${index}`];
-      if (meta?.deletedAt || meta?.purgedAt) return;
+      if (meta?.deletedAt || meta?.purgedAt || meta?.mergedInto) return;
       const ref = itemRef(packet.id, packet.itemIds?.[index] || index);
       map.set(ref, {
         ref,

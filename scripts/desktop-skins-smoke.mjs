@@ -83,6 +83,7 @@ try {
   await whale.click();
   assert.equal(await page.evaluate(() => window.__greetingAudio.paused), true);
   await whale.click();
+  await page.evaluate(() => { window.__whaleTimes = []; window.__whaleTimer = setInterval(() => window.__whaleTimes.push(window.__greetingAudio.currentTime), 50); });
   assert.equal(await page.evaluate(() => window.__mediaPlays), 3);
   await expect
     .poll(() => page.evaluate(() => window.__greetingAudio.currentTime))
@@ -94,6 +95,12 @@ try {
     })
     .toBe(true);
   await expect(whale).toHaveAttribute("data-motion", "idle");
+  const mediaIntegrity = await page.evaluate(async () => {
+    clearInterval(window.__whaleTimer);
+    const response = await fetch("shixu://app/laugh.mp3", {headers: {Range: "bytes=100-199"}});
+    return { resets: window.__whaleTimes.filter((t,i,a) => i > 0 && t < a[i-1] - 0.1).length, status: response.status, bytes: (await response.arrayBuffer()).byteLength };
+  });
+  assert.deepEqual(mediaIntegrity, {resets: 0, status: 206, bytes: 100});
   const version = await app.evaluate(({ app }) => app.getVersion());
   const settingsPoint = await page.locator(".bucket-settings").boundingBox();
   await page.locator(".bucket-settings").click();
@@ -113,7 +120,7 @@ try {
     .fill("皮肤升级验证草稿，仅合成资料");
   await page.evaluate(() => window.flushDesktopDraft());
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
-  await expect(page.locator(".skin-card")).toHaveCount(3);
+  await expect(page.locator(".skin-card")).toHaveCount(5);
   await page.getByRole("button", { name: "使用冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
@@ -192,10 +199,13 @@ try {
     "fox must not start an independent audio clock",
   );
   await media.evaluate((v) => v.pause());
+  await expect.poll(() => media.evaluate(v => v.paused)).toBe(true);
+  await page.waitForTimeout(100);
   const held = await media.evaluate((v) => v.currentTime);
   await page.waitForTimeout(400);
   assert.ok(
     Math.abs((await media.evaluate((v) => v.currentTime)) - held) < 0.05,
+    JSON.stringify({ held, after: await media.evaluate(v => ({time:v.currentTime,paused:v.paused,ended:v.ended})) }),
   );
   await media.evaluate((v) => v.play());
   await page.screenshot({ path: "release/desktop-bunny-market.png" });

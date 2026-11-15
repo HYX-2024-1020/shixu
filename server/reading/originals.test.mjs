@@ -92,6 +92,35 @@ function fixture({
     },
   };
 }
+test("deleted parent originals are visibly unavailable until the parent is restored", () => {
+  const f = fixture();
+  try {
+    f.put("parent");
+    const file = f.file(),
+      submission = f.begin("parent", [file]);
+    f.originals.put(submission.submissionId, file.id, file.body);
+    f.commit(submission);
+    const attachment = f.store.record("parent").data.attachments[0];
+    f.put("parent", {
+      attachments: [{ ...attachment, deletedAt: "2026-11-14T00:00:00Z" }],
+    });
+    assert.equal(f.originals.list().originals[0].attachmentDeleted, true);
+    assert.equal(f.originals.list().originals[0].available, false);
+    f.put("parent", { attachments: [attachment] });
+    f.put("parent", undefined, "delete");
+    const original = f.originals.list().originals[0];
+    assert.equal(original.packetDeleted, true);
+    assert.equal(original.available, false);
+    assert.throws(
+      () => f.store.files.get("parent", file.id),
+      (e) => e.code === "DELETED",
+    );
+    f.put("parent", undefined, "restore");
+    assert.equal(f.originals.list().originals[0].available, true);
+  } finally {
+    f.close();
+  }
+});
 test("cleared originals can be reverified for reading only: hash, tombstone, quota, download denial and finite memory remain", () => {
   for (const kind of ["deleted", "cleaned"]) {
     const f = fixture();
@@ -511,5 +540,63 @@ test("a v4 original tenant refuses a v3-only binary instead of bypassing retenti
     );
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("renew immediately extends the existing deadline by 30 days and replay does not extend twice", () => {
+  const f = fixture();
+  try {
+    f.put("packet");
+    const a = f.file();
+    const sub = f.begin("packet", [a]);
+    f.originals.put(sub.submissionId, a.id, a.body);
+    f.commit(sub);
+    const before = f.originals.list().originals[0];
+    const request = {
+      operationId: "extend-now",
+      ids: [{ packetId: "packet", id: a.id, expectedVersion: before.version }],
+    };
+    const receipt = f.originals.action("renew", request);
+    assert.equal(
+      f.originals.list().originals[0].expiresAt,
+      before.expiresAt + 30 * day,
+    );
+    assert.deepEqual(f.originals.action("renew", request), receipt);
+    assert.equal(
+      f.originals.list().originals[0].expiresAt,
+      before.expiresAt + 30 * day,
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test("physical storage pressure blocks new uploads without deleting existing originals or blocking manual edits and renewal", () => {
+  const f = fixture();
+  try {
+    f.put("packet");
+    const a = f.file(),
+      sub = f.begin("packet", [a]);
+    f.originals.put(sub.submissionId, a.id, a.body);
+    f.commit(sub);
+    f.originals.freeSpace = () => 0;
+    f.put("new-packet");
+    assert.throws(
+      () => f.begin("new-packet", [{ ...a, id: "new-file" }]),
+      (e) => e.code === "STORAGE_PRESSURE",
+    );
+    f.put("packet", { text: "人工补充" });
+    assert.equal(f.store.record("packet").data.text, "人工补充");
+    const row = f.originals.list().originals[0];
+    assert.equal(
+      f.originals.action("renew", {
+        operationId: "renew-pressure",
+        ids: [{ packetId: "packet", id: a.id, expectedVersion: row.version }],
+      }).results[0].code,
+      "OK",
+    );
+    assert.deepEqual(f.store.files.get("packet", a.id).body, a.body);
+  } finally {
+    f.close();
   }
 });

@@ -19,6 +19,7 @@ const files = [
   "dist/fonts/SpaceGrotesk.ttf",
   "dist/desktop-icon.svg",
   "dist/console-icon.svg",
+  "dist/console-xu-v2.ico",
   "deploy/sync/install-cloud.sh",
   "deploy/sync/cloud-tariff.service",
   "deploy/sync/cloud-tariff.timer",

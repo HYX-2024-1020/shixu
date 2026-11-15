@@ -58,6 +58,7 @@ try {
   );
   await page.getByRole("dialog").waitFor({ state: "detached" });
   await page.locator(".bucket-settings").click();
+  await page.getByRole("button",{name:"设备与密码",exact:true}).click();
   await expect(
     page.getByRole("heading", { name: "设备与密码", exact: true }),
   ).toBeVisible();
@@ -72,6 +73,7 @@ try {
     page,
     async () => (await window.desktop.cloud("status")).activation === "invalid",
   );
+  await page.getByRole("button",{name:"账号",exact:true}).click();
   await page
     .getByLabel("登录密码", { exact: true })
     .fill("new-synthetic-password");

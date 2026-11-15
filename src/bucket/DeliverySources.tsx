@@ -13,6 +13,8 @@ import AttachmentPreview from "./AttachmentPreview";
 import LinkText from "./LinkText";
 import { readingView, processingView } from "../../shared/reading-view.mjs";
 import { readableFileName } from "./file-display";
+import { allPackets } from "./store";
+import { errorMessage } from "./error-message";
 
 function Original({
   attachment: a,
@@ -125,11 +127,26 @@ function Original({
               onClick={async () => {
                 if (
                   !confirm(
-                    "永久删除这次投递中的原件？此操作不可恢复，整理结果和其他投递仍保留。",
+                    "永久删除这次投递中的原件？会停止本次投递的未完成整理，此操作不可恢复，整理结果和其他投递仍保留。已发生的费用不退回。",
                   )
                 )
                   return;
                 try {
+                  if (
+                    window.desktop &&
+                    (await window.desktop.cloud("status")).base
+                  ) {
+                    await window.desktop.cloud("purgeAttachment", {
+                      packetId: packet.id,
+                      id: a.id,
+                    });
+                    const current = (await allPackets()).find(
+                      (p) => p.id === packet.id,
+                    );
+                    if (current) await save(current);
+                    notify("云端原件与附件引用已永久删除，其他资料保留");
+                    return;
+                  }
                   await save({
                     ...packet,
                     attachments: packet.attachments.filter(
@@ -139,7 +156,7 @@ function Original({
                   await window.desktop?.store("cleanup");
                   notify("已永久删除这次投递的附件");
                 } catch (error) {
-                  notify((error as Error).message);
+                  notify(errorMessage(error));
                 }
               }}
             >

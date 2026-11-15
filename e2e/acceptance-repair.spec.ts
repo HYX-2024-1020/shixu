@@ -58,10 +58,14 @@ test("failed organization keeps usable original material and retry after reload"
     .locator(".current-delivery")
     .getByRole("button", { name: "查看原样材料" })
     .click();
-  const card = page.locator(".raw-material-card");
-  await expect(card).toContainText("AI尚未完成整理");
-  await expect(card.getByRole("button", { name: "后续再整理" })).toBeVisible();
-  await card.getByRole("button", { name: "查看原样材料" }).click();
+  const card = page
+    .locator(".result-card")
+    .filter({ hasText: "合成通知：本周交报告" });
+  await expect(card).toContainText("选择保留为普通卡");
+  await expect(
+    card.getByRole("button", { name: "重试", exact: true }),
+  ).toBeVisible();
+  await card.getByRole("button", { name: "输入原文", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText(
     "合成通知：本周交报告，原文不能丢失。",
   );

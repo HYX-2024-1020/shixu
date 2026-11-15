@@ -239,6 +239,9 @@ export function createDeepSeekReadingProvider({
           "patch仅修改当前事项；可读取relatedItems，并对本轮明确要求的其他事项提出proposals，须由用户另行确认后执行。不支持删除、执行文件或发送消息",
         ) +
         ' 跨卡片修改返回额外proposals数组，每项格式{packetId:"给定投递id",itemId:"给定事项id",patch:{}}，最多10项。只使用relatedItems给定的准确ID及同一组合法patch字段。不得声称这些修改已执行；说明待用户核对确认。仅查询时proposals为空或省略。遗漏事项时不可断言全账号不存在。';
+    if (context.currentTarget)
+      messages[0].content +=
+        ' 新建或拆分独立卡片使用creations:{mode:"create或split",packetId:"来源投递准确ID",itemId:"来源卡准确ID",patches:[{title:"独立卡标题",summary:"摘要",facts:["此卡完整要求"]}]}。source只能从currentTarget或relatedItems选一张可访问卡。split至少2张、create至少1张，最多10张；同时patch为空、不返回proposals。每张继承来源的原件、来源引用、日期和状态；有明确依据才分配不同日期，due只用本轮明确日期的anchor，不用null清掉继承日期。逐项保留原要求，不静默遗漏。新建/拆分待用户一次确认后执行，不能声称已保存。不支持合并卡片，不返回merge。不要向用户展示attachmentContent、omittedAttachments、sourceId等内部协议字段或错误码，用文件名与自然语言说明已读和未读内容。不要让用户选择技术范围或手动勾选读取附件。';
     const images = sources.slice(1);
     for (const source of images) validateModelImage(source.image);
     const textBytes = Buffer.byteLength(JSON.stringify(messages));

@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import {
   CloudOperations,
   isSealedCloudRelease,
+  MIN_LEDGER_CORE_VERSION,
   openHostCloudOperations,
   writeHostAuthorityFloor,
 } from "../server/cloud-operations.mjs";
@@ -231,7 +232,7 @@ export async function tick() {
             target = join(ROOT, "releases", job.args.releaseId);
           if (
             !releases().some(
-              (r) => r.id === job.args.releaseId && r.ledgerCoreVersion >= 8,
+              (r) => r.id === job.args.releaseId && r.ledgerCoreVersion >= MIN_LEDGER_CORE_VERSION,
             )
           )
             throw Error("RELEASE_SCHEMA_INCOMPATIBLE");
@@ -264,7 +265,7 @@ export async function tick() {
         "维护失败：" + code(e) + "；上传和AI保持暂停，基本读取尽量保留",
         job.id,
       );
-      ops.event(job.id, "failed", code(e));
+      ops.event(job.id, "failed", code(e), ops.jobs().find(j => j.id === job.id)?.result || {});
       if (stopped || previous) {
         systemctl("start");
         try {
@@ -309,10 +310,11 @@ async function main() {
         result = await takeCloudSnapshot(config);
       } else if (kind === "restore")
         result = restoreCloudSnapshot(config, job.args.snapshotId);
-      else if (kind === "cleanup") result = cleanCloudStorage(config);
+      else if (kind === "cleanup") result = cleanCloudStorage(config, {now:job.args.cleanupBefore || Date.now()});
       else throw Error("INVALID_OPERATION");
       ops.event(id, "running", "", result);
     } catch (e) {
+      if (e.cleanupResult) ops.event(id, "running", code(e), e.cleanupResult);
       throw Error(code(e));
     } finally {
       ops.close();

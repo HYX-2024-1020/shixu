@@ -113,6 +113,28 @@ var BUILTIN_SKINS = [
     hello: "",
     greeting: "",
     feeding: ""
+  },
+  {
+    id: "capybara",
+    name: "慢慢",
+    description: "事情一件一件来。安静的水豚伙伴。",
+    art: "capybara",
+    color: "#eee3d2",
+    motion: "wiggle",
+    hello: "慢一点，也在往前走。",
+    greeting: "嗯，我在。",
+    feeding: "接住了，慢慢理清。"
+  },
+  {
+    id: "owl",
+    name: "夜灯",
+    description: "陪你理清思路的猫头鹰。",
+    art: "owl",
+    color: "#e1e7ed",
+    motion: "float",
+    hello: "有点乱？一起理清。",
+    greeting: "今天也有新发现。",
+    feeding: "记下了，不用一直惦记。"
   }
 ];
 var BUNNY_CLIP = {
@@ -883,7 +905,7 @@ function itemMap(packets) {
     packet.result.items.forEach((item, index) => {
       var _a, _b, _c;
       const meta = (_b = packet.itemState) == null ? void 0 : _b[((_a = packet.itemIds) == null ? void 0 : _a[index]) || `${packet.id}:${index}`];
-      if ((meta == null ? void 0 : meta.deletedAt) || (meta == null ? void 0 : meta.purgedAt)) return;
+      if ((meta == null ? void 0 : meta.deletedAt) || (meta == null ? void 0 : meta.purgedAt) || (meta == null ? void 0 : meta.mergedInto)) return;
       const ref = itemRef(packet.id, ((_c = packet.itemIds) == null ? void 0 : _c[index]) || index);
       map.set(ref, {
         ref,

@@ -1,11 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
+const port = Number(process.env.SHIXU_E2E_PORT || 5173);
+if (!Number.isInteger(port) || port < 1024 || port > 65535)
+  throw Error("INVALID_E2E_PORT");
+const baseURL = `http://localhost:${port}`;
 const channel = process.env.CI ? undefined : "msedge";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL,
     trace: "retain-on-failure",
   },
   projects: [
@@ -68,9 +72,9 @@ export default defineConfig({
     ),
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --port ${port} --strictPort`,
+    url: baseURL,
+    reuseExistingServer: !process.env.CI && !process.env.SHIXU_E2E_PORT,
     timeout: 30000,
   },
 });

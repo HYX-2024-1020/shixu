@@ -40,6 +40,7 @@ class AccountWorkspace extends CloudWorkspace {
     this.accountState = null;
     this.confirmTemporaryLoss =
       options.confirmTemporaryLoss || (async () => false);
+    this.saveOriginal = options.saveOriginal;
   }
   async init() {
     const file = path.join(this.root, "account.enc");
@@ -54,12 +55,26 @@ class AccountWorkspace extends CloudWorkspace {
     if (
       `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}` !==
       `${next.active}#${next.devices[next.active]?.userId || ""}`
-    )
+    ) {
+      this.identityGeneration = (this.identityGeneration || 0) + 1;
       this.taskPreview = null;
+      this.accountState = null;
+      this.originalStorage = undefined;
+      this.originalDownload = null;
+      this.originalNotice = "";
+      this.deviceList = [];
+      this.loginDevices = [];
+      this.authorization = undefined;
+      this.readSyncBase = undefined;
+      this.nextReadAt = 0;
+      this.retryBase = undefined;
+      this.retryUntil = 0;
+    }
     this.config = next;
     this.lastError = "";
   }
   async request(base, method, api, data, extra = {}) {
+    const identityGeneration = this.identityGeneration || 0;
     if (
       base === this.retryBase &&
       this.retryUntil > Date.now() &&
@@ -117,6 +132,10 @@ class AccountWorkspace extends CloudWorkspace {
       signal: AbortSignal.timeout(15000),
       ...(bytes.length ? { body: bytes } : {}),
     });
+    if (identityGeneration !== (this.identityGeneration || 0))
+      throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+        code: "ACCOUNT_CHANGED",
+      });
     if (!response.ok) {
       if (response.status === 429) {
         const seconds = Number(response.headers?.get?.("retry-after"));
@@ -129,9 +148,18 @@ class AccountWorkspace extends CloudWorkspace {
             1000;
       }
       const value = await response.json().catch(() => ({}));
+      if (identityGeneration !== (this.identityGeneration || 0))
+        throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+          code: "ACCOUNT_CHANGED",
+        });
       if (device && response.status === 401) {
         this.authorization = "invalid";
         this.accountState = null;
+        this.originalStorage = undefined;
+        this.originalDownload = null;
+        this.originalNotice = "";
+        this.deviceList = [];
+        this.taskPreview = null;
       }
       throw Object.assign(
         Error(value.error || "服务暂时不可用，本地资料保留"),
@@ -143,6 +171,10 @@ class AccountWorkspace extends CloudWorkspace {
     const result = extra.binary
       ? Buffer.from(await response.arrayBuffer())
       : await response.json();
+    if (identityGeneration !== (this.identityGeneration || 0))
+      throw Object.assign(Error("账号已切换，已忽略上一账号的响应"), {
+        code: "ACCOUNT_CHANGED",
+      });
     if (api === "/api/v3/account") this.accountState = result;
     return result;
   }
@@ -413,6 +445,8 @@ class AccountWorkspace extends CloudWorkspace {
       account: this.accountState,
       materialUseNotice: this.accountState?.reading?.materialUseNotice || null,
       materialConsentAccepted: this.materialConsentAccepted(),
+      materialPurposeAccepted: this.materialAcknowledgement("purpose"),
+      materialRetentionAccepted: this.materialAcknowledgement("retention"),
       taskPreview: this.taskPreview || null,
       jobs: this.readJobs().map(({ request, ...job }) => job),
       capabilities: this.publicCapabilities,
@@ -420,6 +454,7 @@ class AccountWorkspace extends CloudWorkspace {
       loginDevices: this.loginDevices || [],
       originalStorage: this.originalStorage,
       originalNotice: this.originalNotice || "",
+      originalDownload: this.originalDownload || null,
       localSaveNotice: this.space()?.cache.localSaveError || "",
     };
   }
@@ -454,17 +489,18 @@ class AccountWorkspace extends CloudWorkspace {
     )
       throw Error("当前服务尚未支持跨卡片查询与修改建议");
     if (v4) await this.reuploadTemporary(value.packetId);
-    let saved = jobs.find(
+    let saved = jobs.findLast(
       (j) =>
         j.request.packetId === value.packetId &&
+        !j.disposition &&
+        !(row.data?.defaultCardDisposition && j.request.kind === "organize") &&
         ![
           "done",
           "partial",
           "purged",
-          "cancelled",
-          "error",
-          "conflict",
-          "interrupted",
+          ...(j.actions?.includes("continue")
+            ? []
+            : ["cancelled", "error", "conflict", "interrupted"]),
         ].includes(j.state),
     );
     if (
@@ -472,10 +508,26 @@ class AccountWorkspace extends CloudWorkspace {
       (saved.request.kind !== value.kind ||
         saved.request.instruction !== value.instruction ||
         saved.request.scope !== value.scope ||
+        saved.request.groupId !== value.groupId ||
+        JSON.stringify(saved.request.targets) !==
+          JSON.stringify(value.targets) ||
         saved.request.readAttachments !== value.readAttachments ||
         saved.request.itemId !== value.itemId)
     )
       throw Error("这次投递已有其他 AI 任务，请等待完成");
+    if (saved?.protocol === 4 && saved.actions?.includes("continue")) {
+      // A fresh user retry explicitly resumes the authoritative task. Merely
+      // returning a paused ID leaves it paused forever and loses the UI intent.
+      saved.pendingAction ||= {
+        action: "continue",
+        contractVersion: 1,
+        operationId: randomUUID(),
+        expectedGeneration: saved.generation,
+        expectedRevision: saved.inputRevision,
+        expectedMaintenanceOperation: saved.maintenanceOperation || null,
+      };
+      this.writeJobs(jobs);
+    }
     if (!saved) {
       const request = {
         id: randomUUID(),
@@ -495,6 +547,8 @@ class AccountWorkspace extends CloudWorkspace {
               itemId: value.itemId,
               instruction: value.instruction,
               scope: value.scope,
+              groupId: value.groupId,
+              targets: value.targets,
               readAttachments: value.readAttachments,
             }
           : {}),
@@ -651,7 +705,23 @@ class AccountWorkspace extends CloudWorkspace {
             j.request.kind === "organize" && j.request.packetId === packet.id,
         )
         .at(-1);
-      if (!job || packet.result || packet.deletedAt) return packet;
+      if (packet.result || packet.deletedAt) return packet;
+      if (!job) {
+        if (
+          this.accountState?.reading &&
+          !this.space()
+            .client.records()
+            .find((r) => r.id === packet.id)?.pending &&
+          packet.status === "pending" &&
+          Date.now() - Date.parse(packet.capturedAt) > 30000
+        )
+          return {
+            ...packet,
+            status: "error",
+            error: "这次材料尚未启动整理，可手动保留、删除或主动重试。",
+          };
+        return packet;
+      }
       return {
         ...packet,
         status: [
@@ -673,12 +743,26 @@ class AccountWorkspace extends CloudWorkspace {
   materialConsentKey() {
     return `${this.config.active}#${this.config.devices[this.config.active]?.userId || ""}`;
   }
-  materialConsentAccepted() {
+  materialAcknowledgement(kind) {
     const notice = this.accountState?.reading?.materialUseNotice;
+    if (!notice) return true;
+    const record =
+      this.config.materialAcknowledgements?.[this.materialConsentKey()];
+    if (record)
+      return (
+        record[kind]?.version === notice.version &&
+        record[kind]?.accepted === true
+      );
+    // Existing explicit agreement remains valid; never infer new-user consent.
     return (
-      !notice ||
       this.config.materialConsents?.[this.materialConsentKey()] ===
-        notice.version
+      notice.version
+    );
+  }
+  materialConsentAccepted() {
+    return (
+      this.materialAcknowledgement("purpose") &&
+      this.materialAcknowledgement("retention")
     );
   }
   requireMaterialConsent() {
@@ -686,6 +770,44 @@ class AccountWorkspace extends CloudWorkspace {
       throw Error("请先在账号设置确认资料用途和保存期限；尚未发起AI调用");
   }
   action(action, value) {
+    if (action === "cardOperation")
+      return this.serial(async () => {
+        if (value?.kind === "merge") throw Error("合并功能已移除，已有内容和原件保留");
+        if (!this.config.active || !["apply-chat", "undo"].includes(value?.kind))
+          throw Error("请先连接账号并核对卡片");
+        await this.sync({ force: true });
+        if (!(value.kind === "undo" ? this.accountState?.reading?.features?.legacyCardUndo : this.accountState?.reading?.features?.cardChatCreations))
+          throw Error(
+            "当前服务尚未接入此项卡片操作，请更新服务后重试；资料保持原样",
+          );
+        if (
+          this.space().client.pendingCount() ||
+          this.space().client.conflicts().length
+        )
+          throw Error("请先处理同步冲突，再确认卡片修改");
+        const file = this.space().cache.file("card-actions.json");
+        const saved = fs.existsSync(file)
+          ? JSON.parse(fs.readFileSync(file, "utf8"))
+          : {};
+        const key = hash(JSON.stringify(value));
+        saved[key] ||= {
+          contractVersion: 1,
+          epoch: this.config.devices[this.config.active].epoch,
+          operationId: randomUUID(),
+          receiptPacketId: value.targets?.[0]?.packetId,
+          ...value,
+        };
+        atomic(file, JSON.stringify(saved));
+        await this.request(
+          this.config.active,
+          "POST",
+          "/api/v4/cards/" + value.kind,
+          saved[key],
+        );
+        delete saved[key];
+        atomic(file, JSON.stringify(saved));
+        return this.sync({ force: true });
+      });
     if (action === "sync" && value?.force)
       return this.serial(() => this.sync({ force: true }));
     if (action === "taskPreview")
@@ -706,15 +828,107 @@ class AccountWorkspace extends CloudWorkspace {
           typeof value?.accepted !== "boolean"
         )
           throw Error("请先连接账号并刷新资料说明");
+        const key = this.materialConsentKey();
+        const old =
+          this.config.materialAcknowledgements?.[key] ||
+          Object.fromEntries(
+            ["purpose", "retention"].map((kind) => [
+              kind,
+              {
+                version: notice.version,
+                accepted: this.materialAcknowledgement(kind),
+              },
+            ]),
+          );
+        if (
+          value.kind !== undefined &&
+          !["purpose", "retention"].includes(value.kind)
+        )
+          throw Error("无效的用途确认");
+        const updates = Object.fromEntries(
+          (value.kind ? [value.kind] : ["purpose", "retention"]).map((kind) => [
+            kind,
+            {
+              version: notice.version,
+              accepted: value.accepted,
+              at: new Date().toISOString(),
+            },
+          ]),
+        );
         await this.configure({
           ...this.config,
-          materialConsents: {
-            ...this.config.materialConsents,
-            [this.materialConsentKey()]: value.accepted ? notice.version : 0,
+          materialAcknowledgements: {
+            ...this.config.materialAcknowledgements,
+            [key]: { ...old, ...updates },
           },
+          materialConsents: { ...this.config.materialConsents, [key]: 0 },
         });
         return this.status();
       });
+    if (action === "purgeAttachment") {
+      const identity = this.config.active;
+      const generation = this.identityGeneration || 0;
+      return this.action("stopPacket", { packetId: value.packetId }).then(() =>
+        this.serial(async () => {
+          if (
+            identity !== this.config.active ||
+            generation !== (this.identityGeneration || 0)
+          )
+            throw Error("账号已切换，请在当前账号重新打开材料后操作");
+          const { client, cache } = this.space();
+          const row = client.records().find((r) => r.id === value.packetId);
+          if (!row || row.pending || row.conflict || row.deletedAt)
+            throw Error("请先同步并核对所属投递");
+          const file = cache.file("attachment-purge-intents.json");
+          const intents = fs.existsSync(file)
+            ? JSON.parse(fs.readFileSync(file, "utf8"))
+            : {};
+          const key = value.packetId + "/" + value.id;
+          if (!intents[key]) {
+            const storage = await this.request(
+              this.config.active,
+              "GET",
+              `/api/v4/storage?packetId=${encodeURIComponent(value.packetId)}&includeDeleted=true`,
+            );
+            const original = storage.originals.find((f) => f.id === value.id);
+            if (!original) throw Error("未找到云端原件，附件引用尚未移除");
+            intents[key] = {
+              contractVersion: 1,
+              operationId: randomUUID(),
+              packetId: value.packetId,
+              id: value.id,
+              baseVersion: row.version,
+              expectedVersion: original.version,
+              epoch: this.config.devices[this.config.active].epoch,
+            };
+            atomic(file, JSON.stringify(intents));
+          }
+          try {
+            await this.request(
+              this.config.active,
+              "POST",
+              "/api/v4/originals/purge-reference",
+              intents[key],
+            );
+          } catch (error) {
+            if ([400, 403, 404, 409, 422, 426].includes(error.status)) {
+              delete intents[key];
+              atomic(file, JSON.stringify(intents));
+            }
+            throw error;
+          }
+          await client.sync();
+          this.originalStorage = await this.request(
+            this.config.active,
+            "GET",
+            "/api/v4/storage",
+          );
+          delete intents[key];
+          atomic(file, JSON.stringify(intents));
+          return this.status();
+        }),
+      );
+    }
     if (action === "moreOriginals")
       return this.serial(async () => {
         if (this.originalStorage?.hasMore) {
@@ -784,6 +998,12 @@ class AccountWorkspace extends CloudWorkspace {
         if (!f || hash(bytes) !== f.hash || bytes.length !== f.size)
           throw Error("下载校验不一致，未保存原件");
         atomic(this.space().cache.file("files/" + f.hash), bytes);
+        if (this.saveOriginal) {
+          const destination = await this.saveOriginal(f, bytes);
+          this.originalDownload = destination
+            ? { saved: true, path: destination }
+            : { saved: false, path: "" };
+        }
         this.originalNotice = "原件已校验并保存到本机，可从材料面板打开";
         return this.status();
       });
@@ -830,6 +1050,87 @@ class AccountWorkspace extends CloudWorkspace {
           return this.status();
         }
         return this.sync();
+      });
+    if (action === "stopPacket")
+      return this.serial(async () => {
+        const { client } = this.space();
+        const packet = client.records().find((r) => r.id === value.packetId);
+        if (
+          !packet ||
+          packet.deletedAt ||
+          packet.purged ||
+          packet.conflict ||
+          packet.pending
+        )
+          throw Error("材料状态已变化或尚未同步，请刷新后再停止");
+        const remote = await this.request(
+          this.config.active,
+          "GET",
+          "/api/v4/tasks",
+        );
+        for (const task of remote.tasks.filter(
+          (t) =>
+            t.packetId === value.packetId &&
+            !["done", "partial", "purged", "cancelled"].includes(t.state),
+        )) {
+          const jobs = this.readJobs();
+          let local = jobs.find((j) => j.id === task.id);
+          if (!local) {
+            local = {
+              ...task,
+              request: {
+                packetId: task.packetId,
+                kind: task.kind || "organize",
+              },
+            };
+            jobs.push(local);
+          }
+          const intent =
+            local.pendingAction?.action === "stop"
+              ? local.pendingAction
+              : {
+                  action: "stop",
+                  contractVersion: 1,
+                  operationId: randomUUID(),
+                  expectedGeneration: task.generation,
+                  expectedRevision: task.inputRevision,
+                  expectedMaintenanceOperation:
+                    task.maintenanceOperation || null,
+                };
+          local.pendingAction = intent;
+          this.writeJobs(jobs);
+          const { action: _, ...body } = intent;
+          let stopped;
+          try {
+            stopped = await this.request(
+              this.config.active,
+              "POST",
+              `/api/v4/tasks/${task.id}/stop`,
+              body,
+            );
+          } catch (error) {
+            if ([400, 403, 404, 409, 422, 426].includes(error.status))
+              this.writeJobs(
+                this.readJobs().map((j) =>
+                  j.id === task.id ? { ...j, pendingAction: null } : j,
+                ),
+              );
+            throw error;
+          }
+          this.writeJobs(
+            this.readJobs().map((j) =>
+              j.id === task.id ? { ...j, ...stopped, pendingAction: null } : j,
+            ),
+          );
+        }
+        if (!packet.data.result) {
+          client.put(packet.id, {
+            status: "error",
+            error: "本次整理已停止，原材料保留；可手动保留、删除或主动重试。",
+          });
+          await client.sync();
+        }
+        return this.status();
       });
     if (action === "taskAction")
       return this.serial(async () => {

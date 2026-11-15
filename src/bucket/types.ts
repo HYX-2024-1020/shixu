@@ -17,7 +17,13 @@ export interface Attachment {
   blob?: Blob;
 }
 export interface Packet {
+  defaultCardDisposition?: { choice: "kept" | "deleted"; at: string };
+  worldLayout?: {
+    groups: { id: string; name: string }[];
+    hiddenKinds: string[];
+  };
   syncVersion?: number;
+  syncConflict?: boolean;
   syncAutoOrganize?: boolean;
   receipt?: {
     created: number;
@@ -51,6 +57,34 @@ export interface Packet {
   association?: Association;
 }
 export interface ItemState {
+  chatCreations?: {
+    mode: "create" | "split";
+    packetId: string;
+    itemId: string;
+    patches: Record<string, unknown>[];
+    beforeItem: import("../../shared/bucket-engine.mjs").BucketItem;
+    beforeState: Record<string, unknown>;
+    id: string;
+  } | null;
+  chatMerge?: {
+    title: string;
+    targets: {
+      packetId: string;
+      itemId: string;
+      title: string;
+      beforeItem: import("../../shared/bucket-engine.mjs").BucketItem;
+    }[];
+  } | null;
+  mergedInto?: { packetId: string; itemId: string } | null;
+  deletedByMerge?: string | null;
+  mergedCard?: {
+    sources: { packetId: string; itemId: string; title: string }[];
+    initialItem: import("../../shared/bucket-engine.mjs").BucketItem;
+    initialState: string;
+  } | null;
+  defaultDecision?: "pending" | "kept" | "deleted";
+  groupIds?: string[];
+  groupOrder?: Record<string, number>;
   chatProposals?: {
     id: string;
     items: {

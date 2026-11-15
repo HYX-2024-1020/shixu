@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { AdminApi } from "./api";
+import type { PlatformCostReview } from "./api/client";
 import { formatBeijingTime, newOperationId } from "./format";
 import { Button, ErrorState, useAsyncData } from "./ui";
 import { BudgetPanel } from "./ManagementPages";
@@ -78,18 +79,7 @@ export function AlertsPage({ api }: { api: AdminApi }) {
   const operations = useRef<Record<string, string>>({});
   const [receipt, setReceipt] = useState("");
   const [history, setHistory] = useState(false);
-  const [followup, setFollowup] = useState<{
-    id: string;
-    state: string;
-    note: string;
-    operation: string;
-  } | null>(null);
-  const followLabels: Record<string, string> = {
-    following: "跟进中",
-    developer: "待开发修复",
-    "user-action": "待用户主动继续",
-    reviewed: "恢复已核实",
-  };
+  const [coverage, setCoverage] = useState<{ review: PlatformCostReview; operation: string } | null>(null);
   const { state, retry } = useAsyncData(
     () => (api.getAlerts ? api.getAlerts() : Promise.resolve([])),
     [],
@@ -103,7 +93,7 @@ export function AlertsPage({ api }: { api: AdminApi }) {
       <h1>告警中心</h1>
       <p>持续故障更新原记录，恢复保留历史。已读不代表故障解决。</p>
       <p>
-        侧栏数字表示未恢复故障数，包含已读故障。跟进记录保留在审计中；只有实际检测恢复后才可核实收尾。
+        侧栏数字表示尚未恢复的问题。点击处理会核对真实状态；可自动处理的立即执行，恢复后自动关闭，历史保留。
       </p>
       <Button onClick={retry}>刷新告警</Button>
       <Button onClick={() => setHistory(!history)}>
@@ -143,13 +133,6 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                   <p>恢复：{formatBeijingTime(a.recoveredAt)}</p>
                 )}
                 <p>{a.suggestion}</p>
-                {a.followup && (
-                  <p>
-                    处置进度：
-                    {followLabels[a.followup.state] || a.followup.state} ·{" "}
-                    {a.followup.note} · {formatBeijingTime(a.followup.at)}
-                  </p>
-                )}
                 <p>
                   {a.readAt ? `已读 · ${formatBeijingTime(a.readAt)}` : "未读"}
                 </p>
@@ -179,100 +162,71 @@ export function AlertsPage({ api }: { api: AdminApi }) {
                 )}
                 {error && <p role="alert">{error}</p>}
                 <a href={a.actionHref}>{a.actionLabel}</a>
-                {api.followAlert && (
+                {!a.recoveredAt && api.handleAlert && (
                   <Button
-                    onClick={() => {
+                    disabled={!!busy}
+                    busy={busy === a.id}
+                    onClick={async () => {
+                      setBusy(a.id);
                       setError("");
-                      setFollowup({
-                        id: a.id,
-                        state: a.recoveredAt ? "reviewed" : "following",
-                        note: "",
-                        operation: newOperationId(),
-                      });
+                      try {
+                        const result = await api.handleAlert!(
+                          a.id,
+                          newOperationId(),
+                        );
+                        setReceipt(result.message);
+                        window.dispatchEvent(new Event("shixu-admin-updated"));
+                        retry();
+                      } catch (e) {
+                        setError(
+                          e instanceof Error ? e.message : "处理失败，请重试",
+                        );
+                      } finally {
+                        setBusy("");
+                      }
                     }}
                   >
-                    记录处置进展
+                    {a.kind === "unknown-cost"
+                      ? "核对并处理费用"
+                      : a.kind === "backup-missing"
+                        ? "创建备份并处理"
+                        : "处理并核对恢复"}
                   </Button>
                 )}
-                {followup?.id === a.id && (
-                  <div className="inline-confirm">
-                    <label>
-                      处置状态
-                      <select
-                        aria-label="处置状态"
-                        value={followup.state}
-                        onChange={(e) =>
-                          setFollowup({
-                            ...followup,
-                            state: e.target.value,
-                            operation: newOperationId(),
-                          })
-                        }
-                      >
-                        {Object.entries(followLabels)
-                          .filter(
-                            ([key]) => key !== "reviewed" || !!a.recoveredAt,
-                          )
-                          .map(([key, label]) => (
-                            <option key={key} value={key}>
-                              {label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      处置说明
-                      <input
-                        aria-label="处置说明"
-                        maxLength={200}
-                        value={followup.note}
-                        onChange={(e) =>
-                          setFollowup({
-                            ...followup,
-                            note: e.target.value,
-                            operation: newOperationId(),
-                          })
-                        }
-                      />
-                    </label>
-                    <p>
-                      只记录实际跟进，不改变故障检测、任务或费用，不自动继续任务。
-                    </p>
-                    <Button
-                      disabled={!followup.note.trim() || !!busy}
-                      onClick={async () => {
-                        setBusy(a.id);
-                        setError("");
+                {!a.recoveredAt && a.kind === "unknown-cost" && api.getPlatformCostReview && api.coverAlertCost && (
+                  coverage?.review.alertId === a.id ? (
+                    <div className="inline-confirm">
+                      <h3>由平台承担并结案</h3>
+                      <p>账号：{coverage.review.username} · {coverage.review.calls.length}次调用 · 释放用户风险预留：¥{(coverage.review.totalMicro / 1e6).toFixed(6)}</p>
+                      <p>{coverage.review.message}</p>
+                      <ul>{coverage.review.calls.map(c => <li key={c.id}>{c.day} · 调用 {c.id} · ¥{(c.reservedMicro / 1e6).toFixed(6)}</li>)}</ul>
+                      <p>这是平台免除用户承担责任的决定，不代表供应商没有收费。平台侧费用风险和原始记录保留。</p>
+                      {coverage.review.canConfirm && <Button busy={busy === a.id} disabled={!!busy} onClick={async () => {
+                        setBusy(a.id); setError("");
                         try {
-                          await api.followAlert!(
-                            a.id,
-                            followup.state,
-                            followup.note,
-                            followup.operation,
-                          );
-                          setReceipt("处置进展已记入审计。");
-                          setFollowup(null);
-                          retry();
-                        } catch (e) {
-                          setError(
-                            e instanceof Error ? e.message : "记录失败，请重试",
-                          );
-                        } finally {
-                          setBusy("");
-                        }
-                      }}
-                    >
-                      保存处置记录
-                    </Button>
-                    <Button onClick={() => setFollowup(null)}>取消</Button>
-                  </div>
+                          const result = await api.coverAlertCost!(a.id, coverage.review.fingerprint, coverage.operation);
+                          setReceipt(result.message); setCoverage(null);
+                          window.dispatchEvent(new Event("shixu-admin-updated")); retry();
+                        } catch(e) { setError(e instanceof Error ? e.message : "结案失败，可重试同一操作"); }
+                        finally { setBusy(""); }
+                      }}>确认由平台承担并结案</Button>}
+                      <Button disabled={!!busy} onClick={() => { setCoverage(null); setError(""); }}>取消</Button>
+                    </div>
+                  ) : <Button disabled={!!busy} onClick={async () => {
+                    setBusy(a.id); setError("");
+                    try { const review = await api.getPlatformCostReview!(a.id); setCoverage({review, operation:newOperationId()}); }
+                    catch(e) { setError(e instanceof Error ? e.message : "核对失败，请刷新后重试"); }
+                    finally { setBusy(""); }
+                  }}>由平台承担并结案</Button>
                 )}
                 <details>
                   <summary>技术信息</summary>
                   <p>
                     对象 {a.object} · 类型 {a.kind || "未提供"} · 记录 {a.id}
                   </p>
-                  {a.technicalMessage !== a.message && <p>{a.technicalMessage}</p>}
+                  {a.technicalMessage !== a.message && (
+                    <p>{a.technicalMessage}</p>
+                  )}
                 </details>
               </div>
             </article>
@@ -329,7 +283,7 @@ export function AuditPage({ api }: { api: AdminApi }) {
       {state.phase === "ready" &&
         state.data.items.map((a) => (
           <div className="audit-row" key={a.id}>
-            {formatBeijingTime(a.at)} · {a.actor} · {a.action} · {a.detail} ·{" "}
+            {formatBeijingTime(a.at)} · {a.actor} · {a.action === "platform-cost-cover" ? "平台承担未知费用并结案" : a.action} · {a.detail} ·{" "}
             {a.operationId}
           </div>
         ))}

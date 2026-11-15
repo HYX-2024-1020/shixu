@@ -96,3 +96,8 @@ APNG解析/合成代码及apng-animation.png、apng-poster.png图案为项目自
 # 已安装控制台运行时
 
 Windows 控制台将本机 Node.js 24 运行文件与当前静态页面一起固定打包，二进制版本、逐文件 SHA-256 及安装来源记录在 `installation-manifest.json`。构建器从 [Node.js 官方源](https://github.com/nodejs/node)中对应运行时版本的 `LICENSE` 获取完整许可，随包保存在 `notices/Node-LICENSE.txt`；不将 Node.js 及其内置组件声明为本项目 MIT。沿用的 Noto Sans SC、Space Grotesk 字体原件及两份 SIL OFL 同步随包保留，不修改字体或许可证。
+
+
+## 第三轮新增原创皮肤（2026-11-15）
+
+`public/capybara.webp`（慢慢水豚）与`public/owl.webp`（知更猫头鹰）由本项目使用OpenAI内置imagegen生成，非第三方角色/素材下载；原始透明PNG通过机械缩放和WebP编码生成512px交付资源，透明通道保留，小程序由mini:build逐字节复制。生成提示与验证见[实施记录](docs/project-continuity/acceptance-round3-repair-20261115.md)。项目按自身MIT条款提供这两份生成素材，不据此承诺生成内容在所有法域具备排他著作权，不扩写为旧角色已完成来源许可审计。两款使用安静的现有动作互动，没有挪用旧角色音频。

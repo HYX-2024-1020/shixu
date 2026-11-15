@@ -4,11 +4,13 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { PDF_RESOURCE_CATALOG } from "../server/reading/pdf-resource-catalog.mjs";
+import { LEDGER_CORE_SCHEMA } from "../server/database-schemas.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const files = [
   "server/admin-service.mjs",
   "server/admin-backend.mjs",
+  "server/admin-risk.mjs",
   "server/cloud-operations.mjs",
   "server/cloud-backup.mjs",
   "server/reading/price-calendar.mjs",
@@ -32,7 +34,7 @@ const files = [
   "server/reading/archive.mjs", "server/reading/archive-window.mjs",
   "server/reading/native-archive.mjs",
   "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/apng.mjs", "server/reading/webp.mjs",
-  "server/reading/provider-receipts.mjs", "server/reading/schema.mjs", "server/reading/window-safety.mjs", "server/reading/window-maintenance.mjs",
+  "server/reading/provider-receipts.mjs", "server/reading/platform-cost.mjs", "server/reading/schema.mjs", "server/reading/window-safety.mjs", "server/reading/window-maintenance.mjs",
   "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
   "server/reading/root-safety.mjs",
   "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs", "server/reading/time-maintenance.mjs", "server/reading/checkpoint-maintenance.mjs",
@@ -130,7 +132,7 @@ export async function buildRelease(output) {
       {
         version: JSON.parse(await readFile(join(root, "package.json"), "utf8"))
           .version,
-        ledgerCoreVersion: 8,
+        ledgerCoreVersion: LEDGER_CORE_SCHEMA.at(-1).version,
         releaseId,
         createdAt: new Date().toISOString(),
         sourceRevision: revision,

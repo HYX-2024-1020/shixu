@@ -19,6 +19,10 @@ test("installed assets proxy real authentication, CSRF, controls and failure wit
     join(root, "console-icon.svg"),
     '<svg xmlns="http://www.w3.org/2000/svg"><text>序</text></svg>',
   );
+  await writeFile(
+    join(root, "console-xu-v2.ico"),
+    Buffer.from([0, 0, 1, 0, 1, 0]),
+  );
   let writes = 0;
   const password = "synthetic-admin-password",
     service = createAdminService({
@@ -44,6 +48,13 @@ test("installed assets proxy real authentication, CSRF, controls and failure wit
   assert.equal(icon.status, 200);
   assert.match(icon.headers.get("content-type"), /image\/svg/);
   assert.match(await icon.text(), /序/);
+  const raster = await fetch(origin + "/console-xu-v2.ico");
+  assert.equal(raster.status, 200);
+  assert.equal(raster.headers.get("content-type"), "image/x-icon");
+  assert.deepEqual(
+    Buffer.from(await raster.arrayBuffer()),
+    Buffer.from([0, 0, 1, 0, 1, 0]),
+  );
   t.after(async () => {
     await gateway.close();
     await service.close();

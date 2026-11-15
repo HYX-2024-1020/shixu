@@ -1,3 +1,5 @@
+import AccountConnection from "./AccountConnection";
+import { errorMessage } from "./error-message";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -16,7 +18,7 @@ import {
   validateResult,
 } from "../../shared/bucket-engine.mjs";
 import { localDate } from "../organize";
-import { applyChatProposals } from "./chat-proposals";
+import { applyChatChanges } from "./chat-creations";
 import {
   allPackets,
   putPacket,
@@ -103,7 +105,7 @@ function message(error: unknown) {
       return "整理超时，原文和附件已经保留，可以重试";
     if (error instanceof TypeError)
       return "暂时连不上服务，内容已经保留，请检查网络后重试";
-    return error.message;
+    return errorMessage(error);
   }
   return "暂时没整理好，内容已经保留";
 }
@@ -150,8 +152,11 @@ export default function BucketApp() {
     else reveal();
   }
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [firstUse, setFirstUse] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudActive, setCloudActive] = useState(false);
+  const [stoppingPacket, setStoppingPacket] = useState(false);
   const [cloudUsage, setCloudUsage] =
     useState<
       NonNullable<
@@ -212,6 +217,17 @@ export default function BucketApp() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
+  useEffect(() => {
+    if (!loaded || !window.desktop) return;
+    void window.desktop
+      .cloud("sync")
+      .then((state) => {
+        if (state.base && !state.materialConsentAccepted) setSettings(true);
+        if (!state.base && !localStorage.getItem("shixu.local-onboarding"))
+          setFirstUse(true);
+      })
+      .catch(() => {});
+  }, [loaded]);
   useEffect(() => {
     if (!loaded || !window.desktop) return;
     let stopped = false,
@@ -297,9 +313,19 @@ export default function BucketApp() {
             throw Error("请先处理同步冲突，再确认跨卡片修改");
         }
         const current = await allPackets();
-        const changes = applyChatProposals(current, packetId, itemId);
-        await saveMany(changes);
-        notify("已确认保存跨卡片修改；同步状态可在设置中核对。");
+        const owner = current.find(p => p.id === packetId);
+        const meta = owner?.itemState?.[itemId];
+        const creation = meta?.chatCreations;
+        const proposal = creation || meta?.chatProposals;
+        if (!proposal) throw Error("建议已失效，请刷新核对");
+        if (window.desktop && (await window.desktop.cloud("status")).base) {
+          const targets = creation ? [{ packetId: creation.packetId, itemId: creation.itemId }] : meta!.chatProposals!.items;
+          const allTargets = [...targets, { packetId, itemId }];
+          await window.desktop.cloud("cardOperation", { kind: "apply-chat", ownerPacket: packetId, ownerItem: itemId, proposalId: proposal.id,
+            targets: [...new Map(allTargets.map(t => [t.packetId, { packetId: t.packetId, itemId: t.itemId, baseVersion: current.find(p => p.id === t.packetId)?.syncVersion }])).values()] });
+          const rows = await allPackets(); packetsRef.current = rows; setPackets(rows);
+        } else await saveMany(applyChatChanges(current, packetId, itemId, proposal.id));
+        notify("已确认保存卡片修改，原件与来源保留。");
       } finally {
         chatLocks.current.delete(packetId);
       }
@@ -345,12 +371,20 @@ export default function BucketApp() {
       packetId: string;
       itemId?: string;
       instruction?: string;
-      scope?: "item" | "account";
+      scope?: "item" | "account" | "packet" | "group" | "selected";
+      groupId?: string;
+      targets?: { packetId: string; itemId: string }[];
       readAttachments?: boolean;
     },
     wait = false,
   ): Promise<Packet[]> {
-    const state = await window.desktop!.cloud("ai", value);
+    let state;
+    try {
+      state = await window.desktop!.cloud("ai", value);
+    } catch (error) {
+      if ((error as Error).message.includes("资料用途")) setSettings(true);
+      throw error;
+    }
     if (wait) {
       const deadline = Date.now() + 245000;
       for (;;) {
@@ -381,14 +415,20 @@ export default function BucketApp() {
     const rows = await allPackets();
     packetsRef.current = rows;
     setPackets(rows);
-    if (!wait) notify("任务已保存，结果就绪后会同步；请在设置中查看 AI 状态");
+    if (!wait)
+      notify("任务已保存，结果就绪后会同步；请在世界的整理任务中查看状态");
     return rows;
   }
   async function editWithAI(
     packetId: string,
     itemId: string,
     instruction: string,
-    options?: { scope: "item" | "account"; readAttachments: boolean },
+    options?: {
+      scope: "item" | "account" | "packet" | "group" | "selected";
+      readAttachments: boolean;
+      groupId?: string;
+      targets?: { packetId: string; itemId: string }[];
+    },
   ): Promise<ItemState> {
     if (window.desktop) {
       if (chatLocks.current.has(packetId))
@@ -1053,16 +1093,20 @@ export default function BucketApp() {
     if (!files) return;
     const next = [...attachments];
     for (const file of Array.from(files)) {
-      if (file.size > 32 * 1024 * 1024) {
-        notify(`${file.name} 超过32MB`);
+      const cloud = !!window.desktop && cloudActive;
+      if (file.size > (cloud ? 10 : 32) * 1024 * 1024) {
+        notify(`${file.name} 超过${cloud ? 10 : 32} MiB，请选择较小的文件`);
         continue;
       }
       if (next.length >= 8) {
         notify("一次最多放入8个附件");
         break;
       }
-      if (next.reduce((n, a) => n + a.size, 0) + file.size > 96 * 1024 * 1024) {
-        notify("这一组附件合计不能超过96MB");
+      if (
+        next.reduce((n, a) => n + a.size, 0) + file.size >
+        (cloud ? 20 : 96) * 1024 * 1024
+      ) {
+        notify(`这一组附件合计不能超过${cloud ? 20 : 96} MiB`);
         break;
       }
       if (file.name.length > 200) {
@@ -1355,7 +1399,7 @@ export default function BucketApp() {
     ]);
     textarea.current?.focus();
   }
-  const visible = packets.filter((p) => !p.deletedAt),
+  const visible = packets.filter((p) => !p.deletedAt && !p.worldLayout),
     waiting = visible.filter(
       (p) => p.status === "pending" || p.status === "processing",
     ).length;
@@ -1364,371 +1408,385 @@ export default function BucketApp() {
     visible.find(
       (p) => !p.result && ["error", "processing", "pending"].includes(p.status),
     );
+  useEffect(() => {
+    if (currentCapture?.id && !currentCaptureId)
+      setCurrentCaptureId(currentCapture.id);
+  }, [currentCapture?.id, currentCaptureId]);
   const receipts = useMemo(
     () => (
       <section className="delivery-receipts" aria-label="整理回执">
-        {visible.slice(0, receiptLimit).map((p) => (
-          <article className="delivery-receipt" key={p.id}>
-            <span className="receipt-time">
-              {new Date(p.capturedAt).toLocaleDateString("zh-CN", {
-                month: "short",
-                day: "numeric",
-              })}
-            </span>
-            <h2>
-              {p.status === "ready"
-                ? p.coverage?.some((c) => c.state === "failed")
-                  ? "部分完成 · 有未读内容"
-                  : "整理完成"
-                : p.status === "error"
-                  ? "整理未完成"
-                  : workingId === p.id
-                    ? progress || "正在整理"
-                    : "已保存，等待连接后整理"}
-            </h2>
-            {!!p.coverage?.length && (
-              <>
-                <p>
-                  读取成功 {p.coverage.filter((c) => c.state === "read").length}{" "}
-                  处 · 未读{" "}
-                  {p.coverage.filter((c) => c.state === "failed").length} 处
-                </p>
-                <details>
-                  <summary>附件与包内文件读取清单</summary>
-                  {p.coverage.map((c, i) => (
-                    <p key={i}>
-                      {c.state === "read" ? "✓" : "未读"} {c.name}：{c.detail}
-                    </p>
-                  ))}
-                </details>
-              </>
-            )}
-            {p.status === "ready" &&
-              (p.coverage?.some((c) => c.state === "failed") ||
-                (p.organizedSourceIds &&
-                  p.sources.some(
-                    (s) => !p.organizedSourceIds!.includes(s.id),
-                  ))) && (
-                <button
-                  onClick={() =>
-                    void save({
-                      ...p,
-                      status: "pending",
-                      retryUnread: true,
-                    })
-                  }
-                >
-                  重试未读内容（保留已有修正）
-                </button>
-              )}
-            <p>
-              {p.result?.summary ||
-                p.error ||
-                p.text.slice(0, 160) ||
-                p.attachments.map((a) => a.name).join("、")}
-            </p>
-            {p.result && (
-              <>
-                {p.receipt && (
+        {visible
+          .filter((p) => !p.worldLayout)
+          .slice(0, receiptLimit)
+          .map((p) => (
+            <article className="delivery-receipt" key={p.id}>
+              <span className="receipt-time">
+                {new Date(p.capturedAt).toLocaleDateString("zh-CN", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+              <h2>
+                {p.status === "ready"
+                  ? p.coverage?.some((c) => c.state === "failed")
+                    ? "部分完成 · 有未读内容"
+                    : "整理完成"
+                  : p.status === "error"
+                    ? "整理未完成"
+                    : workingId === p.id
+                      ? progress || "正在整理"
+                      : "已保存，等待连接后整理"}
+              </h2>
+              {!!p.coverage?.length && (
+                <>
                   <p>
-                    新增 {p.receipt.created} 条事项 · 更新 {p.receipt.updated}{" "}
-                    次 · 合并 {p.receipt.merged} 份补充材料
-                    {p.receipt.lastAction && `；${p.receipt.lastAction}`}
+                    读取成功{" "}
+                    {p.coverage.filter((c) => c.state === "read").length} 处 ·
+                    未读 {p.coverage.filter((c) => c.state === "failed").length}{" "}
+                    处
                   </p>
+                  <details>
+                    <summary>附件与包内文件读取清单</summary>
+                    {p.coverage.map((c, i) => (
+                      <p key={i}>
+                        {c.state === "read" ? "✓" : "未读"} {c.name}：{c.detail}
+                      </p>
+                    ))}
+                  </details>
+                </>
+              )}
+              {p.status === "ready" &&
+                (p.coverage?.some((c) => c.state === "failed") ||
+                  (p.organizedSourceIds &&
+                    p.sources.some(
+                      (s) => !p.organizedSourceIds!.includes(s.id),
+                    ))) && (
+                  <button
+                    onClick={() =>
+                      void save({
+                        ...p,
+                        status: "pending",
+                        retryUnread: true,
+                      })
+                    }
+                  >
+                    重试未读内容（保留已有修正）
+                  </button>
                 )}
-                <p>
-                  {Object.entries(categories)
-                    .map(([k, label]) => {
-                      const count = p.result!.items.filter(
-                        (i) => i.kind === k,
-                      ).length;
-                      return count ? `${count} 条${label}` : "";
-                    })
-                    .filter(Boolean)
-                    .join(" · ") || "未生成独立事项，原文保留"}
-                </p>
-                <button
-                  onClick={() => {
-                    goWorkspace("results", p.id);
-                  }}
-                >
-                  查看这次整理出的内容
-                </button>
-              </>
-            )}
-            {!!p.proposedItems?.length && (
-              <details open>
-                <summary>补充整理结果 · {p.proposedItems.length} 条</summary>
-                <p>
-                  为避免重复事项，补充读取不会自动新增或覆盖。请选择新增、补充到已有事项，或忽略。
-                </p>
-                {p.proposedItems.map((item, i) => (
-                  <form
-                    className="proposal-form"
-                    key={i}
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const data = new FormData(e.currentTarget);
-                      await resolveProposal(
-                        p,
-                        i,
-                        String(data.get("target")),
-                        data.get("date") === "on",
-                      );
+              <p>
+                {p.result?.summary ||
+                  p.error ||
+                  p.text.slice(0, 160) ||
+                  p.attachments.map((a) => a.name).join("、")}
+              </p>
+              {p.result && (
+                <>
+                  {p.receipt && (
+                    <p>
+                      新增 {p.receipt.created} 条事项 · 更新 {p.receipt.updated}{" "}
+                      次 · 合并 {p.receipt.merged} 份补充材料
+                      {p.receipt.lastAction && `；${p.receipt.lastAction}`}
+                    </p>
+                  )}
+                  <p>
+                    {Object.entries(categories)
+                      .map(([k, label]) => {
+                        const count = p.result!.items.filter(
+                          (i) => i.kind === k,
+                        ).length;
+                        return count ? `${count} 条${label}` : "";
+                      })
+                      .filter(Boolean)
+                      .join(" · ") || "未生成独立事项，原文保留"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      goWorkspace("results", p.id);
                     }}
                   >
-                    <fieldset
-                      className="result-body"
-                      disabled={p.status !== "ready"}
+                    查看这次整理出的内容
+                  </button>
+                </>
+              )}
+              {!!p.proposedItems?.length && (
+                <details open>
+                  <summary>补充整理结果 · {p.proposedItems.length} 条</summary>
+                  <p>
+                    为避免重复事项，补充读取不会自动新增或覆盖。请选择新增、补充到已有事项，或忽略。
+                  </p>
+                  {p.proposedItems.map((item, i) => (
+                    <form
+                      className="proposal-form"
+                      key={i}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const data = new FormData(e.currentTarget);
+                        await resolveProposal(
+                          p,
+                          i,
+                          String(data.get("target")),
+                          data.get("date") === "on",
+                        );
+                      }}
                     >
-                      <h3>{item.title}</h3>
+                      <fieldset
+                        className="result-body"
+                        disabled={p.status !== "ready"}
+                      >
+                        <h3>{item.title}</h3>
+                        <p>{item.summary}</p>
+                        <p>
+                          来源：
+                          {item.sourceIds
+                            .map(
+                              (id) =>
+                                p.sources.find((s) => s.id === id)?.name || id,
+                            )
+                            .join("、")}
+                        </p>
+                        {item.due && (
+                          <p>
+                            补充材料日期：{item.due.date} {item.due.time} ·{" "}
+                            {item.due.anchor}
+                          </p>
+                        )}
+                        <label>
+                          处理方式
+                          <select name="target" required>
+                            <option value="">选择如何处理</option>
+                            <option value="new">新增一个独立事项</option>
+                            {p.result?.items.map((existing, index) => (
+                              <option
+                                key={p.itemIds?.[index] || index}
+                                value={p.itemIds?.[index] || `${p.id}:${index}`}
+                              >
+                                补充到：{existing.title}
+                              </option>
+                            ))}
+                            <option value="discard">
+                              忽略此候选，保留材料
+                            </option>
+                          </select>
+                        </label>
+                        {item.due && (
+                          <label>
+                            <input name="date" type="checkbox" />
+                            补充到已有事项时，采用本次材料中的日期
+                          </label>
+                        )}
+                        <button type="submit">确认处理</button>
+                      </fieldset>
+                    </form>
+                  ))}
+                </details>
+              )}
+              {p.result && (
+                <details>
+                  <summary>本次事项与关键要求</summary>
+                  <p>
+                    本次共 {p.result.items.length} 条事项；人工修正保持有效。
+                    {p.error}
+                  </p>
+                  {p.result.items.map((item, i) => (
+                    <div className="receipt-item" key={p.itemIds?.[i] || i}>
+                      <h3>
+                        {categories[item.kind]} · {item.title}
+                      </h3>
                       <p>{item.summary}</p>
-                      <p>
-                        来源：
-                        {item.sourceIds
-                          .map(
-                            (id) =>
-                              p.sources.find((s) => s.id === id)?.name || id,
-                          )
-                          .join("、")}
-                      </p>
+                      {!!item.facts.length && (
+                        <p>原文要求：{item.facts.join("；")}</p>
+                      )}
                       {item.due && (
                         <p>
-                          补充材料日期：{item.due.date} {item.due.time} ·{" "}
+                          日期：{item.due.date} {item.due.time} · 依据：
                           {item.due.anchor}
                         </p>
                       )}
-                      <label>
-                        处理方式
-                        <select name="target" required>
-                          <option value="">选择如何处理</option>
-                          <option value="new">新增一个独立事项</option>
-                          {p.result?.items.map((existing, index) => (
-                            <option
-                              key={p.itemIds?.[index] || index}
-                              value={p.itemIds?.[index] || `${p.id}:${index}`}
-                            >
-                              补充到：{existing.title}
-                            </option>
-                          ))}
-                          <option value="discard">忽略此候选，保留材料</option>
-                        </select>
-                      </label>
-                      {item.due && (
-                        <label>
-                          <input name="date" type="checkbox" />
-                          补充到已有事项时，采用本次材料中的日期
-                        </label>
-                      )}
-                      <button type="submit">确认处理</button>
-                    </fieldset>
-                  </form>
-                ))}
-              </details>
-            )}
-            {p.result && (
-              <details>
-                <summary>本次事项与关键要求</summary>
-                <p>
-                  本次共 {p.result.items.length} 条事项；人工修正保持有效。
-                  {p.error}
-                </p>
-                {p.result.items.map((item, i) => (
-                  <div className="receipt-item" key={p.itemIds?.[i] || i}>
-                    <h3>
-                      {categories[item.kind]} · {item.title}
-                    </h3>
-                    <p>{item.summary}</p>
-                    {!!item.facts.length && (
-                      <p>原文要求：{item.facts.join("；")}</p>
-                    )}
-                    {item.due && (
                       <p>
-                        日期：{item.due.date} {item.due.time} · 依据：
-                        {item.due.anchor}
+                        重要程度初判：
+                        {["低", "普通", "高"][item.importance ?? 1]} ·{" "}
+                        {item.importanceReason || "暂无明确依据"}
                       </p>
-                    )}
-                    <p>
-                      重要程度初判：
-                      {["低", "普通", "高"][item.importance ?? 1]} ·{" "}
-                      {item.importanceReason || "暂无明确依据"}
-                    </p>
-                  </div>
-                ))}
-              </details>
-            )}
-            {!!p.sources.filter((s) => s.id !== "input").length && (
-              <details>
-                <summary>核对 / 修正提取与识别文字</summary>
-                <p>
-                  以下为提取文字或识别转写。原件保持不变；已有事项需要你在整理结果中纠正，也可按修正材料另存一次投递重新整理。
-                </p>
-                {p.sources
-                  .filter((s) => s.id !== "input")
-                  .map((s) => (
-                    <details key={s.id}>
-                      <summary>{s.name}</summary>
-                      <form
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          const data = new FormData(e.currentTarget);
-                          await save({
-                            ...p,
-                            sources: p.sources.map((source) =>
-                              source.id === s.id
-                                ? {
-                                    ...source,
-                                    originalText:
-                                      source.originalText || source.text,
-                                    text: String(data.get("transcript") || ""),
-                                  }
-                                : source,
-                            ),
-                          });
-                          notify("修正文字已保存；原件和首次转写保留");
-                        }}
-                      >
-                        <textarea
-                          name="transcript"
-                          disabled={
-                            p.status === "processing" || p.status === "pending"
-                          }
-                          aria-label={`修正 ${s.name}`}
-                          defaultValue={s.text}
-                          required
-                          maxLength={120000}
-                          style={{ width: "100%", minHeight: 180 }}
-                        />
-                        <button
-                          type="submit"
-                          disabled={
-                            p.status === "processing" || p.status === "pending"
-                          }
-                        >
-                          保存转写修正
-                        </button>
-                      </form>
-                      {s.originalText && (
-                        <details>
-                          <summary>首次提取 / 识别版本</summary>
-                          <pre>{s.originalText}</pre>
-                        </details>
-                      )}
-                    </details>
-                  ))}
-                <button
-                  disabled={p.status === "processing"}
-                  onClick={async () => {
-                    const next = {
-                      ...p,
-                      id: crypto.randomUUID(),
-                      result: null,
-                      proposedItems: undefined,
-                      itemIds: undefined,
-                      itemState: undefined,
-                      doneIds: [],
-                      association: undefined,
-                      organizedSourceIds: undefined,
-                      retryUnread: false,
-                      status: "pending" as const,
-                      deletedAt: undefined,
-                      updatedAt: new Date().toISOString(),
-                      capturedAt: new Date().toISOString(),
-                    };
-                    await save(next);
-                    notify(
-                      "已另存一次投递，将按原投递日期理解相对时间；原有事项保留",
-                    );
-                  }}
-                >
-                  按修正材料另存一次投递并整理
-                </button>
-              </details>
-            )}
-            {p.association?.links.length ? (
-              <p>
-                关联到已有事项 {p.association.links.length} 处。
-                <button
-                  onClick={() =>
-                    void save({
-                      ...p,
-                      association: {
-                        state: "ready",
-                        links: [],
-                        warnings: ["用户撤销了本次自动关联"],
-                      },
-                    })
-                  }
-                >
-                  撤销本次关联
-                </button>
-              </p>
-            ) : null}
-            {!!p.association?.links.length && (
-              <details>
-                <summary>关联去向与变更依据</summary>
-                {p.association.links.map((link) => {
-                  const target = linkedItems.get(link.target),
-                    from = linkedItems.get(link.from);
-                  return (
-                    <div key={link.id}>
-                      <p>
-                        {from?.item.title || "本次事项"} →{" "}
-                        {target?.item.title || "目标已删除或暂不可用"} ·{" "}
-                        {link.relation === "same"
-                          ? "同一事项的补充材料"
-                          : "相关事项"}
-                      </p>
-                      <p>
-                        {link.title}
-                        ；原始日期和来源分别保留，人工修正不会被自动覆盖。
-                      </p>
-                      {target && (
-                        <button
-                          onClick={() =>
-                            goWorkspace("results", target.packet.id)
-                          }
-                        >
-                          查看关联去向
-                        </button>
-                      )}
                     </div>
-                  );
-                })}
-              </details>
-            )}
-            {p.association?.state === "error" && (
-              <p>
-                跨次关联尚未完成：{p.association.warnings.join("；")}
-                <button
-                  onClick={() =>
-                    void save({
-                      ...p,
-                      association: { ...p.association!, state: "pending" },
-                    })
-                  }
-                >
-                  仅重试关联
-                </button>
-              </p>
-            )}
-            <details>
-              <summary>原文、遗漏与操作</summary>
-              <DeliverySources packet={p} save={save} notify={notify} />
-              <p>
-                已提取来源 {p.sources.filter((s) => s.id !== "input").length}{" "}
-                个；
-                {p.error ||
-                  p.result?.warnings.join("；") ||
-                  "请核对原文与日期，模型可能有遗漏。"}
-              </p>
-              {p.status === "error" && (
-                <button onClick={() => void retry(p)}>重试整理</button>
+                  ))}
+                </details>
               )}
-              <button onClick={() => void erase(p)}>删除整次投递</button>
-            </details>
-          </article>
-        ))}
+              {!!p.sources.filter((s) => s.id !== "input").length && (
+                <details>
+                  <summary>核对 / 修正提取与识别文字</summary>
+                  <p>
+                    以下为提取文字或识别转写。原件保持不变；已有事项需要你在整理结果中纠正，也可按修正材料另存一次投递重新整理。
+                  </p>
+                  {p.sources
+                    .filter((s) => s.id !== "input")
+                    .map((s) => (
+                      <details key={s.id}>
+                        <summary>{s.name}</summary>
+                        <form
+                          onSubmit={async (e) => {
+                            e.preventDefault();
+                            const data = new FormData(e.currentTarget);
+                            await save({
+                              ...p,
+                              sources: p.sources.map((source) =>
+                                source.id === s.id
+                                  ? {
+                                      ...source,
+                                      originalText:
+                                        source.originalText || source.text,
+                                      text: String(
+                                        data.get("transcript") || "",
+                                      ),
+                                    }
+                                  : source,
+                              ),
+                            });
+                            notify("修正文字已保存；原件和首次转写保留");
+                          }}
+                        >
+                          <textarea
+                            name="transcript"
+                            disabled={
+                              p.status === "processing" ||
+                              p.status === "pending"
+                            }
+                            aria-label={`修正 ${s.name}`}
+                            defaultValue={s.text}
+                            required
+                            maxLength={120000}
+                            style={{ width: "100%", minHeight: 180 }}
+                          />
+                          <button
+                            type="submit"
+                            disabled={
+                              p.status === "processing" ||
+                              p.status === "pending"
+                            }
+                          >
+                            保存转写修正
+                          </button>
+                        </form>
+                        {s.originalText && (
+                          <details>
+                            <summary>首次提取 / 识别版本</summary>
+                            <pre>{s.originalText}</pre>
+                          </details>
+                        )}
+                      </details>
+                    ))}
+                  <button
+                    disabled={p.status === "processing"}
+                    onClick={async () => {
+                      const next = {
+                        ...p,
+                        id: crypto.randomUUID(),
+                        result: null,
+                        proposedItems: undefined,
+                        itemIds: undefined,
+                        itemState: undefined,
+                        doneIds: [],
+                        association: undefined,
+                        organizedSourceIds: undefined,
+                        retryUnread: false,
+                        status: "pending" as const,
+                        deletedAt: undefined,
+                        updatedAt: new Date().toISOString(),
+                        capturedAt: new Date().toISOString(),
+                      };
+                      await save(next);
+                      notify(
+                        "已另存一次投递，将按原投递日期理解相对时间；原有事项保留",
+                      );
+                    }}
+                  >
+                    按修正材料另存一次投递并整理
+                  </button>
+                </details>
+              )}
+              {p.association?.links.length ? (
+                <p>
+                  关联到已有事项 {p.association.links.length} 处。
+                  <button
+                    onClick={() =>
+                      void save({
+                        ...p,
+                        association: {
+                          state: "ready",
+                          links: [],
+                          warnings: ["用户撤销了本次自动关联"],
+                        },
+                      })
+                    }
+                  >
+                    撤销本次关联
+                  </button>
+                </p>
+              ) : null}
+              {!!p.association?.links.length && (
+                <details>
+                  <summary>关联去向与变更依据</summary>
+                  {p.association.links.map((link) => {
+                    const target = linkedItems.get(link.target),
+                      from = linkedItems.get(link.from);
+                    return (
+                      <div key={link.id}>
+                        <p>
+                          {from?.item.title || "本次事项"} →{" "}
+                          {target?.item.title || "目标已删除或暂不可用"} ·{" "}
+                          {link.relation === "same"
+                            ? "同一事项的补充材料"
+                            : "相关事项"}
+                        </p>
+                        <p>
+                          {link.title}
+                          ；原始日期和来源分别保留，人工修正不会被自动覆盖。
+                        </p>
+                        {target && (
+                          <button
+                            onClick={() =>
+                              goWorkspace("results", target.packet.id)
+                            }
+                          >
+                            查看关联去向
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </details>
+              )}
+              {p.association?.state === "error" && (
+                <p>
+                  跨次关联尚未完成：{p.association.warnings.join("；")}
+                  <button
+                    onClick={() =>
+                      void save({
+                        ...p,
+                        association: { ...p.association!, state: "pending" },
+                      })
+                    }
+                  >
+                    仅重试关联
+                  </button>
+                </p>
+              )}
+              <details>
+                <summary>原文、遗漏与操作</summary>
+                <DeliverySources packet={p} save={save} notify={notify} />
+                <p>
+                  已提取来源 {p.sources.filter((s) => s.id !== "input").length}{" "}
+                  个；
+                  {p.error ||
+                    p.result?.warnings.join("；") ||
+                    "请核对原文与日期，模型可能有遗漏。"}
+                </p>
+                {p.status === "error" && (
+                  <button onClick={() => void retry(p)}>重试整理</button>
+                )}
+                <button onClick={() => void erase(p)}>删除整次投递</button>
+              </details>
+            </article>
+          ))}
         {visible.length > receiptLimit && (
           <button onClick={() => setReceiptLimit((n) => n + 20)}>
             再显示 20 次投递（共 {visible.length} 次）
@@ -1872,6 +1930,8 @@ export default function BucketApp() {
             skin={activeSkin}
             reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
+            onTasks={window.desktop ? () => setTasksOpen(true) : undefined}
+            saveMany={saveMany}
             onRetry={retry}
             onApplyProposals={confirmChatProposals}
             onChat={editWithAI}
@@ -1884,6 +1944,25 @@ export default function BucketApp() {
           />
         </div>
         <div hidden={workspace !== "capture"}>
+          {firstUse && (
+            <aside className="bucket-onboarding" aria-label="首次使用拾序">
+              <b>先认识你的拾序空间</b>
+              <p>
+                首次注册或使用已有账号登录后，可继续确认AI资料用途与原件期限。也可以先在本机手动记录。
+              </p>
+              <button onClick={() => setSettings(true)}>
+                注册 / 已有账号登录
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem("shixu.local-onboarding", "local");
+                  setFirstUse(false);
+                }}
+              >
+                先用本机手动记录
+              </button>
+            </aside>
+          )}
           {DEMO && (
             <div className="bucket-demo-note">
               <span>示例空间 · 虚构内容，与个人资料隔离</span>
@@ -2134,36 +2213,82 @@ export default function BucketApp() {
                         "正在整理这次的材料…"
                       : !online
                         ? "已收好，联网后继续整理"
-                        : !apiKey && !health?.modelReady
+                        : !apiKey && !health?.modelReady && !cloudReady
                           ? "已收好，连接后开始整理"
                           : "已收好，等它消化一下…"}
                   </span>
+                  {window.desktop && cloudActive && (
+                    <button
+                      disabled={stoppingPacket}
+                      onClick={async () => {
+                        if (stoppingPacket) return;
+                        if (
+                          !confirm(
+                            "停止本次整理？原材料和已完成内容保留；已发出的调用仍可能结算费用，不会自动重试。",
+                          )
+                        )
+                          return;
+                        setStoppingPacket(true);
+                        try {
+                          await window.desktop!.cloud("stopPacket", {
+                            packetId: currentCapture.id,
+                          });
+                          const rows = await allPackets();
+                          packetsRef.current = rows;
+                          setPackets(rows);
+                          notify("本次整理已停止，原材料保留");
+                        } catch (e) {
+                          notify(message(e));
+                        } finally {
+                          setStoppingPacket(false);
+                        }
+                      }}
+                    >
+                      {stoppingPacket ? "正在停止…" : "停止本次整理"}
+                    </button>
+                  )}
                 </div>
               )}
-              {currentCapture.status === "error" && (
-                <div className="current-delivery-status" role="status">
-                  <span>
-                    原样材料已保存，AI尚未完成整理。
-                    {currentCapture.error || "这次没整理完，材料已经收好。"}
-                  </span>
+              {currentCapture.status === "error" && workspace === "capture" && (
+                <div className="current-failed-material">
+                  <p>
+                    原样材料已保存，本次未完成整理。请选择保留、删除或重试；只有重试可能新增AI费用。
+                  </p>
                   <button
                     onClick={() => goWorkspace("results", currentCapture.id)}
                   >
                     查看原样材料
                   </button>
-                  <button onClick={() => void retry(currentCapture)}>
-                    重试
-                  </button>
+                  <Results
+                    skin={activeSkin}
+                    compact
+                    packets={[currentCapture]}
+                    save={save}
+                    reorder={reorderCards}
+                    onRecords={() => setRecordsOpen(true)}
+                    onChat={editWithAI}
+                    saveMany={saveMany}
+                    focusPacket=""
+                    onFocusConsumed={clearFocus}
+                    notify={notify}
+                    purge={purgePacket}
+                    onRetry={retry}
+                  />
                 </div>
               )}
               {currentCapture.result &&
+                workspace === "capture" &&
                 (currentCapture.result.items.length ? (
                   <Results
                     skin={activeSkin}
                     key={currentCapture.id}
                     compact
                     reorder={reorderCards}
+                    saveMany={saveMany}
                     onRecords={() => setRecordsOpen(true)}
+                    onTasks={
+                      window.desktop ? () => setTasksOpen(true) : undefined
+                    }
                     onChat={editWithAI}
                     onApplyProposals={confirmChatProposals}
                     packets={[currentCapture]}
@@ -2213,6 +2338,16 @@ export default function BucketApp() {
           <span>脑袋放轻一点。</span>
         </footer>
       </main>
+      {tasksOpen && window.desktop && (
+        <AccountConnection
+          mode="tasks"
+          canSwitch={() =>
+            !working.current && !submitLock.current && !chatLocks.current.size
+          }
+          onClose={() => setTasksOpen(false)}
+          notify={notify}
+        />
+      )}
       {recordsOpen && (
         <ItemDialog label="整理记录" onClose={() => setRecordsOpen(false)}>
           {receipts}

@@ -221,6 +221,8 @@ export const LEDGER_CORE_SCHEMA = [
 CREATE TRIGGER reading_budget_changes_no_update BEFORE UPDATE ON reading_budget_changes BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;
 CREATE TRIGGER reading_budget_changes_no_delete BEFORE DELETE ON reading_budget_changes BEGIN SELECT RAISE(ABORT,'APPEND_ONLY');END;`,
   },
+  // Older binaries cannot honor platform coverage; fence their billing writes.
+  { version: 9, sql: "" },
 ];
 export const LEDGER_COST_SCHEMA = [
   {

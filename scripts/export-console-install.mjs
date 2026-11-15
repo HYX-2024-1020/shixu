@@ -105,8 +105,8 @@ for (const name of ["Cloud-Start.vbs", "Launch.vbs"])
   );
 add(
   "console",
-  "console-xu-v1.ico",
-  readFileSync(join(app, "console-xu-v1.ico")),
+  "console-xu-v2.ico",
+  readFileSync(join(root, "public", "console-xu-v2.ico")),
 );
 for (const name of [
   "connection.json",

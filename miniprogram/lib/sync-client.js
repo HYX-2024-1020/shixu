@@ -30,11 +30,11 @@ function merge(before, patch, id) {
     next.itemState = Object.assign({}, before && before.itemState);
     Object.keys(patch.itemState).forEach((itemId) => {
       if (!isId(itemId)) throw issue("INVALID_DATA", "事项 ID 无效");
-      next.itemState[itemId] = Object.assign(
-        {},
-        next.itemState[itemId],
-        patch.itemState[itemId],
-      );
+      const purgedAt =
+        next.itemState[itemId]?.purgedAt || patch.itemState[itemId]?.purgedAt;
+      next.itemState[itemId] = purgedAt
+        ? { purgedAt }
+        : Object.assign({}, next.itemState[itemId], patch.itemState[itemId]);
     });
   }
   return next;
@@ -43,16 +43,28 @@ function merge(before, patch, id) {
 // Keep the durable operation stable across retries. Sending a whole long AI
 // result to edit one card exceeds the ordinary request limit.
 function resultPatch(before, after) {
-  if (!before || !after || !Array.isArray(before.items) || !Array.isArray(after.items) ||
-      before.items.length !== after.items.length) return null;
-  const fields = {}, items = [];
+  if (
+    !before ||
+    !after ||
+    !Array.isArray(before.items) ||
+    !Array.isArray(after.items) ||
+    before.items.length !== after.items.length
+  )
+    return null;
+  const fields = {},
+    items = [];
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    if (key === "items" || JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+    if (
+      key === "items" ||
+      JSON.stringify(before[key]) === JSON.stringify(after[key])
+    )
+      continue;
     if (!["summary", "warnings"].includes(key) || !(key in after)) return null;
     fields[key] = after[key];
   }
   after.items.forEach((value, index) => {
-    if (JSON.stringify(value) !== JSON.stringify(before.items[index])) items.push({ index, value });
+    if (JSON.stringify(value) !== JSON.stringify(before.items[index]))
+      items.push({ index, value });
   });
   return { fields, items };
 }
@@ -147,9 +159,19 @@ function createSyncClient({
             JSON.stringify(before.data[key])
           )
             delete operation.data[key];
-      if (operation.data.result && utf8Bytes(JSON.stringify(operation.data.result)) > 800000) {
-        const compact = resultPatch(before?.data?.result, operation.data.result);
-        if (compact && JSON.stringify(compact).length < JSON.stringify(operation.data.result).length) {
+      if (
+        operation.data.result &&
+        utf8Bytes(JSON.stringify(operation.data.result)) > 800000
+      ) {
+        const compact = resultPatch(
+          before?.data?.result,
+          operation.data.result,
+        );
+        if (
+          compact &&
+          JSON.stringify(compact).length <
+            JSON.stringify(operation.data.result).length
+        ) {
           operation.resultPatch = compact;
           delete operation.data.result;
         }
@@ -244,7 +266,10 @@ function createSyncClient({
         throw issue("QUEUE_DEPENDENCY", "同步队列顺序异常，本机内容已保留");
       const op = entry.operation;
       if (op.resultPatch && !status.capabilities?.resultItemPatches)
-        throw issue("CLIENT_UPGRADE_REQUIRED", "服务尚不支持长结果分项编辑，修改已保留，请升级服务后同步");
+        throw issue(
+          "CLIENT_UPGRADE_REQUIRED",
+          "服务尚不支持长结果分项编辑，修改已保留，请升级服务后同步",
+        );
       let result;
       try {
         result = await request("POST", `${api}/operations`, {
@@ -253,9 +278,18 @@ function createSyncClient({
         });
       } catch (error) {
         if (
-          !["REVISION_CONFLICT", "DELETED", "PURGED", "NOT_DELETED"].includes(
-            error.code,
-          )
+          ![
+            "REVISION_CONFLICT",
+            "DELETED",
+            "PURGED",
+            "NOT_DELETED",
+            "INVALID_MANIFEST",
+            "UPLOAD_LIMIT",
+            "INVALID_ATTACHMENT",
+            "INVALID_DATA",
+            "INVALID_RESULT_PATCH",
+            "TOO_LARGE",
+          ].includes(error.code)
         )
           throw error;
         const same = state.outbox.filter((item) => item.operation.id === op.id);

@@ -46,7 +46,7 @@ $shortcut.Arguments='"'+(Join-Path $console 'Cloud-Start.vbs')+'"'
 $shortcut.WorkingDirectory=$console
 $shortcut.WindowStyle=7
 $shortcut.Description='拾序云端管理控制台'
-$shortcut.IconLocation=(Join-Path $console 'console-xu-v1.ico')+',0'
+$shortcut.IconLocation=(Join-Path $console 'console-xu-v2.ico')+',0'
 $shortcut.Save()
 Move-Item -LiteralPath $shortcutNext -Destination $shortcutPath -Force
 Write-Output 'private-connection-installed; authorize only the generated .pub key for restricted forwarding'

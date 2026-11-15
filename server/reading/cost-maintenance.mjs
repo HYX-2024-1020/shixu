@@ -37,7 +37,7 @@ export class ReadingCostMaintenance {
     const calls = this.db
       .prepare(
         `SELECT id,task,fingerprint,price,reserved,day,generation
-      FROM reading_calls WHERE account=? AND state='unknown' ORDER BY rowid LIMIT 101`,
+      FROM reading_calls c WHERE account=? AND state='unknown' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id) ORDER BY rowid LIMIT 101`,
       )
       .all(this.engine.account);
     const linked = new Set(this.engine.roots.safety.tasks(root.id));
@@ -236,7 +236,7 @@ export class ReadingCostMaintenance {
             review.watermark,
             review.generation,
             before,
-            this.ledger.wallet(this.engine.account).spent,
+            usage ? this.ledger.wallet(this.engine.account).spent : before,
             after.actual,
             after.usage,
             this.ledger.now(),

@@ -55,7 +55,7 @@ describe("skin collection persistence", () => {
     ).toBe("whale");
   });
   it("offers all builtins and validates the persisted voice", () => {
-    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(["whale", "ice", "bunny"]);
+    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(["whale", "ice", "bunny", "capybara", "owl"]);
     for (const voice of ["voice-1", "voice-2"] as const) {
       const saved = parseSkinCollection(
         JSON.stringify({ selected: "ice", iceVoice: voice }),

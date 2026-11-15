@@ -7,6 +7,7 @@ import {
   LEDGER_CHECKPOINT_SCHEMA,
 } from "../database-schemas.mjs";
 import { ReadingProviderReceipts } from "./provider-receipts.mjs";
+import { ReadingPlatformCost } from "./platform-cost.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { sha256 } from "./material.mjs";
 
@@ -110,6 +111,7 @@ export class ReadingLedger {
     try {
       this.receipts = new ReadingProviderReceipts(this);
       this.legacy = new ReadingLegacyLedger(this);
+      this.platform = new ReadingPlatformCost(this);
     } catch(error) { this.db.close(); throw error; }
   }
   transaction(fn) {
@@ -270,7 +272,7 @@ export class ReadingLedger {
     const wallet = this.wallet(account), budget = this.budget(), day = beijingDay(this.now());
     const legacy = this.legacy.settlement(account);
     const legacyDay = legacy ? JSON.parse(legacy.days).filter(d => d.day === day).reduce((n, d) => n + d.micros, 0) : 0;
-    const daySpentMicro = this.db.prepare("SELECT COALESCE(SUM(actual),0) n FROM reading_calls WHERE account=? AND day=? AND state='settled'").get(account, day).n + legacyDay;
+    const daySpentMicro = this.db.prepare("SELECT COALESCE(SUM(actual),0) n FROM reading_calls c WHERE account=? AND day=? AND state='settled' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id)").get(account, day).n + legacyDay;
     const daily = Math.max(0, budget.dailyMicro - budget.daySpentMicro - budget.riskMicro);
     const monthly = budget.monthlyMicro === null ? null : Math.max(0, budget.monthlyMicro - budget.monthSpentMicro - budget.riskMicro);
     return { day, timezone: "Asia/Shanghai", sampledAt: this.now(), daySpentMicro,
@@ -336,7 +338,7 @@ export class ReadingLedger {
       .get(account).n;
   }
   lastCostAudit(account, root) {
-    return root === undefined
+    const cost = root === undefined
       ? this.db
           .prepare(
             "SELECT * FROM reading_cost_audits WHERE account=? ORDER BY seq DESC LIMIT 1",
@@ -347,6 +349,8 @@ export class ReadingLedger {
             "SELECT * FROM reading_cost_audits WHERE account=? AND root=? ORDER BY seq DESC LIMIT 1",
           )
           .get(account, root);
+    const platform = this.platform.last(account, root);
+    return platform && (!cost || platform.ledger_sequence >= cost.ledger_sequence) ? platform : cost;
   }
   recoveryOperation(account) {
     const cost = this.lastCostAudit(account)?.operation || null;
@@ -404,6 +408,7 @@ export class ReadingLedger {
     return JSON.parse(row.body);
   }
   wallet(account) {
+    this.platform.audit(account);
     const w = this.db
       .prepare("SELECT * FROM reading_wallets WHERE account=?")
       .get(account);
@@ -415,7 +420,7 @@ export class ReadingLedger {
       .get(account).n;
     const unknownRisk = this.legacy.risk(account) + this.db
       .prepare(
-        "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls WHERE account=? AND state='unknown'",
+        "SELECT COALESCE(SUM(reserved),0) n FROM reading_calls c WHERE account=? AND state='unknown' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id)",
       )
       .get(account).n;
     const paused = this.db
@@ -444,7 +449,7 @@ export class ReadingLedger {
     ))` : "task=?";
     return !!this.db.prepare(
       `SELECT 1 FROM reading_calls WHERE account=? AND
-       (state='unknown' OR (? AND state='sent')) AND ${scope} LIMIT 1`,
+       ((state='unknown' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=reading_calls.id)) OR (? AND state='sent')) AND ${scope} LIMIT 1`,
       )
       .get(
         account,
@@ -662,10 +667,9 @@ export class ReadingLedger {
         "UPDATE reading_calls SET state='settled',actual=?,usage=? WHERE id=?",
       )
       .run(actual, serialized, callId);
-    this.db
-      .prepare("UPDATE reading_wallets SET spent=spent+? WHERE account=?")
-      .run(actual, c.account);
-    this.event("settle:" + callId, "settle", c.account, callId, actual);
+    const covered = this.platform.covered(callId);
+    if (!covered) this.db.prepare("UPDATE reading_wallets SET spent=spent+? WHERE account=?").run(actual, c.account);
+    this.event("settle:" + callId, covered ? "platform-settle" : "settle", c.account, callId, actual);
     if (deniedBilling)
       this.event(
         "cost-proof-conflict:" + callId,
@@ -714,6 +718,7 @@ export class ReadingLedger {
       : this.db.prepare("SELECT * FROM reading_wallets").all();
     let checkedCalls = 0;
     for (const wallet of wallets) {
+      this.platform.audit(wallet.account);
       const events = this.db
         .prepare(
           "SELECT COALESCE(SUM(CASE WHEN kind='grant' THEN amount ELSE 0 END),0) granted,COALESCE(SUM(CASE WHEN kind IN ('settle','legacy-settle') THEN amount ELSE 0 END),0) spent FROM reading_events WHERE account=?",
@@ -723,7 +728,7 @@ export class ReadingLedger {
         events.granted === wallet.granted && events.spent === wallet.spent && this.legacy.audit(wallet.account);
       const projection = this.db
         .prepare(
-          "SELECT COALESCE(SUM(actual),0) spent FROM reading_calls WHERE account=? AND state='settled'",
+          "SELECT COALESCE(SUM(actual),0) spent FROM reading_calls c WHERE account=? AND state='settled' AND NOT EXISTS(SELECT 1 FROM reading_platform_cost_calls p WHERE p.call_id=c.id)",
         )
         .get(wallet.account);
       valid &&= projection.spent + this.legacy.spent(wallet.account) === wallet.spent;
@@ -793,12 +798,13 @@ export class ReadingLedger {
         if (call.state === "settled") {
           const settle = this.db
             .prepare(
-              "SELECT amount FROM reading_events WHERE operation=? AND account=?",
+              "SELECT amount,kind FROM reading_events WHERE operation=? AND account=?",
             )
             .get("settle:" + call.id, wallet.account);
           try {
             valid &&=
               settle?.amount === call.actual &&
+              settle?.kind === (this.platform.covered(call.id) ? "platform-settle" : "settle") &&
               estimatedCost(this.price(call.price), JSON.parse(call.usage)) ===
                 call.actual;
           } catch {

@@ -127,6 +127,15 @@ export class ReadingChat {
     if (chat.epoch !== this.engine.store.epoch) fail("RESET_REQUIRED");
     if (this.engine.store.record(packetId)?.version !== chat.baseVersion)
       fail("REVISION_CONFLICT");
+    if (chat.scope === "group" && !validId(chat.groupId)) fail("INVALID_CHAT");
+    if (
+      chat.scope === "selected" &&
+      (!Array.isArray(chat.targets) ||
+        !chat.targets.length ||
+        chat.targets.length > 20 ||
+        chat.targets.some((t) => !validId(t.packetId) || !validId(t.itemId)))
+    )
+      fail("INVALID_CHAT");
     const intent = this.intent(id);
     const request = {
       packetId,
@@ -136,7 +145,12 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
-      ...(chat.scope === "account" ? { scope: "account" } : {}),
+      ...(!intent || this.request(id)?.protocol ? { protocol: this.request(id)?.protocol || 3 } : {}),
+      ...(["account", "packet", "group", "selected"].includes(chat.scope)
+        ? { scope: chat.scope }
+        : {}),
+      ...(chat.scope === "group" ? { groupId: chat.groupId } : {}),
+      ...(chat.scope === "selected" ? { targets: chat.targets } : {}),
       ...(chat.readAttachments === true ? { readAttachments: true } : {}),
       day: intent?.day || beijingDay(this.ledger.now()),
     };
@@ -162,7 +176,12 @@ export class ReadingChat {
       baseVersion: chat.baseVersion,
       epoch: chat.epoch,
       expectedCostOperation,
-      ...(chat.scope === "account" ? { scope: "account" } : {}),
+      ...(!intent || this.request(id)?.protocol ? { protocol: this.request(id)?.protocol || 3 } : {}),
+      ...(["account", "packet", "group", "selected"].includes(chat.scope)
+        ? { scope: chat.scope }
+        : {}),
+      ...(chat.scope === "group" ? { groupId: chat.groupId } : {}),
+      ...(chat.scope === "selected" ? { targets: chat.targets } : {}),
       ...(chat.readAttachments === true ? { readAttachments: true } : {}),
     };
     return this.requestHash(request) === intent.request_hash;
@@ -211,6 +230,15 @@ export class ReadingChat {
       schema: "saved-item-chat/1",
       scope: "已保存的当前事项与本轮指令；没有重新读取原件",
       today: request.day,
+      ...(request.protocol
+        ? {
+            currentTarget: {
+              packetId: request.packetId,
+              itemId: request.itemId,
+              baseVersion: record.version,
+            },
+          }
+        : {}),
       currentItem,
       currentState: {
         group: meta.group ?? item.group,
@@ -224,13 +252,25 @@ export class ReadingChat {
       previousNotes: meta.additions || [],
       instruction: request.instruction,
     };
-    if (request.scope === "account") {
-      const records = this.db
+    if (["account", "packet", "group", "selected"].includes(request.scope)) {
+      let records = this.db
         .prepare(
-          "SELECT id,version,data FROM sync_records WHERE purged=0 AND deleted_at IS NULL ORDER BY version DESC LIMIT 101",
+          "SELECT id,version,data FROM sync_records WHERE purged=0 AND deleted_at IS NULL ORDER BY version DESC" + (request.protocol >= 3 ? "" : " LIMIT 101"),
         )
         .all();
-      context.relatedItems = records.slice(0, 100).flatMap((row) => {
+      if (request.scope === "packet")
+        records = records.filter((r) => r.id === request.packetId);
+      if (request.scope === "selected")
+        records = request.targets
+          .map((t) => this.engine.store.record(t.packetId))
+          .filter((r) => r && !r.deletedAt && !r.purged)
+          .map((r) => ({
+            id: r.id,
+            version: r.version,
+            data: JSON.stringify(r.data),
+          }));
+      records = [...new Map(records.map((r) => [r.id, r])).values()];
+      context.relatedItems = records.slice(0, request.protocol >= 3 ? records.length : 100).flatMap((row) => {
         const p = JSON.parse(row.data);
         return (p.itemIds || []).flatMap((itemId, i) => {
           const meta = p.itemState?.[itemId] || {};
@@ -238,6 +278,13 @@ export class ReadingChat {
             !p.result?.items[i] ||
             meta.deletedAt ||
             meta.purgedAt ||
+            meta.mergedInto ||
+            (request.scope === "group" &&
+              !meta.groupIds?.includes(request.groupId)) ||
+            (request.scope === "selected" &&
+              !request.targets.some(
+                (t) => t.packetId === row.id && t.itemId === itemId,
+              )) ||
             (row.id === request.packetId && itemId === request.itemId)
           )
             return [];
@@ -261,23 +308,89 @@ export class ReadingChat {
           ];
         });
       });
-      context.omittedPackets = records.length > 100;
+      context.omittedPackets = request.protocol < 3 && records.length > 100;
       if (context.relatedItems.length > 200) {
+        if (request.protocol >= 3) {
+          const query = request.instruction.replace(/\s+/g, "");
+          const terms = [...new Set(Array.from({ length: Math.max(0, query.length - 1) }, (_, i) => query.slice(i, i + 2)))];
+          context.relatedItems = context.relatedItems.map((target, index) => {
+            const text = JSON.stringify(target.item);
+            return { target, index, score: terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0) };
+          }).sort((a,b) => b.score - a.score || a.index - b.index).map(entry => entry.target);
+        }
         context.relatedItems = context.relatedItems.slice(0, 200);
         context.omittedItems = true;
       }
-      context.scope =
-        "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行";
+      context.scope = !request.protocol
+        ? "当前账号可访问的事项；跨卡片修改只生成待用户确认的建议，不直接执行"
+        : ({
+            account: request.protocol >= 3 ? "当前账号可访问事项（超过本轮容量时按指令相关性选取，并明确说明未读范围）" : "当前账号最近100份可访问投递",
+            packet: "当前同次投递",
+            group: "明确指定的小组（在最近100份投递内筛选）",
+            selected: "用户明确选定卡片",
+          }[request.scope] || "当前事项") +
+          (request.protocol >= 3 ? "；跨卡片修改、新建与拆分先生成预览，确认后执行" : "；跨卡片修改和真正合并先生成预览，确认后执行");
+    }
+    const mergedChildren =
+      request.protocol && meta.mergedCard
+        ? meta.mergedCard.sources.map((source) => {
+            const row = this.engine.store.record(source.packetId),
+              child = row?.data,
+              index = child?.itemIds?.indexOf(source.itemId) ?? -1,
+              state = child?.itemState?.[source.itemId] || {};
+            if (
+              !row ||
+              row.deletedAt ||
+              row.purged ||
+              index < 0 ||
+              state.deletedAt ||
+              state.purgedAt ||
+              state.mergedInto?.packetId !== request.packetId ||
+              state.mergedInto.itemId !== request.itemId
+            )
+              return null;
+            return {
+              packetId: row.id,
+              itemId: source.itemId,
+              packet: child,
+              item: absoluteItem(child.result.items[index], child.captureDate),
+              state: {
+                status:
+                  state.status ||
+                  ((child.doneIds || []).includes(index) ? "done" : "active"),
+              },
+            };
+          })
+        : [];
+    if (request.protocol && meta.mergedCard) {
+      context.mergedChildren = mergedChildren
+        .filter(Boolean)
+        .map(({ packet, ...child }) => child);
+      context.missingMergedChildren = mergedChildren.filter(
+        (child) => !child,
+      ).length;
     }
     if (request.readAttachments) {
-      context.originals = (packet.attachments || [])
-        .filter((f) => !f.deletedAt)
+      const sourcePackets = [
+        { packetId: request.packetId, packet },
+        ...mergedChildren.filter(Boolean),
+        ...(request.protocol >= 3 ? [...new Set((context.relatedItems || []).map(t => t.packetId))].filter(id => id !== request.packetId).map(packetId => ({ packetId, packet: this.engine.store.record(packetId).data })) : []),
+      ];
+      context.originals = [
+        ...new Map(sourcePackets.map((p) => [p.packetId, p])).values(),
+      ]
+        .flatMap(({ packetId, packet }) =>
+          (packet.attachments || [])
+            .filter((f) => !f.deletedAt)
+            .map((f) => ({ packetId, ...f })),
+        )
         .map((f) => {
           try {
-            const actual = this.engine.store.files.get(request.packetId, f.id, {
+            const actual = this.engine.store.files.get(f.packetId, f.id, {
               forReading: true,
             });
             return {
+              ...(request.protocol ? { packetId: f.packetId } : {}),
               id: actual.id,
               name: actual.name,
               hash: actual.hash,
@@ -285,7 +398,12 @@ export class ReadingChat {
               available: true,
             };
           } catch {
-            return { id: f.id, name: f.name, available: false };
+            return {
+              ...(request.protocol ? { packetId: f.packetId } : {}),
+              id: f.id,
+              name: f.name,
+              available: false,
+            };
           }
         });
       context.scope += "；本轮明确请求核对当前卡片附件，读取覆盖另列";
@@ -315,6 +433,7 @@ export class ReadingChat {
       for (const descriptor of originals.slice(0, 8)) {
         const entry = {
           id: descriptor.id,
+          ...(descriptor.packetId ? { packetId: descriptor.packetId } : {}),
           name: descriptor.name,
           contentComplete: false,
           sources: [],
@@ -323,11 +442,15 @@ export class ReadingChat {
         if (!descriptor.available) entry.missing.push("ORIGINAL_UNAVAILABLE");
         else {
           const file = this.engine.store.files.get(
-            request.packetId,
+            descriptor.packetId || request.packetId,
             descriptor.id,
             { forReading: true },
           );
-          const material = await read(file);
+          const material = await read(
+            descriptor.packetId && descriptor.packetId !== request.packetId
+              ? { ...file, id: descriptor.packetId + "_" + file.id }
+              : file,
+          );
           entry.missing = (material.uncovered || []).map(
             (r) => r.code || "UNREAD_RANGE",
           );
@@ -402,6 +525,8 @@ export class ReadingChat {
             "patch",
             "reply",
             "proposals",
+            "merge",
+            "creations",
             ...(certified ? ["readScope"] : []),
           ].includes(key),
       ) ||
@@ -420,7 +545,12 @@ export class ReadingChat {
       request.instruction,
       request.day,
     );
-    if (request.readAttachments || request.scope === "account") {
+    if (request.protocol >= 3) validated.reply = validated.reply.replaceAll("attachmentContent", "已读取的附件内容").replaceAll("omittedAttachments", "本轮未读取的附件数量").replaceAll("contentComplete", "读取是否完整");
+    if (
+      request.readAttachments ||
+      context.mergedChildren ||
+      ["account", "packet", "group", "selected"].includes(request.scope)
+    ) {
       if (certified) {
         if (typeof raw.readScope !== "string" || raw.readScope.length > 8000)
           fail("SAFETY_RECONCILIATION");
@@ -434,22 +564,24 @@ export class ReadingChat {
             (read.attachmentContent || [])
               .map(
                 (f) =>
-                  `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（" + f.missing.join("、") + "）" : ""}`,
+                  `${f.name}：${f.sources.length}个来源范围，${f.contentComplete ? "文本内容已覆盖" : "仍有未读内容"}${f.missing.length ? "（原件不可用、内容超出本次读取范围或仍需人工核对）" : ""}`,
               )
               .join("；")
           : "";
+        if (context.mergedChildren)
+          validated.readScope += `；合并主卡包含${context.mergedChildren.length}个独立子项及其来源引用。${context.missingMergedChildren ? `另${context.missingMergedChildren}个子项已不可访问，不能据此断言其内容。` : ""}`;
         if (read.omittedAttachments)
           validated.readScope += `；另${read.omittedAttachments}份附件未读，不能据此断言不存在。`;
         if ((read.attachmentContent || []).some((f) => !f.contentComplete))
           validated.readScope +=
             "。本轮仍有未读范围，答复不表示未读范围内不存在所查内容。";
-        if (request.scope === "account")
-          validated.readScope += `\n\n本轮跨卡片范围：当前账号最近100份可访问投递内的${context.relatedItems.length}个其他事项摘要，未重读其他卡片附件。${context.omittedPackets || context.omittedItems ? "还有卡片或事项未纳入，不能据此断言整个账号不存在所查内容。" : ""}修改建议尚未执行，须确认后保存。`;
+        if (["account", "packet", "group", "selected"].includes(request.scope))
+          validated.readScope += `\n\n本轮跨卡片范围：${context.scope}，共${context.relatedItems.length}个其他事项摘要，${request.protocol >= 3 && request.readAttachments ? "必要附件读取情况见上方" : "未重读其他卡片附件"}。${context.omittedPackets || context.omittedItems ? "还有卡片或事项未纳入，不能据此断言整个账号不存在所查内容。" : ""}修改建议尚未执行，须确认后保存。`;
       }
     }
     if (raw.proposals !== undefined) {
       if (
-        request.scope !== "account" ||
+        !["account", "packet", "group", "selected"].includes(request.scope) ||
         !Array.isArray(raw.proposals) ||
         raw.proposals.length > 10
       )
@@ -481,6 +613,66 @@ export class ReadingChat {
           beforeState: target.state,
         };
       });
+    }
+    if (raw.merge !== undefined) {
+      if (request.protocol >= 3) fail("INVALID_CHAT");
+      if (
+        !request.protocol ||
+        !context.relatedItems ||
+        raw.proposals?.length ||
+        Object.keys(raw.patch).length ||
+        !raw.merge ||
+        typeof raw.merge.title !== "string" ||
+        !raw.merge.title.trim() ||
+        raw.merge.title.length > 150 ||
+        !Array.isArray(raw.merge.targets) ||
+        raw.merge.targets.length < 2 ||
+        raw.merge.targets.length > 20
+      )
+        fail("INVALID_CHAT");
+      const allowed = [
+        {
+          ...context.currentTarget,
+          item: context.currentItem,
+          state: context.currentState,
+        },
+        ...context.relatedItems,
+      ];
+      const seen = new Set();
+      validated.merge = {
+        title: raw.merge.title.trim(),
+        targets: raw.merge.targets.map((t) => {
+          const key = t.packetId + "#" + t.itemId,
+            source = allowed.find(
+              (a) => a.packetId === t.packetId && a.itemId === t.itemId,
+            );
+          if (!source || seen.has(key)) fail("INVALID_CHAT");
+          seen.add(key);
+          return {
+            packetId: source.packetId,
+            itemId: source.itemId,
+            title: source.item.title,
+            beforeItem: source.item,
+          };
+        }),
+      };
+    }
+    if (raw.creations !== undefined) {
+      const creation = raw.creations;
+      if (request.protocol !== 3 || !creation || !["create", "split"].includes(creation.mode) || Object.keys(raw.patch).length || raw.proposals?.length || raw.merge ||
+          !Array.isArray(creation.patches) || creation.patches.length < (creation.mode === "split" ? 2 : 1) || creation.patches.length > 10) fail("INVALID_CHAT");
+      const allowed = [{ ...context.currentTarget, item: context.currentItem, state: context.currentState }, ...(context.relatedItems || [])];
+      const source = allowed.find(t => t.packetId === creation.packetId && t.itemId === creation.itemId);
+      if (!source) fail("INVALID_CHAT");
+      const patches = creation.patches.map(patch => {
+        patch = { ...patch };
+        if (certified) delete patch.dueCleared;
+        if (typeof patch.title !== "string" || !patch.title.trim() || typeof patch.summary !== "string" || !Array.isArray(patch.facts)) fail("INVALID_CHAT");
+        // Dates may be inherited verbatim from the already absolute saved item;
+        // a new relative date still needs grounding in this turn's instruction.
+        return validateChatUpdate({ reply: "待确认", patch }, source.item, request.instruction, request.day).patch;
+      });
+      validated.creations = { mode: creation.mode, packetId: source.packetId, itemId: source.itemId, patches, beforeItem: source.item, beforeState: { ...source.state, status: source.state.status || (this.engine.store.record(source.packetId)?.data.doneIds?.includes(this.engine.store.record(source.packetId)?.data.itemIds?.indexOf(source.itemId)) ? "done" : "active"), group: source.state.group ?? source.item.group, groupIds: this.engine.store.record(source.packetId)?.data.itemState?.[source.itemId]?.groupIds } };
     }
     return JSON.parse(JSON.stringify(validated));
   }
@@ -630,6 +822,8 @@ export class ReadingChat {
               source: "AI 对话",
             })),
           ],
+          chatMerge: output.merge || null,
+          chatCreations: output.creations ? { ...output.creations, id: task.id } : null,
           chatProposals: output.proposals
             ? { id: task.id, items: output.proposals }
             : null,

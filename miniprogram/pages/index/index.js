@@ -2456,6 +2456,7 @@ Page({
       image:
         s.art === "custom"
           ? this._skinPath(s)
+          : ["capybara", "owl"].includes(s.art) ? "/assets/" + s.art + ".webp"
           : s.art === "whale"
             ? "/assets/mascot.png"
             : s.art === "bunny"

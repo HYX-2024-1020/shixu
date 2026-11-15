@@ -21,7 +21,7 @@ test("card tap applies and persists immediately without touching the draft", asy
   await page.getByRole("button", { name: "打开皮肤市场" }).click();
   const market = page.getByRole("dialog", { name: "给你的桶，换个新朋友" });
   await expect(market).toBeVisible();
-  await expect(page.locator(".skin-card")).toHaveCount(3);
+  await expect(page.locator(".skin-card")).toHaveCount(5);
   await page.getByRole("button", { name: "使用冰冰冰" }).click();
   await expect(page.locator(".bucket-drawing")).toHaveAttribute(
     "data-skin",
@@ -364,4 +364,21 @@ test("ice itself stays centered with voice buttons independently on the right", 
   expect(controls!.x + controls!.width).toBeLessThanOrEqual(
     await page.evaluate(() => innerWidth),
   );
+});
+
+
+test("third round companions apply, animate quietly and survive reload", async ({page}, info) => {
+  for (const [name,id] of [["慢慢","capybara"],["夜灯","owl"]]) {
+    await page.getByRole("button",{name:"打开皮肤市场"}).click();
+    await page.getByRole("button",{name:"使用"+name,exact:true}).click();
+    const art=page.locator(".skin-preview-stage img");
+    await expect(art).toHaveAttribute("src",new RegExp(id+"\\.webp$"));
+    await expect.poll(()=>art.evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);
+    await page.screenshot({path:info.outputPath(id+"-market.png")});
+    await page.getByRole("button",{name:"关闭皮肤市场"}).click();
+    await page.getByRole("button",{name:"和"+name+"打个招呼"}).click();
+    await expect(page.locator(".bucket-drawing")).not.toHaveAttribute("data-motion","idle");
+    await page.reload();
+    await expect(page.locator(".bucket-drawing")).toHaveAttribute("data-skin",id);
+  }
 });

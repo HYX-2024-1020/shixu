@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { allPackets } from "./store";
 import { readableFileName } from "./file-display";
+import { errorMessage } from "./error-message";
 import {
   walletView,
   reuseView,
@@ -14,13 +15,19 @@ export default function AccountConnection({
   canSwitch,
   onClose,
   notify,
+  mode = "settings",
+  conflictPacket,
 }: {
+  conflictPacket?: string;
+  mode?: "settings" | "tasks";
   canSwitch: () => boolean;
   onClose: () => void;
   notify: (message: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [showMore, setShowMore] = useState(false);
+  const [section, setSection] = useState(conflictPacket ? "sync" : "account");
+  const [taskOriginals, setTaskOriginals] = useState(false);
   const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const [invite, setInvite] = useState(""),
     [username, setUsername] = useState(""),
@@ -83,10 +90,16 @@ export default function AccountConnection({
     try {
       const value = await window.desktop!.cloud("capabilities");
       setState(value);
+      if (
+        value.base &&
+        value.materialUseNotice &&
+        !value.materialConsentAccepted
+      )
+        setSection("consent");
       setUsername(value.account?.authentication?.username || "");
     } catch (e) {
       setConnectionFailed(true);
-      setError((e as Error).message);
+      setError(errorMessage(e));
       try {
         setState(await window.desktop!.cloud("status"));
       } catch {
@@ -116,7 +129,8 @@ export default function AccountConnection({
         if (!canSwitch()) throw Error("请等待当前投递或对话完成");
         await window.flushDesktopDraft?.();
       }
-      setState(await window.desktop!.cloud(name, value));
+      const next = await window.desktop!.cloud(name, value);
+      setState(next);
       if (
         ["register", "login", "claim", "password", "local", "resume"].includes(
           name,
@@ -131,16 +145,19 @@ export default function AccountConnection({
       setActionReceipt(
         (
           {
-            downloadOriginal:
-              "原件已校验并保存到本机，可从材料面板打开或另存。",
-            renewOriginal: "已续期30天，下方到期时间已更新。",
+            downloadOriginal: next.originalDownload
+              ? next.originalDownload.saved
+                ? `原件已校验并保存至：${next.originalDownload.path}`
+                : "已取消另存；原件仍保留在本机材料缓存中。"
+              : "原件已校验并保存到本机，可从材料面板打开或另存。",
+            renewOriginal: "已延长30天，下方到期时间已更新。",
             deleteOriginal: "云端原件已删除，本机副本保留。",
             materialConsent: "资料用途确认已保存。",
           } as Record<string, string>
         )[name] || "",
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
       try {
         setState(await window.desktop!.cloud("status"));
       } catch {
@@ -170,6 +187,7 @@ export default function AccountConnection({
   return (
     <dialog
       ref={ref}
+      aria-label={mode === "tasks" ? "整理任务" : "账号与设置"}
       className="bucket-dialog"
       onCancel={onClose}
       onClick={(e) => {
@@ -188,13 +206,59 @@ export default function AccountConnection({
       <header>
         <div>
           <span className="dialog-kicker">拾序朋友内测</span>
-          <h2>{state?.activation === "active" ? "账号与设置" : "登录拾序"}</h2>
+          <h2>
+            {mode === "tasks"
+              ? "整理任务"
+              : state?.activation === "active"
+                ? "账号与设置"
+                : "登录拾序"}
+          </h2>
         </div>
-        <button aria-label="关闭设置" onClick={onClose}>
+        <button
+          aria-label={mode === "tasks" ? "关闭整理任务" : "关闭设置"}
+          onClick={onClose}
+        >
           <X size={20} />
         </button>
       </header>
-      <section className="connection-data">
+      {mode === "settings" && (
+        <nav className="settings-tabs" aria-label="设置分区">
+          {[
+            ["account", "账号"],
+            ["consent", "用途与期限"],
+            ["devices", "设备与密码"],
+            ["sync", "同步"],
+            ["originals", "云端原件"],
+            ["ai", "AI与用量"],
+            ["backup", "本机备份"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              aria-pressed={section === id}
+              onClick={() => setSection(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
+      {mode === "tasks" && (
+        <div className="result-controls">
+          <button
+            disabled={busy}
+            onClick={() => void action("sync", { force: true })}
+          >
+            刷新任务
+          </button>
+          <button onClick={() => setTaskOriginals(!taskOriginals)}>
+            {taskOriginals ? "返回整理任务" : "管理云端原件"}
+          </button>
+        </div>
+      )}
+      <section
+        className="connection-data"
+        hidden={mode !== "settings" || section !== "account"}
+      >
         <h3>
           {state?.activation === "active"
             ? `已登录 · ${state.account?.authentication?.username || "当前账号"}`
@@ -455,7 +519,7 @@ export default function AccountConnection({
             </p>
           )}
       </section>
-      {(showAccountForm || !state?.base) && !connectionFailed && (
+      {false && (showAccountForm || !state?.base) && !connectionFailed && (
         <button
           className="account-more-settings"
           onClick={() => setShowMore(!showMore)}
@@ -463,25 +527,41 @@ export default function AccountConnection({
           {showMore ? "收起更多设置" : "更多设置与本机资料"}
         </button>
       )}
-      <div
-        hidden={
-          (showAccountForm || !state?.base) && !showMore && !connectionFailed
-        }
-      >
+      <div>
         {!!state?.materialUseNotice && (
-          <section className="connection-data">
+          <section
+            className="connection-data"
+            hidden={mode !== "settings" || section !== "consent"}
+          >
             <h3>资料用途与保存期限</h3>
             <p>{state.materialUseNotice.text}</p>
             <label className="consent-check">
               <input
                 type="checkbox"
-                checked={!!state.materialConsentAccepted}
+                checked={!!state.materialPurposeAccepted}
                 disabled={busy}
                 onChange={(e) =>
-                  void action("materialConsent", { accepted: e.target.checked })
+                  void action("materialConsent", {
+                    kind: "purpose",
+                    accepted: e.target.checked,
+                  })
                 }
               />
-              我已了解资料用途和保存期限
+              我同意在主动使用AI时，将相关材料用于读取、整理与事项对话
+            </label>
+            <label className="consent-check">
+              <input
+                type="checkbox"
+                checked={!!state.materialRetentionAccepted}
+                disabled={busy}
+                onChange={(e) =>
+                  void action("materialConsent", {
+                    kind: "retention",
+                    accepted: e.target.checked,
+                  })
+                }
+              />
+              我已了解原件保存30天、到期前7天提醒及到期后7天清理规则；原件到期不删除卡片
             </label>
             <p className="quiet">
               确认后才能发送资料进行AI整理或对话；查看和手动管理本机资料不受影响。
@@ -494,7 +574,10 @@ export default function AccountConnection({
           </section>
         )}
         {!!state?.account?.authentication?.claimed && (
-          <section className="connection-data">
+          <section
+            className="connection-data"
+            hidden={mode !== "settings" || section !== "devices"}
+          >
             <h3>设备与密码</h3>
             {state.account?.authentication?.passwordChangeRequired && (
               <p role="alert">
@@ -572,11 +655,14 @@ export default function AccountConnection({
             </button>
           </section>
         )}
-        <section className="connection-data">
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "sync"}
+        >
           <h3>同步</h3>
           <p>
             {state?.base
-              ? `${state.pending} 个操作待同步${state.error ? " · 暂时未连接，队列保留" : " · 云空间已打开"}`
+              ? `${state.pending} 个操作待同步 · ${state.conflicts.length} 个冲突或失败待处理${state.error ? " · 暂时未连接，队列保留" : " · 云空间已打开"}`
               : "本机空间，不自动上传"}
           </p>
           {state?.base && (
@@ -598,9 +684,29 @@ export default function AccountConnection({
           <p>
             激活会打开独立账号空间；原本机投递和草稿保留。同步会将云空间的原文、事项和原件上传到我们的服务器。
           </p>
-          {state?.conflicts.map((c) => (
+          {conflictPacket && !state?.conflicts.some(c => c.id === conflictPacket) && <p role="status">这张卡当前没有待处理冲突，可关闭后继续操作。</p>}
+          {state?.conflicts.filter(c => !conflictPacket || c.id === conflictPacket).map((c) => (
             <div key={c.id}>
-              <p>同步冲突：{c.text.slice(0, 80)}</p>
+              <p>
+                {[
+                  "REVISION_CONFLICT",
+                  "DELETED",
+                  "PURGED",
+                  "NOT_DELETED",
+                ].includes(c.code || "")
+                  ? "同步冲突"
+                  : "材料未能同步，后续独立投递仍可继续"}
+                ：{c.text.slice(0, 80)}
+              </p>
+              <p>云端版本与本机待传修改不同，系统已保留两边，未自动覆盖。另存副本会保留本机原文和附件引用，云端原卡不变；采用云端会放弃本次待传修改，已有云端内容保留；恢复草稿适合修改后重新投递，不会自动再次调用AI。</p>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void action("recoverFailedDraft", { id: c.id }, true)
+                }
+              >
+                恢复为草稿后修改
+              </button>
               <button
                 disabled={busy}
                 onClick={() => void action("resolve", { id: c.id, keep: true })}
@@ -613,13 +719,16 @@ export default function AccountConnection({
                   void action("resolve", { id: c.id, keep: false })
                 }
               >
-                采用云端版本
+                放弃本次待传修改，采用云端版本
               </button>
             </div>
           ))}
         </section>
         {state?.originalStorage && (
-          <section className="connection-data">
+          <section
+            className="connection-data"
+            hidden={mode === "tasks" ? !taskOriginals : section !== "originals"}
+          >
             <h3>云端原件</h3>
             {["downloadOriginal", "renewOriginal", "deleteOriginal"].includes(
               lastAction,
@@ -659,6 +768,14 @@ export default function AccountConnection({
                     {fileNames[f.packetId + "/" + f.id] || f.name}
                   </span>{" "}
                   ·{" "}
+                  {f.packetDeleted &&
+                    "所属投递已删除，请先在最近删除中恢复投递 · "}
+                  {!f.packetDeleted &&
+                    f.attachmentDeleted &&
+                    "附件已移入最近删除，请从材料面板恢复附件后下载 · "}
+                  {!f.packetDeleted &&
+                    f.unlinked &&
+                    "此原件已无对应附件引用，无法下载，可删除云端副本释放空间 · "}
                   {["deleted", "cleaned"].includes(f.state)
                     ? "云端已清除"
                     : f.mode === "temporary"
@@ -666,7 +783,7 @@ export default function AccountConnection({
                       : f.state === "legacy_pending_notice"
                         ? "旧原件待确认期限"
                         : f.state === "pending_cleanup"
-                          ? "待清理"
+                          ? "已到期，待清理"
                           : "云端已保存"}
                   {f.remind ? " · 请续期或下载保留" : ""}
                   {f.expiresAt && f.mode === "retained"
@@ -683,14 +800,17 @@ export default function AccountConnection({
                         下载到本机
                       </button>
                     )}
-                    {f.mode === "retained" && (
-                      <button
-                        disabled={busy || !online}
-                        onClick={() => void action("renewOriginal", f)}
-                      >
-                        续期30天
-                      </button>
-                    )}
+                    {f.mode === "retained" &&
+                      !f.packetDeleted &&
+                      !f.attachmentDeleted &&
+                      !f.unlinked && (
+                        <button
+                          disabled={busy || !online}
+                          onClick={() => void action("renewOriginal", f)}
+                        >
+                          续期30天
+                        </button>
+                      )}
                     <button
                       disabled={busy || !online}
                       onClick={() => {
@@ -713,7 +833,10 @@ export default function AccountConnection({
             ))}
           </section>
         )}
-        <section className="connection-data">
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "ai"}
+        >
           <h3>服务端 AI</h3>
           {state?.account?.aiAvailability && (
             <p role="status">
@@ -763,8 +886,16 @@ export default function AccountConnection({
             </p>
           </details>
         </section>
+        {mode === "tasks" && !state?.account?.reading && (
+          <p role="status">
+            当前没有云端整理任务；连接账号后可在这里查看和主动继续。原有投递仍可从世界的整理记录查看。
+          </p>
+        )}
         {!!state?.account?.reading && (
-          <section className="connection-data">
+          <section
+            className="connection-data"
+            hidden={mode !== "tasks" || taskOriginals}
+          >
             <h3>整理任务</h3>
             <p>
               停止保留有效付费块；继续需原件一致。清除任务不会退回已消费额度。
@@ -772,19 +903,23 @@ export default function AccountConnection({
             {state.jobs?.map((task) => (
               <div key={task.id}>
                 <p>
-                  {(
-                    {
-                      queued: "排队中",
-                      running: "处理中",
-                      applying: "发布中",
-                      paused: "已暂停",
-                      cancelled: "已停止",
-                      interrupted: "已中断",
-                      done: "已发布",
-                      partial: "已收下部分",
-                      purged: "已清除",
-                    } as Record<string, string>
-                  )[task.state] || "需核对"}{" "}
+                  {task.disposition
+                    ? task.disposition === "kept"
+                      ? "已保留为普通卡"
+                      : "已选择删除（恢复后按普通卡管理）"
+                    : (
+                        {
+                          queued: "排队中",
+                          running: "处理中",
+                          applying: "发布中",
+                          paused: "已暂停",
+                          cancelled: "已停止",
+                          interrupted: "已中断",
+                          done: "已发布",
+                          partial: "已收下部分",
+                          purged: "已清除",
+                        } as Record<string, string>
+                      )[task.state] || "需核对"}{" "}
                   · 本任务已调用 {task.calls || 0} 次
                   {reuseView(task.reusedBlocks) &&
                     ` · ${reuseView(task.reusedBlocks)}`}
@@ -873,7 +1008,10 @@ export default function AccountConnection({
           </section>
         )}
         {state?.taskPreview && (
-          <section className="connection-data">
+          <section
+            className="connection-data"
+            hidden={mode !== "tasks" || taskOriginals}
+          >
             <h3>已完成内容（只读）</h3>
             <p>
               {state.taskPreview.published
@@ -926,7 +1064,10 @@ export default function AccountConnection({
             )}
           </section>
         )}
-        <section className="connection-data">
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "backup"}
+        >
           <h3>本机备份</h3>
           <button
             disabled={busy || !!state?.base}

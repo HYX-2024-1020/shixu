@@ -101,7 +101,13 @@ export interface AdminApi {
   getOperations?(): Promise<OperationsReport>;
   requestOperation?(
     kind: string,
-    args: { reason: string; snapshotId?: string; releaseId?: string },
+    args: {
+      reason: string;
+      snapshotId?: string;
+      releaseId?: string;
+      cleanupBefore?: number;
+      cleanupFingerprint?: string;
+    },
     operationId: string,
   ): Promise<CloudJob>;
   getBudget?(): Promise<Budget>;
@@ -110,6 +116,9 @@ export interface AdminApi {
     operationId: string,
   ): Promise<Budget>;
   getAlerts?(): Promise<import("./types").AlertItem[]>;
+  handleAlert?(id: string, operationId: string): Promise<{ accepted: boolean; recovered: boolean; message: string }>;
+  getPlatformCostReview?(id: string): Promise<PlatformCostReview>;
+  coverAlertCost?(id: string, fingerprint: string, operationId: string): Promise<{ accepted: boolean; recovered: boolean; message: string }>;
   followAlert?(
     id: string,
     state: string,
@@ -186,6 +195,16 @@ export interface AdminApi {
   ): Promise<void>;
 }
 
+export interface PlatformCostReview {
+  alertId: string;
+  username: string;
+  fingerprint: string;
+  calls: { id: string; day: string; reservedMicro: number }[];
+  totalMicro: number;
+  canConfirm: boolean;
+  message: string;
+}
+
 export interface Budget {
   dailyMicro: number;
   monthlyMicro: number | null;
@@ -206,6 +225,15 @@ export interface CloudJob {
   result: Record<string, unknown> | null;
 }
 export interface OperationsReport {
+  cleanupPreview?: {
+    at: number;
+    fingerprint: string;
+    originals: number;
+    logicalBytes: number;
+    reusablePageBytes: number;
+    expiredBackups: number;
+    protected: string;
+  };
   maintenance: { paused: boolean; reason: string | null };
   jobs: CloudJob[];
   inventory: {
@@ -229,6 +257,7 @@ export interface OperationsReport {
   } | null;
 }
 export interface StorageReport {
+  categoriesSampledAt?: string | null;
   categories?: {
     dataTreeBytes: number;
     authorityBytes: number;
