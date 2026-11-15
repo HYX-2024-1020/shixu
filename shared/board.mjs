@@ -27,9 +27,14 @@ const date = (s) =>
 // A compact change fingerprint, not an authorization credential. Native writes
 // also compare the store/queue revision; cloud writes retain server CAS.
 function changeToken(value) {
-  let a=2166136261,b=2654435769;
-  for(const c of JSON.stringify(value)){const n=c.codePointAt(0);a=Math.imul(a^n,16777619)>>>0;b=Math.imul(b^n,2246822519)>>>0;}
-  return a.toString(16).padStart(8,'0')+b.toString(16).padStart(8,'0');
+  let a = 2166136261,
+    b = 2654435769;
+  for (const c of JSON.stringify(value)) {
+    const n = c.codePointAt(0);
+    a = Math.imul(a ^ n, 16777619) >>> 0;
+    b = Math.imul(b ^ n, 2246822519) >>> 0;
+  }
+  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
 }
 export function validateBoard(s) {
   if (
@@ -115,6 +120,10 @@ export function validateBoard(s) {
       !["image", "file"].includes(r.kind) ||
       !date(r.createdAt) ||
       !id(r.attachmentId) ||
+      (r.longPlanId !== undefined &&
+        !s.longPlans.some(
+          (p) => p.id === r.longPlanId && p.planningId === r.planningId,
+        )) ||
       (r.deletedAt !== undefined && !date(r.deletedAt))
     )
       fail("资料引用无效");
@@ -165,7 +174,7 @@ export function sourceRows(packets) {
             dueLabel: item.due
               ? `${item.due.startDate ? item.due.startDate + " " + (item.due.startTime || "") + " 至 " : ""}${item.due.date} ${clock.time || "23:59"}${clock.timeReason ? " · " + clock.timeReason : ""}`
               : "",
-          token: changeToken([
+            token: changeToken([
               p.syncVersion || 0,
               p.updatedAt,
               raw,
@@ -235,7 +244,14 @@ export function boardView(record, packets) {
     )
     .map((r) => ({
       ...r,
-      planLabel: board.plans.find((p) => p.id === r.planningId)?.name || "",
+      planLabel: [
+        board.plans.find((p) => p.id === r.planningId)?.name,
+        ...board.longPlans
+          .filter((p) => p.id === r.longPlanId)
+          .map((p) => p.title + (p.deletedAt ? "（已删除，可恢复）" : "")),
+      ]
+        .filter(Boolean)
+        .join(" / "),
     }));
   return {
     snapshot,

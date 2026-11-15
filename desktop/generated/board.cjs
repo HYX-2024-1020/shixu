@@ -648,7 +648,9 @@ function validateBoard(s) {
   if (new Set(links).size !== links.length)
     fail("同一规划不能重复选入同一来源");
   for (const r of s.resources)
-    if (!plans.has(r.planningId) || !text(r.name, 255) || !["image", "file"].includes(r.kind) || !date(r.createdAt) || !id(r.attachmentId) || r.deletedAt !== void 0 && !date(r.deletedAt))
+    if (!plans.has(r.planningId) || !text(r.name, 255) || !["image", "file"].includes(r.kind) || !date(r.createdAt) || !id(r.attachmentId) || r.longPlanId !== void 0 && !s.longPlans.some(
+      (p) => p.id === r.longPlanId && p.planningId === r.planningId
+    ) || r.deletedAt !== void 0 && !date(r.deletedAt))
       fail("资料引用无效");
   if (s.drafts && (typeof s.drafts !== "object" || Array.isArray(s.drafts) || Object.entries(s.drafts).some(
     ([k, v]) => !id(k) || typeof v !== "string" || v.length > 2e3
@@ -742,7 +744,10 @@ function boardView(record, packets) {
     (r) => !r.deletedAt || record?.attachments.some((a) => a.id === r.attachmentId)
   ).map((r) => ({
     ...r,
-    planLabel: board.plans.find((p) => p.id === r.planningId)?.name || ""
+    planLabel: [
+      board.plans.find((p) => p.id === r.planningId)?.name,
+      ...board.longPlans.filter((p) => p.id === r.longPlanId).map((p) => p.title + (p.deletedAt ? "（已删除，可恢复）" : ""))
+    ].filter(Boolean).join(" / ")
   }));
   return {
     snapshot,

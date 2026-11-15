@@ -112,12 +112,25 @@ test("real board persists planning, shared steps, archive restoration, input dra
   await expect(
     board.getByText("合成资料.txt", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
+  await board
+    .getByText("合成资料.txt", { exact: true })
+    .filter({ visible: true })
+    .click();
+  await board
+    .getByLabel("资料关联长期计划")
+    .selectOption({ label: "合成长计划" });
+  await page.evaluate(() => window.flushBoardDraft?.());
   await page.reload();
   await page.getByRole("button", { name: "看板", exact: true }).click();
   await board.getByRole("button", { name: "面板", exact: true }).click();
   await expect(
     board.getByText("合成资料.txt", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
+  await board
+    .getByText("合成资料.txt", { exact: true })
+    .filter({ visible: true })
+    .click();
+  await expect(board.getByLabel("资料关联长期计划")).toHaveValue(/parent-/);
   const packets = await page.evaluate(async () => {
     const path = "/src/bucket/store.ts";
     return (await import(path)).allPackets();

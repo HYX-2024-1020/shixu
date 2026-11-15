@@ -234,6 +234,34 @@ export function LibraryPanel() {
         </div>
         {selected ? (
           <section className="sx-resource-detail" aria-label="资料详情">
+            <label>
+              关联长期计划
+              <select
+                aria-label="资料关联长期计划"
+                value={selected.longPlanId || ""}
+                disabled={trash}
+                onChange={(e) =>
+                  commit((d) => {
+                    const r = d.resources.find((r) => r.id === selected.id);
+                    if (r) r.longPlanId = e.target.value || undefined;
+                  }, "已保存资料关联")
+                }
+              >
+                <option value="">仅属于当前规划</option>
+                {snapshot.longPlans
+                  .filter(
+                    (p) =>
+                      p.planningId === activePlan.id &&
+                      (!p.deletedAt || p.id === selected.longPlanId),
+                  )
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                      {p.deletedAt ? "（已删除）" : ""}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <div className="sx-section-head">
               <h3>{selected.name}</h3>
               <button

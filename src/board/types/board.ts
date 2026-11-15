@@ -56,6 +56,7 @@ export interface Deadline {
 }
 
 export interface ResourceItem {
+  longPlanId?: string;
   id: string;
   planningId: string;
   name: string;
