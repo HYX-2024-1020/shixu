@@ -5,6 +5,7 @@ const path = require("node:path");
 const os = require("node:os");
 const { DesktopStore } = require("./storage.cjs");
 const { CloudWorkspace } = require("./cloud.cjs");
+const { AccountWorkspace } = require('./accounts.cjs');
 const { BoardService } = require("./board.cjs");
 const {
   sourceEdits,
@@ -114,6 +115,9 @@ test("board source edits preserve existing fields, shared steps persist and stal
     archived: true,
   });
   view = await save(board, view, next);
+  const staleSource = (await local.call("packets")).find(
+    (p) => p.id === "source",
+  );
   const stale = structuredClone(view);
   const edited = structuredClone(view.snapshot);
   edited.tasks[0].title = "来源改名";
@@ -127,6 +131,17 @@ test("board source edits preserve existing fields, shared steps persist and stal
   assert.equal(p.itemState.item.starred, true);
   assert.equal(p.itemState.item.chat[0].text, "合成旧对话");
   assert.equal(p.itemState.item.completedAt, "2026-11-15T02:00:00Z");
+  await assert.rejects(
+    local.call("savePackets", [{ ...staleSource, text: "stale" }]),
+    /来源已有新修改/,
+  );
+  assert.equal(
+    JSON.stringify(
+      (await local.call("packets")).find((p) => p.id === BOARD_ID).board,
+    ).includes("来源改名"),
+    false,
+    "references must not retain purged source content",
+  );
   assert.equal(view.snapshot.tasks[1].completedAt, "2026-11-15T01:00:00Z");
   assert.equal(view.snapshot.longPlans[0].completedAt, null);
   await assert.rejects(save(board, stale, stale.snapshot), /另一个窗口/);
@@ -276,4 +291,26 @@ test("offline board and original queue roundtrip uses existing real sync service
   await cloud.action("local");
   assert.equal((await board.load(board.lease())).snapshot.resources.length, 0);
   assert.equal((await local.call("packets")).length, 0);
+});
+
+test('signed account v4 board originals use retained quota and survive client restart without any AI call',async t=>{
+  const {accountUIFixture}=await import('../scripts/account-ui-fixture.mjs');
+  const {ReadingLedger}=await import('../server/reading/ledger.mjs');
+  const {readMaterial}=await import('../server/reading/material.mjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'shixu-board-v4-'));
+  const ledger=new ReadingLedger(path.join(root,'ledger.sqlite'));
+  ledger.freezePrice({id:'fixture',model:'fixture',currency:'CNY',source:'synthetic',verifiedAt:1,inputMicrosPerMillion:1,cachedMicrosPerMillion:0,outputMicrosPerMillion:1});
+  let calls=0;
+  const f=await accountUIFixture({}, {reading:{ledger,enabled:true,priceId:'fixture',modelVersion:'fixture',reader:readMaterial,provider:async()=>{calls++;throw Error('board must not call AI');}}});
+  t.after(async()=>{await f.close();ledger.close();await fs.rm(root,{recursive:true,force:true});});
+  ledger.grantInitial(f.invitation.userId);
+  const options={root:path.join(root,'client'),local:new DesktopStore(path.join(root,'local')),serviceOrigin:f.base,seal:async s=>Buffer.from(s),unseal:async b=>b.toString()};
+  let client=new AccountWorkspace(options);await client.init();await client.action('activate',{invite:f.invitation.invite});
+  let board=new BoardService(client),view=await board.load(board.lease());
+  view=await board.addFiles({stamp:view.stamp,planningId:'daily',files:[{name:'board.txt',type:'text/plain',bytes:Uint8Array.from([97,98,99]).buffer}]},board.lease());
+  await client.action('sync',{force:true});assert.equal(client.space().client.pendingCount(),0);assert.equal(calls,0);
+  const storage=await client.request(client.config.active,'GET','/api/v4/storage?packetId='+BOARD_ID);
+  assert.equal(storage.originals[0].mode,'retained');assert.equal(storage.originals[0].available,true);
+  client=new AccountWorkspace(options);await client.init();await client.action('sync',{force:true});board=new BoardService(client);
+  view=await board.load(board.lease());assert.equal(view.snapshot.resources.length,1);assert.equal((await board.resource(view.snapshot.resources[0].id,board.lease())).bytes.byteLength,3);assert.equal(calls,0);
 });

@@ -645,7 +645,7 @@ function validateBoard(s) {
     ([k, v]) => !id(k) || typeof v !== "string" || v.length > 2e3
   )))
     fail("看板输入草稿无效");
-  if (JSON.stringify(s).length > 3e5)
+  if (new TextEncoder().encode(JSON.stringify(s)).byteLength > 6e5)
     fail("看板内容较多，请先整理规划后重试");
   return s;
 }
@@ -720,7 +720,13 @@ function boardView(record, packets) {
         dueAt: r.dueAt,
         timePrecision: r.timePrecision,
         sourceUnavailable: false
-      } : { ...t, sourceUnavailable: true };
+      } : {
+        ...t,
+        title: "来源不可用",
+        dueAt: null,
+        completedAt: null,
+        sourceUnavailable: true
+      };
     })
   };
   snapshot.resources = snapshot.resources.filter(
@@ -741,7 +747,9 @@ function storedBoard(snapshot) {
   value.resources = value.resources.map(
     ({ url, preview, temporary, ...r }) => r
   );
-  value.tasks = value.tasks.map(({ sourceUnavailable, ...t }) => t);
+  value.tasks = value.tasks.map(
+    ({ sourceUnavailable, ...t }) => t.origin === "source" ? { ...t, title: "关联来源事项", dueAt: null, completedAt: null } : t
+  );
   return validateBoard(value);
 }
 function sourceEdits(before, next) {

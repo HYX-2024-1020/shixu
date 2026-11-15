@@ -125,7 +125,7 @@ class BoardWindow {
       },
     });
     this.win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    this.win.on('page-title-updated',event=>event.preventDefault());
+    this.win.on("page-title-updated", (event) => event.preventDefault());
     this.win.webContents.on("will-navigate", (e, url) => {
       if (url !== "shixu://app/?board=1") e.preventDefault();
     });
@@ -171,7 +171,11 @@ class BoardWindow {
   async action(action, value, lease) {
     if (lease !== this.service.lease())
       throw Error("账号已切换，请关闭并重新打开看板");
-    if (action === "windowState") return {...this.settings,shortcutAvailable:this.shortcutRegistered!==false};
+    if (action === "windowState")
+      return {
+        ...this.settings,
+        shortcutAvailable: this.shortcutRegistered !== false,
+      };
     if (action === "show") {
       await this.show();
       return this.settings;
@@ -205,7 +209,7 @@ class BoardWindow {
       ) {
         const size =
           this.settings.mode === "strip"
-            ? [270, 110]
+            ? [258, 110]
             : this.settings.mode === "rail"
               ? [370, 660]
               : [680, 660];
@@ -233,7 +237,7 @@ class BoardWindow {
         this.win
       ) {
         this.win.setSize(
-          270,
+          258,
           Math.min(
             Math.ceil(value.height),
             this.screen.getDisplayMatching(this.win.getBounds()).workArea
@@ -251,7 +255,9 @@ class BoardWindow {
       } catch {
         throw Error("来源无效");
       }
-      const view = await this.service.cloud.serial(()=>this.service.load(lease));
+      const view = await this.service.cloud.serial(() =>
+        this.service.load(lease),
+      );
       if (
         !view.snapshot.sourceTasks.some((s) => s.id === value.id) ||
         !Array.isArray(refs)

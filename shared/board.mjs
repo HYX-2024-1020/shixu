@@ -120,7 +120,7 @@ export function validateBoard(s) {
       ))
   )
     fail("看板输入草稿无效");
-  if (JSON.stringify(s).length > 300000)
+  if (new TextEncoder().encode(JSON.stringify(s)).byteLength > 600000)
     fail("看板内容较多，请先整理规划后重试");
   return s;
 }
@@ -211,7 +211,13 @@ export function boardView(record, packets) {
             timePrecision: r.timePrecision,
             sourceUnavailable: false,
           }
-        : { ...t, sourceUnavailable: true };
+        : {
+            ...t,
+            title: "来源不可用",
+            dueAt: null,
+            completedAt: null,
+            sourceUnavailable: true,
+          };
     }),
   };
   snapshot.resources = snapshot.resources
@@ -236,7 +242,11 @@ export function storedBoard(snapshot) {
   value.resources = value.resources.map(
     ({ url, preview, temporary, ...r }) => r,
   );
-  value.tasks = value.tasks.map(({ sourceUnavailable, ...t }) => t);
+  value.tasks = value.tasks.map(({ sourceUnavailable, ...t }) =>
+    t.origin === "source"
+      ? { ...t, title: "关联来源事项", dueAt: null, completedAt: null }
+      : t,
+  );
   return validateBoard(value);
 }
 export function sourceEdits(before, next) {

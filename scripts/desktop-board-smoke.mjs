@@ -38,7 +38,7 @@ try {
       .find((w) => w.getTitle() === "拾序看板")
       .getBounds(),
   );
-  assert.equal(expanded.width, 270);
+  assert.equal(expanded.width, 258);
   assert.equal(
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()

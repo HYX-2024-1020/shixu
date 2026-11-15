@@ -54,9 +54,14 @@ function Contents({ floating }: { floating: boolean }) {
     }
   };
   useEffect(() => {
+    if (!floating) return;
+    document.documentElement.classList.add("sx-board-window");
+    return () => document.documentElement.classList.remove("sx-board-window");
+  }, [floating]);
+  useEffect(() => {
     if (!floating || !root.current || mode !== "strip" || !host) return;
     const observer = new ResizeObserver(() => {
-      const h = Math.ceil(root.current!.scrollHeight);
+      const h = Math.ceil(root.current!.scrollHeight) + 4;
       void host.invoke("stripHeight", { height: h }).catch(() => {});
     });
     observer.observe(root.current);
@@ -171,7 +176,12 @@ function Contents({ floating }: { floating: boolean }) {
                 Ctrl+Alt+B
                 显示或隐藏；标题条可拖动，屏幕边缘可停靠。文字始终不透明。
               </small>
-              {'shortcutAvailable' in settings && settings.shortcutAvailable===false?<small role="status">快捷键被其他程序占用，请通过主程序打开看板。</small>:null}
+              {"shortcutAvailable" in settings &&
+              settings.shortcutAvailable === false ? (
+                <small role="status">
+                  快捷键被其他程序占用，请通过主程序打开看板。
+                </small>
+              ) : null}
             </>
           ) : (
             <small>浏览器使用本机保存；悬浮窗口请在 Windows 客户端打开。</small>

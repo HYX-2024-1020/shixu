@@ -113,6 +113,15 @@
 .sx-board.sx-floating {
   background: transparent;
 }
+.sx-board-window,
+.sx-board-window body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.sx-board-window:has(.sx-mode-strip) body {
+  overflow: hidden;
+}
 .sx-floating .sx-strip-row {
   app-region: drag;
 }
