@@ -7,11 +7,16 @@ import { useBoard, useBoardDraft } from "./BoardProvider";
 export function PlanningManager() {
   const { snapshot, activePlan, commit, setActivePlan } = useBoard();
   const [action, setAction] = useState<"new" | "rename" | null>(null);
-  const [draft, setDraft] = useBoardDraft("planning-name");
+  const [newDraft, setNewDraft] = useBoardDraft("planning-new-name");
+  const [renameDraft, setRenameDraft, clearRename] = useBoardDraft(
+    `planning-rename:${activePlan.id}`,
+    activePlan.name,
+  );
+  const draft = action === "rename" ? renameDraft : newDraft;
+  const setDraft = action === "rename" ? setRenameDraft : setNewDraft;
 
   const begin = (nextAction: "new" | "rename") => {
     setAction(nextAction);
-    setDraft(nextAction === "rename" ? activePlan.name : "");
   };
 
   const submit = (event: FormEvent) => {
@@ -30,8 +35,9 @@ export function PlanningManager() {
         if (plan) plan.name = name;
       }, "已重命名规划");
     }
+    if (action === "new") setNewDraft("");
+    else clearRename();
     setAction(null);
-    setDraft("");
   };
 
   return (

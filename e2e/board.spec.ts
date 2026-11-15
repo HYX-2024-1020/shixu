@@ -1,4 +1,61 @@
 import { test, expect } from "@playwright/test";
+test("unsubmitted title, deadline and planning-name edits recover when editors reopen after restart", async ({
+  page,
+}) => {
+  await page.goto("/?board=1");
+  await page.getByLabel("新增短期计划").fill("已有事项");
+  await page
+    .getByRole("button", { name: "新增一项", exact: true })
+    .filter({ visible: true })
+    .click();
+  await page.getByLabel("编辑事项：已有事项", { exact: true }).click();
+  await page
+    .locator(".sx-task-edit:visible")
+    .getByLabel("标题", { exact: true })
+    .fill("未提交的新标题");
+  await page
+    .locator(".sx-task-edit:visible")
+    .locator("input[type=datetime-local]")
+    .fill("2026-12-01T14:30");
+  await page
+    .locator(".sx-rail")
+    .getByLabel("新建规划", { exact: true })
+    .click();
+  await page.getByLabel("新规划名称", { exact: true }).fill("未提交规划名");
+  await page.evaluate(() => window.flushBoardDraft?.());
+  await page.reload();
+  await page.getByLabel("编辑事项：已有事项", { exact: true }).click();
+  await expect(
+    page.locator(".sx-task-edit:visible").getByLabel("标题", { exact: true }),
+  ).toHaveValue("未提交的新标题");
+  await expect(
+    page.locator(".sx-task-edit:visible").locator("input[type=datetime-local]"),
+  ).toHaveValue("2026-12-01T14:30");
+  await page
+    .locator(".sx-rail")
+    .getByLabel("新建规划", { exact: true })
+    .click();
+  await expect(page.getByLabel("新规划名称", { exact: true })).toHaveValue(
+    "未提交规划名",
+  );
+  await page
+    .locator(".sx-task-edit:visible")
+    .getByRole("button", { name: "保存修改", exact: true })
+    .click();
+  await page.getByLabel("编辑事项：未提交的新标题", { exact: true }).click();
+  await page
+    .locator(".sx-task-edit:visible")
+    .getByLabel("标题", { exact: true })
+    .fill("用户主动取消的文字");
+  await page
+    .locator(".sx-task-edit:visible")
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
+  await page.getByLabel("编辑事项：未提交的新标题", { exact: true }).click();
+  await expect(
+    page.locator(".sx-task-edit:visible").getByLabel("标题", { exact: true }),
+  ).toHaveValue("未提交的新标题");
+});
 test("real board persists planning, shared steps, archive restoration, input drafts and originals without bucket pollution", async ({
   page,
 }) => {

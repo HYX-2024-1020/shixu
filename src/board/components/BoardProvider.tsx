@@ -268,5 +268,9 @@ export function useBoardDraft(key: string, initial = "") {
     commit((draft) => {
       draft.drafts = { ...draft.drafts, [key]: next };
     }, "输入草稿已保存");
-  return [value, setValue] as const;
+  const clear = () =>
+    commit((draft) => {
+      if (draft.drafts) delete draft.drafts[key];
+    }, "已结束本次编辑");
+  return [value, setValue, clear] as const;
 }

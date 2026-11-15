@@ -28,8 +28,11 @@ export function TaskRow({
   removeLabel,
 }: TaskRowProps) {
   const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useBoardDraft(`title:${task.id}`, task.title);
-  const [dueAt, setDueAt] = useBoardDraft(
+  const [title, setTitle, clearTitle] = useBoardDraft(
+    `title:${task.id}`,
+    task.title,
+  );
+  const [dueAt, setDueAt, clearDue] = useBoardDraft(
     `due:${task.id}`,
     toDateTimeInput(task.dueAt),
   );
@@ -45,6 +48,8 @@ export function TaskRow({
     event.preventDefault();
     if (!title.trim()) return;
     onUpdate?.(title.trim(), fromDateTimeInput(dueAt));
+    clearTitle();
+    clearDue();
     setEditing(false);
   };
 
@@ -95,8 +100,6 @@ export function TaskRow({
               className="sx-row-button"
               type="button"
               onClick={() => {
-                setTitle(task.title);
-                setDueAt(toDateTimeInput(task.dueAt));
                 setEditing((value) => !value);
               }}
               aria-label={`编辑事项：${task.title}`}
@@ -150,7 +153,11 @@ export function TaskRow({
             <button
               className="sx-button"
               type="button"
-              onClick={() => setEditing(false)}
+              onClick={() => {
+                clearTitle();
+                clearDue();
+                setEditing(false);
+              }}
             >
               取消
             </button>

@@ -18,7 +18,10 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
   const { snapshot, commit } = useBoard();
   const [stepTitle, setStepTitle] = useBoardDraft(`step:${parent.id}`);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [title, setTitle] = useBoardDraft(`parent:${parent.id}`, parent.title);
+  const [title, setTitle, clearTitle] = useBoardDraft(
+    `parent:${parent.id}`,
+    parent.title,
+  );
   const steps = parent.stepIds
     .map((id) => snapshot.tasks.find((task) => task.id === id))
     .filter((task) => task !== undefined)
@@ -120,6 +123,7 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
       const target = draft.longPlans.find((item) => item.id === parent.id);
       if (target) target.title = title.trim();
     }, "已重命名长期计划");
+    clearTitle();
     setEditingTitle(false);
   };
 
@@ -170,7 +174,6 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
           className="sx-text-button"
           type="button"
           onClick={() => {
-            setTitle(parent.title);
             setEditingTitle((value) => !value);
           }}
         >
