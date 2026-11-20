@@ -101,7 +101,7 @@ function Contents({ floating }: { floating: boolean }) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
-  return (
+  const content = (
     <div
       className={`sx-board sx-host ${floating ? "sx-floating" : ""} sx-density-${settings.density} sx-mode-${view}`}
       style={
@@ -363,6 +363,7 @@ function Contents({ floating }: { floating: boolean }) {
         : null}
     </div>
   );
+  return floating ? <div className="sx-float-frame">{content}</div> : content;
 }
 export default function BoardApp({
   onSource,

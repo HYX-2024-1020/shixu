@@ -154,7 +154,9 @@ class BoardWindow {
   minimum() {
     return {
       width: Math.max(200, Math.ceil(164 * this.settings.zoom)),
-      height: this.stripCollapsed ? Math.ceil(54 * this.settings.zoom) : 120,
+      height: this.stripCollapsed
+        ? Math.ceil(48 * this.settings.zoom) + 6
+        : 120,
     };
   }
   boundsForMode() {

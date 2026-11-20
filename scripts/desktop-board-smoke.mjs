@@ -116,6 +116,66 @@ try {
   );
   assert.equal(await board.evaluate((el) => getComputedStyle(el).zoom), "1");
 
+  const checkFrame = async () => {
+    const frame = win.locator(".sx-float-frame");
+    assert.equal(
+      await frame.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const css = getComputedStyle(el);
+        return (
+          Math.abs(rect.left) < 1 &&
+          Math.abs(rect.top) < 1 &&
+          Math.abs(rect.right - innerWidth) < 1 &&
+          Math.abs(rect.bottom - innerHeight) < 1 &&
+          [
+            css.borderTopWidth,
+            css.borderRightWidth,
+            css.borderBottomWidth,
+            css.borderLeftWidth,
+          ].every((width) => Math.abs(parseFloat(width) - 3) < 1) &&
+          [
+            css.borderTopLeftRadius,
+            css.borderTopRightRadius,
+            css.borderBottomLeftRadius,
+            css.borderBottomRightRadius,
+          ].every((radius) => radius === "9px")
+        );
+      }),
+      true,
+      "the frame fits the viewport independently of content zoom",
+    );
+    const edges = await app.evaluate(async ({ BrowserWindow }) => {
+      const image = await BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === "拾序看板")
+        .capturePage();
+      const { width, height } = image.getSize();
+      const pixels = image.toBitmap({ scaleFactor: 1 });
+      const isInk = (x, y) => {
+        const i = (y * width + x) * 4;
+        return (
+          pixels[i] < 45 &&
+          pixels[i + 1] < 45 &&
+          pixels[i + 2] < 45 &&
+          pixels[i + 3] > 240
+        );
+      };
+      return [
+        isInk(width >> 1, 1),
+        isInk(width - 2, height >> 1),
+        isInk(width >> 1, height - 2),
+        isInk(1, height >> 1),
+        !isInk(0, 0),
+        !isInk(width - 1, 0),
+        !isInk(width - 1, height - 1),
+        !isInk(0, height - 1),
+      ];
+    });
+    assert.deepEqual(
+      edges,
+      Array(8).fill(true),
+      "each edge and rounded corner appears in the Windows compositor",
+    );
+  };
   for (const [mode, target] of [
     ["rail", "rail-board"],
     ["strip", "strip-board"],
@@ -124,7 +184,12 @@ try {
   ]) {
     await board.getByLabel("看板视图").selectOption(mode);
     await board.getByRole("button", { name: "打开悬浮看板" }).click();
-    if (mode === "strip") await win.getByLabel("展开小条").click();
+    if (mode === "strip") {
+      await win.getByLabel("展开小条").waitFor();
+      await win.waitForFunction(() => innerHeight < 100);
+      await checkFrame();
+      await win.getByLabel("展开小条").click();
+    }
     await win.getByTestId(target).waitFor();
     if (mode === "strip") await win.waitForFunction(() => innerHeight > 100);
     await app.evaluate(({ BrowserWindow }) => {
@@ -136,6 +201,17 @@ try {
     await win.waitForFunction(
       () => Math.abs(innerWidth - 355) <= 2 && Math.abs(innerHeight - 215) <= 2,
     );
+    await checkFrame();
+    for (const zoom of ["0.65", "2", "1.25"]) {
+      await board.getByLabel("界面缩放").selectOption(zoom);
+      await win.waitForFunction(
+        (value) =>
+          getComputedStyle(document.querySelector(".sx-floating")).zoom ===
+          value,
+        zoom,
+      );
+      await checkFrame();
+    }
     const scroller = win.locator(".sx-board-content");
     await scroller.evaluate((el) => {
       el.scrollTop = 0;
@@ -177,7 +253,7 @@ try {
     }
   }
   console.log(
-    "Isolated board window IPC, drafts, hide/restore, strip, topmost, four wheel scrollers, zoom and DDL filter passed",
+    "Isolated board window IPC, drafts, hide/restore, strip, topmost, four wheel scrollers, zoom, compositor borders/corners and DDL filter passed",
   );
 } finally {
   await app?.close();
