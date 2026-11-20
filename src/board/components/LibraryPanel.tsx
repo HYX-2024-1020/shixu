@@ -1,3 +1,4 @@
+import { animateBoardRemoval } from "../motion";
 import { useRef, useState, type ChangeEvent } from "react";
 import { FilePlus, GripVertical } from "lucide-react";
 import { useCardDrag } from "../../bucket/useCardDrag";
@@ -146,7 +147,9 @@ export function LibraryPanel({
                 </span>
               ) : null}
               <span className="sx-library-type">{resource.fileType}</span>
-              <strong>{resource.name}</strong>
+              <strong key={resource.name} className="sx-edited-label">
+                {resource.name}
+              </strong>
               {!trash ? (
                 <button
                   type="button"
@@ -227,18 +230,22 @@ export function LibraryPanel({
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => {
-                      commit(
-                        (draft) => {
-                          const item = draft.resources.find(
-                            (r) => r.id === resource.id,
-                          );
-                          if (item)
-                            item.deletedAt = trash
-                              ? undefined
-                              : new Date().toISOString();
-                        },
-                        trash ? "已恢复资料" : "已移到最近移除",
+                    onClick={(event) => {
+                      animateBoardRemoval(
+                        event.currentTarget.closest(".sx-library-card"),
+                        () =>
+                          commit(
+                            (draft) => {
+                              const item = draft.resources.find(
+                                (r) => r.id === resource.id,
+                              );
+                              if (item)
+                                item.deletedAt = trash
+                                  ? undefined
+                                  : new Date().toISOString();
+                            },
+                            trash ? "已恢复资料" : "已移到最近移除",
+                          ),
                       );
                     }}
                   >

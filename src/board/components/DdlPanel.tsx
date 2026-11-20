@@ -126,7 +126,7 @@ export function DdlPanel() {
                   key={item.id}
                 >
                   <div>
-                    <h3>{item.title}</h3>
+                    <h3 title={item.title}>{item.title}</h3>
                     <span>
                       {item.dueLabel?.split(" · ")[0] ||
                         formatDateTime(item.dueAt)}
@@ -135,7 +135,7 @@ export function DdlPanel() {
                       <small> · 推定</small>
                     ) : null}
                   </div>
-                  <strong>
+                  <strong className="sx-ddl-status">
                     {item.completedAt ? "已完成" : deadlineLabel(item.dueAt)}
                   </strong>
                 </article>

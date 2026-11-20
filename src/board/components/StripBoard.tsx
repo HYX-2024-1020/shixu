@@ -1,5 +1,7 @@
+import { removeBoardTask } from "../utils/board";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useBoard, useBoardDraft } from "./BoardProvider";
+import type { BoardTask } from "../types/board";
 import { TaskRow } from "./TaskRow";
 
 function useStrip() {
@@ -37,6 +39,15 @@ function useStrip() {
     );
   };
 
+  const remove = (task: BoardTask) => {
+    commit(
+      (draft) => removeBoardTask(draft, task),
+      task.origin === "source"
+        ? "已移出规划，来源事项未删除"
+        : "已移到最近删除",
+    );
+  };
+
   const label =
     display === "count"
       ? `${tasks.length - pending.length} / ${tasks.length} 已完成`
@@ -47,8 +58,8 @@ function useStrip() {
           "当前计划已完成");
   return {
     tasks,
-    pending,
     toggle,
+    remove,
     label,
     display,
     setDisplay,
@@ -91,11 +102,14 @@ export function StripSettings() {
   );
 }
 
-export function StripBoard({ floating = false }: { floating?: boolean } = {}) {
+export function StripBoard({
+  floating = false,
+  summary = false,
+}: { floating?: boolean; summary?: boolean } = {}) {
   const [expandedValue, setExpanded] = useBoardDraft("strip-expanded", "false");
   const expanded = expandedValue === "true";
-  const { pending, label, toggle } = useStrip();
-  if (floating && !expanded)
+  const { tasks, label, toggle, remove } = useStrip();
+  if (summary)
     return (
       <span className="sx-strip-title" title={label}>
         {label}
@@ -126,22 +140,29 @@ export function StripBoard({ floating = false }: { floating?: boolean } = {}) {
           </button>
         </div>
       ) : null}
-      {expanded ? (
+      <div
+        className="sx-strip-reveal"
+        data-expanded={expanded}
+        inert={!expanded}
+      >
         <div className="sx-strip-list">
-          {pending.length ? (
-            pending.map((task) => (
+          {tasks.length ? (
+            tasks.map((task) => (
               <TaskRow
                 key={task.id}
                 task={task}
                 compact
+                menu
+                onRemove={() => remove(task)}
+                removeLabel={task.origin === "source" ? "移出规划" : "删除"}
                 onToggle={(done) => toggle(task.id, done)}
               />
             ))
           ) : (
-            <p className="sx-empty-inline">没有待完成事项</p>
+            <p className="sx-empty-inline">暂无事项</p>
           )}
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

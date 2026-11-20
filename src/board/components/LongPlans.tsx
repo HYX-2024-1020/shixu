@@ -1,3 +1,4 @@
+import { animateBoardRemoval, animateBoardReorder } from "../motion";
 import { useState, type FormEvent } from "react";
 import {
   Archive,
@@ -168,7 +169,9 @@ function LongPlanSection({
             </button>
           </form>
         ) : (
-          <h4>{parent.title}</h4>
+          <h4 key={parent.title} className="sx-edited-label">
+            {parent.title}
+          </h4>
         )}
         <details className="sx-item-menu">
           <summary aria-label="长期计划操作">⋯</summary>
@@ -229,14 +232,19 @@ function LongPlanSection({
               </p>
               <button
                 type="button"
-                onClick={() =>
-                  commit((d) => {
-                    const at = new Date().toISOString();
-                    d.longPlans.find((p) => p.id === parent.id)!.deletedAt = at;
-                    for (const t of d.tasks)
-                      if (t.parentId === parent.id && !t.deletedAt)
-                        t.deletedAt = at;
-                  }, "已移到最近删除")
+                onClick={(event) =>
+                  animateBoardRemoval(
+                    event.currentTarget.closest(".sx-parent"),
+                    () =>
+                      commit((d) => {
+                        const at = new Date().toISOString();
+                        d.longPlans.find((p) => p.id === parent.id)!.deletedAt =
+                          at;
+                        for (const t of d.tasks)
+                          if (t.parentId === parent.id && !t.deletedAt)
+                            t.deletedAt = at;
+                      }, "已移到最近删除"),
+                  )
                 }
               >
                 确认删除父计划及其子事项
@@ -295,7 +303,12 @@ function LongPlanSection({
                       className="sx-row-button"
                       type="button"
                       disabled={index === 0}
-                      onClick={() => moveStep(task.id, -1)}
+                      onClick={(event) =>
+                        animateBoardReorder(
+                          event.currentTarget.closest(".sx-parent-steps"),
+                          () => moveStep(task.id, -1),
+                        )
+                      }
                       aria-label={`上移：${task.title}`}
                     >
                       <ArrowUp size={13} />
@@ -304,7 +317,12 @@ function LongPlanSection({
                       className="sx-row-button"
                       type="button"
                       disabled={index === visibleSteps.length - 1}
-                      onClick={() => moveStep(task.id, 1)}
+                      onClick={(event) =>
+                        animateBoardReorder(
+                          event.currentTarget.closest(".sx-parent-steps"),
+                          () => moveStep(task.id, 1),
+                        )
+                      }
                       aria-label={`下移：${task.title}`}
                     >
                       <ArrowDown size={13} />

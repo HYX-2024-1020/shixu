@@ -1197,11 +1197,7 @@
   background: var(--sx-green-paper);
 }
 .sx-ddl-overdue {
-  margin: 0 -10px;
-  padding-left: 10px;
-  padding-right: 10px;
   background: var(--sx-pink-paper);
-  border-bottom-color: var(--sx-pink-card);
 }
 .sx-ddl-overdue .sx-ddl-time > span {
   background: var(--sx-pink-card);

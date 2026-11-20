@@ -42,6 +42,8 @@ const defaults = () => ({
   opacity: 1,
   restore: false,
   zoom: 1,
+  palette: "classic",
+  cardColor: "#ffda32",
   fontSize: 14,
   modeBounds: {},
   bounds: { x: 60, y: 60, width: 370, height: 660 },
@@ -57,6 +59,9 @@ function windowSettings(value) {
     !Number.isFinite(s.opacity) ||
     s.opacity < 0.65 ||
     s.opacity > 1 ||
+    !["classic", "electric", "sunset", "custom"].includes(s.palette) ||
+    typeof s.cardColor !== "string" ||
+    !/^#[\da-f]{6}$/i.test(s.cardColor) ||
     !Number.isFinite(s.zoom) ||
     s.zoom < 0.65 ||
     s.zoom > 2 ||
@@ -107,6 +112,7 @@ class BoardWindow {
     });
     this.originalCopies = new Map();
     this.settings = windowSettings();
+    this.showSequence = 0;
     try {
       this.settings = windowSettings(
         JSON.parse(fs.readFileSync(this.file(), "utf8")),
@@ -191,9 +197,14 @@ class BoardWindow {
     this.win.setAlwaysOnTop(this.settings.top, "screen-saver");
     this.win.setMovable(!this.settings.locked);
   }
-  async show() {
+  async show(activate = false) {
+    this.showSequence++;
     if (this.win && !this.win.isDestroyed()) {
-      this.win.showInactive();
+      if (activate) {
+        this.win.show();
+        this.win.focus();
+      } else this.win.showInactive();
+      this.broadcast();
       return;
     }
     const bounds = this.boundsForMode();
@@ -236,7 +247,9 @@ class BoardWindow {
     this.win.on("blur", finishResize);
     this.win.once("ready-to-show", () => {
       this.apply();
-      this.win.showInactive();
+      if (activate) this.win.show();
+      else this.win.showInactive();
+      this.broadcast();
     });
     await this.win.loadURL("shixu://app/?board=1");
   }
@@ -255,6 +268,8 @@ class BoardWindow {
             "top",
             "density",
             "opacity",
+            "palette",
+            "cardColor",
             "restore",
             "fontSize",
             "zoom",
@@ -402,15 +417,20 @@ class BoardWindow {
       return {
         ...this.settings,
         shortcutAvailable: this.shortcutRegistered !== false,
+        showSequence: this.showSequence,
       };
     if (action === "show") {
       if (floating) throw Error("请在主程序打开看板");
       if (value !== undefined) this.configure({ mode: value?.mode });
-      await this.show();
+      await this.show(true);
       return this.settings;
     }
     if (action === "hide") {
-      this.win?.hide();
+      if (
+        value?.showSequence === undefined ||
+        value.showSequence === this.showSequence
+      )
+        this.win?.hide();
       return;
     }
     if (action === "configureWindow") {

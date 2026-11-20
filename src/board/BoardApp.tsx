@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Pin, X, PanelsTopLeft } from "lucide-react";
+import { settle, spring } from "../bucket/motion";
 import { RealBoardAdapter } from "./adapter";
 import {
   BoardProvider,
@@ -34,8 +35,59 @@ function Contents({ floating }: { floating: boolean }) {
     restore: false,
     fontSize: 14,
     zoom: 1,
+    palette: "classic",
+    cardColor: "#ffda32",
     shortcutAvailable: true,
   });
+  const [browserAppearance, setBrowserAppearance] = useState(() => {
+    if (host) return { palette: "classic", cardColor: "#ffda32" };
+    let palette: string | null = null,
+      cardColor = "";
+    try {
+      palette = localStorage.getItem("shixu-board-palette");
+      cardColor = localStorage.getItem("shixu-board-card-color") || "";
+    } catch {
+      /* The browser may disable storage. */
+    }
+    return {
+      palette:
+        palette && ["classic", "electric", "sunset", "custom"].includes(palette)
+          ? palette
+          : "classic",
+      cardColor: /^#[0-9a-f]{6}$/i.test(cardColor) ? cardColor : "#ffda32",
+    };
+  });
+  const appearance = host ? settings : browserAppearance;
+  const setAppearance = (field: "palette" | "cardColor", value: string) => {
+    if (host) {
+      void configure({ [field]: value });
+      return;
+    }
+    try {
+      localStorage.setItem(
+        field === "palette" ? "shixu-board-palette" : "shixu-board-card-color",
+        value,
+      );
+    } catch {
+      /* The current page still uses the selected colors. */
+    }
+    setBrowserAppearance((previous) => ({ ...previous, [field]: value }));
+  };
+  const frame = useRef<HTMLDivElement>(null);
+  const frameMotion = useRef<Animation | null>(null);
+  const [showSequence, setShowSequence] = useState<number | null>(null);
+  useEffect(() => {
+    if (showSequence === null || !frame.current) return;
+    frameMotion.current?.cancel();
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+      frameMotion.current = frame.current.animate(
+        [
+          { opacity: 0.6, scale: 0.99 },
+          { opacity: 1, scale: 1 },
+        ],
+        { duration: 175, easing: spring },
+      );
+  }, [showSequence]);
   const [error, setError] = useState("");
   const stripNeedsSpace =
     expanded === "true" || Boolean(error) || saveState.phase === "error";
@@ -51,6 +103,7 @@ function Contents({ floating }: { floating: boolean }) {
           if (!active) return;
           setSettings(value);
           setWindowMode(value.mode);
+          if (floating) setShowSequence(value.showSequence ?? null);
           if (!initialized && !floating) setMode(value.mode);
           initialized = true;
         })
@@ -67,6 +120,35 @@ function Contents({ floating }: { floating: boolean }) {
   const view = floating ? windowMode : mode;
   const act = (action: string, value?: unknown) =>
     host?.invoke(action, value).catch((e) => setError(e.message));
+  const hide = async () => {
+    if (
+      frame.current &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      frameMotion.current?.cancel();
+      const animation = frame.current.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        {
+          duration: 120,
+          easing: settle,
+          fill: "forwards",
+        },
+      );
+      frameMotion.current = animation;
+      try {
+        await animation.finished;
+      } catch {
+        return;
+      }
+      try {
+        await act("hide", { showSequence: showSequence ?? undefined });
+      } finally {
+        animation.cancel();
+      }
+      return;
+    }
+    await act("hide", { showSequence: showSequence ?? undefined });
+  };
   const configure = async (value: Record<string, unknown>) => {
     try {
       const v = await host!.invoke("configureWindow", value);
@@ -83,11 +165,20 @@ function Contents({ floating }: { floating: boolean }) {
     return () => document.documentElement.classList.remove("sx-board-window");
   }, [floating]);
   useEffect(() => {
-    if (floating && view === "strip") {
+    if (!floating || view !== "strip" || !host) return;
+    const resize = () =>
       void host
-        ?.invoke("stripExpanded", { expanded: stripNeedsSpace })
+        .invoke("stripExpanded", { expanded: stripNeedsSpace })
         .catch((e) => setError(e.message));
+    if (
+      stripNeedsSpace ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      resize();
+      return;
     }
+    const timer = setTimeout(resize, 200);
+    return () => clearTimeout(timer);
   }, [floating, host, view, stripNeedsSpace]);
   const exportUnsaved = () => {
     const url = URL.createObjectURL(
@@ -104,9 +195,11 @@ function Contents({ floating }: { floating: boolean }) {
   const content = (
     <div
       className={`sx-board sx-host ${floating ? "sx-floating" : ""} sx-density-${settings.density} sx-mode-${view}`}
+      data-palette={appearance.palette}
       style={
         {
           "--sx-surface-opacity": settings.opacity,
+          "--sx-custom-card": appearance.cardColor,
           "--sx-zoom": floating ? settings.zoom : 1,
           "--sx-content-font": `${settings.fontSize}px`,
         } as React.CSSProperties
@@ -140,7 +233,7 @@ function Contents({ floating }: { floating: boolean }) {
               : entries.find(([id]) => id === view)?.[1]}
           </strong>
           {view === "strip" && expanded !== "true" ? (
-            <StripBoard floating />
+            <StripBoard floating summary />
           ) : null}
           <button
             type="button"
@@ -155,7 +248,7 @@ function Contents({ floating }: { floating: boolean }) {
             type="button"
             aria-label="关闭悬浮看板"
             title="关闭悬浮看板"
-            onClick={() => void act("hide")}
+            onClick={() => void hide()}
           >
             <X size={17} />
           </button>
@@ -221,10 +314,8 @@ function Contents({ floating }: { floating: boolean }) {
       </div>
       <div className="sx-host-layout">
         <div className="sx-board-content">
-          <div hidden={view !== "strip" || (floating && expanded !== "true")}>
-            {!floating || expanded === "true" ? (
-              <StripBoard floating={floating} />
-            ) : null}
+          <div hidden={view !== "strip"}>
+            <StripBoard floating={floating} />
           </div>
           <div hidden={view !== "rail"}>
             <RailBoard floating={floating} />
@@ -242,6 +333,28 @@ function Contents({ floating }: { floating: boolean }) {
             <PlanningManager />
             <BoardTrash />
             {mode === "strip" ? <StripSettings /> : null}
+            <label className="sx-palette-picker">
+              卡面配色
+              <select
+                value={appearance.palette}
+                onChange={(e) => setAppearance("palette", e.target.value)}
+              >
+                <option value="classic">拾序经典</option>
+                <option value="electric">电光青紫</option>
+                <option value="sunset">珊瑚橙粉</option>
+                <option value="custom">自定义</option>
+              </select>
+            </label>
+            {appearance.palette === "custom" ? (
+              <label className="sx-palette-picker">
+                卡面颜色
+                <input
+                  type="color"
+                  value={appearance.cardColor}
+                  onChange={(e) => setAppearance("cardColor", e.target.value)}
+                />
+              </label>
+            ) : null}
             {host ? (
               <details className="sx-host-options">
                 <summary>悬浮窗口设置</summary>
@@ -318,7 +431,7 @@ function Contents({ floating }: { floating: boolean }) {
                   </select>
                 </label>
                 <label>
-                  纸面透明度
+                  浮窗透明度
                   <input
                     type="range"
                     min="0.65"
@@ -363,7 +476,13 @@ function Contents({ floating }: { floating: boolean }) {
         : null}
     </div>
   );
-  return floating ? <div className="sx-float-frame">{content}</div> : content;
+  return floating ? (
+    <div ref={frame} className="sx-float-frame">
+      {content}
+    </div>
+  ) : (
+    content
+  );
 }
 export default function BoardApp({
   onSource,

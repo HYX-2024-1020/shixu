@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { ExternalLink, Pencil, Trash2, X } from "lucide-react";
+import { animateBoardRemoval } from "../motion";
 import { useBoardDraft } from "./BoardProvider";
 import type { BoardTask, LongPlan } from "../types/board";
 import { fromDateTimeInput, toDateTimeInput } from "../utils/board";
@@ -80,7 +81,12 @@ export function TaskRow({
         <button
           className="sx-row-button sx-row-danger"
           type="button"
-          onClick={onRemove}
+          onClick={(event) =>
+            animateBoardRemoval(
+              event.currentTarget.closest(".sx-task"),
+              onRemove,
+            )
+          }
           aria-label={`${removeLabel ?? (task.origin === "manual" ? "删除" : "移出规划")}：${task.title}`}
         >
           {(
@@ -103,15 +109,22 @@ export function TaskRow({
       data-task-id={task.id}
     >
       <label className="sx-task-check">
-        <input
-          type="checkbox"
-          checked={done}
-          disabled={task.sourceUnavailable}
-          onChange={(event) => onToggle(event.target.checked)}
-          aria-label={`${done ? "撤销完成" : "完成"}：${task.title}`}
-        />
+        <span className="sx-check-wrap">
+          <input
+            type="checkbox"
+            checked={done}
+            disabled={task.sourceUnavailable}
+            onChange={(event) => onToggle(event.target.checked)}
+            aria-label={`${done ? "撤销完成" : "完成"}：${task.title}`}
+          />
+          <svg className="sx-check-mark" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3.4 8.3 6.6 11.4 12.7 4.9" pathLength="1" />
+          </svg>
+        </span>
         <span className="sx-task-main">
-          <span className="sx-task-title">{task.title}</span>
+          <span key={task.title} className="sx-task-title sx-edited-label">
+            {task.title}
+          </span>
           {!compact && task.sourceUnavailable ? (
             <small>来源不可用</small>
           ) : null}
@@ -120,7 +133,7 @@ export function TaskRow({
           ) : null}
         </span>
       </label>
-      {!compact && !task.sourceUnavailable ? (
+      {(!compact || onRemove) && !task.sourceUnavailable ? (
         menu ? (
           <details className="sx-item-menu sx-task-menu">
             <summary aria-label={`事项操作：${task.title}`}>⋯</summary>

@@ -212,3 +212,53 @@ test("library drag and display names survive reload; browser downloads the origi
     chunks.push(chunk);
   expect(Buffer.concat(chunks).toString()).toBe("original");
 });
+
+test("strip spacing, completion and deliberate removal work with a persistent custom palette", async ({
+  page,
+}) => {
+  await page.goto("/?board=1");
+  for (const name of ["待办甲", "待办乙"]) {
+    await page.getByLabel("新增短期计划").fill(name);
+    await page
+      .getByRole("button", { name: "新增一项", exact: true })
+      .filter({ visible: true })
+      .click();
+  }
+  await page.getByLabel("看板视图").selectOption("strip");
+  await page.getByLabel("展开小条").click();
+  const tasks = page.getByTestId("strip-board");
+  const cards = tasks.locator(".sx-task");
+  await expect(cards).toHaveCount(2);
+  await expect(tasks.locator(".sx-strip-list")).toHaveCSS("row-gap", "10px");
+  await tasks
+    .getByRole("checkbox", { name: "完成：待办甲", exact: true })
+    .check();
+  await expect(
+    tasks.getByRole("checkbox", { name: "撤销完成：待办甲", exact: true }),
+  ).toBeChecked();
+  await expect(cards.first().locator(".sx-check-mark")).toHaveCSS(
+    "stroke-dashoffset",
+    "0px",
+  );
+  await expect(cards).toHaveCount(2);
+  await page.evaluate(() => window.flushBoardDraft?.());
+  await page.getByLabel("卡面配色").selectOption("custom");
+  await page.getByLabel("卡面颜色").fill("#206080");
+  await page.reload();
+  await page.getByLabel("看板视图").selectOption("strip");
+  await expect(page.getByLabel("卡面颜色")).toHaveValue("#206080");
+  await expect(
+    tasks.getByRole("checkbox", { name: "撤销完成：待办甲", exact: true }),
+  ).toBeChecked();
+  await tasks.getByLabel("事项操作：待办甲").click();
+  await tasks
+    .getByRole("button", { name: "删除：待办甲", exact: true })
+    .click();
+  await expect(cards).toHaveCount(1);
+  await page.getByText(/最近删除 · 1/).click();
+  await page.getByRole("button", { name: "恢复事项", exact: true }).click();
+  await expect(cards).toHaveCount(2);
+  await expect(
+    tasks.getByRole("checkbox", { name: "撤销完成：待办甲", exact: true }),
+  ).toBeChecked();
+});

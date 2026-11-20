@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import type { BoardTask } from "../types/board";
-import { createId, getParent } from "../utils/board";
+import { createId, getParent, removeBoardTask } from "../utils/board";
 import { useBoard, useBoardDraft } from "./BoardProvider";
 import { TaskRow } from "./TaskRow";
 
@@ -57,16 +57,10 @@ export function ShortPlans({ floating = false }: { floating?: boolean } = {}) {
 
   const remove = (task: BoardTask) => {
     commit(
-      (draft) => {
-        if (task.origin === "source")
-          draft.tasks = draft.tasks.filter((item) => item.id !== task.id);
-        else
-          draft.tasks.find((t) => t.id === task.id)!.deletedAt =
-            new Date().toISOString();
-      },
+      (draft) => removeBoardTask(draft, task),
       task.origin === "source"
         ? "已移出规划，来源事项未删除"
-        : "已删除手写事项",
+        : "已移到最近删除",
     );
   };
 

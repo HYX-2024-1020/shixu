@@ -1,4 +1,4 @@
-import type { BoardTask, LongPlan } from "../types/board";
+import type { BoardSnapshot, BoardTask, LongPlan } from "../types/board";
 
 export const createId = (prefix: string) =>
   `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`;
@@ -65,4 +65,13 @@ export function deadlineLabel(value: string, now = new Date()) {
 
 export function isOverdue(value: string, now = new Date()) {
   return new Date(value).getTime() < now.getTime();
+}
+
+export function removeBoardTask(snapshot: BoardSnapshot, task: BoardTask) {
+  if (task.origin === "source") {
+    snapshot.tasks = snapshot.tasks.filter((row) => row.id !== task.id);
+  } else {
+    const row = snapshot.tasks.find((row) => row.id === task.id);
+    if (row) row.deletedAt = new Date().toISOString();
+  }
 }

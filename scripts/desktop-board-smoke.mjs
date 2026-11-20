@@ -1,5 +1,5 @@
 // Isolated CI only. Never point at the user's installed profile.
-import { _electron as electron } from "@playwright/test";
+import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -49,6 +49,15 @@ try {
   await win.evaluate(() => window.flushBoardDraft());
   await win.waitForFunction(() => innerHeight < 100);
   await win.getByLabel("关闭悬浮看板").click();
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.getTitle() === "拾序看板")
+          .isVisible(),
+      ),
+    )
+    .toBe(false);
   assert.equal(
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
@@ -102,8 +111,38 @@ try {
       })),
     });
   });
+  await win.evaluate(() =>
+    window.boardHost.invoke("configureWindow", { top: false }),
+  );
+  const windowId = await app.evaluate(({ BrowserWindow }) => {
+    const all = BrowserWindow.getAllWindows();
+    const board = all.find((w) => w.getTitle() === "拾序看板");
+    all.find((w) => w !== board).focus();
+    return board.id;
+  });
+  await board.getByRole("button", { name: "打开悬浮看板" }).click();
+  await win.waitForFunction(() => document.hasFocus());
+  assert.equal(
+    await app.evaluate(({ BrowserWindow }, id) => {
+      const win = BrowserWindow.getFocusedWindow();
+      return win?.id === id && !win.isAlwaysOnTop();
+    }, windowId),
+    true,
+  );
   await win.reload();
+  await board.getByLabel("卡面配色").selectOption("electric");
+  await win.waitForFunction(
+    () =>
+      document.querySelector(".sx-floating")?.dataset.palette === "electric",
+  );
   await board.locator(".sx-host-options summary").click();
+  await board.getByLabel("浮窗透明度").fill("0.65");
+  await win.waitForFunction(() =>
+    getComputedStyle(
+      document.querySelector(".sx-float-bar"),
+    ).backgroundColor.endsWith("0.65)"),
+  );
+  await board.getByLabel("浮窗透明度").fill("1");
   await board.getByLabel("界面缩放").selectOption("1.25");
   await board.getByLabel("内容字号").selectOption("20");
   await win.locator(".sx-short .sx-task-title").first().waitFor();
@@ -118,6 +157,11 @@ try {
 
   const checkFrame = async () => {
     const frame = win.locator(".sx-float-frame");
+    await frame.evaluate((el) =>
+      Promise.allSettled(
+        el.getAnimations().map((animation) => animation.finished),
+      ),
+    );
     assert.equal(
       await frame.evaluate((el) => {
         const rect = el.getBoundingClientRect();
@@ -213,6 +257,13 @@ try {
       await checkFrame();
     }
     const scroller = win.locator(".sx-board-content");
+    await scroller.evaluate((el) =>
+      Promise.allSettled(
+        el
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished),
+      ),
+    );
     await scroller.evaluate((el) => {
       el.scrollTop = 0;
     });
@@ -221,14 +272,29 @@ try {
       "none",
     );
     await scroller.hover({ position: { x: 60, y: 55 } });
-    await win.mouse.wheel(0, 4500);
-    await win.waitForFunction(() => {
-      const el = document.querySelector(".sx-board-content");
-      return (
-        el.scrollTop > 0 &&
-        el.scrollHeight - el.clientHeight - el.scrollTop <= 2
-      );
-    });
+    await win.mouse.wheel(0, 12000);
+    await win
+      .waitForFunction(
+        () => {
+          const el = document.querySelector(".sx-board-content");
+          return (
+            el.scrollTop > 0 &&
+            el.scrollHeight - el.clientHeight - el.scrollTop <= 2
+          );
+        },
+        null,
+        { timeout: 4000 },
+      )
+      .catch(async (error) => {
+        const dimensions = await scroller.evaluate((el) => [
+          el.scrollTop,
+          el.clientHeight,
+          el.scrollHeight,
+        ]);
+        throw Error(`${mode} wheel: ${dimensions.join(", ")}`, {
+          cause: error,
+        });
+      });
     if (env.SHIXU_BOARD_SCREENSHOTS) {
       await scroller.evaluate((el) => {
         el.scrollTop = 0;
@@ -237,7 +303,34 @@ try {
         path: path.join(env.SHIXU_BOARD_SCREENSHOTS, mode + ".png"),
       });
     }
+    if (mode === "strip") {
+      const mark = win.getByRole("checkbox", {
+        name: "完成：CI 滚轮事项 0",
+        exact: true,
+      });
+      await mark.check();
+      await win
+        .getByRole("checkbox", { name: "撤销完成：CI 滚轮事项 0", exact: true })
+        .waitFor();
+      assert.equal(
+        await win.locator(".sx-strip-list [data-task-id=ci-task-0]").count(),
+        1,
+      );
+      await win
+        .getByRole("checkbox", { name: "撤销完成：CI 滚轮事项 0", exact: true })
+        .uncheck();
+      await win.evaluate(() => window.flushBoardDraft());
+    }
     if (mode === "ddl") {
+      const geometry = await win
+        .locator(".sx-ddl-item:visible")
+        .evaluateAll((cards) =>
+          cards.map((c) => {
+            const { x, width, height } = c.getBoundingClientRect();
+            return [x, width, height].map(Math.round).join(",");
+          }),
+        );
+      assert.equal(new Set(geometry).size, 1);
       await scroller.evaluate((el) => {
         el.scrollTop = 0;
       });
@@ -253,7 +346,7 @@ try {
     }
   }
   console.log(
-    "Isolated board window IPC, drafts, hide/restore, strip, topmost, four wheel scrollers, zoom, compositor borders/corners and DDL filter passed",
+    "Isolated board window IPC, drafts, hide/restore, strip, topmost, four wheel scrollers, zoom, compositor borders/corners, foreground reuse, palette, transparency, retained ticks and DDL alignment/filter passed",
   );
 } finally {
   await app?.close();
