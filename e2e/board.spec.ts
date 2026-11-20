@@ -229,6 +229,15 @@ test("strip spacing, completion and deliberate removal work with a persistent cu
   const tasks = page.getByTestId("strip-board");
   const cards = tasks.locator(".sx-task");
   await expect(cards).toHaveCount(2);
+  expect(
+    await cards.first().evaluate((card) => {
+      const check = card
+        .querySelector(".sx-task-check")!
+        .getBoundingClientRect();
+      const menu = card.querySelector("summary")!.getBoundingClientRect();
+      return menu.left >= check.right && Math.abs(menu.top - check.top) < 4;
+    }),
+  ).toBe(true);
   await expect(tasks.locator(".sx-strip-list")).toHaveCSS("row-gap", "10px");
   await tasks
     .getByRole("checkbox", { name: "完成：待办甲", exact: true })

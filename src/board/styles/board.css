@@ -835,10 +835,6 @@
 .sx-strip-list {
   border-top: 1px solid var(--sx-line);
 }
-.sx-strip-list .sx-task {
-  display: block;
-  padding: 6px 0;
-}
 .sx-strip-list .sx-task-title {
   font-size: 11px;
 }

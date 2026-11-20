@@ -573,9 +573,13 @@
 }
 .sx-host .sx-task-done .sx-task-title {
   background-size: 100% 1.5px;
+  transition-delay: 85ms;
 }
 .sx-host .sx-task-main {
   transition: opacity 210ms ease;
+}
+.sx-host .sx-task-done .sx-task-main {
+  transition-delay: 130ms;
 }
 .sx-host .sx-task {
   transition:
@@ -703,5 +707,6 @@
   .sx-host *::after {
     animation-duration: 0s !important;
     transition-duration: 0s !important;
+    transition-delay: 0s !important;
   }
 }
