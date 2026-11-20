@@ -263,10 +263,15 @@ try {
   const destination = await page
     .locator('[data-motion-id="drag-4"]')
     .boundingBox();
-  const dropY = destination.y + destination.height / 2;
+  const scrollBounds = await page.locator(".bucket-main").boundingBox();
+  const dropY = Math.min(
+    destination.y + destination.height / 2,
+    scrollBounds.y + scrollBounds.height - 76,
+  );
   assert(
-    dropY > 72 && dropY < 820 - 72,
-    "precision drop stays outside the auto-scroll edges",
+    dropY > Math.max(destination.y, scrollBounds.y + 72) &&
+      dropY < destination.y + destination.height,
+    "precision drop stays inside the target and outside the actual auto-scroll edges",
   );
   await page.mouse.move(start.x + 80, start.y + 25);
   await page.mouse.down();
@@ -274,7 +279,7 @@ try {
   await expect(page.locator(".card-drag-preview")).toHaveCount(1);
   await page.mouse.move(
     destination.x + destination.width / 2,
-    destination.y + destination.height / 2,
+    dropY,
     { steps: 12 },
   );
   await page.waitForTimeout(120);

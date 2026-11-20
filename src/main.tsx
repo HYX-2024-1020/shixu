@@ -1,7 +1,9 @@
 import { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 const App = lazy(() =>
-  new URLSearchParams(location.search).get("legacy") === "1"
+  new URLSearchParams(location.search).get("board") === "1"
+    ? import("./board/BoardApp")
+    : new URLSearchParams(location.search).get("legacy") === "1"
     ? import("./LegacyApp")
     : import("./bucket/BucketApp"),
 );

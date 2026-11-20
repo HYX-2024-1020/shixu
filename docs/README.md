@@ -29,7 +29,7 @@
 
 ## 版本与历史
 
-- [CHANGELOG](../CHANGELOG.md) · [0.3.8 发布说明](releases/windows-0.3.8.md)
+- [CHANGELOG](../CHANGELOG.md) · [0.3.31 发布说明](releases/windows-0.3.31.md)
 - [早期 Windows 版本](windows-release-history.md) · [实施与方案归档](archive/README.md)
 
 下载始终使用 [最新 Release](https://github.com/HYX-2024-1020/shixu/releases/latest)。归档用于追溯，不作为当前安装或开发指令。

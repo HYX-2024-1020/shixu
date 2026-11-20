@@ -361,7 +361,7 @@ Page({
         new Error("投递已永久删除，本机原件缓存清理尚未完成，请保留资料后重试"),
       );
     }
-    const all = this._client.records().filter((row) => !row.purged && row.data);
+    const all = this._client.records().filter((row) => !row.purged && row.data && row.data.recordType !== 'board-workspace');
     const recordRows = all.filter(
       (row) => !!row.deletedAt === this.data.showDeleted,
     );

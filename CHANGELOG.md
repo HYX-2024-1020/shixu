@@ -2,6 +2,10 @@
 
 安装包与校验值：[最新 Release](https://github.com/HYX-2024-1020/shixu/releases/latest)。main 可能包含后续开发更新，不等于已经替换的安装包。
 
+## 0.3.31 · 2026-11-21
+
+Windows 新增四视图悬浮看板、命名规划与资料库，整合卡片、DDL、原件、备份、皮肤及账号接入的累计更新。[发行说明](docs/releases/windows-0.3.31.md)。
+
 ## 0.3.8 · 2026-10-24
 
 皮肤市场进入 Windows：8 款预设、自定义图片与台词、桶/世界一致换肤、跨重启保留，保留 0.3.7 交互。十二套实际打包程序回归及安装版皮肤专项通过；[发布说明](docs/releases/windows-0.3.8.md)、[PR #14](https://github.com/HYX-2024-1020/shixu/pull/14)。

@@ -144,12 +144,15 @@ try {
     )
     .toBeTruthy();
   const preview = dialog.locator(".attachment-preview");
-  const imageBefore = await preview.locator("img").evaluate(img => img.getBoundingClientRect().width);
-  await preview.getByRole("button", {name:"放大",exact:true}).click();
-  await expect.poll(() => preview.locator("img").evaluate(img=>img.getBoundingClientRect().width)).toBeGreaterThan(imageBefore);
-  await preview.getByRole("button", {name:"原始比例",exact:true}).click();
+  const image = preview.locator("img");
+  // Measure layout pixels, excluding the dialog's opening transform.
+  await expect.poll(() => image.evaluate((img) => Number.parseFloat(img.style.width))).toBeGreaterThan(0);
+  const imageBefore = await image.evaluate((img) => img.offsetWidth);
+  await preview.getByRole("button", { name: "放大", exact: true }).click();
+  await expect.poll(() => image.evaluate((img) => img.offsetWidth)).toBeGreaterThan(imageBefore);
+  await preview.getByRole("button", { name: "原始比例", exact: true }).click();
   await expect(preview.getByLabel("当前缩放比例")).toHaveText("100%");
-  assert.equal(await preview.locator("img").evaluate(img => Math.round(img.getBoundingClientRect().width) === img.naturalWidth),true);
+  await expect.poll(() => image.evaluate((img) => img.offsetWidth === img.naturalWidth)).toBe(true);
   await preview.getByRole("button", {name:"适合窗口",exact:true}).click();
   await dialog.getByRole("button", { name: "会议.pdf", exact: true }).click();
   await expect(dialog.getByText("1 / 2", { exact: true })).toBeVisible();
@@ -171,9 +174,9 @@ try {
           .data.some((value, i) => i % 4 !== 3 && value < 200),
     ),
   );
-  const pdfBefore = await preview.locator("canvas").evaluate(c=>c.getBoundingClientRect().width);
+  const pdfBefore = await preview.locator("canvas").evaluate(c=>c.offsetWidth);
   await preview.getByRole("button", {name:"放大",exact:true}).click();
-  await expect.poll(() => preview.locator("canvas").evaluate(c=>c.getBoundingClientRect().width)).toBeGreaterThan(pdfBefore);
+  await expect.poll(() => preview.locator("canvas").evaluate(c=>c.offsetWidth)).toBeGreaterThan(pdfBefore);
   await preview.getByRole("button", {name:"原始比例",exact:true}).click();
   await expect(preview.getByLabel("当前缩放比例")).toHaveText("100%");
   await preview.getByRole("button", {name:"缩小",exact:true}).click();

@@ -12,7 +12,10 @@ const {
   safeStorage,
   screen,
   shell,
+  globalShortcut,
 } = require("electron");
+const { BoardService } = require('./board.cjs');
+const { BoardWindow } = require('./board-window.cjs');
 const { externalWebUrl } = require("./external.cjs");
 const { AccountWorkspace } = require("./accounts.cjs");
 const { readPrivateConnection, startPrivateConnection } = require("./connection.cjs");
@@ -47,6 +50,7 @@ app.setPath(
     : path.join(app.getPath("appData"), privateConnection ? "ShixuDesktopCloud" : "ShixuDesktop"),
 );
 let mainWindow,
+  boardWindow,
   tray,
   quitting = false;
 const show = () => {
@@ -65,8 +69,9 @@ else {
     (async () => {
       try {
         await mainWindow?.webContents.executeJavaScript(
-          "window.flushDesktopDraft?.()",
+          "(async()=>{await window.flushDesktopDraft?.();await window.flushBoardDraft?.();})()",
         );
+        if(boardWindow?.win&&!boardWindow.win.isDestroyed())await boardWindow.win.webContents.executeJavaScript('window.flushBoardDraft?.()');
       } catch (e) {
         dialog.showErrorBox("退出前保存失败", e.message);
         return;
@@ -135,7 +140,11 @@ else {
       });
       ipcMain.handle("cloud", async (event, action, value) => {
         validSender(event);
-        return cloud.action(action, value);
+        if(['login','local','register','logout','claim','resume'].includes(action)&&boardWindow?.win&&!boardWindow.win.isDestroyed())await boardWindow.win.webContents.executeJavaScript('window.flushBoardDraft?.()');
+        const identity=boardWindow?.service.lease();
+        const result=await cloud.action(action, value);
+        if(boardWindow&&identity!==boardWindow.service.lease()) {boardWindow.win?.destroy();boardWindow.win=undefined;}
+        return result;
       });
       ipcMain.handle("store", async (event, method, value, lease) => {
         validSender(event);
@@ -254,7 +263,28 @@ else {
           "关闭窗口将退出拾序。" + error.message,
         );
       }
+      boardWindow = new BoardWindow({
+        BrowserWindow, screen, globalShortcut, root: app.getPath("userData"),
+        quitting: () => quitting,
+        mainWindow: () => mainWindow,
+        service: new BoardService(cloud),
+        openPath: (file) => shell.openPath(file),
+      });
+      ipcMain.handle("boardLease", (event) => {
+        boardWindow.valid(event);
+        return boardWindow.service.lease();
+      });
+      ipcMain.handle("board", (event, action, value, lease) => {
+        boardWindow.valid(event);
+        const floating = event.sender === boardWindow.win?.webContents;
+        return boardWindow.action(action, value, lease, floating);
+      });
+      app.on("will-quit", () => {
+        globalShortcut.unregisterAll();
+        boardWindow.cleanOriginalCopies();
+      });
       await mainWindow.loadURL("shixu://app/");
+      await boardWindow.start();
     })
     .catch((error) => {
       dialog.showErrorBox("拾序启动失败", error.message);

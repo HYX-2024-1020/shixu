@@ -128,6 +128,7 @@ export default function AccountConnection({
       if (reload) {
         if (!canSwitch()) throw Error("请等待当前投递或对话完成");
         await window.flushDesktopDraft?.();
+        await window.flushBoardDraft?.();
       }
       const next = await window.desktop!.cloud(name, value);
       setState(next);
@@ -1074,6 +1075,7 @@ export default function AccountConnection({
             onClick={async () => {
               try {
                 await window.flushDesktopDraft?.();
+                await window.flushBoardDraft?.();
                 notify(await window.desktop!.backup("export"));
               } catch (e) {
                 setError((e as Error).message);

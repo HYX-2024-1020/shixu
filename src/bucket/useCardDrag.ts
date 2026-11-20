@@ -12,6 +12,8 @@ type Options = {
   ids: string[];
   enabled: boolean;
   groups?: Map<string, string>;
+  cardSelector?: string;
+  scrollSelector?: string;
   onPreview: (ids: string[] | null) => void;
   onCommit: (ids: string[]) => Promise<void>;
   onError: (message: string) => void;
@@ -107,7 +109,9 @@ export function useCardDrag(
   function tick(s: Session) {
     if (session.current !== s || !s.active) return;
     const edge = 72;
-    const scroller = root.current?.closest<HTMLElement>(".bucket-main");
+    const scroller = root.current?.closest<HTMLElement>(
+      latest.current.scrollSelector ?? ".bucket-main",
+    );
     const bounds = scroller?.getBoundingClientRect();
     const topEdge = bounds?.top || 0,
       bottomEdge = bounds?.bottom || innerHeight;
@@ -122,7 +126,8 @@ export function useCardDrag(
       s.clone.style.translate = `${s.x - s.startX}px ${s.y - s.startY}px`;
     const cards = [
       ...(root.current?.querySelectorAll<HTMLElement>(
-        ".result-card[data-motion-id],.ddl-item[data-motion-id]",
+        latest.current.cardSelector ??
+          ".result-card[data-motion-id],.ddl-item[data-motion-id]",
       ) || []),
     ].filter((el) => el.checkVisibility());
     let nearest: HTMLElement | undefined,
