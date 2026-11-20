@@ -1,78 +1,43 @@
 # 拾序 Shixu
 
-[管理员测试版（iPhone 应急直连）](https://hyx-2024-1020.github.io/shixu/admin-test/) · [使用说明](docs/guides/admin-test.md)
+拾序是面向学生和个人的事务管理工具。把通知、截图、附件和零散想法放进「桶」，在「世界」编辑和管理事项，用「DDL」查看截止日期，在「看板」安排短期与长期计划。
 
-**一个，什么都能放的桶。**
+**[下载 Windows 最新版](https://github.com/HYX-2024-1020/shixu/releases/latest) · [拾序官网](https://www.shixunote.top/) · [Windows 使用指南](docs/guides/windows.md)**
 
-把通知、截图、附件和零散想法放进同一个输入框。拾序通过AI整理成可编辑的事项卡片，保留原文和附件：在「桶」里接住内容，在「世界」里管理后续，在「DDL」里查看截止事项。当前账号版由服务端统一调用DeepSeek，无需填写个人模型密钥。
+## Windows **0.3.31**
 
-**[下载 Windows 最新版](https://github.com/HYX-2024-1020/shixu/releases/latest) · [打开网页版](https://hyx-2024-1020.github.io/shixu/) · [使用指南](docs/guides/windows.md) · [开发与贡献](CONTRIBUTING.md)**
+1. 从 GitHub Releases 下载 Windows x64 安装器。覆盖升级前先备份，再从系统托盘退出拾序，安装时沿用原目录。
+2. 从桌面「拾序」入口打开。可直接在本机录入、查看和备份资料。账号同步与 AI 服务按实际开通状态使用。
+3. 在「看板」选择小条、窄栏、面板或 DDL，点击右上角「打开悬浮看板」。规划、配色、字号、缩放和透明度在主程序调整。
 
-## 先用起来
+- **桶与世界**支持文字和文件投递、原件预览、分组、搜索、星标、拖动排序与恢复。
+- **DDL**支持日期区间、时刻推定与人工核对。
+- **桌面看板**包含多份规划、短期及长期事项、独立资料库，以及可拖动和调整大小的悬浮窗口。
+- **资料管理**可在本机备份与恢复事项、草稿和原件。接入账号的资料按空间管理。
 
-桌面看板源码候选 **0.3.31** 正在修复完成后的最新主线上接入，提供小条/窄栏/资料库/独立DDL、命名规划、真实保存及受限悬浮窗口；当前尚未记为用户已安装。[实现与分层验证](docs/project-continuity/desktop-board-integration-20261115.md)。下方客户端、云端及原控制台为各自实际安装/部署记录，不用候选版本覆盖这些事实。
+[版本说明](docs/releases/windows-0.3.31.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/HYX-2024-1020/shixu/issues/new/choose)
 
-2026-11-15：云端与原控制台 **0.3.30** 已完成部署及用户原生更新，独立物理核验45文件、原入口和运行指纹通过。管理员“平台承担并结案”已实际使用：28172微元用户风险预留释放，已消费不变，原告警关闭，原始unknown、平台预算风险及独立决定/审计保留；后续可信费用不补扣用户。前一头六项CI通过，最终交付记录新头独立核对。Windows用户客户端0.3.29文件不变。[用户操作](docs/guides/platform-cost-resolution.md) · [分层证据](docs/project-continuity/platform-cost-resolution-20261115.md)。
+## 其他入口
 
-2026-11-15：第三轮集中整改 **0.3.29**，#125 / PR126，涵盖冲突直达、图片/PDF缩放、账号内AI新建/拆分、移除新合并、告警真实处理、存储回执、媒体Range与两款新皮肤。产品源d4365e4，原ECS已升级并通过真实合成拆卡；用户已本人完成Windows/原管理台联合更新并确认原两入口打开，无包身份只读核验真实EXE/ASAR、44个受管文件、原快捷方式及运行指纹通过。前一验证/文档头六项CI成功，安装记录新头独立核对。分层证据及历史未知费用/声音听感限制见[实施记录](docs/project-continuity/acceptance-round3-repair-20261115.md)，集中体验见[精简指南](docs/guides/product-acceptance-0.3.29.md)。
+| 入口 | 用途 |
+| --- | --- |
+| [拾序官网](https://www.shixunote.top/) | 产品介绍、公开指引与隐私说明 |
+| [网页版](https://hyx-2024-1020.github.io/shixu/) | 浏览器体验，资料留在对应浏览器 |
+| [微信小程序](miniprogram/README.md) | 开发工程与导入指南 |
+| [同步服务](deploy/sync/README.md) | 独立部署与账号服务说明 |
 
-2026-11-14：用户暂停下述0.3.27验收后，基础可靠性及本轮体验问题已集中修复。**0.3.28** 产品包来源08d38fa，原阿里云已原位更新并完成合成资料闭环，无新增模型调用；验证头7396c70六项必需CI成功。用户已运行Windows/原管理台联合更新器，独立无包身份只读核验44个受管文件、真实EXE/ASAR、原快捷方式及运行指纹通过，功能集中复验仍待。[实际状态与验证](docs/project-continuity/acceptance-stability-20261114.md) · [更新与接续验收](docs/guides/product-acceptance-0.3.28.md)。安装核验不代替用户体验。
+## 开发与贡献
 
-第二轮 **0.3.27** 已完成代码整改、适用回归、原阿里云部署和Windows/原管理台原生联合更新；用户确认原两个入口打开，无包身份只读核验物理文件、44个受管文件及运行指纹通过。必需CI、真实合成服务/模型、运行包来源与诚实遗留见[实施与验证记录](docs/project-continuity/acceptance-round2-repair-20261113.md)，集中体验见[0.3.27指南](docs/guides/product-acceptance-0.3.27.md)；安装及入口确认不等于用户功能总体验收。
-
-上一轮实际运行 **0.3.26** 已完成代码整改、适用回归、原阿里云服务部署及Windows/原本地控制台实际安装。用户确认原两个入口打开，物理回执、43个受管文件、客户端及控制台运行版本已核验；最后交付记录仍按PR最新头完成必需CI与收尾。实际版本、C01—C28对照、真实服务证据及已知问题见[逐项整改记录](docs/project-continuity/acceptance-repair-20261112.md)，普通复验见[0.3.26指南](docs/guides/product-acceptance-0.3.26.md)。部署、用户安装和用户验收分别核对。
-
-此前0.3.24建立受保护私有连接和原管理台入口，见[历史记录](docs/releases/windows-0.3.24.md)；上一用户安装基线为[0.3.25](docs/project-continuity/product-0.3.25-delivery.md)。继续保留卡片、DDL、皮肤、音画及#106任务名额修复。账号版未激活仍可本地记录。公开 Release 当前仍为 **0.3.8**，本轮受控交付不等同于公开发布。
-
-以下步骤针对公开的旧版 0.3.8；0.3.23 本机账号版以交付记录为准。
-
-1. 在 [Releases](https://github.com/HYX-2024-1020/shixu/releases/latest) 下载 **Shixu-Setup-0.3.8.exe**；同页提供 SHA-256 和验证报告。
-2. 安装并打开「拾序」。升级前从托盘正常退出旧版；关闭窗口会收进托盘。
-3. 在「连接与设置」填写自己的 DeepSeek API 密钥，再输入或拖入材料，点「丢进去」。
-4. 本次结果留在桶里，全部事项在「世界」里管理。右上角「皮肤市场」可以换伙伴。
-
-普通使用无需 Node.js、终端或开发服务器。AI 整理需要联网并消耗你自己的 API 额度；离线时可以先保存输入。请勿将密钥或真实个人材料贴到公开 Issue。
-
-## 现在能做什么
-
-- **一起投递**：文字、图片、PDF、Office 与代码；Windows 还能读取 ZIP / RAR / 7z。
-- **保留依据**：区分原文要求、AI 总结和建议，直接预览同次投递的图片、PDF 和提取文字。
-- **管理事项**：编辑、星标、完成、分组、搜索、最近删除；卡片原位开合、长按排序。
-- **对话修改**：针对当前卡片与 AI 多轮交流，保存修改和对话记录。
-- **换个伙伴**：5 款预设皮肤、自定义图片与台词，桶和世界一致换肤。
-- **本地保存**：Windows 独立资料目录、系统加密密钥、含原件的资料备份与恢复。
-
-![Windows 0.3.8 的皮肤市场](docs/assets/skin-market.png)
-
-截图来自实际桌面构建，使用合成测试资料。更多操作见 [Windows 指南](docs/guides/windows.md)。
-
-## 选择你的入口
-
-| 入口                                                                     | 当前状态             | 适合做什么                                                        |
-| ------------------------------------------------------------------------ | -------------------- | ----------------------------------------------------------------- |
-| [Windows 安装包](https://github.com/HYX-2024-1020/shixu/releases/latest) | 正式发行 0.3.8       | 日常使用；完整桌面文件处理、备份、皮肤市场                        |
-| [网页版](https://hyx-2024-1020.github.io/shixu/)                         | 当前 main 的在线构建 | 免安装体验；数据留在当前浏览器，见 [网页指南](docs/guides/web.md) |
-| [微信小程序](miniprogram/README.md)                                      | 原生开发工程         | 开发者工具接续；尚未真机验收或公开发布                            |
-| [独立同步服务](deploy/sync/README.md)                                    | 受控v3账号服务       | 已有双端账号/原件/任务接入；公网、手机与B/C/D另验                 |
-
-Windows与微信源码已有账号同步接入；正式网络和客户端可用性须按[当前基线](docs/current-baseline.md)及部署/交付记录核对，不宣称已完成手机公网验收。普通网页与应急测试版仍是各自浏览器本地资料，不自动跨设备同步。 皮肤收藏仅保存在本机，暂不包含在事项备份中。模型可能识别或总结错误，重要要求请核对原文；各平台的格式支持和限制见各自指南。
-
-## 开发
-
-需要 **Node.js 24.x**、npm；桌面运行和桌面 UI 验证需要 Windows。
+需要 Node.js 24.x 和 npm，Windows 桌面运行及原生界面测试需要 Windows。
 
 ```bash
 npm ci
-npm run dev             # 网页开发
-npm run desktop:start   # Windows 桌面开发
+npm run dev
+npm run desktop:start
 ```
 
-[开发指南](docs/guides/development.md)说明目录、验证与打包；[架构说明](docs/architecture.md)区分桌面、网页、旧资料兼容和同步服务。贡献遵循 **Issue → 任务分支 → 验证 → PR**，详见 [CONTRIBUTING.md](CONTRIBUTING.md)；代理另须读取 [AGENTS.md](AGENTS.md)。
+[文档目录](docs/README.md) · [开发指南](docs/guides/development.md) · [架构说明](docs/architecture.md) · [贡献流程](CONTRIBUTING.md)
 
-## 文档与反馈
+[隐私与数据](PRIVACY.md) · [安全报告](SECURITY.md) · [社区行为准则](CODE_OF_CONDUCT.md)
 
-- [文档目录](docs/README.md) · [当前进度与路线](docs/current-baseline.md) · [版本记录](CHANGELOG.md)
-- [反馈问题](https://github.com/HYX-2024-1020/shixu/issues/new/choose) · [私密报告安全问题](SECURITY.md)
-- [隐私与数据](PRIVACY.md) · [社区行为准则](CODE_OF_CONDUCT.md)
-
-代码采用 [MIT](LICENSE)。第三方依赖、字体、图像与音频保留各自许可；既有角色图像和笑声的授权记录仍待补齐，见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+代码采用 [MIT](LICENSE)。依赖和素材见 [第三方声明](THIRD_PARTY_NOTICES.md)。

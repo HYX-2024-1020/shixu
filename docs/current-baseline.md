@@ -1,8 +1,10 @@
 # 当前成果与接续入口
 
-## 2026-11-15 桌面看板在修复后主线接入（#117）
+## 2026-11-21 Windows 0.3.31
 
-最终方案PR120六项必需CI成功并合入941d758，固定feat/desktop-board-integration在此基线接回外部React前端，补真实存储/来源/原件与原生窗口。源码候选0.3.31，实际Windows0.3.29、云端与原控制台0.3.30保持；尚未将候选当作用户安装。[实现、测试与诚实边界](project-continuity/desktop-board-integration-20261115.md)。
+看板已通过用户集中试用。Windows 安装及升级以 [Windows 指南](guides/windows.md) 和 [GitHub 最新发行](https://github.com/HYX-2024-1020/shixu/releases/latest) 为准。看板详见 [#129](https://github.com/HYX-2024-1020/shixu/pull/129)，发行范围见 [0.3.31 说明](releases/windows-0.3.31.md)。官网为 [shixunote.top](https://www.shixunote.top/)。
+
+下方按日期保留早期交付和部署记录。
 
 ## 2026-11-15 平台承担费用已真实结案（#127 / PR128，云端及原控制台0.3.30）
 
