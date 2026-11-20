@@ -55,6 +55,8 @@ export function deadlineLabel(value: string, now = new Date()) {
   const absolute = Math.abs(diff);
   const days = Math.floor(absolute / 86_400_000);
   const hours = Math.floor((absolute % 86_400_000) / 3_600_000);
+  if (diff < 0 && absolute < 3_600_000)
+    return `已逾期 ${Math.max(1, Math.floor(absolute / 60_000))} 分钟`;
   if (diff < 0) return `已逾期 ${days ? `${days} 天 ` : ""}${hours} 小时`;
   if (days >= 1) return `还有 ${days} 天 ${hours} 小时`;
   if (hours >= 1) return `还有 ${hours} 小时`;

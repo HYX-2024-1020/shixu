@@ -14,7 +14,13 @@ import { createId, formatDate } from "../utils/board";
 import { useBoard, useBoardDraft } from "./BoardProvider";
 import { TaskRow } from "./TaskRow";
 
-function LongPlanSection({ parent }: { parent: LongPlan }) {
+function LongPlanSection({
+  parent,
+  floating,
+}: {
+  parent: LongPlan;
+  floating: boolean;
+}) {
   const { snapshot, commit } = useBoard();
   const [stepTitle, setStepTitle] = useBoardDraft(`step:${parent.id}`);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -28,7 +34,6 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
     .filter((task) => !task.deletedAt);
   const visibleSteps = steps.filter((task) => !task.archived);
   const archivedSteps = steps.filter((task) => task.archived);
-  const completedCount = steps.filter((task) => task.completedAt).length;
 
   const toggleStep = (taskId: string, completed: boolean) => {
     commit(
@@ -165,107 +170,150 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
         ) : (
           <h4>{parent.title}</h4>
         )}
-        <span className="sx-progress">
-          {completedCount} / {steps.length} 已完成
-        </span>
+        <details className="sx-item-menu">
+          <summary aria-label="长期计划操作">⋯</summary>
+          <div className="sx-menu-content">
+            <div className="sx-parent-actions">
+              <button
+                className="sx-text-button"
+                type="button"
+                onClick={() => {
+                  setEditingTitle((value) => !value);
+                }}
+              >
+                <Pencil size={12} /> 编辑标题
+              </button>
+              <button
+                className="sx-text-button"
+                type="button"
+                onClick={toggleParent}
+              >
+                <CircleCheck size={13} />{" "}
+                {parent.completedAt ? "撤销父计划完成" : "完成整个计划"}
+              </button>
+            </div>
+            <div className="sx-archive-row">
+              <button
+                className="sx-text-button"
+                type="button"
+                onClick={archiveCompleted}
+                disabled={!visibleSteps.some((task) => task.completedAt)}
+              >
+                <Archive size={13} /> 归档已完成
+              </button>
+            </div>
+            {archivedSteps.length ? (
+              <details className="sx-archived">
+                <summary>已归档 · {archivedSteps.length}</summary>
+                {archivedSteps.map((task) => (
+                  <div className="sx-archived-item" key={task.id}>
+                    <span>
+                      {task.title}
+                      <small>完成于 {formatDate(task.completedAt)}</small>
+                    </span>
+                    <button
+                      className="sx-text-button"
+                      type="button"
+                      onClick={() => restore(task.id)}
+                    >
+                      <RotateCcw size={12} /> 恢复展示
+                    </button>
+                  </div>
+                ))}
+              </details>
+            ) : null}
+            <details>
+              <summary>删除此长期计划</summary>
+              <p>
+                删除父计划及其子事项，不影响主程序来源；可在主程序的最近删除中恢复。
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  commit((d) => {
+                    const at = new Date().toISOString();
+                    d.longPlans.find((p) => p.id === parent.id)!.deletedAt = at;
+                    for (const t of d.tasks)
+                      if (t.parentId === parent.id && !t.deletedAt)
+                        t.deletedAt = at;
+                  }, "已移到最近删除")
+                }
+              >
+                确认删除父计划及其子事项
+              </button>
+            </details>
+          </div>
+        </details>
       </div>
-      <div className="sx-parent-actions">
-        <button
-          className="sx-text-button"
-          type="button"
-          onClick={() => {
-            setEditingTitle((value) => !value);
-          }}
-        >
-          <Pencil size={12} /> 编辑标题
-        </button>
-        <button className="sx-text-button" type="button" onClick={toggleParent}>
-          <CircleCheck size={13} />{" "}
-          {parent.completedAt ? "撤销父计划完成" : "完成整个计划"}
-        </button>
-      </div>
-      {parent.completedAt ? (
-        <small className="sx-parent-completion">
-          父计划由你手动完成于 {formatDate(parent.completedAt)}
-        </small>
-      ) : null}
       <div className="sx-parent-steps">
-        <small>
-          下一步：
-          {steps.find((t) => t.id === parent.nextStepId && !t.completedAt)
-            ?.title ||
-            steps.find((t) => !t.archived && !t.completedAt)?.title ||
-            "当前步骤已全部完成，可继续添加"}
-        </small>
-        {visibleSteps.length ? (
-          visibleSteps.map((task, index) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              parent={parent}
-              removeLabel="删除子事项"
-              onToggle={(done) => toggleStep(task.id, done)}
-              onUpdate={(nextTitle, dueAt) =>
-                updateStep(task.id, nextTitle, dueAt)
-              }
-              onRemove={() => removeStep(task.id)}
-              controls={
-                <span className="sx-sort-controls">
-                  {!task.completedAt ? (
+        {visibleSteps.length
+          ? visibleSteps.map((task, index) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                menu={floating}
+                parent={parent}
+                removeLabel="删除子事项"
+                onToggle={(done) => toggleStep(task.id, done)}
+                onUpdate={(nextTitle, dueAt) =>
+                  updateStep(task.id, nextTitle, dueAt)
+                }
+                onRemove={() => removeStep(task.id)}
+                controls={
+                  <span className="sx-sort-controls">
+                    {!task.completedAt ? (
+                      <button
+                        className="sx-row-button"
+                        type="button"
+                        aria-label={`设为下一步：${task.title}`}
+                        onClick={() =>
+                          commit((d) => {
+                            d.longPlans.find(
+                              (p) => p.id === parent.id,
+                            )!.nextStepId = task.id;
+                          }, "已指定下一步")
+                        }
+                      >
+                        下一步
+                      </button>
+                    ) : (
+                      <button
+                        className="sx-row-button"
+                        type="button"
+                        aria-label={`归档：${task.title}`}
+                        onClick={() =>
+                          commit((d) => {
+                            d.tasks.find((t) => t.id === task.id)!.archived =
+                              true;
+                          }, "已归档子事项")
+                        }
+                      >
+                        <Archive size={13} />
+                      </button>
+                    )}
                     <button
                       className="sx-row-button"
                       type="button"
-                      aria-label={`设为下一步：${task.title}`}
-                      onClick={() =>
-                        commit((d) => {
-                          d.longPlans.find(
-                            (p) => p.id === parent.id,
-                          )!.nextStepId = task.id;
-                        }, "已指定下一步")
-                      }
+                      disabled={index === 0}
+                      onClick={() => moveStep(task.id, -1)}
+                      aria-label={`上移：${task.title}`}
                     >
-                      下一步
+                      <ArrowUp size={13} />
                     </button>
-                  ) : (
                     <button
                       className="sx-row-button"
                       type="button"
-                      aria-label={`归档：${task.title}`}
-                      onClick={() =>
-                        commit((d) => {
-                          d.tasks.find((t) => t.id === task.id)!.archived =
-                            true;
-                        }, "已归档子事项")
-                      }
+                      disabled={index === visibleSteps.length - 1}
+                      onClick={() => moveStep(task.id, 1)}
+                      aria-label={`下移：${task.title}`}
                     >
-                      <Archive size={13} />
+                      <ArrowDown size={13} />
                     </button>
-                  )}
-                  <button
-                    className="sx-row-button"
-                    type="button"
-                    disabled={index === 0}
-                    onClick={() => moveStep(task.id, -1)}
-                    aria-label={`上移：${task.title}`}
-                  >
-                    <ArrowUp size={13} />
-                  </button>
-                  <button
-                    className="sx-row-button"
-                    type="button"
-                    disabled={index === visibleSteps.length - 1}
-                    onClick={() => moveStep(task.id, 1)}
-                    aria-label={`下移：${task.title}`}
-                  >
-                    <ArrowDown size={13} />
-                  </button>
-                </span>
-              }
-            />
-          ))
-        ) : (
-          <p className="sx-empty-inline">还没有进行中的子事项。</p>
-        )}
+                  </span>
+                }
+              />
+            ))
+          : null}
       </div>
       <form className="sx-step-add" onSubmit={addStep}>
         <input
@@ -283,65 +331,11 @@ function LongPlanSection({ parent }: { parent: LongPlan }) {
           <Plus size={13} /> 子事项
         </button>
       </form>
-      <small className="sx-parent-hint">
-        新增子事项会自动加入短期计划；步骤全部完成也不会自动完成父计划。
-      </small>
-      <div className="sx-archive-row">
-        <button
-          className="sx-text-button"
-          type="button"
-          onClick={archiveCompleted}
-          disabled={!visibleSteps.some((task) => task.completedAt)}
-        >
-          <Archive size={13} /> 归档已完成
-        </button>
-      </div>
-      <details className="sx-archived">
-        <summary>已归档 · {archivedSteps.length}</summary>
-        {archivedSteps.length ? (
-          archivedSteps.map((task) => (
-            <div className="sx-archived-item" key={task.id}>
-              <span>
-                {task.title}
-                <small>完成于 {formatDate(task.completedAt)}</small>
-              </span>
-              <button
-                className="sx-text-button"
-                type="button"
-                onClick={() => restore(task.id)}
-              >
-                <RotateCcw size={12} /> 恢复展示
-              </button>
-            </div>
-          ))
-        ) : (
-          <p className="sx-empty-inline">归档后的完成记录会留在这里。</p>
-        )}
-      </details>
-      <details>
-        <summary>删除此长期计划</summary>
-        <p>
-          删除父计划及其子事项，不影响主程序来源；可在窗口与规划的最近删除中恢复。
-        </p>
-        <button
-          type="button"
-          onClick={() =>
-            commit((d) => {
-              const at = new Date().toISOString();
-              d.longPlans.find((p) => p.id === parent.id)!.deletedAt = at;
-              for (const t of d.tasks)
-                if (t.parentId === parent.id && !t.deletedAt) t.deletedAt = at;
-            }, "已移到最近删除")
-          }
-        >
-          确认删除父计划及其子事项
-        </button>
-      </details>
     </article>
   );
 }
 
-export function LongPlans() {
+export function LongPlans({ floating = false }: { floating?: boolean } = {}) {
   const { snapshot, activePlan, commit } = useBoard();
   const [title, setTitle] = useBoardDraft(`long:${activePlan.id}`);
   const parents = snapshot.longPlans.filter(
@@ -366,23 +360,20 @@ export function LongPlans() {
   return (
     <section
       className="sx-module sx-long"
-      aria-labelledby="sx-long-title"
+      aria-label="长期计划"
       data-testid="long-plans"
     >
-      <div className="sx-section-head">
-        <h3 id="sx-long-title">一步步推进</h3>
-        <small>子事项自动加入短期</small>
-      </div>
       <div className="sx-parents">
         {parents.length ? (
           parents.map((parent) => (
-            <LongPlanSection key={parent.id} parent={parent} />
+            <LongPlanSection
+              key={parent.id}
+              parent={parent}
+              floating={floating}
+            />
           ))
         ) : (
-          <div className="sx-empty">
-            <strong>还没有长期计划</strong>
-            <span>先创建父计划，再按自己的节奏拆步骤。</span>
-          </div>
+          <p className="sx-empty-inline">暂无长期计划</p>
         )}
       </div>
       <form className="sx-new-item" onSubmit={addParent}>

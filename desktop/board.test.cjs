@@ -314,3 +314,93 @@ test('signed account v4 board originals use retained quota and survive client re
   client=new AccountWorkspace(options);await client.init();await client.action('sync',{force:true});board=new BoardService(client);
   view=await board.load(board.lease());assert.equal(view.snapshot.resources.length,1);assert.equal((await board.resource(view.snapshot.resources[0].id,board.lease())).bytes.byteLength,3);assert.equal(calls,0);
 });
+
+
+test("default-app opening uses only an active planning original, preserves its extension, and reports handler failure", async (t) => {
+  const { root, board } = await fixture(t);
+  const { BoardWindow } = require("./board-window.cjs");
+  const lease = board.lease();
+  const bytes = new Uint8Array([23, 42]).buffer;
+  let view = await board.load(lease);
+  view = await board.addFiles(
+    {
+      stamp: view.stamp,
+      planningId: "daily",
+      files: [
+        { name: "CON.TXT", type: "text/plain", bytes },
+        { name: "unsafe.exe", type: "application/octet-stream", bytes },
+      ],
+    },
+    lease,
+  );
+  const [original, unsupported] = view.snapshot.resources;
+  const next = structuredClone(view.snapshot);
+  next.resources[0].name = "仅改显示名.exe";
+  view = await save(board, view, next);
+  const opens = [];
+  const native = new BoardWindow({
+    root,
+    service: board,
+    openPath: async (file) => {
+      opens.push(file);
+      assert.equal(path.extname(file), ".txt");
+      assert.deepEqual(await fs.readFile(file), Buffer.from(bytes));
+      return opens.length === 1 ? "" : "missing association";
+    },
+  });
+  t.after(() => native.cleanOriginalCopies());
+  await native.action("openResource", { id: original.id }, lease, true);
+  await assert.rejects(
+    native.action("openResource", { id: original.id }, lease, true),
+    /检查文件关联/,
+  );
+  await assert.rejects(
+    native.action("openResource", { id: unsupported.id }, lease, true),
+    /文件类型/,
+  );
+  await assert.rejects(
+    native.action("openResource", { id: original.id }, "old-scope", true),
+    /账号已切换/,
+  );
+  next.plans.push({ id: "different", name: "其他规划" });
+  next.activePlanId = "different";
+  await save(board, view, next);
+  await assert.rejects(
+    native.action("openResource", { id: original.id }, lease, true),
+    /原件/,
+  );
+  assert.equal(opens.length, 2);
+});
+
+test("a locked board cannot resize; an unlocked corner keeps the opposite corner stable", async (t) => {
+  const { root } = await fixture(t);
+  const { BoardWindow } = require("./board-window.cjs");
+  let cursor = { x: 10, y: 10 };
+  let bounds = { x: -800, y: 40, width: 400, height: 500 };
+  const native = new BoardWindow({
+    root,
+    screen: {
+      getCursorScreenPoint: () => cursor,
+      getDisplayMatching: () => ({
+        workArea: { x: -1200, y: 0, width: 1200, height: 900 },
+      }),
+    },
+  });
+  native.win = {
+    isDestroyed: () => false,
+    getBounds: () => bounds,
+    setBounds: (value) => {
+      bounds = value;
+    },
+  };
+  native.settings.locked = true;
+  native.resizeWindow("resizeStart", "nw");
+  assert.equal(native.resize, undefined);
+  native.settings.locked = false;
+  native.resizeWindow("resizeStart", "nw");
+  cursor = { x: -10, y: 60 };
+  native.resizeWindow("resizeEnd");
+  assert.deepEqual(bounds, { x: -820, y: 90, width: 420, height: 450 });
+  const restored = new BoardWindow({ root });
+  assert.deepEqual(restored.settings.modeBounds.rail, bounds);
+});

@@ -145,11 +145,14 @@ class BoardService {
       );
     return this.load(lease);
   }
-  async resource(id, lease) {
+  async resource(id, lease, currentPlanOnly = false) {
     const packets = await this.records(lease),
       record = packets.find((p) => p.id === BOARD_ID);
     const resource = record?.board?.resources.find(
-        (r) => r.id === id && !r.deletedAt,
+        (r) =>
+          r.id === id &&
+          !r.deletedAt &&
+          (!currentPlanOnly || r.planningId === record.board.activePlanId),
       ),
       attachment = record?.attachments.find(
         (a) => a.id === resource?.attachmentId && !a.deletedAt,

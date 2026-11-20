@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarRange, Clock3 } from "lucide-react";
+import { CalendarRange } from "lucide-react";
 import type { TimePrecision } from "../types/board";
 import { deadlineLabel, formatDateTime, isOverdue } from "../utils/board";
 import { useBoard } from "./BoardProvider";
-import { WindowFrame } from "./WindowFrame";
 
 type DdlFilter = "all" | "today" | "week" | "custom";
 
@@ -11,7 +10,6 @@ interface DdlItem {
   id: string;
   title: string;
   dueAt: string;
-  sourceLabel: string;
   timePrecision: TimePrecision;
   completedAt: string | null;
   dueLabel?: string;
@@ -42,7 +40,6 @@ export function DdlPanel() {
         id: `planning-${task.id}`,
         title: task.title,
         dueAt: task.dueAt!,
-        sourceLabel: `当前规划 · ${task.origin === "manual" ? "手写事项" : task.origin === "step" ? "长期子事项" : "选入事项"}`,
         timePrecision: task.timePrecision,
         completedAt: task.completedAt,
       }));
@@ -79,23 +76,7 @@ export function DdlPanel() {
 
   return (
     <div data-testid="ddl-panel">
-      <WindowFrame
-        title="DDL · 截止雷达"
-        subtitle={activePlan.name}
-        className="sx-ddl-window"
-        label="独立截止雷达"
-        footer={
-          <>
-            <span>主程序全部 DDL ＋ 当前规划有日期的事项</span>
-            <span>{visible.length} 条显示</span>
-          </>
-        }
-      >
-        <div className="sx-ddl-intro">
-          <span className="sx-eyebrow">DEADLINE / 时间有出处</span>
-          <h2>截止雷达</h2>
-          <p>无日期不虚构截止；明确与推定时刻分开标记。</p>
-        </div>
+      <section className="sx-ddl-window" aria-label="截止事项">
         <div className="sx-ddl-filters" aria-label="截止范围">
           {(["all", "today", "week", "custom"] as const).map((value) => (
             <button
@@ -144,26 +125,19 @@ export function DdlPanel() {
                   className={`sx-ddl-item ${overdue ? "sx-ddl-overdue" : ""}`}
                   key={item.id}
                 >
-                  <div className="sx-ddl-time">
+                  <div>
+                    <h3>{item.title}</h3>
                     <span>
-                      <Clock3 size={12} /> {formatDateTime(item.dueAt)}
+                      {item.dueLabel?.split(" · ")[0] ||
+                        formatDateTime(item.dueAt)}
                     </span>
-                    <strong>
-                      {item.completedAt ? "已完成" : deadlineLabel(item.dueAt)}
-                    </strong>
+                    {item.timePrecision === "inferred" ? (
+                      <small> · 推定</small>
+                    ) : null}
                   </div>
-                  <h3>{item.title}</h3>
-                  {item.dueLabel ? <small>{item.dueLabel}</small> : null}
-                  <div className="sx-ddl-meta">
-                    <span>{item.sourceLabel}</span>
-                    <span
-                      className={`sx-precision sx-precision-${item.timePrecision}`}
-                    >
-                      {item.timePrecision === "explicit"
-                        ? "明确时刻"
-                        : "推定时刻"}
-                    </span>
-                  </div>
+                  <strong>
+                    {item.completedAt ? "已完成" : deadlineLabel(item.dueAt)}
+                  </strong>
                 </article>
               );
             })
@@ -171,11 +145,10 @@ export function DdlPanel() {
             <div className="sx-empty">
               <CalendarRange size={24} />
               <strong>这个范围没有截止事项</strong>
-              <span>换个时间范围，或回到全部查看。</span>
             </div>
           )}
         </div>
-      </WindowFrame>
+      </section>
     </div>
   );
 }

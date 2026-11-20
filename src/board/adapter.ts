@@ -15,15 +15,7 @@ export class RealBoardAdapter implements BoardAdapter {
   private saved!: BoardSnapshot;
   private tail: Promise<void> = Promise.resolve();
   private failed: unknown;
-  private urls = new Map<string, string>();
-  constructor(
-    private onSource: (id: string) => void,
-    private onResource: (file: {
-      name: string;
-      type: string;
-      bytes: ArrayBuffer;
-    }) => void,
-  ) {}
+  constructor(private onSource: (id: string) => void) {}
   private call(action: string, value?: unknown): Promise<any> {
     const host = window.boardHost || window.desktop?.board;
     return host
@@ -35,21 +27,6 @@ export class RealBoardAdapter implements BoardAdapter {
         });
   }
   private async accept(view: View, guard?: () => boolean) {
-    for (const r of view.snapshot.resources) {
-      if (r.kind !== "image" || r.deletedAt) continue;
-      if (!this.urls.has(r.id)) {
-        try {
-          const f = await this.call("resource", { id: r.id });
-          this.urls.set(
-            r.id,
-            URL.createObjectURL(new Blob([f.bytes], { type: f.type })),
-          );
-        } catch {
-          /* Availability is reported on explicit open, never faked with examples. */
-        }
-      }
-      r.url = this.urls.get(r.id);
-    }
     if (guard && !guard()) return this.enqueued;
     this.view = view;
     this.enqueued = structuredClone(view.snapshot);
@@ -133,7 +110,24 @@ export class RealBoardAdapter implements BoardAdapter {
     );
   }
   async openResource(resource: ResourceItem) {
-    this.onResource(await this.call("resource", { id: resource.id }));
+    await this.flush();
+    if (window.boardHost || window.desktop?.board) {
+      await this.call("openResource", { id: resource.id });
+      return;
+    }
+    await this.downloadResource(resource);
+  }
+  async downloadResource(resource: ResourceItem) {
+    await this.flush();
+    const file = await this.call("resource", { id: resource.id });
+    const url = URL.createObjectURL(
+      new Blob([file.bytes], { type: file.type }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
   async openSource(id: string) {
     if (window.boardHost) await this.call("openSource", { id });
@@ -150,8 +144,6 @@ export class RealBoardAdapter implements BoardAdapter {
       unsubscribe?.();
       clearInterval(timer);
       window.removeEventListener("focus", listener);
-      for (const url of this.urls.values()) URL.revokeObjectURL(url);
-      this.urls.clear();
     };
   }
 }

@@ -1,40 +1,19 @@
 import { useState } from "react";
 import { useBoard } from "./BoardProvider";
 import { LongPlans } from "./LongPlans";
-import { PlanningManager } from "./PlanningManager";
 import { ShortPlans } from "./ShortPlans";
-import { WindowFrame } from "./WindowFrame";
 import type { PlanTab } from "../types/board";
 
-export function RailBoard() {
-  const { activePlan, saveState, retrySave } = useBoard();
+export function RailBoard({ floating = false }: { floating?: boolean } = {}) {
+  const { activePlan } = useBoard();
   const [tab, setTab] = useState<PlanTab>("short");
 
   return (
     <div className="sx-rail-wrap" data-testid="rail-board">
-      <WindowFrame
-        title={activePlan.name}
-        subtitle="看板"
-        className="sx-rail"
-        label="窄栏看板"
-        footer={
-          <>
-            <span
-              className={`sx-save-status sx-save-${saveState.phase}`}
-              aria-live="polite"
-            >
-              {saveState.message}
-              {saveState.phase === "error" ? (
-                <button type="button" onClick={retrySave}>
-                  重试
-                </button>
-              ) : null}
-            </span>
-            <span>内容仅属于本规划</span>
-          </>
-        }
-      >
-        <PlanningManager />
+      <section className="sx-rail" aria-label="窄栏看板">
+        {!floating ? (
+          <h2 className="sx-rail-title">{activePlan.name}</h2>
+        ) : null}
         <nav className="sx-plan-tabs" aria-label="计划分类">
           <button
             type="button"
@@ -53,13 +32,13 @@ export function RailBoard() {
         </nav>
         <div className="sx-rail-content">
           <div hidden={tab !== "short"}>
-            <ShortPlans />
+            <ShortPlans floating={floating} />
           </div>
           <div hidden={tab !== "long"}>
-            <LongPlans />
+            <LongPlans floating={floating} />
           </div>
         </div>
-      </WindowFrame>
+      </section>
     </div>
   );
 }

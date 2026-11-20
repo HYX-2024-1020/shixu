@@ -92,6 +92,7 @@ export interface BoardAdapter {
   load(accept?: () => boolean): Promise<BoardSnapshot>;
   save(snapshot: BoardSnapshot): Promise<void>;
   openResource?(resource: ResourceItem): Promise<void>;
+  downloadResource?(resource: ResourceItem): Promise<void>;
   openSource?(sourceId: string): Promise<void>;
   addResources?(files: File[], planningId: string): Promise<BoardSnapshot>;
   flush?(): Promise<void>;

@@ -5,7 +5,7 @@ import { createId, getParent } from "../utils/board";
 import { useBoard, useBoardDraft } from "./BoardProvider";
 import { TaskRow } from "./TaskRow";
 
-export function ShortPlans() {
+export function ShortPlans({ floating = false }: { floating?: boolean } = {}) {
   const { snapshot, activePlan, adapter, commit } = useBoard();
   const [title, setTitle] = useBoardDraft(`short:${activePlan.id}`);
   const [notice, setNotice] = useState("");
@@ -13,7 +13,6 @@ export function ShortPlans() {
     (task) =>
       task.planningId === activePlan.id && !task.archived && !task.deletedAt,
   );
-  const pendingCount = tasks.filter((task) => !task.completedAt).length;
 
   const add = (event: FormEvent) => {
     event.preventDefault();
@@ -112,25 +111,38 @@ export function ShortPlans() {
       setNotice(e instanceof Error ? e.message : "打开失败");
       return;
     }
-    setNotice("已打开来源详情");
+    setNotice("");
   };
 
   return (
     <section
       className="sx-module sx-short"
-      aria-labelledby="sx-short-title"
+      aria-label="短期计划"
       data-testid="short-plans"
     >
-      <div className="sx-section-head">
-        <h3 id="sx-short-title">眼前要做的事</h3>
-        <span className="sx-count-sticker">{pendingCount} 项未完成</span>
-      </div>
+      <form className="sx-new-item" onSubmit={add}>
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          aria-label="新增短期计划"
+          placeholder="新增事项…"
+          maxLength={100}
+        />
+        <button
+          className="sx-button sx-button-primary"
+          type="submit"
+          disabled={!title.trim()}
+        >
+          <Plus size={14} /> 新增一项
+        </button>
+      </form>
       <div className="sx-task-list">
         {tasks.length ? (
           tasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
+              menu={floating}
               parent={getParent(task.parentId, snapshot.longPlans)}
               onToggle={(done) => toggle(task.id, done)}
               onUpdate={(nextTitle, dueAt) => update(task.id, nextTitle, dueAt)}
@@ -143,28 +155,16 @@ export function ShortPlans() {
             />
           ))
         ) : (
-          <div className="sx-empty">
-            <strong>这一页还空着</strong>
-            <span>写下一件近期要做的事，或从主程序选入。</span>
-          </div>
+          <p className="sx-empty-inline sx-rail-empty">
+            <img
+              src={import.meta.env.BASE_URL + "mascot.png"}
+              alt=""
+              draggable={false}
+            />
+            暂无短期事项
+          </p>
         )}
       </div>
-      <form className="sx-new-item" onSubmit={add}>
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          aria-label="新增短期计划"
-          placeholder="写一项短期计划…"
-          maxLength={100}
-        />
-        <button
-          className="sx-button sx-button-primary"
-          type="submit"
-          disabled={!title.trim()}
-        >
-          <Plus size={14} /> 新增一项
-        </button>
-      </form>
       <details className="sx-source-picker">
         <summary>从主程序选入</summary>
         <div className="sx-source-options">
@@ -187,7 +187,6 @@ export function ShortPlans() {
             );
           })}
         </div>
-        <small>移出仅取消展示，不删除来源事项。</small>
       </details>
       <span className="sx-inline-notice" aria-live="polite">
         {notice}

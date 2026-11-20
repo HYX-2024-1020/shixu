@@ -18,7 +18,7 @@ test("unsubmitted title, deadline and planning-name edits recover when editors r
     .locator("input[type=datetime-local]")
     .fill("2026-12-01T14:30");
   await page
-    .locator(".sx-rail")
+    .locator(".sx-board-sidebar")
     .getByLabel("新建规划", { exact: true })
     .click();
   await page.getByLabel("新规划名称", { exact: true }).fill("未提交规划名");
@@ -32,7 +32,7 @@ test("unsubmitted title, deadline and planning-name edits recover when editors r
     page.locator(".sx-task-edit:visible").locator("input[type=datetime-local]"),
   ).toHaveValue("2026-12-01T14:30");
   await page
-    .locator(".sx-rail")
+    .locator(".sx-board-sidebar")
     .getByLabel("新建规划", { exact: true })
     .click();
   await expect(page.getByLabel("新规划名称", { exact: true })).toHaveValue(
@@ -86,6 +86,7 @@ test("real board persists planning, shared steps, archive restoration, input dra
     .getByLabel("完成：共享步骤", { exact: true })
     .filter({ visible: true })
     .click();
+  await board.getByLabel("长期计划操作").click();
   await board.getByRole("button", { name: "归档已完成", exact: true }).click();
   await board.locator(".sx-archived summary").click();
   await board.getByRole("button", { name: "恢复展示", exact: true }).click();
@@ -103,7 +104,7 @@ test("real board persists planning, shared steps, archive restoration, input dra
   await page.reload();
   await page.getByRole("button", { name: "看板", exact: true }).click();
   await expect(board.getByLabel("新增短期计划")).toHaveValue("未提交合成草稿");
-  await board.getByRole("button", { name: "面板", exact: true }).click();
+  await board.getByLabel("看板视图").selectOption("panel");
   await board.getByLabel("添加图片或文件").setInputFiles({
     name: "合成资料.txt",
     mimeType: "text/plain",
@@ -112,24 +113,18 @@ test("real board persists planning, shared steps, archive restoration, input dra
   await expect(
     board.getByText("合成资料.txt", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
-  await board
-    .getByText("合成资料.txt", { exact: true })
-    .filter({ visible: true })
-    .click();
+  await board.getByLabel("资料操作：合成资料.txt").click();
   await board
     .getByLabel("资料关联长期计划")
     .selectOption({ label: "合成长计划" });
   await page.evaluate(() => window.flushBoardDraft?.());
   await page.reload();
   await page.getByRole("button", { name: "看板", exact: true }).click();
-  await board.getByRole("button", { name: "面板", exact: true }).click();
+  await board.getByLabel("看板视图").selectOption("panel");
   await expect(
     board.getByText("合成资料.txt", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
-  await board
-    .getByText("合成资料.txt", { exact: true })
-    .filter({ visible: true })
-    .click();
+  await board.getByLabel("资料操作：合成资料.txt").click();
   await expect(board.getByLabel("资料关联长期计划")).toHaveValue(/parent-/);
   const packets = await page.evaluate(async () => {
     const path = "/src/bucket/store.ts";
@@ -159,4 +154,61 @@ test("two browser windows reject stale snapshots and do not overwrite each other
   await expect(other.getByText(/另一窗口已修改看板/).first()).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("新增短期计划")).toHaveValue("窗口甲");
+});
+
+test("library drag and display names survive reload; browser downloads the original name and bytes", async ({
+  page,
+}, info) => {
+  test.skip(
+    info.project.name === "mobile",
+    "Mouse drag is covered by desktop.",
+  );
+  await page.goto("/?board=1");
+  await page.getByLabel("看板视图").selectOption("panel");
+  await page.getByLabel("添加图片或文件").setInputFiles([
+    {
+      name: "原件.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("original"),
+    },
+    {
+      name: "第二份.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("second"),
+    },
+  ]);
+  const cards = page.locator(".sx-library-card");
+  await expect(cards).toHaveCount(2);
+  const grip = await cards
+    .first()
+    .locator("[data-card-drag-handle]")
+    .boundingBox();
+  const target = await cards.last().boundingBox();
+  if (!grip || !target) throw Error("资料卡未呈现");
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    target.x + target.width / 2,
+    target.y + target.height / 2,
+    { steps: 12 },
+  );
+  await expect(cards.first()).toContainText("第二份.txt");
+  await page.mouse.up();
+  await expect(page.getByText("已移动到第 2 个位置")).toHaveCount(1);
+  await page.getByLabel("资料操作：原件.txt").click();
+  await cards.last().getByLabel("资料显示名").fill("新显示名");
+  await cards.last().getByRole("button", { name: "保存名称" }).click();
+  await page.evaluate(() => window.flushBoardDraft?.());
+  await page.reload();
+  await page.getByLabel("看板视图").selectOption("panel");
+  await expect(cards.first()).toContainText("第二份.txt");
+  await expect(cards.last()).toContainText("新显示名");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "打开资料：新显示名" }).click();
+  const original = await download;
+  expect(original.suggestedFilename()).toBe("原件.txt");
+  const chunks = [];
+  for await (const chunk of await original.createReadStream())
+    chunks.push(chunk);
+  expect(Buffer.concat(chunks).toString()).toBe("original");
 });

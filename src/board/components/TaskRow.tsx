@@ -2,12 +2,13 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { ExternalLink, Pencil, Trash2, X } from "lucide-react";
 import { useBoardDraft } from "./BoardProvider";
 import type { BoardTask, LongPlan } from "../types/board";
-import { formatDate, fromDateTimeInput, toDateTimeInput } from "../utils/board";
+import { fromDateTimeInput, toDateTimeInput } from "../utils/board";
 
 interface TaskRowProps {
   task: BoardTask;
   parent?: LongPlan;
   compact?: boolean;
+  menu?: boolean;
   controls?: ReactNode;
   onToggle: (completed: boolean) => void;
   onUpdate?: (title: string, dueAt: string | null) => void;
@@ -20,6 +21,7 @@ export function TaskRow({
   task,
   parent,
   compact = false,
+  menu = false,
   controls,
   onToggle,
   onUpdate,
@@ -37,13 +39,6 @@ export function TaskRow({
     toDateTimeInput(task.dueAt),
   );
   const done = Boolean(task.completedAt);
-  const source =
-    task.origin === "manual"
-      ? "手写 · 短期计划"
-      : task.origin === "source"
-        ? "选入 · 主程序"
-        : `来自长期计划 · ${parent?.title ?? "关联步骤"}`;
-
   const save = (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
@@ -52,6 +47,55 @@ export function TaskRow({
     clearDue();
     setEditing(false);
   };
+
+  const actions = (
+    <>
+      {controls}
+      {onOpenSource ? (
+        <button
+          className="sx-row-button"
+          type="button"
+          onClick={onOpenSource}
+          aria-label={`打开主程序详情：${task.title}`}
+          title="打开主程序详情"
+        >
+          <ExternalLink size={13} />
+        </button>
+      ) : null}
+      {onUpdate ? (
+        <button
+          className="sx-row-button"
+          type="button"
+          onClick={(event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            setEditing((value) => !value);
+          }}
+          aria-label={`编辑事项：${task.title}`}
+          aria-expanded={editing}
+        >
+          <Pencil size={13} />
+        </button>
+      ) : null}
+      {onRemove ? (
+        <button
+          className="sx-row-button sx-row-danger"
+          type="button"
+          onClick={onRemove}
+          aria-label={`${removeLabel ?? (task.origin === "manual" ? "删除" : "移出规划")}：${task.title}`}
+        >
+          {(
+            removeLabel
+              ? removeLabel.includes("删除")
+              : task.origin === "manual"
+          ) ? (
+            <Trash2 size={13} />
+          ) : (
+            <X size={14} />
+          )}
+        </button>
+      ) : null}
+    </>
+  );
 
   return (
     <div
@@ -68,65 +112,23 @@ export function TaskRow({
         />
         <span className="sx-task-main">
           <span className="sx-task-title">{task.title}</span>
-          {!compact ? (
-            <small>
-              {task.sourceUnavailable
-                ? "来源已删除或不可用（关联保留，恢复后可继续）"
-                : source}
-              {done && task.completedAt
-                ? ` · 完成于 ${formatDate(task.completedAt)}`
-                : ""}
-              {task.dueAt ? " · 有日期" : ""}
-            </small>
+          {!compact && task.sourceUnavailable ? (
+            <small>来源不可用</small>
+          ) : null}
+          {!compact && parent && !controls ? (
+            <small>{parent.title}</small>
           ) : null}
         </span>
       </label>
       {!compact && !task.sourceUnavailable ? (
-        <span className="sx-task-controls">
-          {controls}
-          {onOpenSource ? (
-            <button
-              className="sx-row-button"
-              type="button"
-              onClick={onOpenSource}
-              aria-label={`打开主程序详情：${task.title}`}
-              title="打开主程序详情"
-            >
-              <ExternalLink size={13} />
-            </button>
-          ) : null}
-          {onUpdate ? (
-            <button
-              className="sx-row-button"
-              type="button"
-              onClick={() => {
-                setEditing((value) => !value);
-              }}
-              aria-label={`编辑事项：${task.title}`}
-              aria-expanded={editing}
-            >
-              <Pencil size={13} />
-            </button>
-          ) : null}
-          {onRemove ? (
-            <button
-              className="sx-row-button sx-row-danger"
-              type="button"
-              onClick={onRemove}
-              aria-label={`${removeLabel ?? (task.origin === "manual" ? "删除" : "移出规划")}：${task.title}`}
-            >
-              {(
-                removeLabel
-                  ? removeLabel.includes("删除")
-                  : task.origin === "manual"
-              ) ? (
-                <Trash2 size={13} />
-              ) : (
-                <X size={14} />
-              )}
-            </button>
-          ) : null}
-        </span>
+        menu ? (
+          <details className="sx-item-menu sx-task-menu">
+            <summary aria-label={`事项操作：${task.title}`}>⋯</summary>
+            <div className="sx-task-controls">{actions}</div>
+          </details>
+        ) : (
+          <span className="sx-task-controls">{actions}</span>
+        )
       ) : null}
       {editing && onUpdate ? (
         <form className="sx-task-edit" onSubmit={save}>

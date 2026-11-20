@@ -263,10 +263,26 @@ else {
           "关闭窗口将退出拾序。" + error.message,
         );
       }
-      boardWindow=new BoardWindow({BrowserWindow,screen,globalShortcut,root:app.getPath('userData'),quitting:()=>quitting,mainWindow:()=>mainWindow,service:new BoardService(cloud)});
-      ipcMain.handle('boardLease',event=>{boardWindow.valid(event);return boardWindow.service.lease();});
-      ipcMain.handle('board',(event,action,value,lease)=>{boardWindow.valid(event);return boardWindow.action(action,value,lease);});
-      app.on('will-quit',()=>globalShortcut.unregisterAll());
+      boardWindow = new BoardWindow({
+        BrowserWindow, screen, globalShortcut, root: app.getPath("userData"),
+        quitting: () => quitting,
+        mainWindow: () => mainWindow,
+        service: new BoardService(cloud),
+        openPath: (file) => shell.openPath(file),
+      });
+      ipcMain.handle("boardLease", (event) => {
+        boardWindow.valid(event);
+        return boardWindow.service.lease();
+      });
+      ipcMain.handle("board", (event, action, value, lease) => {
+        boardWindow.valid(event);
+        const floating = event.sender === boardWindow.win?.webContents;
+        return boardWindow.action(action, value, lease, floating);
+      });
+      app.on("will-quit", () => {
+        globalShortcut.unregisterAll();
+        boardWindow.cleanOriginalCopies();
+      });
       await mainWindow.loadURL("shixu://app/");
       await boardWindow.start();
     })
