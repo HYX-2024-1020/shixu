@@ -30,6 +30,7 @@
   box-shadow: none;
   color: #171713;
   line-height: 1.25;
+  white-space: nowrap;
 }
 .page .xc-hit {
   display: flex;
@@ -48,7 +49,8 @@
   align-items: center;
   min-width: 0;
   min-height: 44px;
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
   text-align: left;
 }
 .page .xc-title {
@@ -57,6 +59,7 @@
   line-height: 1.4;
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: normal;
 }
 .is-collapsed .xc-title {
   display: -webkit-box;
@@ -143,7 +146,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12rpx;
   margin: 14rpx -16rpx -16rpx;
   padding: 6rpx 20rpx;
@@ -151,6 +154,8 @@
   background: var(--card-paper, #f3ecff);
 }
 .page .xc-footer .xc-link {
+  flex: 0 0 auto;
+  width: auto;
   min-height: 44px;
   font-size: 25rpx;
   font-weight: 800;

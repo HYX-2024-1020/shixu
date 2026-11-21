@@ -1,6 +1,7 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const { sha256: originalHash } = require("../../lib/originals");
+const { packedWebp } = require("../../lib/skin-images");
 const {
   CONNECTION,
   SERVICE_ORIGIN,
@@ -40,6 +41,7 @@ const {
   MAX_CUSTOM_SKINS,
   mergeCardOrder,
   deadlineCountdown,
+  deadlineTone,
   parseDeadline,
   absoluteItem,
   setDeadline,
@@ -64,6 +66,15 @@ const canResubmitOrganize = (job) =>
 const captureKey = (space) => `shixu:mini:last-capture:${space}`;
 const DRAFT = "shixu:mini:draft:v1";
 const stateKey = (base) => `shixu:mini:workspace:v1:${base}`;
+const originalExpiry = (row) =>
+  row?.expiresAt && row.available
+    ? new Date(row.expiresAt).toLocaleDateString("zh-CN")
+    : "";
+const presentOriginal = (row) => ({
+  ...row,
+  rowKey: `${row.packetId}:${row.id}`,
+  expiresLabel: originalExpiry(row),
+});
 function dateInfo() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -196,7 +207,9 @@ Page({
     previewSkin: BUILTIN_SKINS[0],
     skinMessage: BUILTIN_SKINS[0].hello,
     skinAnimating: false,
-    bunnySheet: "/assets/fox/atlas.webp",
+    foxHomeReady: false,
+    foxPreviewReady: false,
+    bunnyPlaying: false,
     bunnyPosition: "left:0%;top:0%",
     skinEditor: false,
     skinForm: {},
@@ -437,7 +450,7 @@ Page({
           state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
           hasResult: itemsFor([row]).length > 0,
           organizeJob: this._jobViews([this._organizeJob(row.id)].filter(Boolean))[0] || null,
-          attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
+          ...this._deliveryFiles(row),
         };
       });
     const view = worldView(records, this.data);
@@ -464,6 +477,7 @@ Page({
       );
       return {
         ...card,
+        deadlineTone: deadlineTone(card.date || "", day, !!card.done),
         countdown: countdown.label,
         countdownStatus: countdown.status,
       };
@@ -477,6 +491,7 @@ Page({
       draftFiles: this._fileEntries(this._draftId).map((entry) => ({
         ...this._library().metadata(entry),
         sizeLabel: formatBytes(entry.size),
+        volatile: !!entry.volatile,
       })),
       pendingFiles:
         this._library() && !this.data.localMode
@@ -539,7 +554,7 @@ Page({
           summary: (r.data.result && r.data.result.summary) || "",
           organizeJob: this._jobViews([this._organizeJob(r.id)].filter(Boolean))[0] || null,
           items: itemsFor([r]).slice(0, 60).map(this._cardView),
-          attachments: (r.data.attachments || []).filter((f) => !f.deletedAt),
+          ...this._deliveryFiles(r),
         })),
       localCount: this._localWorkspace()
         .records()
@@ -601,6 +616,25 @@ Page({
       (e, i) => entries.findIndex((f) => f.id === e.id) === i,
     );
   },
+  _deliveryFiles(row) {
+    const attachments = (row.data.attachments || []).filter((file) => !file.deletedAt);
+    const pending = this.data.localMode ? [] : this._fileEntries(row.id).filter((file) => !file.remote);
+    const issue = this._deliveryIssues?.get(row.id);
+    return {
+      attachments,
+      pendingOriginals: pending.length,
+      temporaryOriginals: pending.some((file) => file.volatile),
+      uploadIssue: issue?.upload,
+      organizeIssue: issue?.organize,
+    };
+  },
+  _setDeliveryIssue(id, stage, message) {
+    this._deliveryIssues ||= new Map();
+    this._deliveryIssues.set(id, { ...this._deliveryIssues.get(id), [stage]: message });
+  },
+  retryDeliveryUpload() {
+    return this._sync({ interactive: true });
+  },
   chooseFiles() {
     if (this.data.filesBusy) return;
     const count = 20 - this.data.draftFiles.length;
@@ -645,18 +679,25 @@ Page({
       });
       const library = this._library();
       if (!library) throw new Error("当前环境暂不支持原件保存");
+      const failures = [];
       for (const file of files) {
-        if (this._fileEntries(this._draftId).length >= 20)
-          throw new Error("一次投递最多 20 份原件");
-        library.add(file, this._draftId, this._draftSpace());
+        try {
+          if (this._fileEntries(this._draftId).length >= 20)
+            throw new Error("一次投递最多 20 份原件");
+          library.add(file, this._draftId, this._draftSpace());
+        } catch (error) {
+          failures.push(error.message);
+        }
       }
       this.setData({
-        error: "",
+        error: failures.length
+          ? `${failures.length} 份原件未加入：${failures[0]}。可重选未加入的文件。`
+          : "",
         notice: library
           .entries(this._draftId, this._draftSpace())
           .some((e) => e.volatile)
           ? "本机原件保存失败，仅本次会话可用；上传后请核对云端保存结果，关闭前另存副本"
-          : "原件已保存在本机；丢进去后与文字一起投递",
+          : "",
       });
     } catch (error) {
       this._error(error);
@@ -676,7 +717,7 @@ Page({
       this._error(error);
     }
   },
-  async _uploadFiles(epoch) {
+  async _uploadFiles(epoch, interactive) {
     const library = this._library();
     if (!library || this.data.filesBusy || !this.data.capabilities.attachments)
       return;
@@ -692,12 +733,14 @@ Page({
         this._connection.protocolVersion || 2,
       );
     this.setData({ filesBusy: true });
+    let uploadingPacketId;
     try {
       if (this._reading?.features?.submissionManifest) {
         let attached = false;
         for (const packetId of new Set(pending.map((e) => e.packetId))) {
           const row = this._record(packetId);
           if (!row || row.deletedAt || row.conflict) continue;
+          uploadingPacketId = packetId;
           const entries = pending.filter((entry) => entry.packetId === packetId);
           const newFiles = entries.map((e) => ({
             id: e.id,
@@ -737,6 +780,8 @@ Page({
             submission.mode === "temporary" &&
             entries.some((e) => e.volatile)
           ) {
+            if (!interactive)
+              throw Error("原件仅本次会话可用，请点「重试上传」确认临时整理，或先另存原件");
             const answer = await new Promise((resolve) =>
               wx.showModal({
                 title: "原件未保存",
@@ -790,6 +835,7 @@ Page({
       for (const entry of pending) {
         const row = this._record(entry.packetId);
         if (!row || row.deletedAt || row.conflict) continue;
+        uploadingPacketId = entry.packetId;
         const result = await transport.upload(
           entry,
           library.bytes(entry),
@@ -810,14 +856,21 @@ Page({
         changed = true;
       }
       if (changed) await this._client.sync();
+    } catch (error) {
+      if (uploadingPacketId) this._setDeliveryIssue(uploadingPacketId, "upload", error.message);
+      throw error;
     } finally {
       this.setData({ filesBusy: false });
     }
   },
   async _refreshOriginalStorage() {
-    if (!this._reading?.features?.submissionManifest) return;
+    if (!this._reading?.features?.submissionManifest || this.data.originalActionBusy) return;
     const storage = await this._transport("GET", "/api/v4/storage");
-    this.setData({ originalStorage: storage });
+    if (!this.data.originalActionBusy)
+      this.setData({
+        originalStorage: { ...storage, originals: storage.originals.map(presentOriginal) },
+        originalActionFeedback: null,
+      });
   },
   async _reuploadTemporary(packetId) {
     if (!this._reading?.features?.submissionManifest) return;
@@ -859,6 +912,7 @@ Page({
   },
   async originalAction(event) {
     const { id, packet, action } = event.currentTarget.dataset;
+    if (!["renew", "download", "delete"].includes(action)) return;
     const f = this.data.originalStorage?.originals.find(
       (f) => f.id === id && f.packetId === packet,
     );
@@ -867,20 +921,24 @@ Page({
       this._error(Error("离线时不能修改云端原件；联网后刷新再操作"));
       return;
     }
-    if (action === "delete") {
-      const answer = await new Promise((resolve) =>
-        wx.showModal({
-          title: "删除云端原件",
-          content: "会停止对应任务并清理云端原件；本机副本保留。",
-          success: resolve,
-          fail: () => resolve({ confirm: false }),
-        }),
-      );
-      if (!answer.confirm) return;
-    }
-    this.setData({ filesBusy: true, error: "" });
+    const rowKey = `${packet}:${id}`;
+    const key = `shixu:original-action:${this._space()}:${rowKey}:${f.version}:${action}`;
+    this.setData({ filesBusy: true, originalActionBusy: { rowKey, action }, originalActionFeedback: null });
     try {
+      if (action === "delete") {
+        const answer = await new Promise((resolve) =>
+          wx.showModal({
+            title: "删除云端原件",
+            content: "会停止对应任务并清理云端原件；本机副本保留。",
+            success: resolve,
+            fail: () => resolve({ confirm: false }),
+          }),
+        );
+        if (!answer.confirm) return;
+      }
       if (action === "download") {
+        if (!this._epoch) throw Error("请先同步账号再下载");
+        if (!this._library()) throw Error("当前微信环境无法保存原件");
         const bytes = await createFileTransport(
           this._connection.base,
           () => this._connection.token,
@@ -890,10 +948,9 @@ Page({
         if (originalHash(bytes) !== f.hash)
           throw Error("下载校验不一致，未保存原件");
         this._library().cache(f, packet, this._space(), bytes);
-        this.setData({ notice: "原件已校验并保存到本机，可从材料中打开" });
+        this.setData({ originalActionFeedback: { rowKey, message: "已保存到本机，可在投递记录或事项详情中预览、导出" } });
         return;
       }
-      const key = `shixu:original-action:${this._space()}:${packet}:${id}:${f.version}:${action}`;
       let operationId = wx.getStorageSync(key);
       if (!operationId) {
         operationId = makeId();
@@ -908,16 +965,47 @@ Page({
           stopTask: action === "delete",
         },
       );
-      wx.setStorageSync(key, null);
-      if (result.results.some((r) => r.code !== "OK"))
+      const receipt = result.results?.find((row) => row.id === id && row.packetId === packet);
+      if (receipt?.code !== "OK") {
+        wx.setStorageSync(key, null);
         throw Error("原件状态已变化，请刷新后重试");
+      }
+      let updated;
+      if (action === "delete") {
+        updated = { ...f, version: receipt.version, state: "deleted", available: false, remind: false };
+      } else {
+        try {
+          const storage = await this._transport("GET", `/api/v4/storage?packetId=${encodeURIComponent(packet)}`);
+          updated = storage.originals.find((row) => row.id === id);
+        } catch (error) {
+          this._rememberRateLimit(error);
+        }
+      }
+      const storage = this.data.originalStorage;
       this.setData({
-        originalStorage: await this._transport("GET", "/api/v4/storage"),
+        originalStorage: {
+          ...storage,
+          usedBytes: action === "delete" && f.mode === "retained"
+            ? Math.max(0, storage.usedBytes - f.size) : storage.usedBytes,
+          originals: storage.originals.map((row) =>
+            row.id === id && row.packetId === packet
+              ? presentOriginal(updated || { ...row, expiresAt: null })
+              : row),
+        },
+        originalActionFeedback: {
+          rowKey,
+          message: action === "delete" ? "云端原件已删除"
+            : updated ? "已续期 30 天" : "已续期，请刷新同步查看新的到期时间",
+          needsRefresh: !updated,
+        },
       });
+      if (updated) wx.setStorageSync(key, null);
     } catch (e) {
-      this._error(e);
+      this._rememberRateLimit(e);
+      if (e.status === 401) this._error(e);
+      this.setData({ originalActionFeedback: { rowKey, message: e.message || "操作未完成，请重试", failed: true } });
     } finally {
-      this.setData({ filesBusy: false });
+      this.setData({ filesBusy: false, originalActionBusy: null });
     }
   },
   async moreOriginals() {
@@ -938,7 +1026,7 @@ Page({
           ...next,
           originals: [
             ...this.data.originalStorage.originals,
-            ...next.originals,
+            ...next.originals.map(presentOriginal),
           ],
         },
       });
@@ -1128,12 +1216,14 @@ Page({
     this._draftId = saved && typeof saved === "object" ? saved.id : null;
     this._syncRetryAt = 0;
     this._nextJobPoll = 0;
+    this._deliveryIssues = new Map();
     this.setData({
       draft: typeof saved === "string" ? saved : saved?.text || "",
       currentCaptureId: wx.getStorageSync(captureKey(this._space())) || "",
       captureResultAnchor: "",
       originalStorage: null,
       originalNotice: "",
+      originalActionFeedback: null,
       expandedCardId: "",
       expandedId: "",
       syncStatus: "",
@@ -1310,7 +1400,7 @@ Page({
     this._workspaceScrollByTab ||= {};
     const position = this._scrollTop || 0;
     this._workspaceScrollByTab[previous] = position;
-    this.setData({ ...patch, tab, captureResultAnchor: "", dragScrollTop: position }, () =>
+    this.setData({ ...patch, tab, foxHomeReady: false, captureResultAnchor: "", dragScrollTop: position }, () =>
       this.setData({ dragScrollTop: this._workspaceScrollByTab[tab] || 0 }),
     );
   },
@@ -1448,11 +1538,11 @@ Page({
       });
       this._refresh();
       try {
-        await this._uploadFiles(result.epoch);
+        await this._uploadFiles(result.epoch, interactive);
       } catch (error) {
         this._rememberRateLimit(error);
         this.setData({ syncStatus: `卡片已同步，原件待上传：${error.message}` });
-        if (interactive) this._error(error);
+        if (interactive && (this.data.tab !== "capture" || error.status === 401)) this._error(error);
         return false;
       }
       this._refresh();
@@ -1543,9 +1633,7 @@ Page({
       this.setData({
         draft: "",
         currentCaptureId: id,
-        notice: this.data.localMode
-          ? "已保存在本机；可手动记成事项，连接后再同步和整理"
-          : "已保存本次投递，可以整理或手动记成事项",
+        notice: "",
         skinMessage: this.data.activeSkin.feeding,
         skinAnimating: true,
       });
@@ -2695,6 +2783,7 @@ Page({
       error: "",
       organizingPacketId: kind === "organize" ? packetId : "",
     });
+    if (kind === "organize") this._setDeliveryIssue(packetId, "organize", "");
     try {
       const synced = await this.sync();
       if (
@@ -2764,7 +2853,8 @@ Page({
       });
     } catch (error) {
       this._rememberRateLimit(error);
-      this._error(error);
+      if (kind === "organize") this._setDeliveryIssue(packetId, "organize", error.message);
+      if (kind === "chat" || error.status === 401) this._error(error);
     } finally {
       this.setData({ jobBusy: false, organizingPacketId: "" });
       this._refresh();
@@ -2871,7 +2961,7 @@ Page({
       image:
         s.art === "custom"
           ? this._skinPath(s)
-          : ["capybara", "owl"].includes(s.art) ? "/assets/" + s.art + ".webp"
+          : ["capybara", "owl"].includes(s.art) ? this._builtinSkinArt(s.art)
           : s.art === "whale"
             ? "/assets/mascot.png"
             : s.art === "bunny"
@@ -2908,11 +2998,19 @@ Page({
       return "/assets/mascot.png";
     }
   },
+  _builtinSkinArt(art) {
+    try {
+      return packedWebp(`/assets/${art}.bin`, art);
+    } catch {
+      return "/assets/mascot.png";
+    }
+  },
   openSkins() {
     this._stopSkinInteraction();
     this.setData({
       error: "", notice: "",
       skinOpen: true,
+      foxPreviewReady: false,
       previewSkin: this.data.activeSkin,
       skinMessage: this.data.activeSkin.hello,
       skinEditor: false,
@@ -2943,15 +3041,6 @@ Page({
   },
   interactSkin() {
     const s = this.data.skinOpen ? this.data.previewSkin : this.data.activeSkin;
-    if (s.art === "bunny" && !this._foxReady) {
-      if (this._foxLoading) return;
-      this._stopSkinInteraction();
-      const generation = this._foxLoadGeneration;
-      this._foxLoading = true;
-      this._foxPendingPlay = generation;
-      this._foxWaitTimer = setTimeout(() => this.foxResourceError(), 8000);
-      return;
-    }
     this._stopSkinInteraction();
     this.setData({
       skinMessage: s.greeting,
@@ -2975,25 +3064,22 @@ Page({
         SKIN_INTERACTION.greetingMs,
       );
   },
-  foxResourceReady() {
-    clearTimeout(this._foxWaitTimer);
-    const pending = this._foxPendingPlay;
-    this._foxLoading = false;
-    this._foxReady = true;
-    this._foxPendingPlay = null;
-    if (pending && pending === this._foxLoadGeneration) this.interactSkin();
+  foxResourceReady(event) {
+    this.setData({
+      [event.currentTarget.dataset.preview ? "foxPreviewReady" : "foxHomeReady"]: true,
+    });
   },
-  foxResourceError() {
-    clearTimeout(this._foxWaitTimer);
-    this._foxLoading = false;
-    this._foxPendingPlay = null;
-    this.setData({ notice: "绯樱狐暂时未能加载，请再点一次" });
+  foxResourceError(event) {
+    this.setData({
+      [event.currentTarget.dataset.preview ? "foxPreviewReady" : "foxHomeReady"]: false,
+    });
   },
   _startBunnyClip() {
     clearTimeout(this._bunnyTimer);
     const generation = (this._bunnyGeneration || 0) + 1;
     this._bunnyGeneration = generation;
     const started = Date.now();
+    this.setData({ bunnyPlaying: true });
     const advance = () => {
       if (generation !== this._bunnyGeneration || !this.data.skinAnimating)
         return;
@@ -3062,17 +3148,13 @@ Page({
     if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
     this.setData({
       skinAnimating: false,
-      bunnySheet: "/assets/fox/atlas.webp",
+      bunnyPlaying: false,
       bunnyPosition: "left:0%;top:0%",
       skinMessage: skin.hello,
       ...(reset ? { skinAnimation: reset.export() } : {}),
     });
   },
   _stopSkinInteraction() {
-    clearTimeout(this._foxWaitTimer);
-    this._foxPendingPlay = null;
-    this._foxLoading = false;
-    this._foxLoadGeneration = (this._foxLoadGeneration || 0) + 1;
     clearTimeout(this._skinTimer);
     try {
       if (this._skinAudio) this._skinAudio.stop();

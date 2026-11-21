@@ -18,7 +18,7 @@ test("fox atlas retains true-color alpha at 240px and lives in a bounded resourc
       .component,
     true,
   );
-  const atlas = readFileSync(join(root, pkg.root, "atlas.webp"));
+  const atlas = readFileSync(join(root, pkg.root, "atlas.bin"));
   assert.equal(atlas.subarray(0, 4).toString(), "RIFF");
   assert.equal(atlas.subarray(12, 16).toString(), "VP8X");
   assert.ok(atlas[20] & 16, "alpha is present");

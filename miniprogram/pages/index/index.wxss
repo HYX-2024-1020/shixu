@@ -31,6 +31,7 @@
   box-shadow: none;
   color: #171713;
   line-height: 1.25;
+  white-space: nowrap;
 }
 .page .xc-hit {
   display: flex;
@@ -49,7 +50,8 @@
   align-items: center;
   min-width: 0;
   min-height: 44px;
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
   text-align: left;
 }
 .page .xc-title {
@@ -58,6 +60,7 @@
   line-height: 1.4;
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: normal;
 }
 .is-collapsed .xc-title {
   display: -webkit-box;
@@ -144,7 +147,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12rpx;
   margin: 14rpx -16rpx -16rpx;
   padding: 6rpx 20rpx;
@@ -152,6 +155,8 @@
   background: var(--card-paper, #f3ecff);
 }
 .page .xc-footer .xc-link {
+  flex: 0 0 auto;
+  width: auto;
   min-height: 44px;
   font-size: 25rpx;
   font-weight: 800;
@@ -341,6 +346,13 @@
   --card-paper: #e3f9ef;
 }
 
+.ddl-item.tone-urgent { --deadline-tone: #ffc9c9; }
+.ddl-item.tone-near { --deadline-tone: #ffdfb0; }
+.ddl-item.tone-week { --deadline-tone: #fff1ad; }
+.ddl-item.tone-fortnight { --deadline-tone: #ddedc8; }
+.ddl-item.tone-month { --deadline-tone: #dcecf2; }
+.ddl-item.tone-later, .ddl-item.tone-done { --deadline-tone: #eef0ef; }
+
 /* Palette generated from desktop. Scope beats legacy per-position shadows. */
 .page .xc-category[class*="kind-"] {
   border-bottom-color: var(--card-accent);
@@ -401,6 +413,9 @@
   min-height: 44px;
   font-size: 24rpx;
   margin-left: auto;
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
 }
 .page .ddl-item .ddl-row {
   padding: 22rpx 20rpx 26rpx;
@@ -430,7 +445,7 @@
   color: #514d40;
 }
 .page .ddl-item .ddl-footer {
-  background: var(--card-accent);
+  background: var(--deadline-tone, #eef0ef);
   border-top: 6rpx solid #171713;
   padding: 12rpx 18rpx;
   display: flex;
@@ -442,8 +457,16 @@
 }
 .page .ddl-footer-actions {
   display: flex;
+  flex: 0 0 auto;
   gap: 12rpx;
   align-items: center;
+}
+.page .ddl-footer-status,
+.page .ddl-footer-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
 }
 .page .ddl-footer .compact-delete {
   min-width: 44px;
@@ -486,6 +509,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+  padding: 0 6rpx;
 }
 
 /* Same cel planes as Windows, with level text and native hit targets. */
@@ -501,6 +525,11 @@
   align-items: center;
   gap: 10rpx;
   max-width: 100%;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  text-align: left;
+  line-height: 1.4;
   box-sizing: border-box;
   min-height: 44px;
   border: 4rpx solid #171713;
@@ -518,7 +547,7 @@
 }
 .page .card-file-name {
   overflow-wrap: anywhere;
-  word-break: break-all;
+  word-break: normal;
   min-width: 0;
 }
 .page .ddl-item[class*="urgency-"] {
@@ -527,11 +556,12 @@
     16rpx 16rpx var(--card-accent);
 }
 .page .ddl-item .ddl-time {
-  background: var(--card-paper);
+  background: var(--deadline-tone, #eef0ef);
   border-bottom: 4rpx solid #171713;
   padding-bottom: 12rpx;
 }
 .page .ddl-item .ddl-time .ddl-countdown {
+  background: #fffef8;
   transform: none;
   box-shadow:
     5rpx 5rpx #171713,
@@ -1618,10 +1648,19 @@ input {
   font-size: 24rpx;
 }
 .ai-entry text {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
-.ai-entry button {
-  flex-shrink: 0;
+.page .ai-entry .text-button,
+.page .settings-heading .small-button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.settings-heading .section-title {
+  min-width: 0;
 }
 .ai-guide {
   border-top: 2rpx solid #211f20;
@@ -3019,11 +3058,85 @@ page {
   font-size: 24rpx;
 }
 
+.attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: 12rpx 0;
+  padding: 4rpx 0;
+  border-bottom: 2rpx solid #ded6c2;
+}
+
+.attachment-file-name {
+  min-width: 0;
+  flex: 1 1 0;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .attachment-file-actions {
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
-  gap: 8rpx;
+}
+
+.page .attachment-file-actions .text-button,
+.sheet .attachment-file-actions .text-button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4rpx;
+  margin: 0;
+  color: #54398d;
+  white-space: nowrap;
+}
+
+.material-source,
+.material-reading {
+  display: block;
+  margin: 16rpx 0;
+  padding: 0 0 0 16rpx;
+  border-left: 3rpx solid #d8cfc0;
+  overflow-wrap: anywhere;
+}
+
+.detail-materials .section-top .text-button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.cloud-original .attachment-file-name {
+  display: block;
+}
+
+.cloud-original-actions {
+  flex-wrap: wrap;
+  gap: 4rpx 14rpx;
+}
+
+.cloud-original-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.delivery-upload,
+.delivery-error {
+  display: block;
+  margin: 12rpx 0;
+  font-size: 25rpx;
+}
+
+.delivery-upload > text {
+  display: block;
 }
 
 .delivery-job {
@@ -3035,14 +3148,16 @@ page {
 }
 
 .page .xc-compact-detail {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: auto;
   margin: 0 0 0 auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 6rpx;
   background: transparent;
   color: #382766;
   font-size: 23rpx;
-  line-height: 36px;
+  line-height: 44px;
+  white-space: nowrap;
 }
 
 .page .xc-expanded .card-files {

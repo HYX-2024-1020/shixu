@@ -16,21 +16,30 @@
   </view>
 </template>
 <template name="attachmentActions">
-  <view class="draft-file">
-    <text>{{file.name}}</text>
+  <view class="attachment-file">
+    <text class="attachment-file-name" selectable>{{file.name}}</text>
     <view class="attachment-file-actions">
       <button hover-class="text-press" class="text-button" data-id="{{file.id}}" data-packet="{{packet}}" bindtap="openAttachment" disabled="{{disabled}}">预览</button>
       <button hover-class="text-press" class="text-button" data-id="{{file.id}}" data-packet="{{packet}}" bindtap="exportAttachment" disabled="{{disabled}}">导出</button>
     </view>
   </view>
 </template>
+<template name="deliveryUpload">
+  <view wx:if="{{!item.deleted && item.pendingOriginals}}" class="delivery-upload" role="status">
+    <text>{{item.uploadIssue ? '原件上传未完成：' + item.uploadIssue : item.pendingOriginals + ' 份原件待上传'}}</text>
+    <text wx:if="{{item.temporaryOriginals}}" class="error">有原件只在本次会话可用，关闭前请重选或另存。</text>
+    <button wx:if="{{!offline}}" class="text-button" bindtap="retryDeliveryUpload" loading="{{syncing}}" disabled="{{syncing || filesBusy}}" hover-class="text-press">{{syncing ? '同步中' : '重试上传'}}</button>
+    <text wx:else>联网后继续上传</text>
+  </view>
+  <text wx:if="{{item.organizeIssue && !item.organizeJob.error}}" class="error delivery-error" selectable>未能开始整理：{{item.organizeIssue}}</text>
+</template>
 <template name="ddlCard">
-  <view style="{{row.dragStyle}}" class="ddl-item urgency-{{row.urgency}} drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}">
-    <view class="ddl-time"><text class="ddl-countdown cd-{{row.countdownStatus}}">{{row.countdown}}</text><text class="ddl-date">{{row.date || '待确认'}}</text><text class="ddl-clock">{{row.time || '23:59'}}</text><button class="ddl-verify-button" aria-label="核对截止时间" data-id="{{row.id}}" data-action="verifyDdl" bindtap="onCardAction" hover-class="text-press" hover-stop-propagation="{{true}}">核对时间 ↗</button></view>
+  <view style="{{row.dragStyle}}" class="ddl-item urgency-{{row.urgency}} tone-{{row.deadlineTone}} drag-card {{dragId === row.id ? 'drag-placeholder' : ''}} {{leavingId === row.id ? 'is-leaving' : ''}}" data-id="{{row.id}}" bindtouchstart="dragTouchStart" bindlongpress="startDrag" bindtouchmove="{{dragGesture.move}}" bindtouchend="{{dragGesture.end}}" bindtouchcancel="{{dragGesture.cancel}}" data-dragging="{{!!dragId}}" data-follow="{{dragView}}">
+    <view class="ddl-time"><text class="ddl-countdown cd-{{row.countdownStatus}}">{{row.countdown}}</text><text class="ddl-date">{{row.date || '待确认'}}</text><text wx:if="{{row.date}}" class="ddl-clock">{{row.time || '23:59'}}</text><button class="ddl-verify-button" aria-label="核对截止时间" data-id="{{row.id}}" data-action="verifyDdl" bindtap="onCardAction" hover-class="text-press" hover-stop-propagation="{{true}}">核对时间 ↗</button></view>
     <view class="ddl-row"><button size="mini" class="done-button {{row.done || (row.kind === 'habit' && row.checked) ? 'checked' : ''}} {{checkingId === row.id ? 'is-checking' : ''}}" aria-label="{{row.kind === 'habit' ? '今日打卡 / 撤销打卡' : row.done ? '撤销完成' : '标记完成'}}" data-id="{{row.id}}" data-action="toggleDone" bindtap="onCardAction" hover-class="done-press" hover-stop-propagation="{{true}}"><view class="completion-orbit"><view wx:if="{{row.done || (row.kind === 'habit' && row.checked) || checkingId === row.id}}" class="completion-check"><view class="check-short"></view><view class="check-long"></view></view></view></button><view class="ddl-copy" data-id="{{row.id}}" bindtap="toggleCard" aria-expanded="{{expandedCardId === row.id}}" hover-class="row-press"><text class="item-title">{{row.title}}</text><text class="ddl-status">{{row.kind === 'habit' ? (row.checked ? '今日已打卡' : '今日待打卡') : row.done ? '已完成' : '待完成'}}{{row.group ? ' · ' + row.group : ''}}{{row.startDate ? ' · 时间区间' : ''}} · {{expandedCardId === row.id ? '收起 ▴' : '展开 ▾'}}</text></view></view>
     <view wx:if="{{expandedCardId === row.id}}" class="ddl-card-summary"><text selectable>{{row.summary || row.title}}</text><text wx:if="{{row.startDate}}">开始 {{row.startDate}} {{row.startTime || '00:00'}} → {{row.date}} {{row.time}}</text></view>
     <view wx:if="{{row.cardFiles.length}}" class="card-files"><view wx:for="{{row.cardFiles}}" wx:for-item="file" wx:key="id" class="card-file" role="button" aria-label="{{file.name}}" data-action="openMaterials" data-id="{{row.id}}" bindtap="onCardAction"><text class="file-extension">{{file.extension}}</text><text class="card-file-name">{{file.name}}</text><text>↗</text></view></view>
-    <view class="ddl-footer"><text>{{row.done ? '已完成' : '待完成'}}</text><view class="ddl-footer-actions"><button class="compact-delete" data-id="{{row.id}}" data-action="confirmRemoveItem" bindtap="onCardAction" aria-label="删除事项" hover-class="text-press" hover-stop-propagation="{{true}}">删除</button><button class="ddl-detail-button" data-id="{{row.id}}" data-action="openItem" bindtap="onCardAction" hover-class="text-press">查看详情 ↗</button></view></view>
+    <view class="ddl-footer"><text class="ddl-footer-status">{{row.kind === 'habit' ? (row.checked ? '已打卡' : '待打卡') : row.done ? '已完成' : '待完成'}}</text><view class="ddl-footer-actions"><button class="compact-delete" data-id="{{row.id}}" data-action="confirmRemoveItem" bindtap="onCardAction" aria-label="删除事项" hover-class="text-press" hover-stop-propagation="{{true}}">删除</button><button class="ddl-detail-button" data-id="{{row.id}}" data-action="openItem" bindtap="onCardAction" hover-class="text-press">查看详情 ↗</button></view></view>
   </view>
 </template>
 <template name="itemCard">
@@ -87,7 +96,7 @@
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button hover-class="text-press" class="text-button" bindtap="openAiSettings">AI 连接</button></view>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
-      <view class="home-character {{activeSkin.id === 'ice' ? 'with-voices' : activeSkin.id === 'bunny' ? 'with-fox' : ''}}"><view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{activeSkin.id !== 'bunny' || !skinAnimating || skinOpen}}" animation="{{activeSkin.id === 'ice' || skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}} {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="{{activeSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}"/><fox-player wx:if="{{activeSkin.id === 'bunny'}}" class="fox-player {{skinAnimating && !skinOpen ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><view wx:if="{{activeSkin.id === 'ice'}}" class="ice-home-voices"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}" hover-class="btn-press"><text class="ice-voice-label">{{item.label}}</text></button></view></view>
+      <view class="home-character {{activeSkin.id === 'ice' ? 'with-voices' : activeSkin.id === 'bunny' ? 'with-fox' : ''}}"><view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{activeSkin.id !== 'bunny' || !bunnyPlaying || !foxHomeReady || skinOpen}}" animation="{{activeSkin.id === 'ice' || skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}} {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="{{activeSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}"/><fox-player wx:if="{{activeSkin.id === 'bunny'}}" class="fox-player {{bunnyPlaying && foxHomeReady && !skinOpen ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><view wx:if="{{activeSkin.id === 'ice'}}" class="ice-home-voices"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}" hover-class="btn-press"><text class="ice-voice-label">{{item.label}}</text></button></view></view>
     </view>
     <view class="editor">
       <textarea
@@ -104,8 +113,8 @@
       ></view
     >
     <view class="button-row attachment-actions"><button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 聊天文件</button><button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 图片 / 拍照</button></view>
-    <text class="settings-copy attachment-hint">{{draftFiles.length ? draftFiles.length + ' / 20 份已选 · ' : ''}}每份原件最多 10 MB，最多 20 份。</text>
-    <view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><view class="draft-file-copy"><text class="draft-file-name">{{item.name}}</text><text class="quiet">{{item.sizeLabel}} · 本机已保存</text></view><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile" aria-label="将 {{item.name}} 移出草稿">移出</button></view><view class="capture-toolbar"
+    <text wx:if="{{draftFiles.length}}" class="settings-copy attachment-hint">{{draftFiles.length}} / 20 份</text>
+    <view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><view class="draft-file-copy"><text class="draft-file-name">{{item.name}}</text><text class="quiet">{{item.sizeLabel}}{{item.volatile ? ' · 仅本次会话可用' : ''}}</text></view><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile" aria-label="将 {{item.name}} 移出草稿">移出</button></view><view class="capture-toolbar"
       ><text class="quiet"
         >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
       ><button hover-class="btn-press" class="primary submit-button" bindtap="submit" disabled="{{connecting || filesBusy || (!draft.length && !draftFiles.length)}}" aria-label="投递当前文字和附件">
@@ -127,9 +136,10 @@
       ><view class="card-paper"
         ><text class="badge"
           >{{item.status === 'ready' ? '已记录' : '原文已保存'}}</text
-        ><text class="source-preview" selectable>{{item.text}}</text
+        ><text wx:if="{{item.text}}" class="source-preview" selectable>{{item.text}}</text
         ><template wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: item.id, disabled: filesBusy}}"/><text class="item-summary">{{item.summary}}</text
-        ><text wx:if="{{item.error}}" class="error">{{item.error}}</text>
+        ><text wx:if="{{item.error && !item.organizeJob}}" class="error">{{item.error}}</text>
+        <template is="deliveryUpload" data="{{item, offline, syncing, filesBusy}}"/>
         <template is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.items.length}}"/>
         <view class="button-row"
           ><button
@@ -241,13 +251,13 @@
     <view wx:if="{{ddlAddOpen}}" class="ddl-add"><text class="field-label">事项标题</text><input value="{{ddlTitle}}" data-field="ddlTitle" bindinput="onDdlField" maxlength="150"/><text class="field-label">截止日期</text><input value="{{ddlDate}}" data-field="ddlDate" bindinput="onDdlField" placeholder="26号 / 10月26日 / 26-28 / 明天14:00到16:00"/><text class="field-label">截止时刻（留空自动安排）</text><input value="{{ddlTime}}" data-field="ddlTime" bindinput="onDdlField" placeholder="HH:mm"/><text class="field-label">交付要求</text><textarea value="{{ddlRequirements}}" data-field="ddlRequirements" bindinput="onDdlField" maxlength="2000"/><button class="primary" bindtap="addDdl" disabled="{{!ddlTitle.length}}" hover-class="btn-press" hover-stop-propagation="{{true}}">添加 DDL</button></view>
   </view>
   <view wx:else class="settings"
-    ><view class="section-top"><text class="section-title">连接与设置</text><button hover-class="btn-press" class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
+    ><view class="section-top settings-heading"><text class="section-title">连接与设置</text><button hover-class="btn-press" class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
 >
     <view class="card-paper account-panel">
       <text class="subheading">{{localMode ? '账号连接' : '云端账号'}}</text>
       <text class="settings-copy" role="status">{{activationState}}</text>
       <text wx:if="{{connected && activeAccountName && !authExpired}}" class="account-identity">{{activeAccountName}}</text>
-      <text wx:if="{{localMode}}" class="settings-copy">{{savedAccount ? '当前只查看本机资料，云端账号仍保留。' : '可以先在本机记录，连接后再选择要导入的本机投递。'}}</text>
+      <text wx:if="{{localMode && savedAccount}}" class="settings-copy">当前查看本机资料，云端账号已保留。</text>
       <view class="button-row">
         <button wx:if="{{localMode && savedAccount}}" class="small-button" bindtap="resumeAccount" disabled="{{connecting || filesBusy}}" hover-class="btn-press">切回云端账号</button>
         <button wx:if="{{connected && !authExpired && !passwordChangeRequired}}" class="small-button" bindtap="sync" loading="{{syncing}}" disabled="{{syncing}}" hover-class="btn-press">{{syncing ? '正在同步' : '立即同步'}}</button>
@@ -305,41 +315,26 @@
     </view>
     <view class="card-paper ai-connection"
       ><text class="subheading">服务端 AI</text><text class="settings-copy">{{accountAiState}}</text>
-      <text class="settings-copy">连接后资料同步至服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。</text>
-      <text class="settings-copy">{{!connected ? (savedAccount ? '切回云端账号后可使用 AI。' : '连接账号后可使用 AI；本机仍可记录。') : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
-      <text class="settings-copy">模型与密钥由服务器统一管理。AI 额度用完不影响记录和同步。</text>
       <view class="button-row"><button hover-class="btn-press" class="small-button" bindtap="toggleAiGuide">{{showAiGuide ? '收起接入说明' : '使用与隐私说明'}}</button><button wx:if="{{connected}}" hover-class="btn-press" class="small-button" bindtap="refreshAiStatus" disabled="{{aiChecking}}">{{aiChecking ? '正在检查' : '刷新 AI 状态'}}</button></view>
       <view wx:if="{{showAiGuide}}" class="ai-guide"><text class="settings-copy">AI 整理与对话会将相关文本及安全读取的图像区域发送给模型服务商，统一密钥不消除隐私风险。</text><text class="settings-copy">{{passwordAccounts ? "账号最多绑定3台 Windows 和1个微信身份；满槽时需明确选择替换，两端共享账号资料。" : "同一邀请码绑定一个微信身份与一台 Windows 安装，两端共享独立账号资料。"}}</text><text class="settings-copy">本机投递先点“导入本机投递”，再打开投递记录，点击“AI 整理”。调用模型会产生费用。</text><text class="settings-copy">附件已保存不代表 AI 已读取。启用新版读取的服务端支持 TXT、CSV、DOCX、XLSX、PDF 文字层与 ZIP、明确编码的RAR4/RAR5、7z（含已实现的solid共享块） 内支持的材料，保留包内路径。启用 Office 图像能力后，DOCX/XLSX 中实际引用的图片原图按区域读取，保留段落或工作表/单元格锚点；裁剪、变换、形状、图表、嵌入对象和页面布局仍列为未读。图像事项另经依据核对并共用累计费用，XLSX 公式只用已有缓存值，不重新计算；启用图像能力时支持JPEG/JPG（含EXIF方向校正）和静态PNG（8/16位、1/2/4位灰度或调色板及Adam7交错；16位规范化为8位模型图像），按区域送模型并保留坐标，识别文字与日期需对照原图核对。GIF支持按帧合成后逐区域读取并显示帧序与时间，循环只展开一遍，纯文本/交互扩展及非方形像素尚未支持。WebP支持无损/有损及逐帧动画（严格编码终态，ICC/EXIF等元数据尚未支持）。服务端另行启用页面视觉能力后，PDF含扫描页按页和区域读取并保留页码、108dpi坐标与接续进度；支持的批注/表单保存值与外观也保留来源；缺少必要字体/资源、渲染告警及未支持外观仍明确未读，不把文字层当作视觉已读。其他图片及嵌套归档尚未读取。加密、多卷、RAR4编码不明的名称及部分旧特性暂不支持，可手动记事项。</text></view>
       <view class="capability"><text>事项 AI 对话</text><text>{{!connected ? '未连接' : capabilities.itemChat ? '已可用' : '服务端未启用'}}</text></view>
       </view>
-<view class="card-paper"
-      ><text class="subheading">当前能力</text
-      ><view class="capability"
-        ><text>文字与事项同步</text
-        ><text>{{connected ? '已连接' : '未连接'}}</text></view
-      ><view class="capability"
-        ><text>AI 整理</text
-        ><text
-          >{{!connected ? '未连接' : capabilities.aiOrganize ? '已可用' : '服务端未启用'}}</text
-        ></view
-      ><view class="capability"
-        ><text>原件同步</text
-        ><text
-          >{{capabilities.attachments ? '服务支持' : '服务尚未接入'}}</text
-        ></view
-      ><text class="settings-copy"
-        >真机需要 HTTPS 和微信服务器域名配置，不能直接访问电脑本机地址。</text
-      ></view
-    ><view wx:if="{{!authExpired && originalStorage}}" class="job-strip">
-  <text>云端原件：{{originalStorage.usedBytes}} / {{originalStorage.limitBytes}} 字节，预留 {{originalStorage.reservedBytes}} 字节</text>
-  <text>保存30天，提前7天提醒，到期后7天待清理；投递回收站7天，单项最近删除30天。</text>
-  <button wx:if="{{originalStorage.hasMore}}" bindtap="moreOriginals" disabled="{{filesBusy || offline}}" hover-class="btn-press">更多原件</button>
-  <view wx:for="{{originalStorage.originals}}" wx:key="id" class="job-line">
-    <text>{{item.name}} · {{item.state === 'deleted' || item.state === 'cleaned' ? '云端已清除' : item.mode === 'temporary' ? '临时整理，退出后需重传' : item.state === 'legacy_pending_notice' ? '旧原件待确认期限' : item.state === 'pending_cleanup' ? '到期待清理' : item.available ? '云端已保存' : '云端已清除'}}{{item.remind ? ' · 请续期或下载保留' : ''}}</text>
-    <button wx:if="{{item.mode === 'retained' && item.available}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="renew" bindtap="originalAction" hover-class="btn-press">续期30天</button>
-    <button wx:if="{{item.available}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="download" bindtap="originalAction" hover-class="btn-press">下载到本机</button>
-    <button wx:if="{{item.state !== 'deleted' && item.state !== 'cleaned'}}" disabled="{{filesBusy || offline}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="delete" bindtap="originalAction" hover-class="btn-press">删除云端原件</button>
+<view wx:if="{{!authExpired && originalStorage}}" class="job-strip cloud-originals">
+  <text class="subheading">云端原件</text>
+  <text wx:if="{{offline}}" class="quiet">联网后可管理云端原件</text>
+  <view wx:for="{{originalStorage.originals}}" wx:key="rowKey" class="job-line cloud-original">
+    <text class="attachment-file-name" selectable>{{item.name}}</text>
+    <text wx:if="{{item.expiresLabel}}" class="quiet">到期 {{item.expiresLabel}}{{item.remind ? ' · 可续期' : ''}}</text>
+    <text wx:elif="{{item.state === 'deleted' || item.state === 'cleaned'}}" class="quiet">云端已清除</text>
+    <text wx:elif="{{item.mode === 'temporary'}}" class="quiet">临时原件</text>
+    <view class="button-row cloud-original-actions">
+      <button wx:if="{{item.mode === 'retained' && item.available}}" class="small-button" disabled="{{filesBusy || offline || (originalActionFeedback.rowKey === item.rowKey && originalActionFeedback.needsRefresh)}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'renew'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="renew" bindtap="originalAction" hover-class="btn-press">续期30天</button>
+      <button wx:if="{{item.available}}" class="small-button" disabled="{{filesBusy || offline}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'download'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="download" bindtap="originalAction" hover-class="btn-press">下载到本机</button>
+      <button wx:if="{{item.state !== 'deleted' && item.state !== 'cleaned'}}" class="text-button danger" disabled="{{filesBusy || offline}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'delete'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="delete" bindtap="originalAction" hover-class="text-press">删除云端原件</button>
+    </view>
+    <text wx:if="{{originalActionFeedback.rowKey === item.rowKey}}" class="{{originalActionFeedback.failed ? 'error' : 'quiet'}}" role="status" selectable>{{originalActionFeedback.message}}</text>
   </view>
+  <button wx:if="{{originalStorage.hasMore}}" class="small-button" bindtap="moreOriginals" disabled="{{filesBusy || offline}}" hover-class="btn-press">更多原件</button>
 </view><view wx:if="{{jobs.length}}" class="job-strip"
   ><view wx:for="{{jobs}}" wx:key="id" class="job-line"
     ><text>模型任务 · {{jobLabels[item.state] || "待核对"}} · 本任务已调用 {{item.calls}} 次</text
@@ -403,7 +398,7 @@
           ></view
         ><text wx:if="{{item.body}}" class="source-preview" selectable>{{item.body}}</text
         ><template wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: item.id, disabled: filesBusy || item.deleted}}"/><text class="quiet">{{item.date}}</text
-        ><template wx:if="{{!item.deleted}}" is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.hasResult}}"/><view class="button-row"
+        ><template is="deliveryUpload" data="{{item, offline, syncing, filesBusy}}"/><template wx:if="{{!item.deleted}}" is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.hasResult}}"/><view class="button-row"
           ><button
             wx:if="{{item.conflict}}"
             hover-class="btn-press" class="small-button"
@@ -542,12 +537,12 @@
             ><text class="detail-line" selectable>“{{item.quote}}”</text></view
           ></view
         >
-        <view id="detail-materials" class="detail-section"><view class="section-top"><text class="subheading">文件附件与原文</text
+        <view id="detail-materials" class="detail-section detail-materials"><view class="section-top"><text class="subheading">文件附件与原文</text
             ><button wx:if="{{selected.sourceText}}" hover-class="text-press" class="text-button" bindtap="copySource">
               复制原文
             </button></view
-          ><template wx:for="{{selected.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: selected.packetId, disabled: filesBusy || selected.deleted}}"/><text wx:if="{{!selected.attachments.length}}" class="quiet">这次投递没有文件附件。</text><text wx:if="{{selected.sourceText}}" class="detail-line evidence" selectable>{{selected.sourceText}}</text
-          ><text wx:if="{{selected.processing}}" class="detail-line">{{selected.processing}}</text><view wx:for="{{selected.reading}}" wx:key="id" class="evidence"><text class="quiet">{{item.name}} · {{item.label}}</text><text class="detail-line">{{item.covered}}</text><text wx:if="{{item.missing}}" class="detail-line">{{item.missing}}</text><text wx:if="{{item.reason}}" class="quiet">{{item.reason}}</text></view><view wx:for="{{selected.sources}}" wx:key="id" class="evidence"
+          ><template wx:for="{{selected.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: selected.packetId, disabled: filesBusy || selected.deleted}}"/><text wx:if="{{selected.sourceText}}" class="detail-line material-source" selectable>{{selected.sourceText}}</text
+          ><text wx:if="{{selected.processing}}" class="detail-line">{{selected.processing}}</text><view wx:for="{{selected.reading}}" wx:key="id" class="material-reading"><text class="quiet">{{item.name}} · {{item.label}}</text><text wx:if="{{item.covered && item.covered !== item.label}}" class="detail-line">{{item.covered}}</text><text wx:if="{{item.missing || item.reason}}" class="quiet">{{item.missing || item.reason}}</text></view><view wx:for="{{selected.sources}}" wx:key="id" class="material-source"
             ><text class="quiet">{{item.name}}</text
             ><text class="detail-line" selectable>{{item.text}}</text></view
           ></view
@@ -640,7 +635,7 @@
     ><scroll-view scroll-y class="sheet-scroll"
       ><block wx:if="{{!skinEditor}}"
         ><view class="skin-preview {{previewSkin.id === 'ice' ? 'is-plain-preview' : ''}}" style="background:{{previewSkin.color}}"
-          ><view class="skin-preview-stage skin-mascot {{previewSkin.id === 'ice' ? 'is-plain-preview' : previewSkin.id === 'bunny' ? 'with-fox' : ''}} {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{previewSkin.id !== 'bunny' || !skinAnimating}}" src="{{previewSkin.image}}" mode="{{previewSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}" animation="{{previewSkin.id === 'ice' ? null : skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}} {{previewSkin.id === 'ice' ? 'is-plain-art' : ''}}"/><fox-player wx:if="{{previewSkin.id === 'bunny'}}" class="fox-player {{skinAnimating ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-bubble">{{skinMessage}}</text><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
+          ><view class="skin-preview-stage skin-mascot {{previewSkin.id === 'ice' ? 'is-plain-preview' : previewSkin.id === 'bunny' ? 'with-fox' : ''}} {{skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{skinAnimating ? previewSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{previewSkin.id !== 'bunny' || !bunnyPlaying || !foxPreviewReady}}" src="{{previewSkin.image}}" mode="{{previewSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}" animation="{{previewSkin.id === 'ice' ? null : skinAnimation}}" class="preview-art skin-body skin-motion-{{!skinNativeMotion && skinAnimating ? previewSkin.motion : 'idle'}} {{previewSkin.id === 'ice' ? 'is-plain-art' : ''}}"/><fox-player wx:if="{{previewSkin.id === 'bunny'}}" data-preview="{{true}}" class="fox-player {{bunnyPlaying && foxPreviewReady ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-bubble">{{skinMessage}}</text><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{previewSkin.id !== 'ice' && previewSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><text class="subheading">{{previewSkin.name}}</text
           ><view wx:if="{{previewSkin.art === 'custom'}}" class="button-row"><button hover-class="btn-press" class="small-button" bindtap="feedSkin">试着喂一口</button></view
           ></view
         ><view class="skin-grid"

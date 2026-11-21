@@ -1014,10 +1014,19 @@ input {
   font-size: 24rpx;
 }
 .ai-entry text {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
-.ai-entry button {
-  flex-shrink: 0;
+.page .ai-entry .text-button,
+.page .settings-heading .small-button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.settings-heading .section-title {
+  min-width: 0;
 }
 .ai-guide {
   border-top: 2rpx solid #211f20;
@@ -2415,11 +2424,85 @@ page {
   font-size: 24rpx;
 }
 
+.attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: 12rpx 0;
+  padding: 4rpx 0;
+  border-bottom: 2rpx solid #ded6c2;
+}
+
+.attachment-file-name {
+  min-width: 0;
+  flex: 1 1 0;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .attachment-file-actions {
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
-  gap: 8rpx;
+}
+
+.page .attachment-file-actions .text-button,
+.sheet .attachment-file-actions .text-button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4rpx;
+  margin: 0;
+  color: #54398d;
+  white-space: nowrap;
+}
+
+.material-source,
+.material-reading {
+  display: block;
+  margin: 16rpx 0;
+  padding: 0 0 0 16rpx;
+  border-left: 3rpx solid #d8cfc0;
+  overflow-wrap: anywhere;
+}
+
+.detail-materials .section-top .text-button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.cloud-original .attachment-file-name {
+  display: block;
+}
+
+.cloud-original-actions {
+  flex-wrap: wrap;
+  gap: 4rpx 14rpx;
+}
+
+.cloud-original-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.delivery-upload,
+.delivery-error {
+  display: block;
+  margin: 12rpx 0;
+  font-size: 25rpx;
+}
+
+.delivery-upload > text {
+  display: block;
 }
 
 .delivery-job {
@@ -2431,14 +2514,16 @@ page {
 }
 
 .page .xc-compact-detail {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: auto;
   margin: 0 0 0 auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 6rpx;
   background: transparent;
   color: #382766;
   font-size: 23rpx;
-  line-height: 36px;
+  line-height: 44px;
+  white-space: nowrap;
 }
 
 .page .xc-expanded .card-files {

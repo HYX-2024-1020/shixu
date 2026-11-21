@@ -58,6 +58,9 @@
   min-height: 44px;
   font-size: 24rpx;
   margin-left: auto;
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
 }
 .page .ddl-item .ddl-row {
   padding: 22rpx 20rpx 26rpx;
@@ -87,7 +90,7 @@
   color: #514d40;
 }
 .page .ddl-item .ddl-footer {
-  background: var(--card-accent);
+  background: var(--deadline-tone, #eef0ef);
   border-top: 6rpx solid #171713;
   padding: 12rpx 18rpx;
   display: flex;
@@ -99,8 +102,16 @@
 }
 .page .ddl-footer-actions {
   display: flex;
+  flex: 0 0 auto;
   gap: 12rpx;
   align-items: center;
+}
+.page .ddl-footer-status,
+.page .ddl-footer-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
 }
 .page .ddl-footer .compact-delete {
   min-width: 44px;
@@ -143,6 +154,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+  padding: 0 6rpx;
 }
 
 /* Same cel planes as Windows, with level text and native hit targets. */
@@ -158,6 +170,11 @@
   align-items: center;
   gap: 10rpx;
   max-width: 100%;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  text-align: left;
+  line-height: 1.4;
   box-sizing: border-box;
   min-height: 44px;
   border: 4rpx solid #171713;
@@ -175,7 +192,7 @@
 }
 .page .card-file-name {
   overflow-wrap: anywhere;
-  word-break: break-all;
+  word-break: normal;
   min-width: 0;
 }
 .page .ddl-item[class*="urgency-"] {
@@ -184,11 +201,12 @@
     16rpx 16rpx var(--card-accent);
 }
 .page .ddl-item .ddl-time {
-  background: var(--card-paper);
+  background: var(--deadline-tone, #eef0ef);
   border-bottom: 4rpx solid #171713;
   padding-bottom: 12rpx;
 }
 .page .ddl-item .ddl-time .ddl-countdown {
+  background: #fffef8;
   transform: none;
   box-shadow:
     5rpx 5rpx #171713,

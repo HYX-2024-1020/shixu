@@ -146,3 +146,10 @@
   --card-accent: #a3dfbf;
   --card-paper: #e3f9ef;
 }
+
+.ddl-item.tone-urgent { --deadline-tone: #ffc9c9; }
+.ddl-item.tone-near { --deadline-tone: #ffdfb0; }
+.ddl-item.tone-week { --deadline-tone: #fff1ad; }
+.ddl-item.tone-fortnight { --deadline-tone: #ddedc8; }
+.ddl-item.tone-month { --deadline-tone: #dcecf2; }
+.ddl-item.tone-later, .ddl-item.tone-done { --deadline-tone: #eef0ef; }

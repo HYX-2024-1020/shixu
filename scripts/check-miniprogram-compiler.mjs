@@ -477,7 +477,6 @@ page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
 assert.equal(page.data.activeSkin.id, "bunny");
 page.setData({
   skinAnimating: true,
-  bunnySheet: "/assets/fox/atlas.webp",
   bunnyPosition: "left:-100%;top:-200%",
 });
 assert.ok(
