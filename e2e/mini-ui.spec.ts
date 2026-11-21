@@ -219,17 +219,27 @@ test("native bunny timeline keeps the same crop in home and market", async ({
       );
       expect(box!.x + box!.width).toBeLessThanOrEqual(title!.x);
     } else {
-      const stage = await page.locator(".skin-preview-stage").boundingBox();
-      const name = await page
-        .locator(".skin-preview .subheading")
-        .boundingBox();
-      expect(box!.y).toBeGreaterThanOrEqual(stage!.y);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(
-        stage!.y + stage!.height,
-      );
-      expect(name!.y).toBeGreaterThanOrEqual(stage!.y + stage!.height);
+      const { stage, frame, title } = await page
+        .locator(".skin-preview")
+        .evaluate((preview) => ({
+          stage: preview
+            .querySelector(".skin-preview-stage")!
+            .getBoundingClientRect()
+            .toJSON(),
+          frame: preview
+            .querySelector(".bunny-window")!
+            .getBoundingClientRect()
+            .toJSON(),
+          title: preview
+            .querySelector(".subheading")!
+            .getBoundingClientRect()
+            .toJSON(),
+        }));
+      expect(frame.top).toBeGreaterThanOrEqual(stage.top);
+      expect(frame.bottom).toBeLessThanOrEqual(stage.bottom);
+      expect(title.top).toBeGreaterThanOrEqual(stage.bottom);
       await expect(page.locator(".skin-preview .quiet")).toHaveCount(0);
-      const playingHeight = stage!.height;
+      const playingHeight = stage.height;
       await render(page, 375, template, {
         skin: "bunny",
         image,
@@ -237,7 +247,9 @@ test("native bunny timeline keeps the same crop in home and market", async ({
         playing: false,
       });
       expect(
-        (await page.locator(".skin-preview-stage").boundingBox())!.height,
+        await page
+          .locator(".skin-preview-stage")
+          .evaluate((element) => element.getBoundingClientRect().height),
       ).toBeCloseTo(playingHeight, 1);
     }
     await expect(page.locator(".skin-bubble,.skin-spark")).toHaveCount(0);
