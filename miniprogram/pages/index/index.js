@@ -138,6 +138,7 @@ Page({
     password: "",
     connected: false,
     accountAiState: "未激活",
+    accountAiQuota: "",
     activationState: "未激活",
     connecting: false,
     syncing: false,
@@ -354,8 +355,16 @@ Page({
             });
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
+            const wallet = account.wallet;
             this.setData({
               activationState: account.authentication?.passwordChangeRequired ? "请先修改临时密码" : "已连接",
+              accountAiQuota: account.reading
+                ? wallet?.pausedReason
+                  ? "AI 已暂停"
+                  : Number.isFinite(wallet?.spent) && Number.isFinite(wallet?.available)
+                    ? `已用 ¥${(wallet.spent / 1000000).toFixed(2)} · 可用 ¥${(wallet.available / 1000000).toFixed(2)}`
+                    : "额度待刷新"
+                : account.ai.enabled ? `今日 ${used}/${account.ai.dailyLimit} 次` : "",
               accountAiState: account.reading
                 ? walletView(account.wallet)
                 : !account.ai.enabled
@@ -394,6 +403,7 @@ Page({
       passwordChangeRequired: false,
       capabilities: {},
       accountAiState: "正在核对账号能力",
+      accountAiQuota: "",
       activationState: "设备凭证已保存，等待核验",
       serverUrl: base,
       localMode: false,
@@ -1350,6 +1360,7 @@ Page({
       materialUseNotice: null,
       materialConsentAccepted: false,
       accountAiState: "本机空间 · 可记录和管理事项",
+      accountAiQuota: "",
       capabilities: {},
     });
     this._refresh();

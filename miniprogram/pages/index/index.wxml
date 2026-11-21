@@ -94,7 +94,7 @@
   </view>
   <view wx:if="{{tab === 'capture'}}" class="capture">
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button hover-class="text-press" class="text-button" bindtap="openAiSettings">AI 连接</button></view>
-    <text wx:if="{{connected && !authExpired && !passwordChangeRequired}}" class="ai-quota">{{accountAiState}}</text>
+    <text wx:if="{{connected && !authExpired && !passwordChangeRequired && accountAiQuota}}" class="ai-quota">{{accountAiQuota}}</text>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
       <view class="home-character {{activeSkin.id === 'ice' ? 'with-voices' : activeSkin.id === 'bunny' ? 'with-fox' : ''}}"><view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{activeSkin.id !== 'bunny' || !bunnyPlaying || !foxHomeReady || skinOpen}}" animation="{{activeSkin.id === 'ice' || skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}} {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="{{activeSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}"/><fox-player wx:if="{{activeSkin.id === 'bunny'}}" class="fox-player {{bunnyPlaying && foxHomeReady && !skinOpen ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><view wx:if="{{activeSkin.id === 'ice'}}" class="ice-home-voices"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}" hover-class="btn-press"><text class="ice-voice-label">{{item.label}}</text></button></view></view>
@@ -113,15 +113,15 @@
         ><text>{{draft.length}} / 60000</text></view
       ></view
     >
-    <view class="button-row attachment-actions"><button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 聊天文件</button><button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 图片 / 拍照</button></view>
+    <view class="capture-toolbar">
+      <view class="attachment-actions">
+        <button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 聊天文件</button>
+        <button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy || draftFiles.length >= 20}}">＋ 图片 / 拍照</button>
+      </view>
+      <button hover-class="btn-press" class="primary submit-button" bindtap="submit" disabled="{{connecting || filesBusy || (!draft.length && !draftFiles.length)}}" aria-label="投递当前文字和附件">喂给它</button>
+    </view>
     <text wx:if="{{draftFiles.length}}" class="settings-copy attachment-hint">{{draftFiles.length}} / 20 份</text>
-    <view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><view class="draft-file-copy"><text class="draft-file-name">{{item.name}}</text><text class="quiet">{{item.sizeLabel}}{{item.volatile ? ' · 仅本次会话可用' : ''}}</text></view><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile" aria-label="将 {{item.name}} 移出草稿">移出</button></view><view class="capture-toolbar"
-      ><text class="quiet"
-        >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
-      ><button hover-class="btn-press" class="primary submit-button" bindtap="submit" disabled="{{connecting || filesBusy || (!draft.length && !draftFiles.length)}}" aria-label="投递当前文字和附件">
-        喂给它
-      </button></view
-    >
+    <view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><view class="draft-file-copy"><text class="draft-file-name">{{item.name}}</text><text class="quiet">{{item.sizeLabel}}{{item.volatile ? ' · 仅本次会话可用' : ''}}</text></view><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile" aria-label="将 {{item.name}} 移出草稿">移出</button></view>
     <view id="capture-result" class="section-top delivery-heading"
       ><text class="section-title"
         >{{currentRows.length ? '本次投喂' : '给想法一个落脚处'}}</text
@@ -157,11 +157,6 @@
         mode="aspectFit"
         bindtap="openSkins"
     /></view>
-    <view wx:if="{{connected}}" class="workspace-status">
-      <text role="status">{{authExpired ? '账号授权已失效' : syncing ? '正在同步卡片…' : offline ? '当前离线 · 修改会保留' : pending ? pending + ' 条修改待同步' : syncStatus || '等待同步'}}</text>
-      <button wx:if="{{authExpired}}" class="small-button" data-tab="settings" bindtap="switchTab" hover-class="btn-press">重新登录</button>
-      <button wx:else class="small-button" bindtap="refreshWorld" disabled="{{refreshingWorld}}" loading="{{refreshingWorld}}" hover-class="btn-press">{{refreshingWorld ? '刷新中' : '刷新卡片'}}</button>
-    </view>
     <view class="search-box"
       ><text class="search-icon" aria-hidden="true">⌕</text
       ><input
@@ -218,6 +213,10 @@
     >
       再看一些 · {{matched - items.length}} 张
     </button>
+    <view wx:if="{{connected}}" class="world-sync-footer">
+      <text role="status">{{authExpired ? '账号授权已失效' : syncing ? '同步中…' : offline ? '当前离线' : pending ? pending + ' 条修改待同步' : syncStatus}}</text>
+      <button wx:if="{{authExpired}}" class="text-button" data-tab="settings" bindtap="switchTab" hover-class="text-press">重新登录</button>
+    </view>
   </view>
   <view wx:elif="{{tab === 'ddl'}}" class="ddl-workspace">
     <view class="ddl-head"><image class="{{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="aspectFit"/><view><text class="world-title">最近要交什么，<text class="hero-highlight">一眼看清。</text></text></view></view>

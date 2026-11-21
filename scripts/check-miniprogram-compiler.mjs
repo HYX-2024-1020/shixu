@@ -126,7 +126,18 @@ assert.ok(view().some((node) => node.attr?.class?.includes("xc-card")));
 assert.ok(!view().some((node) =>
   ["organizeRecord", "createManual"].includes(node.attr?.bindtap)),
   "a finished capture shows cards with delivery controls in the history");
+page.setData({ connected: true, accountAiQuota: "已用 ¥0.15 · 可用 ¥2.85" });
+const captureControls = view().find((node) => node.attr?.class === "capture-toolbar");
+assert.deepEqual(Array.from(captureControls.children[0].children, (node) => node.attr?.bindtap),
+  ["chooseFiles", "chooseImages"]);
+assert.equal(captureControls.children[1].attr.bindtap, "submit");
+assert.ok(view().some((node) => node.attr?.class === "ai-quota"
+  && node.children.includes("已用 ¥0.15 · 可用 ¥2.85")));
 page.setData({ tab: "world" });
+assert.ok(view().some((node) => node.attr?.bindrefresherrefresh === "refreshWorld"));
+assert.ok(view().some((node) => node.attr?.class === "world-sync-footer"));
+assert.ok(!view().some((node) => node.attr?.bindtap === "refreshWorld"));
+page.setData({ connected: false });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("xc-card")),
   "item template rendered",

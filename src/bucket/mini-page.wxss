@@ -36,27 +36,21 @@
   min-height: 88rpx;
 }
 .attachment-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16rpx;
-  margin: 20rpx 0 8rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
 .attachment-actions .small-button {
   width: 100%;
   min-width: 0;
-  padding: 16rpx 12rpx;
+  min-height: 44px;
+  padding: 10rpx 12rpx;
   white-space: nowrap;
 }
 .attachment-hint {
   margin: 8rpx 0 16rpx;
   font-size: 24rpx;
   line-height: 1.7;
-}
-.submit-button {
-  flex: 0 0 auto;
-  min-width: 176rpx;
-  min-height: 96rpx;
-  white-space: nowrap;
 }
 .original-scrim {
   z-index: 40;
@@ -66,7 +60,6 @@
 .card-top,
 .card-foot,
 .editor-foot,
-.capture-toolbar,
 .world-heading,
 .sync-line,
 .capability {
@@ -269,12 +262,11 @@
   margin-top: 16rpx;
 }
 .capture-toolbar {
-  margin-top: 26rpx;
-  flex-wrap: wrap;
-}
-.capture-toolbar > .quiet {
-  flex: 1 1 320rpx;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 18rpx;
+  margin: 20rpx 0 8rpx;
 }
 .primary {
   background: #ffd43b;
@@ -285,10 +277,13 @@
   padding: 18rpx 28rpx;
   font-size: 30rpx;
 }
-.capture-toolbar .primary {
-  flex-shrink: 0;
-  padding: 22rpx 44rpx;
+.capture-toolbar .submit-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 12rpx;
   font-size: 32rpx;
+  white-space: nowrap;
 }
 .text-button {
   display: inline-flex;
@@ -1018,8 +1013,9 @@ input {
   display: block;
   margin: -4rpx 0 14rpx;
   color: #655f4e;
-  font-size: 24rpx;
+  font-size: 22rpx;
   line-height: 1.5;
+  text-align: right;
 }
 .page .ai-entry .text-button,
 .page .settings-heading .small-button {
@@ -2416,6 +2412,17 @@ page {
   gap: 16rpx;
   margin: 12rpx 0;
   font-size: 24rpx;
+}
+.world-sync-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12rpx;
+  margin: 8rpx 0 0;
+  color: #655f4e;
+  font-size: 22rpx;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .attachment-file {
