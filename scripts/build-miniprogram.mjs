@@ -18,16 +18,6 @@ const desktopStyle = await readFile(
   "utf8",
 ).then((css) => css.replace(/\/\*[\s\S]*?\*\//g, ""));
 const sharedSelectors = new Map([
-  [".result-card", ".item-card"],
-  [".result-card.is-pinned", ".item-card.is-pinned"],
-  [".result-card:nth-child(4n + 2)", ".item-card.shadow-1"],
-  [".result-card:nth-child(4n + 4)", ".item-card.shadow-3"],
-  [".result-card:nth-child(4n + 3)", ".item-card.shadow-2"],
-  [".card-kind", ".item-card .kind-label"],
-  [".card-open h2", ".item-card .item-title"],
-  [".card-open p", ".item-card .item-summary"],
-  [".card-bottom", ".item-card .card-foot"],
-  [".card-source-link", ".item-card .card-source-link"],
   [".world-heading h1", ".world .world-title"],
   [".world-heading h1 span", ".world .hero-highlight"],
 ]);

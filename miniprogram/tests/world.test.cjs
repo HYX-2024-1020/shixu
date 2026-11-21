@@ -1725,3 +1725,77 @@ test("ice voices select distinct single-shot assets, stop before replay and pers
   page.onUnload();
   reopened.onUnload();
 });
+
+test("submit resets and re-applies the capture anchor after each render", () => {
+  const { page } = fixture();
+  page.onDraft({ detail: { value: "第一条结果" } });
+  page.submit();
+  assert.equal(page.data.captureResultAnchor, "capture-result");
+  const firstId = page.data.currentCaptureId;
+  page.onDraft({ detail: { value: "第二条结果" } });
+  page.submit();
+  assert.equal(page.data.captureResultAnchor, "capture-result");
+  assert.notEqual(page.data.currentCaptureId, firstId);
+  page.switchTab(tabEvent("world"));
+  assert.equal(page.data.captureResultAnchor, "");
+  page.onUnload();
+});
+
+test("search clear and filter reset restore the whole world without stale timers", () => {
+  const { page } = fixture();
+  page._client.put("p", packet());
+  page._refresh();
+  page.setData({ query: "实验", kind: "task", starOnly: true, group: "课程" });
+  page._refreshWorld();
+  assert.equal(page.data.filterActive, true);
+  page.clearSearch();
+  assert.equal(page.data.query, "");
+  assert.equal(page._queryTimer, null);
+  assert.equal(page.data.filterActive, true);
+  page.resetWorldFilters();
+  assert.equal(page.data.filtersOpen, false);
+  assert.equal(page.data.filterActive, false);
+  assert.equal(page.data.items.length, 2);
+  page.onUnload();
+});
+
+test("notices and status strips live inside the main scroll region", () => {
+  const xml = readFileSync(resolve(__dirname, "../pages/index/index.wxml"), "utf8");
+  const bottomNav = xml.indexOf('class="bottom-nav"');
+  const scrollEnd = xml.lastIndexOf("</scroll-view>", bottomNav);
+  assert.ok(scrollEnd > 0 && scrollEnd < bottomNav);
+  for (const content of [
+    "{{originalNotice}}",
+    'class="job-strip"',
+    "拾序小程序 · 开发版",
+  ]) {
+    const position = xml.indexOf(content);
+    assert.ok(position > -1 && position < scrollEnd, `${content} must scroll`);
+  }
+});
+
+test("detail view shows the original text once instead of repeating identical sources", () => {
+  const { page } = fixture();
+  const row = {
+    id: "p1",
+    sourceText: "明天下午三点前提交实验报告",
+    sources: [
+      { id: "input", name: "随手输入", text: "明天下午三点前提交实验报告" },
+      { id: "chat", name: "聊天记录", text: "导师：记得交实验报告" },
+      { id: "file", name: "实验通知.txt", text: "明天下午三点前提交实验报告" },
+    ],
+    additions: [],
+    chat: [],
+    history: [],
+  };
+  const detail = page._presentDetail(row);
+  assert.equal(detail.sourceText, "明天下午三点前提交实验报告");
+  assert.deepEqual(
+    detail.sources.map((s) => s.id),
+    ["chat", "file"],
+    "matching text in an independent source keeps its source attribution",
+  );
+  // Keep the original record intact.
+  assert.equal(row.sources.length, 3);
+  page.onUnload();
+});

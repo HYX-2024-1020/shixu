@@ -21,7 +21,7 @@
 }
 .page .world .xc-project {
   color: #635d4d;
-  font-size: 22rpx;
+  font-size: 24rpx;
   max-width: 32%;
   overflow: hidden;
   white-space: nowrap;
@@ -104,14 +104,14 @@
   padding: 0 16rpx;
   min-height: 44px;
   color: #171713;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 900;
 }
 .page .world .xc-footer .xc-delete {
   order: 1;
   margin-left: 0;
   color: #5b2530;
-  font-size: 24rpx;
+  font-size: 28rpx;
 }
 .page .world .xc-starred {
   color: #171713;
@@ -173,7 +173,7 @@
 }
 .page .ddl-item .ddl-time .ddl-date {
   flex: 1 1 auto;
-  font-size: 23rpx;
+  font-size: 24rpx;
   white-space: nowrap;
 }
 .page .ddl-item .ddl-time .ddl-clock {
@@ -184,7 +184,7 @@
 .page .ddl-item .ddl-time .ddl-verify-button {
   color: #171713;
   min-height: 44px;
-  font-size: 23rpx;
+  font-size: 24rpx;
   margin-left: auto;
 }
 .page .ddl-item .ddl-row {
@@ -210,7 +210,7 @@
   overflow-wrap: anywhere;
 }
 .page .ddl-item .ddl-copy .ddl-status {
-  font-size: 23rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #514d40;
 }
@@ -234,12 +234,12 @@
   min-width: 44px;
   min-height: 44px;
   color: #5b2530;
-  font-size: 23rpx;
+  font-size: 24rpx;
 }
 .page .ddl-footer .ddl-detail-button {
   min-height: 44px;
   color: #171713;
-  font-size: 25rpx;
+  font-size: 28rpx;
   font-weight: 900;
   border: 4rpx solid #171713;
   background: #fffef8;
@@ -294,19 +294,32 @@
   border-bottom: 4rpx solid #171713;
 }
 .page .world .xc-kind-label {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: var(--card-accent);
   border: 2rpx solid #171713;
-  padding: 2rpx 8rpx;
-  font-size: 22rpx;
+  padding: 4rpx 10rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
 }
 .page .world .xc-project {
+  order: 5;
+  flex: 1 1 100%;
+  max-width: 100%;
+  padding: 8rpx 4rpx 0;
   color: #302653;
-  max-width: none;
-  flex: 1;
+  font-size: 24rpx;
+  line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;
   font-weight: 700;
+}
+.page .world .xc-star {
+  margin-left: auto;
 }
 .page .world .xc-title {
   transform: none;
@@ -351,7 +364,7 @@
 .page .file-extension {
   flex-shrink: 0;
   color: #6542b4;
-  font-size: 20rpx;
+  font-size: 24rpx;
   font-weight: 900;
 }
 .page .card-file-name {

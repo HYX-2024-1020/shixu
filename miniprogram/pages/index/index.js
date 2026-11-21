@@ -68,6 +68,12 @@ function dateInfo() {
     captureDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
   };
 }
+function formatBytes(value) {
+  const bytes = Number(value) || 0;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 Page({
   ...createTouchOrder(wx),
   data: {
@@ -134,6 +140,7 @@ Page({
     scopeIndex: 0,
     filtersOpen: false,
     query: "",
+    filterActive: false,
     kind: "all",
     sort: "priority",
     dateFilter: "all",
@@ -171,6 +178,7 @@ Page({
     recordsOpen: false,
     currentCaptureId: "",
     currentRows: [],
+    captureResultAnchor: "",
     localMode: true,
     localCount: 0,
     skinOpen: false,
@@ -274,11 +282,15 @@ Page({
   onHide() {
     this.cancelDrag();
     clearInterval(this._timer);
+    clearTimeout(this._queryTimer);
+    this._queryTimer = null;
     this._stopSkinInteraction();
   },
   onUnload() {
     this.cancelDrag();
     clearInterval(this._timer);
+    clearTimeout(this._queryTimer);
+    this._queryTimer = null;
     this._stopSkinInteraction();
     if (this._skinAudio) this._skinAudio.destroy();
     if (this._network) wx.offNetworkStatusChange(this._network);
@@ -373,21 +385,29 @@ Page({
         (b.data.capturedAt || "").localeCompare(a.data.capturedAt || ""),
       )
       .slice(this.data.recordPage * 30, (this.data.recordPage + 1) * 30)
-      .map((row) => ({
-        id: row.id,
-        text: (row.data.text || "").slice(0, 600),
-        title: (
-          (row.data.text || "").split("\n")[0] ||
-          (row.data.attachments || [])[0]?.name ||
-          "文字投递"
-        ).slice(0, 32),
-        date: row.data.captureDate || "",
-        deleted: !!row.deletedAt,
-        conflict: !!row.conflict,
-        state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
-        hasResult: !!row.data.result,
-        attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
-      }));
+      .map((row) => {
+        const rawText = row.data.text || "",
+          title = (
+            rawText.split("\n")[0] ||
+            (row.data.attachments || [])[0]?.name ||
+            "文字投递"
+          ).slice(0, 32),
+          body = rawText.startsWith(title)
+            ? rawText.slice(title.length).replace(/^\n+/, "")
+            : rawText;
+        return {
+          id: row.id,
+          text: rawText.slice(0, 600),
+          body: body.slice(0, 600),
+          title,
+          date: row.data.captureDate || "",
+          deleted: !!row.deletedAt,
+          conflict: !!row.conflict,
+          state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
+          hasResult: !!row.data.result,
+          attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
+        };
+      });
     const view = worldView(this._client.records(), this.data);
     const clock = new Date();
     const day = `${clock.getFullYear()}-${String(clock.getMonth() + 1).padStart(2, "0")}-${String(clock.getDate()).padStart(2, "0")}`;
@@ -421,9 +441,10 @@ Page({
       this._presentDetail(this._detail(this.data.selected.id));
     this.setData({
       rows,
-      draftFiles: this._fileEntries(this._draftId).map((e) =>
-        this._library().metadata(e),
-      ),
+      draftFiles: this._fileEntries(this._draftId).map((entry) => ({
+        ...this._library().metadata(entry),
+        sizeLabel: formatBytes(entry.size),
+      })),
       pendingFiles:
         this._library() && !this.data.localMode
           ? this._library()
@@ -474,19 +495,7 @@ Page({
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
-      groupChoices: ["全部分组", ...view.groups],
-      groupIndex: view.groups.indexOf(this.data.group) + 1,
-      categories: view.categories,
-      items: view.items.map(this._cardView),
-      sections: view.sections.map((s) => ({
-        ...s,
-        items: s.items.map(this._cardView),
-      })),
-      matched: view.matched,
-      itemCount: view.total,
-      activeCount: view.active,
-      doneCount: view.done,
-      groups: view.groups,
+      ...this._worldPatch(view),
       selected: selected || null,
       currentRows: all
         .filter((r) => r.id === this.data.currentCaptureId)
@@ -503,6 +512,34 @@ Page({
         .records()
         .filter((r) => !r.purged && !r.deletedAt).length,
     });
+  },
+  _worldPatch(view) {
+    return {
+      groupChoices: ["全部分组", ...view.groups],
+      groupIndex: view.groups.indexOf(this.data.group) + 1,
+      categories: view.categories,
+      items: view.items.map(this._cardView),
+      sections: view.sections.map((section) => ({
+        ...section,
+        items: section.items.map(this._cardView),
+      })),
+      matched: view.matched,
+      itemCount: view.total,
+      activeCount: view.active,
+      doneCount: view.done,
+      groups: view.groups,
+      filterActive: !!(
+        this.data.query.trim() ||
+        this.data.kind !== "all" ||
+        this.data.dateFilter !== "all" ||
+        this.data.starOnly ||
+        this.data.group
+      ),
+    };
+  },
+  _refreshWorld() {
+    if (!this._client) return;
+    this.setData(this._worldPatch(worldView(this._client.records(), this.data)));
   },
   _localWorkspace() {
     return createLocalWorkspace(
@@ -972,12 +1009,16 @@ Page({
   _presentDetail(row) {
     if (!row) return null;
     const { meta, search, ...view } = row;
+    const sourceText = row.sourceText.slice(0, 20000);
+    // Only omit the built-in copy of the input. Other sources carry their own names.
+    const sources = row.sources
+      .filter((source) => source.id !== "input" || source.text !== row.sourceText)
+      .slice(0, 10)
+      .map((source) => ({ ...source, text: (source.text || "").slice(0, 2000) }));
     return {
       ...view,
-      sourceText: row.sourceText.slice(0, 20000),
-      sources: row.sources
-        .slice(0, 10)
-        .map((s) => ({ ...s, text: (s.text || "").slice(0, 2000) })),
+      sourceText,
+      sources,
       additions: row.additions
         .slice(-20)
         .map((a) => ({ ...a, text: a.text.slice(0, 2000) })),
@@ -1121,12 +1162,15 @@ Page({
   onDraft(event) {
     const draft = event.detail.value;
     if (!this._draftId) this._draftId = makeId();
-    this.setData({ draft });
     try {
       wx.setStorageSync(this._draftKey(), { id: this._draftId, text: draft });
-      this.setData({ error: "" });
+      this.setData({ draft, error: "", captureResultAnchor: "" });
     } catch (_) {
-      this.setData({ error: "草稿保存失败，请先复制保留文字，再释放存储空间" });
+      this.setData({
+        draft,
+        captureResultAnchor: "",
+        error: "草稿保存失败，请先复制保留文字，再释放存储空间",
+      });
     }
   },
   onServer(event) {
@@ -1137,13 +1181,20 @@ Page({
   },
   switchTab(event) {
     this.cancelDrag();
+    clearTimeout(this._queryTimer);
+    this._queryTimer = null;
     const target = event.currentTarget.dataset.tab;
     if (target === "settings") {
       if (this.data.tab === "settings") return this.closeSettings();
       this.setData({ settingsReturnTab: this.data.tab });
     }
     this._stopSkinInteraction();
-    this.setData({ tab: target, notice: "", expandedCardId: "" });
+    this.setData({
+      tab: target,
+      notice: "",
+      expandedCardId: "",
+      captureResultAnchor: "",
+    });
     if (target === "settings") void this.probeAccountCapabilities();
     this._refresh();
   },
@@ -1326,6 +1377,13 @@ Page({
       });
       this.feedSkin();
       this._refresh();
+      this.setData({ captureResultAnchor: "" }, () => {
+        if (
+          this.data.tab === "capture" &&
+          this.data.currentCaptureId === id
+        )
+          this.setData({ captureResultAnchor: "capture-result" });
+      });
       this.syncQuietly();
     } catch (error) {
       this._error(error);
@@ -1539,8 +1597,35 @@ Page({
   },
   stopTap() {},
   onQuery(event) {
+    clearTimeout(this._queryTimer);
     this.setData({ query: event.detail.value, limit: 60 });
-    this._refresh();
+    this._queryTimer = setTimeout(() => {
+      this._queryTimer = null;
+      this._refreshWorld();
+    }, 160);
+  },
+  clearSearch() {
+    clearTimeout(this._queryTimer);
+    this._queryTimer = null;
+    this.setData({ query: "", limit: 60 });
+    this._refreshWorld();
+  },
+  resetWorldFilters() {
+    clearTimeout(this._queryTimer);
+    this._queryTimer = null;
+    this.setData({
+      query: "",
+      kind: "all",
+      kindIndex: 0,
+      dateFilter: "all",
+      dateIndex: 0,
+      starOnly: false,
+      group: "",
+      limit: 60,
+      filtersOpen: false,
+      expandedCardId: "",
+    });
+    this._refreshWorld();
   },
   chooseScope(event) {
     const scope = ["active", "done", "trash"][Number(event.detail.value)];
@@ -1549,7 +1634,7 @@ Page({
   chooseGroup(event) {
     const group = this.data.groupChoices[Number(event.detail.value)];
     this.setData({ group: group === "全部分组" ? "" : group, limit: 60 });
-    this._refresh();
+    this._refreshWorld();
   },
   setScope(event) {
     const scope = event.currentTarget.dataset.scope;
@@ -1569,7 +1654,7 @@ Page({
   setKind(event) {
     const i = Number(event.detail.value);
     this.setData({ kindIndex: i, kind: this.data.kindKeys[i], limit: 60 });
-    this._refresh();
+    this._refreshWorld();
   },
   setSort(event) {
     const i = Number(event.detail.value),
@@ -1577,7 +1662,7 @@ Page({
     try {
       wx.setStorageSync(FILTERS, { sort });
       this.setData({ sortIndex: i, sort });
-      this._refresh();
+      this._refreshWorld();
     } catch (error) {
       this._error(error);
     }
@@ -1589,11 +1674,11 @@ Page({
       dateFilter: this.data.dateKeys[i],
       limit: 60,
     });
-    this._refresh();
+    this._refreshWorld();
   },
   toggleStarFilter() {
     this.setData({ starOnly: !this.data.starOnly, limit: 60 });
-    this._refresh();
+    this._refreshWorld();
   },
   toggleGrouped() {
     this.setData({ grouped: !this.data.grouped });
