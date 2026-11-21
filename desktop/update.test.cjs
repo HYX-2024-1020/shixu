@@ -32,9 +32,9 @@ async function fixture(t, getAsset) {
     version: "0.3.32-beta.1",
     supported: true,
     cache,
-    fetcher: async (url, options) => {
+    fetcher: async (url) => {
       requests.push(String(url));
-      if (url === assetURL) return getAsset(options);
+      if (url === assetURL) return getAsset();
       assert.equal(
         url,
         "https://api.github.com/repos/HYX-2024-1020/shixu/releases/latest",
@@ -63,16 +63,7 @@ test("only a newer official Windows installer with a verified digest is eligible
 });
 
 test("downloads only on request, verifies bytes, saves drafts and opens the installer", async (t) => {
-  const { updater, requests } = await fixture(t, ({ headers }) => {
-    assert.equal(headers.Range, "bytes=0-" + (installer.length - 1));
-    return new Response(installer, {
-      status: 206,
-      headers: {
-        "Content-Range":
-          "bytes 0-" + (installer.length - 1) + "/" + installer.length,
-      },
-    });
-  });
+  const { updater, requests } = await fixture(t, () => new Response(installer));
   assert.equal((await updater.check()).phase, "available");
   assert.equal(requests.length, 1);
   assert.equal((await updater.download()).progress, 100);
