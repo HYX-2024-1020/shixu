@@ -140,10 +140,26 @@ else {
         )
           throw new Error("来源无效");
       };
+      // Keep Chromium's system proxy support without opening renderer network access.
+      const updates = session.fromPartition("shixu-updates", { cache: false });
+      const updateOrigins = new Set([
+        "https://api.github.com",
+        "https://github.com",
+        "https://release-assets.githubusercontent.com",
+      ]);
+      updates.webRequest.onBeforeRequest(({ url, method }, callback) => {
+        const target = new URL(url);
+        callback({
+          cancel: method !== "GET" || !updateOrigins.has(target.origin) ||
+            Boolean(target.username || target.password),
+        });
+      });
       const update = new DesktopUpdate({
         version: app.getVersion(),
         cache: path.join(app.getPath("userData"), "update"),
-        supported: app.isPackaged && process.platform === "win32" && process.arch === "x64",
+        supported:
+          app.isPackaged && process.platform === "win32" && process.arch === "x64",
+        fetcher: (url, options) => updates.fetch(url, { ...options, credentials: "omit" }),
       });
       ipcMain.handle("update", async (event, action) => {
         validSender(event);

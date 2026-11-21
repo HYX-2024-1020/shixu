@@ -83,6 +83,8 @@ class DesktopUpdate {
         headers: { Accept: "application/vnd.github+json" },
         redirect: "error",
         signal: AbortSignal.timeout(15000),
+      }).catch(() => {
+        throw Error("无法连接更新服务，请检查网络后重试");
       });
       if (!response.ok) throw Error("暂时无法读取发行信息，请稍后重试");
       this.candidate = selectUpdate(await response.json(), this.version);
@@ -103,19 +105,12 @@ class DesktopUpdate {
     const partial = this.file + ".part";
     try {
       const signal = AbortSignal.timeout(600000);
-      const redirect = await this.fetcher(url, { redirect: "manual", signal });
-      let response = redirect;
-      if (redirect.status === 302) {
-        const target = new URL(redirect.headers.get("location"));
-        if (
-          target.origin !== "https://release-assets.githubusercontent.com" ||
-          target.username ||
-          target.password
-        )
-          throw Error("安装包下载地址无法验证");
-        await redirect.body?.cancel();
-        response = await this.fetcher(target, { redirect: "error", signal });
-      }
+      const response = await this.fetcher(url, {
+        redirect: "follow",
+        signal,
+      }).catch(() => {
+        throw Error("无法连接安装包下载地址，请检查网络后重试");
+      });
       if (!response.ok || !response.body) throw Error("暂时无法下载安装包");
       await mkdir(this.cache, { recursive: true });
       const hash = createHash("sha256");

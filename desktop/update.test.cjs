@@ -9,7 +9,6 @@ const { DesktopUpdate, selectUpdate } = require("./update.cjs");
 const installer = Buffer.from("synthetic Windows installer");
 const assetURL =
   "https://github.com/HYX-2024-1020/shixu/releases/download/v0.3.32/Shixu-Setup-0.3.32.exe";
-const redirectURL = "https://release-assets.githubusercontent.com/test.exe";
 const release = {
   tag_name: "v0.3.32",
   draft: false,
@@ -35,12 +34,7 @@ async function fixture(t, getAsset) {
     cache,
     fetcher: async (url) => {
       requests.push(String(url));
-      if (url === assetURL)
-        return new Response(null, {
-          status: 302,
-          headers: { location: redirectURL },
-        });
-      if (String(url) === redirectURL) return getAsset();
+      if (url === assetURL) return getAsset();
       assert.equal(
         url,
         "https://api.github.com/repos/HYX-2024-1020/shixu/releases/latest",
@@ -73,7 +67,7 @@ test("downloads only on request, verifies bytes, saves drafts and opens the inst
   assert.equal((await updater.check()).phase, "available");
   assert.equal(requests.length, 1);
   assert.equal((await updater.download()).progress, 100);
-  assert.deepEqual(requests.slice(1), [assetURL, redirectURL]);
+  assert.deepEqual(requests.slice(1), [assetURL]);
   const events = [];
   await updater.install({
     prepare: async () => {
