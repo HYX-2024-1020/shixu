@@ -2429,3 +2429,63 @@ page {
 .delivery-job .button-row {
   flex-wrap: wrap;
 }
+
+.page .xc-compact-detail {
+  flex-shrink: 0;
+  margin: 0 0 0 auto;
+  min-height: 36px;
+  padding: 0 6rpx;
+  background: transparent;
+  color: #382766;
+  font-size: 23rpx;
+  line-height: 36px;
+}
+
+.page .xc-expanded .card-files {
+  margin-top: 12rpx;
+}
+
+.account-panel > .button-row,
+.account-form > .button-row,
+.account-form > button,
+.account-panel > button {
+  margin-top: 14rpx;
+}
+
+.account-form,
+.account-device {
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx solid #c9bfa7;
+}
+
+.account-device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx 14rpx;
+  font-size: 24rpx;
+}
+
+.account-device > text {
+  flex: 1 1 210rpx;
+  overflow-wrap: anywhere;
+}
+
+.account-identity {
+  display: block;
+  font-size: 27rpx;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.account-form .auth-selected {
+  background: #efe5ff;
+  border-color: #513b80;
+}
+
+.panel-feedback {
+  flex-shrink: 0;
+  max-height: 140rpx;
+  overflow: auto;
+}

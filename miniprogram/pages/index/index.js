@@ -217,6 +217,13 @@ Page({
     accountNewPassword: "",
     loginDevices: [],
     accountDevices: [],
+    accountAction: "",
+    credentialMode: "login",
+    showAccountForm: false,
+    switchAccountOpen: false,
+    activeAccountName: "",
+    authExpired: false,
+    passwordChangeRequired: false,
     passwordAccounts: false,
     legacyAccountActivation: false,
     accountProbeChecking: false,
@@ -312,10 +319,10 @@ Page({
     const base = normalizeServiceURL(connection.base, environment);
     if (connection.protocolVersion === 3 && base !== accountServiceOrigin(wx))
       throw new Error("激活服务地址无效");
-    this._reading = null;
     const transport =
       connection.protocolVersion === 3
         ? accountTransport(connection, wx, (account) => {
+            if (this._connection !== connection) return;
             this._reading = account.reading || null;
             const materialUseNotice = account.reading?.materialUseNotice || null;
             this.setData({
@@ -323,12 +330,14 @@ Page({
               materialConsentAccepted: !materialUseNotice || wx.getStorageSync("material-use:" + spaceKey(connection)) === materialUseNotice.version,
               passwordAccounts: !!account.authentication,
               accountClaimed: !!account.authentication?.claimed,
+              passwordChangeRequired: !!account.authentication?.passwordChangeRequired,
+              activeAccountName: account.authentication?.username || "",
               accountUsername: this.data.accountUsername || account.authentication?.username || "",
             });
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
             this.setData({
-              activationState: "已激活",
+              activationState: account.authentication?.passwordChangeRequired ? "请先修改临时密码" : "已连接",
               accountAiState: account.reading
                 ? walletView(account.wallet)
                 : !account.ai.enabled
@@ -349,6 +358,7 @@ Page({
     const jobs = wx.getStorageSync(jobsKey(space));
     if (jobs && !Array.isArray(jobs))
       throw new Error("任务记录无法读取，请保留资料联系开发者");
+    this._reading = null;
     this._connection = connection;
     this._epoch = connection.epoch || null;
     this._transport = transport;
@@ -357,10 +367,13 @@ Page({
     this._loadDraft();
     this.setData({
       connected: true,
+      authExpired: false,
       savedAccount: true,
       accountUsername: "",
+      activeAccountName: "",
       accountDevices: [],
       accountClaimed: false,
+      passwordChangeRequired: false,
       capabilities: {},
       accountAiState: "正在核对账号能力",
       activationState: "设备凭证已保存，等待核验",
@@ -590,28 +603,39 @@ Page({
   },
   chooseFiles() {
     if (this.data.filesBusy) return;
+    const count = 20 - this.data.draftFiles.length;
+    if (!count) return this._error(Error("一次投递已选满 20 份原件"));
+    if (!wx.chooseMessageFile) return this._error(Error("当前微信环境无法选择聊天文件"));
     this.setData({ filesBusy: true });
     wx.chooseMessageFile({
-      count: 20,
+      count,
       type: "all",
       success: (answer) => this._collectFiles(answer.tempFiles),
-      fail: () => this.setData({ notice: "未选择文件，现有草稿已保留" }),
+      fail: (error) => {
+        if (!/cancel/i.test(error?.errMsg || "")) this._error(Error("无法打开聊天文件，草稿已保留"));
+      },
       complete: () => this.setData({ filesBusy: false }),
     });
   },
   chooseImages() {
     if (this.data.filesBusy) return;
+    const count = Math.min(9, 20 - this.data.draftFiles.length);
+    if (!count) return this._error(Error("一次投递已选满 20 份原件"));
+    if (!wx.chooseMedia) return this._error(Error("当前微信环境无法打开相册或相机"));
     this.setData({ filesBusy: true });
     wx.chooseMedia({
-      count: 9,
+      count,
       mediaType: ["image"],
       sourceType: ["album", "camera"],
       success: (answer) => this._collectFiles(answer.tempFiles),
-      fail: () => this.setData({ notice: "未选择图片，现有草稿已保留" }),
+      fail: (error) => {
+        if (!/cancel/i.test(error?.errMsg || "")) this._error(Error("无法打开相册或相机，草稿已保留"));
+      },
       complete: () => this.setData({ filesBusy: false }),
     });
   },
   _collectFiles(files) {
+    if (!files?.length) return;
     try {
       if (!this._draftId) this._draftId = makeId();
       // Persist the owner ID before copying a temporary file to durable storage.
@@ -647,6 +671,7 @@ Page({
         this._draftSpace(),
       );
       this._refresh();
+      this._acknowledge("已从草稿移出附件");
     } catch (error) {
       this._error(error);
     }
@@ -655,8 +680,12 @@ Page({
     const library = this._library();
     if (!library || this.data.filesBusy || !this.data.capabilities.attachments)
       return;
-    const base = this._space(),
-      transport = createFileTransport(
+    const base = this._space();
+    const packets = new Set(this._client.records()
+      .filter((row) => !row.purged && !row.deletedAt && !row.conflict).map((row) => row.id));
+    const pending = library.entries(null, base).filter((entry) => !entry.remote && packets.has(entry.packetId));
+    if (!pending.length) return;
+    const transport = createFileTransport(
         this._connection.base,
         () => this._connection.token,
         wx,
@@ -665,7 +694,6 @@ Page({
     this.setData({ filesBusy: true });
     try {
       if (this._reading?.features?.submissionManifest) {
-        const pending = library.entries(null, base).filter((e) => !e.remote);
         let attached = false;
         for (const packetId of new Set(pending.map((e) => e.packetId))) {
           const row = this._record(packetId);
@@ -759,9 +787,7 @@ Page({
         return;
       }
       let changed = false;
-      for (const entry of library
-        .entries(null, base)
-        .filter((e) => !e.remote)) {
+      for (const entry of pending) {
         const row = this._record(entry.packetId);
         if (!row || row.deletedAt || row.conflict) continue;
         const result = await transport.upload(
@@ -1152,11 +1178,15 @@ Page({
     this.setData({
       localMode: true,
       connected: false,
+      authExpired: false,
       savedAccount: !!wx.getStorageSync(CONNECTION)?.token,
       activationState: "当前在本机空间",
       jobs: [],
       accountDevices: [],
       accountClaimed: false,
+      activeAccountName: "",
+      switchAccountOpen: false,
+      passwordChangeRequired: false,
       taskPreview: null,
       materialUseNotice: null,
       materialConsentAccepted: false,
@@ -1170,7 +1200,8 @@ Page({
       this.data.syncing ||
       this.data.connecting ||
       this.data.jobBusy ||
-      this.data.filesBusy
+      this.data.filesBusy ||
+      this.data.accountAction
     )
       return;
     // Remote outbox remains durable under its original service URL.
@@ -1181,8 +1212,7 @@ Page({
       });
       wx.setStorageSync(CONNECTION + ":active", false);
       this._activateLocal();
-      this.setData({
-        tab: "capture",
+      this._showTab("capture", {
         error: "",
         notice: "已切换到本机空间，云端账号仍保留。可随时切回云端。",
       });
@@ -1213,30 +1243,38 @@ Page({
         if (this._library())
           this._library().copySpace(row.id, "local", this._space());
       }
-      await this.sync();
-      this.setData({ notice: "导入操作已保存，本机原件保留；以同步状态为准" });
+      const synced = await this.sync();
+      if (synced) this._acknowledge("本机投递已导入，原件仍保留");
+      else if (!this.data.error) this._acknowledge("导入已保存，等待同步");
     } catch (error) {
       this._error(error);
     }
     this._refresh();
   },
-  _error(error) {
-    if (
-      error.status === 401 ||
-      ["UNAUTHORIZED", "ACCOUNT_DISABLED"].includes(error.code)
+  _error(error, { session = true } = {}) {
+    if (session && this._connection &&
+      (error.status === 401 || ["UNAUTHORIZED", "ACCOUNT_DISABLED"].includes(error.code))
     )
       this.setData({
-        activationState: "授权失效，请联系管理员恢复",
+        authExpired: true,
+        activationState: "设备授权已失效，请重新登录",
         accountAiState: "设备授权失效，本地资料仍保留",
       });
-    this.setData({ error: error.message || "操作未完成，请稍后重试" });
+    const message = error.message || "操作未完成，请稍后重试";
+    this.setData({ error: message, notice: "" });
+    if (!this.data.selected && !this.data.recordsOpen && !this.data.skinOpen)
+      wx.showToast?.({ title: message, icon: "none", duration: 2600 });
+  },
+  _acknowledge(message) {
+    this.setData({ notice: message, error: "" });
+    wx.showToast?.({ title: message, icon: "none", duration: 1500 });
   },
   onDraft(event) {
     const draft = event.detail.value;
     if (!this._draftId) this._draftId = makeId();
     try {
       wx.setStorageSync(this._draftKey(), { id: this._draftId, text: draft });
-      this.setData({ draft, error: "", captureResultAnchor: "" });
+      this.setData({ draft, error: "", notice: "", captureResultAnchor: "" });
     } catch (_) {
       this.setData({
         draft,
@@ -1261,22 +1299,24 @@ Page({
       this.setData({ settingsReturnTab: this.data.tab });
     }
     this._stopSkinInteraction();
-    this.setData({
-      tab: target,
-      notice: "",
-      expandedCardId: "",
-      captureResultAnchor: "",
-    });
+    this._showTab(target, { notice: "", error: "", expandedCardId: "" });
     if (target === "settings") void this.probeAccountCapabilities();
     if (["settings", "world"].includes(target)) this.syncQuietly();
     this._refresh();
   },
+  _showTab(tab, patch = {}) {
+    const previous = this.data.tab;
+    if (previous === tab) return this.setData(patch);
+    this._workspaceScrollByTab ||= {};
+    const position = this._scrollTop || 0;
+    this._workspaceScrollByTab[previous] = position;
+    this.setData({ ...patch, tab, captureResultAnchor: "", dragScrollTop: position }, () =>
+      this.setData({ dragScrollTop: this._workspaceScrollByTab[tab] || 0 }),
+    );
+  },
   closeSettings() {
-    this.setData({
-      tab: ["world", "ddl"].includes(this.data.settingsReturnTab)
-        ? this.data.settingsReturnTab
-        : "capture",
-    });
+    const tab = this.data.settingsReturnTab || "capture";
+    this._showTab(tab, { error: "", notice: "" });
     this._refresh();
   },
   openAiSettings() {
@@ -1284,7 +1324,7 @@ Page({
     if (this.data.tab !== "settings")
       this.setData({ settingsReturnTab: this.data.tab });
     this._stopSkinInteraction();
-    this.setData({ tab: "settings", showAiGuide: true, selected: null });
+    this._showTab("settings", { selected: null, error: "", notice: "" });
     if (this.data.connected) return this.refreshAiStatus();
   },
   toggleAiGuide() {
@@ -1301,6 +1341,7 @@ Page({
       )
         throw new Error("该地址不是兼容的拾序同步服务");
       this.setData({ capabilities: status.capabilities || {} });
+      this._acknowledge("AI 状态已刷新");
     } catch (error) {
       this._error(error);
     } finally {
@@ -1363,6 +1404,14 @@ Page({
   _sync({ interactive = false, details = false } = {}) {
     if (this._syncing) return this._syncing;
     if (!this._client || this.data.localMode) return Promise.resolve(false);
+    if (this.data.passwordChangeRequired) {
+      if (interactive) this._acknowledge("请在设置中修改临时密码后同步");
+      return Promise.resolve(false);
+    }
+    if (this.data.authExpired) {
+      if (interactive) this._acknowledge("请在设置中重新登录账号");
+      return Promise.resolve(false);
+    }
     const wait = Math.ceil(((this._syncRetryAt || 0) - Date.now()) / 1000);
     if (this.data.offline || wait > 0) {
       if (interactive)
@@ -1377,7 +1426,7 @@ Page({
     return this._syncing;
   },
   _rememberRateLimit(error) {
-    if (error.status !== 429) return false;
+    if (error.status !== 429 || (error.code && error.code !== "RATE_LIMIT")) return false;
     const seconds = Math.max(1, Math.min(60, error.retryAfterSeconds || 30));
     this._syncRetryAt = Date.now() + seconds * 1000;
     return true;
@@ -1444,7 +1493,7 @@ Page({
     }
   },
   syncQuietly() {
-    if (this._client && !this.data.localMode && !this.data.connecting)
+    if (this._client && !this.data.localMode && !this.data.connecting && !this.data.authExpired)
       return this._sync();
   },
   submit() {
@@ -1558,11 +1607,7 @@ Page({
     this._refresh();
   },
   onCardAction(event) {
-    if (
-      this._drag ||
-      (this._dragJustEndedAt && Date.now() - this._dragJustEndedAt < 350)
-    )
-      return;
+    if (this._drag || (this._dragJustEndedAt && Date.now() - this._dragJustEndedAt < 350)) return;
     const { action, id } = event.currentTarget.dataset;
     const allowed = [
       "toggleCard",
@@ -1602,10 +1647,10 @@ Page({
   },
   openItem(event) {
     if (this._blockDragTap()) return;
+    const selected = this._presentDetail(this._detail(event.currentTarget.dataset.id));
+    if (!selected) return this._error(Error("事项已更新，请刷新后再试"));
     this.setData({
-      selected: this._presentDetail(
-        this._detail(event.currentTarget.dataset.id),
-      ),
+      selected,
       editing: false,
       addition: "",
       chatInput: "",
@@ -1658,7 +1703,10 @@ Page({
         selected: row,
         addition: "",
         error: "",
-        ...this._editFields(row),
+        notice: "",
+        detailAnchor: "",
+        detailScrollTop: 0,
+        ...this._beginEditState(row),
       });
     } catch (error) {
       this._error(error);
@@ -1668,16 +1716,17 @@ Page({
     try {
       const title = this.data.ddlTitle.trim();
       if (!title) throw new Error("请填写事项标题");
-      let due;
-      try {
-        due = parseDeadline(
-          this.data.ddlDate,
-          localDay(),
-          this.data.ddlTime.trim(),
-        );
-      } catch {
-        due = null;
+      const date = this.data.ddlDate.trim(), time = this.data.ddlTime.trim();
+      if (time && !date) throw Error("填写时刻时也请填写截止日期");
+      let due = null;
+      if (date) {
+        try {
+          due = parseDeadline(date, localDay(), time);
+        } catch (error) {
+          if (time) throw error;
+        }
       }
+      if (time && !due) throw Error("没能识别截止时间，请核对日期或时刻");
       const id = makeId(),
         itemId = makeId(),
         text = `${title}；截止 ${this.data.ddlDate} ${this.data.ddlTime}；${this.data.ddlRequirements}`;
@@ -1714,10 +1763,11 @@ Page({
         ddlDate: "",
         ddlTime: "",
         ddlRequirements: "",
-        notice: "DDL 已补充",
+        ddlAddOpen: false,
       });
       this._refresh();
       this.syncQuietly();
+      this._acknowledge(due ? "DDL 已添加" : "DDL 已添加，日期待确认");
     } catch (error) {
       this._error(error);
     }
@@ -1762,18 +1812,21 @@ Page({
     if (scope) this.setScope({ currentTarget: { dataset: { scope } } });
   },
   chooseGroup(event) {
-    const group = this.data.groupChoices[Number(event.detail.value)];
-    this.setData({ group: group === "全部分组" ? "" : group, limit: 60 });
+    const index = Number(event.detail.value);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.groupChoices.length) return;
+    this.setData({ group: index === 0 ? "" : this.data.groupChoices[index], limit: 60 });
     this._refreshWorld();
   },
   setScope(event) {
     const scope = event.currentTarget.dataset.scope;
+    if (!["active", "done", "trash"].includes(scope)) return;
     this.setData({
       scope,
       scopeIndex: ["active", "done", "trash"].indexOf(scope),
       kind: "all",
       kindIndex: 0,
-      showDeleted: scope === "trash",
+      group: "",
+      expandedCardId: "",
       limit: 60,
     });
     this._refresh();
@@ -1822,7 +1875,7 @@ Page({
     this._refresh();
   },
   toggleRecords() {
-    this.setData({ recordsOpen: !this.data.recordsOpen });
+    this.setData({ recordsOpen: !this.data.recordsOpen, error: "", notice: "" });
   },
   recordPage(event) {
     const next =
@@ -1867,10 +1920,13 @@ Page({
       );
       this.setData({ checkingId: row.id });
       await new Promise((resolve) => setTimeout(resolve, 180));
-      if (row.kind !== "habit") {
+      if (row.kind !== "habit" && !this.data.selected && this.data.tab !== "capture") {
         this.setData({ leavingId: row.id });
         await new Promise((resolve) => setTimeout(resolve, 160));
       }
+      this._acknowledge(row.kind === "habit"
+        ? row.checked ? "已撤销今日打卡" : "今日打卡已记录"
+        : row.done ? "已移回待处理" : "已标记完成");
     } catch (error) {
       this._error(error);
     } finally {
@@ -1883,7 +1939,9 @@ Page({
     if (this._blockDragTap()) return;
     try {
       const row = this._detail(event.currentTarget.dataset.id);
+      if (!row || row.deleted) throw Error("事项已更新，请刷新后再试");
       this._changeItem(row.id, { starred: !row.starred });
+      this._acknowledge(row.starred ? "已取消星标" : "已添加星标");
     } catch (error) {
       this._error(error);
     }
@@ -1896,6 +1954,7 @@ Page({
       this.setData({ sort: "priority", sortIndex: 0 });
       this._changeItem(row.id, { pinned: !row.pinned });
       this.setData({
+        error: "",
         notice: row.pinned ? "已取消置顶" : "已置顶，世界已切换为优先处理",
       });
     } catch (error) {
@@ -1928,6 +1987,7 @@ Page({
         deletedAt: new Date().toISOString(),
       });
       this.closeItem();
+      this._acknowledge("已移入最近删除");
     } catch (error) {
       this._error(error);
     }
@@ -1937,6 +1997,7 @@ Page({
       const row = this._detail(event.currentTarget.dataset.id);
       if (row.packetDeleted) this._client.restore(row.packetId);
       else this._changeItem(row.id, { deletedAt: "" });
+      this._acknowledge(row.packetDeleted ? "整次投递已恢复" : "事项已恢复");
       this._refresh();
       this.syncQuietly();
     } catch (error) {
@@ -1976,6 +2037,7 @@ Page({
         if (!answer.confirm) return;
         try {
           this._client.purge(id);
+          this._acknowledge("投递已永久删除");
           this._refresh();
           this.syncQuietly();
         } catch (error) {
@@ -1995,9 +2057,15 @@ Page({
       editKind: Object.keys(KINDS).indexOf(row.kind),
     };
   },
+  _beginEditState(row) {
+    const fields = this._editFields(row);
+    this._editingBaseline = { fields, item: JSON.stringify(row.item), group: row.group, id: row.id };
+    return fields;
+  },
   beginEdit() {
     const row = this.data.selected;
-    if (row && !row.deleted) this.setData(this._editFields(row));
+    if (row && !row.deleted)
+      this.setData({ ...this._beginEditState(row), error: "", notice: "", detailAnchor: "", detailScrollTop: 0 });
   },
   onEdit(event) {
     const field = event.currentTarget.dataset.field;
@@ -2019,38 +2087,36 @@ Page({
     this.setData({ editKind: Number(event.detail.value) });
   },
   cancelEdit() {
-    this.setData({ editing: false });
+    this.setData({ editing: false, error: "", notice: "" });
   },
   saveEdit() {
     try {
-      const row = this._detail(this.data.selected.id),
-        record = this._record(row.packetId),
-        title = this.data.editTitle.trim();
-      if (!title || title.length > 150) throw new Error("标题应为 1 至 150 字");
-      const due = this.data.editDate.trim()
-        ? parseDeadline(
-            this.data.editDate,
-            localDay(),
-            this.data.editTime.trim(),
-          )
-        : null;
+      const row = this._detail(this.data.selected?.id);
+      if (!row || row.deleted) throw Error("事项已更新，请重新打开");
+      const record = this._record(row.packetId),
+        title = this.data.editTitle.trim(),
+        group = this.data.editGroup.trim(),
+        baseline = this._editingBaseline?.id === row.id ? this._editingBaseline : null;
+      if (baseline && (baseline.item !== JSON.stringify(row.item) || baseline.group !== row.group))
+        throw Error("事项已在另一处更新。请复制未保存的文字，再取消并重新编辑");
+      if (!title || title.length > 150) throw Error("标题应为 1 至 150 字");
+      const kind = Object.keys(KINDS)[this.data.editKind];
+      if (!kind) throw Error("请选择事项类型");
+      const date = this.data.editDate.trim(),
+        time = this.data.editTime.trim(),
+        initial = baseline?.fields || this._editFields(row),
+        dateChanged = date !== initial.editDate || time !== initial.editTime;
+      if (dateChanged && time && !date) throw Error("填写时刻时也请填写截止日期");
       const previous = record.data.result.items[row.index];
-      const next = setDeadline(
-        {
-          ...previous,
-          title: absoluteItem(
-            { ...previous, title, summary: this.data.editSummary.trim() },
-            localDay(),
-          ).title,
-          summary: absoluteItem(
-            { ...previous, title, summary: this.data.editSummary.trim() },
-            localDay(),
-          ).summary,
-          kind: Object.keys(KINDS)[this.data.editKind],
-        },
-        due,
-        record.data.captureDate,
+      const fields = absoluteItem(
+        { ...previous, title, summary: this.data.editSummary.trim(), kind }, localDay(),
       );
+      let next = { ...previous, title: fields.title, summary: fields.summary, kind };
+      if (dateChanged) {
+        const due = date ? parseDeadline(date, localDay(), time) : null;
+        if (date && !due) throw Error("没能识别截止时间，请核对日期或时刻");
+        next = setDeadline(next, due, record.data.captureDate);
+      }
       const history = [
         ...(row.meta.history || []),
         ...["title", "summary", "kind", "due"]
@@ -2072,8 +2138,13 @@ Page({
           i === row.index ? next : item,
         ),
       };
+      if (JSON.stringify(previous) === JSON.stringify(next) && group === row.group) {
+        this.cancelEdit();
+        this._acknowledge("事项没有改动");
+        return;
+      }
       const patch = statePatch(record.data, row, {
-        group: this.data.editGroup.trim(),
+        group,
         history,
         corrected: true,
       });
@@ -2081,6 +2152,7 @@ Page({
       this.setData({ editing: false });
       this._refresh();
       this.syncQuietly();
+      this._acknowledge("修改已保存");
     } catch (error) {
       this._error(error);
     }
@@ -2089,7 +2161,7 @@ Page({
     try {
       const row = this._detail(this.data.selected.id),
         text = this.data.addition.trim();
-      if (!text) return;
+      if (!text) throw Error("请先写下补充内容");
       this._changeItem(row.id, {
         additions: [
           ...(row.meta.additions || []),
@@ -2097,6 +2169,7 @@ Page({
         ],
       });
       this.setData({ addition: "" });
+      this._acknowledge("补充已保存");
     } catch (error) {
       this._error(error);
     }
@@ -2168,8 +2241,8 @@ Page({
       editable: true,
       placeholderText: "输入事项标题",
       success: (answer) => {
-        if (!answer.confirm || !answer.content || !answer.content.trim())
-          return;
+        if (!answer.confirm) return;
+        if (!answer.content?.trim()) return this._error(Error("请填写事项标题"));
         try {
           const row = this._record(id);
           if (!row || row.deletedAt) throw new Error("请先恢复投递");
@@ -2203,6 +2276,7 @@ Page({
           });
           this._refresh();
           this.syncQuietly();
+          this._acknowledge("事项已创建，可在世界查看");
         } catch (error) {
           this._error(error);
         }
@@ -2210,14 +2284,19 @@ Page({
     });
   },
   copySource() {
-    if (this.data.selected)
-      wx.setClipboardData({
-        data: this._record(this.data.selected.packetId).data.text,
-      });
+    if (this.data.selected) this._copyText(this._record(this.data.selected.packetId)?.data?.text);
   },
   copyRecord(event) {
     const row = this._record(event.currentTarget.dataset.id);
-    if (row) wx.setClipboardData({ data: row.data.text || "" });
+    if (row) this._copyText(row.data?.text);
+  },
+  _copyText(text) {
+    if (!text?.trim()) return this._error(Error("没有可复制的文字"));
+    if (!wx.setClipboardData) return this._error(Error("当前微信环境无法访问剪贴板"));
+    wx.setClipboardData({
+      data: text,
+      fail: () => this._error(Error("未能复制，请长按文字手动复制")),
+    });
   },
   async probeAccountCapabilities() {
     if (this.data.accountProbeChecking || typeof wx.request !== "function") return;
@@ -2247,11 +2326,29 @@ Page({
       this.setData({ accountProbeChecking: false });
     }
   },
+  toggleAccountForm() {
+    this.setData({ showAccountForm: !this.data.showAccountForm, switchAccountOpen: false, accountPassword: "", loginDevices: [] });
+  },
+  toggleAccountSwitch() {
+    this.setData({
+      switchAccountOpen: !this.data.switchAccountOpen,
+      showAccountForm: false,
+      credentialMode: "login",
+      accountUsername: this.data.activeAccountName,
+      accountPassword: "",
+      loginDevices: [],
+    });
+  },
+  chooseCredentialMode(event) {
+    const mode = event.currentTarget.dataset.mode;
+    if (!["login", "register"].includes(mode)) return;
+    this.setData({ credentialMode: mode, password: "", loginDevices: [], error: "", notice: "" });
+  },
   onAccountField(event) {
     this.setData({ [event.currentTarget.dataset.field]: event.detail.value });
   },
   async credentialAction(event) {
-    if (this.data.connecting || this.data.syncing || this.data.filesBusy || this.data.jobBusy) return;
+    if (this.data.connecting || this.data.syncing || this.data.filesBusy || this.data.jobBusy || this.data.accountAction) return;
     let operationState;
     const { action, replace } = event.currentTarget.dataset;
     if (replace) {
@@ -2267,7 +2364,9 @@ Page({
     }
     this.setData({ connecting: true, error: "" });
     try {
-      if (this._connection && this._client.pendingCount())
+      const current = this._connection;
+      const keepPending = current && this._client.pendingCount() > 0;
+      if (keepPending && action !== "claim" && (!this.data.authExpired || action === "register"))
         throw Error("请先同步待传操作，再切换账号");
       const operationKey = "shixu:mini:auth-operations:v1",
         operations = wx.getStorageSync(operationKey) || {};
@@ -2288,6 +2387,8 @@ Page({
         this._connection,
       );
       if (action !== "claim") {
+        if (current && current.userId !== connection.userId && this._client.pendingCount())
+          throw Error("请先重新登录当前账号，上传未同步的修改后再切换");
         const previous = wx.getStorageSync(stateKey(spaceKey(connection)));
         if (previous?.epoch && previous.epoch !== connection.epoch)
           throw Error("账号资料版本变化，本机队列已保留");
@@ -2303,7 +2404,9 @@ Page({
         accountPassword: "",
         password: "",
         loginDevices: [],
-        notice: "账号已连接，本机原空间资料保留",
+        showAccountForm: false,
+        switchAccountOpen: false,
+        notice: action === "claim" ? "账号密码已设置" : "账号已连接，本机资料已保留",
       });
       delete operations[key];
       wx.setStorageSync(operationKey, operations);
@@ -2324,34 +2427,51 @@ Page({
             lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
           })),
         });
-      this._error(error);
+      this._error(error, { session: action === "claim" });
     } finally {
       this.setData({ connecting: false });
     }
   },
   async revokeAccountDevice(event) {
+    if (this.data.accountAction || this.data.connecting || this.data.authExpired || !this._transport) return;
     const id = event.currentTarget.dataset.id;
-    const answer = await new Promise((resolve) =>
-      wx.showModal({
-        title: "撤销设备",
-        content: "该设备立即失去云端访问权限，本地副本保留。",
-        success: resolve,
-        fail: () => resolve({ confirm: false }),
-      }),
-    );
-    if (!answer.confirm) return;
+    this.setData({ accountAction: id });
     try {
-      await this._transport("POST", `/api/v4/devices/${id}/revoke`, {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "撤销设备",
+          content: "该设备会失去云端访问权限，本地副本保留。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
+      await this._transport("POST", `/api/v4/devices/${encodeURIComponent(id)}/revoke`, {
         contractVersion: 1,
         operationId: makeId(),
       });
+      this.setData({ accountDevices: this.data.accountDevices.filter((device) => device.id !== id) });
+      this._acknowledge("设备已撤销");
       await this.sync();
     } catch (error) {
       this._error(error);
+    } finally {
+      this.setData({ accountAction: "" });
     }
   },
   async changeAccountPassword() {
+    if (this.data.accountAction || this.data.connecting || this.data.authExpired || !this._transport) return;
+    this.setData({ accountAction: "password" });
     try {
+      const answer = await new Promise((resolve) =>
+        wx.showModal({
+          title: "修改密码并撤销现有设备？",
+          content: "修改后，需要在手机和 Windows 上重新登录。",
+          success: resolve,
+          fail: () => resolve({ confirm: false }),
+        }),
+      );
+      if (!answer.confirm) return;
       await this._transport("POST", "/api/v4/auth/password", {
         contractVersion: 1,
         operationId: makeId(),
@@ -2362,10 +2482,20 @@ Page({
       this.setData({
         accountPassword: "",
         accountNewPassword: "",
-        activationState: "密码已修改，所有设备已撤销，请重新登录",
+        accountDevices: [],
+        authExpired: true,
+        passwordChangeRequired: false,
+        showAccountForm: true,
+        credentialMode: "login",
+        activationState: "密码已修改，请使用新密码重新登录",
+        accountAiState: "重新登录后可查看云端 AI 状态",
+        syncStatus: "设备已撤销，等待重新登录",
       });
+      this._acknowledge("密码已修改，请重新登录");
     } catch (error) {
       this._error(error);
+    } finally {
+      this.setData({ accountAction: "" });
     }
   },
   _organizeJob(packetId) {
@@ -2474,7 +2604,8 @@ Page({
               request,
             );
           } catch (error) {
-            if ([401, 403, 404, 409, 422, 426, 503].includes(error.status))
+            if ([401, 403, 404, 409, 422, 426, 503].includes(error.status) ||
+                (error.status === 429 && !this._rememberRateLimit(error)))
               this._saveJobs(
                 this._jobs.map((j) =>
                   j.id === saved.id
@@ -2527,7 +2658,8 @@ Page({
                   `${saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs"}/${saved.id}`,
                 );
         } catch (error) {
-          if ([400, 403, 404, 409, 413, 422, 503].includes(error.status)) {
+          if ([400, 403, 404, 409, 413, 422, 503].includes(error.status) ||
+              (error.status === 429 && !this._rememberRateLimit(error))) {
             this._saveJobs(
               this._jobs.map((j) =>
                 j.id === saved.id
@@ -2552,7 +2684,7 @@ Page({
   async _startJob(kind, packetId, itemId, instruction) {
     if (this.data.jobBusy) return;
     if (this.data.localMode) {
-      this.openAiSettings();
+      if (kind !== "chat") this.openAiSettings();
       this._error(
         new Error("请先连接配置了 AI 的同步服务，并导入这次本机投递"),
       );
@@ -2584,7 +2716,6 @@ Page({
           ? this.data.capabilities.itemChat
           : this.data.capabilities.aiOrganize)
       ) {
-        this.openAiSettings();
         throw new Error("服务器尚未启用此 AI 能力，原文和事项已保留");
       }
       this._requireMaterialConsent();
@@ -2607,7 +2738,6 @@ Page({
       };
       const entry = {
         id: request.id,
-        createdAt: new Date().toISOString(),
         request,
         state: "submitting",
         error: "",
@@ -2642,7 +2772,7 @@ Page({
   },
   showDelivery(event) {
     const id = event.currentTarget.dataset.id;
-    this.setData({ tab: "capture", recordsOpen: false, currentCaptureId: id, captureResultAnchor: "" });
+    this._showTab("capture", { recordsOpen: false, currentCaptureId: id, captureResultAnchor: "" });
     this._refresh();
     this.setData({ captureResultAnchor: "capture-result" });
   },
@@ -2654,7 +2784,8 @@ Page({
     if (!notice || !this._connection) return;
     try {
       wx.setStorageSync("material-use:" + spaceKey(this._connection), notice.version);
-      this.setData({ materialConsentAccepted: true, error: "" });
+      this.setData({ materialConsentAccepted: true });
+      this._acknowledge("已确认资料用途和保存期限");
     } catch (error) { this._error(error); }
   },
   async taskPreview(event) {
@@ -2711,6 +2842,7 @@ Page({
       await this._pollJobs();
       await this.sync();
       this._refresh();
+      this._acknowledge("任务状态已更新");
     } catch (error) {
       this._error(error);
     } finally {
@@ -2727,7 +2859,7 @@ Page({
       (j) => j.id === event.currentTarget.dataset.id,
     );
     if (job && job.output)
-      wx.setClipboardData({ data: JSON.stringify(job.output, null, 2) });
+      this._copyText(JSON.stringify(job.output, null, 2));
   },
   _loadSkins() {
     const collection = this._skinCollection || {
@@ -2763,14 +2895,23 @@ Page({
   _skinPath(skin) {
     if (!wx.env || !wx.getFileSystemManager) return skin.image;
     const match = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(skin.image);
+    if (!match) return "/assets/mascot.png";
     const file = `${wx.env.USER_DATA_PATH}/shixu-${skin.id}.${match[1]}`;
     // Local files keep eight custom images from overflowing WeChat's setData limit.
-    wx.getFileSystemManager().writeFileSync(file, match[2], "base64");
-    return file;
+    this._skinImageWrites ||= new Map();
+    if (this._skinImageWrites.get(file) === skin.image) return file;
+    try {
+      wx.getFileSystemManager().writeFileSync(file, match[2], "base64");
+      this._skinImageWrites.set(file, skin.image);
+      return file;
+    } catch {
+      return "/assets/mascot.png";
+    }
   },
   openSkins() {
     this._stopSkinInteraction();
     this.setData({
+      error: "", notice: "",
       skinOpen: true,
       previewSkin: this.data.activeSkin,
       skinMessage: this.data.activeSkin.hello,
@@ -2793,7 +2934,9 @@ Page({
     );
     if (!s) return;
     try {
+      if (this.data.activeSkin.id === s.id) return this._acknowledge("当前正在使用这款皮肤");
       this._saveSkins({ ...this._skinCollection, selected: s.id });
+      this._acknowledge("已换用" + s.name);
     } catch (error) {
       this._error(error);
     }
@@ -3051,12 +3194,15 @@ Page({
     });
   },
   chooseSkinImage() {
+    if (!wx.chooseMedia || !wx.getFileSystemManager) return this._error(Error("当前微信环境无法选择图片"));
+    const editingId = this.data.skinForm.id;
     wx.chooseMedia({
       count: 1,
       mediaType: ["image"],
       sourceType: ["album", "camera"],
       success: (answer) => {
-        const file = answer.tempFiles[0];
+        const file = answer.tempFiles?.[0];
+        if (!file) return;
         if (file.size > 250000) {
           this._error(new Error("请选择小于 250 KB 的 PNG、JPG 或 WebP 图片"));
           return;
@@ -3065,6 +3211,7 @@ Page({
           filePath: file.tempFilePath,
           encoding: "base64",
           success: (result) => {
+            if (!this.data.skinEditor || this.data.skinForm.id !== editingId) return;
             const type = /\.png$/i.test(file.tempFilePath)
               ? "png"
               : /\.webp$/i.test(file.tempFilePath)
@@ -3079,6 +3226,9 @@ Page({
           },
           fail: () => this._error(new Error("图片读取失败")),
         });
+      },
+      fail: (error) => {
+        if (!/cancel/i.test(error?.errMsg || "")) this._error(Error("未能打开相册或相机"));
       },
     });
   },
@@ -3100,6 +3250,7 @@ Page({
         throw new Error("请添加图片，名称不超过 20 字，台词应为 1 至 40 字");
       this._saveSkins(candidate);
       this.setData({ skinEditor: false });
+      this._acknowledge("自定义皮肤已保存并应用");
     } catch (error) {
       this._error(error);
     }
@@ -3120,6 +3271,7 @@ Page({
                 : this._skinCollection.selected,
             custom: this._skinCollection.custom.filter((s) => s.id !== id),
           });
+          this._acknowledge("自定义皮肤已删除");
         } catch (error) {
           this._error(error);
         }
@@ -3129,6 +3281,7 @@ Page({
   remove(event) {
     try {
       this._client.remove(event.currentTarget.dataset.id);
+      this._acknowledge("投递已移入最近删除");
       this._refresh();
       this.syncQuietly();
     } catch (error) {
@@ -3138,6 +3291,7 @@ Page({
   restore(event) {
     try {
       this._client.restore(event.currentTarget.dataset.id);
+      this._acknowledge("投递及事项已恢复");
       this._refresh();
       this.syncQuietly();
     } catch (error) {
@@ -3152,6 +3306,7 @@ Page({
         if (result.tapIndex === 0) {
           try {
             this._client.keepLocalCopy(id);
+            this._acknowledge("已将本机修改另存一份");
             this._refresh();
             this.syncQuietly();
           } catch (error) {
@@ -3165,6 +3320,7 @@ Page({
               if (!answer.confirm) return;
               try {
                 this._client.acceptRemote(id);
+                this._acknowledge("已采用服务器版本");
                 this._refresh();
               } catch (error) {
                 this._error(error);

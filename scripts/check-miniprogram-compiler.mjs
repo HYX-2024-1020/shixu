@@ -92,6 +92,9 @@ vm.runInNewContext(readFileSync(pageFile, "utf8"), {
     showModal: (o) => o.success({ confirm: true, content: "编译器验收事项" }),
   },
 });
+const sourceTemplate = readFileSync(join(mini, "pages/index/index.wxml"), "utf8");
+for (const [, handler] of sourceTemplate.matchAll(/(?:bindtap|catchtap)="(\w+)"/g))
+  assert.equal(typeof definition[handler], "function", `template action ${handler}`);
 const page = {
   ...definition,
   data: structuredClone(definition.data),
@@ -160,7 +163,21 @@ assert.ok(
   view().some((n) => n.attr?.["data-action"] === "openItem"),
   "detail is available before expanding",
 );
-page.toggleCard({ currentTarget: { dataset: { id: page.data.items[0].id } } });
+const foldingId = page.data.items[0].id;
+const findChevron = () => view().find((node) =>
+  node.attr?.class?.includes("xc-chevron ") && node.attr?.["data-id"] === foldingId);
+const hasExpandedBody = () => view().some((node) => node.attr?.class === "xc-expanded");
+assert.equal(hasExpandedBody(), false);
+assert.ok(!findChevron().attr.class.includes("xc-chevron-open"));
+const pressChevron = () => page[findChevron().attr.bindtap]({
+  currentTarget: { dataset: { id: foldingId, action: "toggleCard" } },
+});
+pressChevron();
+assert.equal(hasExpandedBody(), true);
+assert.ok(findChevron().attr.class.includes("xc-chevron-open"));
+pressChevron();
+assert.equal(hasExpandedBody(), false);
+pressChevron();
 assert.ok(
   view().some(
     (node) =>

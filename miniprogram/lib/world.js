@@ -94,6 +94,7 @@ function itemsFor(records) {
             ...(item.facts || []),
             p.text,
             ...(p.sources || []).map((s) => s.name + " " + s.text),
+            ...(p.attachments || []).filter((file) => !file.deletedAt).map((file) => file.name),
             ...(meta.additions || []).map((a) => a.text),
           ]
             .join(" ")
@@ -122,13 +123,10 @@ function worldView(records, options = {}) {
         count: scoped.filter((r) => r.kind === key).length,
       })),
   ];
-  const filtered = all.filter(
+  const query = (options.query || "").trim().toLowerCase();
+  const filtered = scoped.filter(
     (r) =>
-      (scope === "trash"
-        ? r.deleted
-        : !r.deleted && (scope === "done" ? r.done : !r.done)) &&
-      (!options.query ||
-        r.search.includes(options.query.trim().toLowerCase())) &&
+      (!query || r.search.includes(query)) &&
       (!options.kind || options.kind === "all" || options.kind === r.kind) &&
       (!options.starOnly || r.starred) &&
       (!options.group || options.group === r.group) &&
@@ -144,24 +142,26 @@ function worldView(records, options = {}) {
                 Date.parse(r.date) - Date.parse(day) < 7 * 86400000))),
   );
   filtered.sort((a, b) => compareItems(a, b, options.sort || "priority", day));
-  const limit = options.limit || 60;
+  const items = filtered.slice(0, options.limit || 60);
+  const groups = new Map();
+  for (const row of items) {
+    if (!groups.has(row.group)) groups.set(row.group, []);
+    groups.get(row.group).push(row);
+  }
   return {
     categories,
-    items: filtered.slice(0, limit),
+    items,
     matched: filtered.length,
     total: all.filter((r) => !r.deleted).length,
     active: all.filter((r) => !r.deleted && !r.done).length,
     done: all.filter((r) => !r.deleted && r.done).length,
     groups: [
-      ...new Set(all.filter((r) => !r.deleted && r.group).map((r) => r.group)),
+      ...new Set(scoped.filter((r) => r.group).map((r) => r.group)),
     ],
-    sections: [
-      ...new Set(filtered.slice(0, limit).map((r) => r.group || "未分组")),
-    ].map((title) => ({
-      title,
-      items: filtered
-        .slice(0, limit)
-        .filter((r) => (r.group || "未分组") === title),
+    sections: [...groups].map(([group, rows]) => ({
+      key: group ? "group:" + group : "ungrouped",
+      title: group || "未分组",
+      items: rows,
     })),
   };
 }

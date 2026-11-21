@@ -106,6 +106,8 @@ test("AI entry explains server configuration and refreshes capability without mo
   const { page, store } = fixture();
   page.openAiSettings();
   assert.equal(page.data.tab, "settings");
+  assert.equal(page.data.showAiGuide, false);
+  page.toggleAiGuide();
   assert.equal(page.data.showAiGuide, true);
   assert.equal(page.data.connected, false);
   page.setData({ connected: true });
@@ -565,7 +567,12 @@ test("DDL creates grounded dates, infers omitted clocks, shares completion, and 
   assert.equal(page.data.editing, true);
   page.setData({ editDate: "2026-12-31", editTime: "" });
   page.saveEdit();
-  assert.equal(itemsFor(page._client.records())[0].time, "23:59");
+  const inferred = itemsFor(page._client.records())[0].item.due;
+  assert.equal(inferred.time, "23:59");
+  page.beginEdit();
+  page.setData({ editTitle: "只修改标题" });
+  page.saveEdit();
+  assert.deepEqual(itemsFor(page._client.records())[0].item.due, inferred);
   await page.toggleDone(event(row.id));
   assert.equal(page.data.ddlDone.length, 1);
   assert.equal(page.data.ddlCount, 0);
@@ -1555,6 +1562,8 @@ test("card filenames preserve active originals and metadata while hiding soft-de
     ],
   );
   assert.ok(rows[0].item);
+  assert.equal(worldView([{ id: p.id, data: p }], { query: "实验要求.pdf" }).matched, rows.length);
+  assert.equal(worldView([{ id: p.id, data: p }], { query: "已删除.png" }).matched, 0);
 });
 
 test("a whole-card short touch routes actions, but the release from a lifted card cannot activate a control", () => {
@@ -1768,7 +1777,7 @@ test("notices and status strips live inside the main scroll region", () => {
   for (const content of [
     "{{originalNotice}}",
     'class="job-strip"',
-    "拾序小程序 · 开发版",
+    "拾序小程序 · 集中调试预览",
   ]) {
     const position = xml.indexOf(content);
     assert.ok(position > -1 && position < scrollEnd, `${content} must scroll`);
