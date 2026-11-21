@@ -55,6 +55,7 @@ function pageFixture({
   failWrite = () => false,
   app = { globalData: { updateReady: true } },
   confirm = false,
+  request,
 } = {}) {
   let definition,
     applies = 0;
@@ -79,6 +80,7 @@ function pageFixture({
         if (failWrite(key, value)) throw new Error("disk full");
         store.set(key, structuredClone(value));
       },
+      request,
       onNetworkStatusChange() {},
       offNetworkStatusChange() {},
       getAccountInfoSync: () => ({ miniProgram: { envVersion: "develop" } }),
@@ -99,6 +101,25 @@ function pageFixture({
   page.onLoad();
   return { page, store, applied: () => applies };
 }
+test("account capability detection separates a blocked domain from a legacy service", async () => {
+  let reply = ({ fail }) => fail({ errMsg: "request:fail url not in domain list" });
+  const { page } = pageFixture({ request: (options) => reply(options) });
+
+  await page.probeAccountCapabilities();
+  assert.match(page.data.accountProbeError, /request 合法域名/);
+  assert.equal(page.data.legacyAccountActivation, false);
+
+  reply = ({ success }) => success({ statusCode: 200, data: { features: { registration: true } } });
+  await page.probeAccountCapabilities();
+  assert.equal(page.data.accountProbeError, "");
+  assert.equal(page.data.passwordAccounts, true);
+  assert.equal(page.data.legacyAccountActivation, false);
+
+  reply = ({ success }) => success({ statusCode: 404, data: {} });
+  await page.probeAccountCapabilities();
+  assert.equal(page.data.passwordAccounts, false);
+  assert.equal(page.data.legacyAccountActivation, true);
+});
 test("a failed draft clear reuses the durable capture ID after restart", () => {
   let full = false;
   const fixture = pageFixture({

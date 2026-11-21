@@ -201,6 +201,9 @@ Page({
     loginDevices: [],
     accountDevices: [],
     passwordAccounts: false,
+    legacyAccountActivation: false,
+    accountProbeChecking: false,
+    accountProbeError: "",
     accountClaimed: false,
     jobLabels: {
       submitting: "正在提交",
@@ -2002,17 +2005,31 @@ Page({
     if (row) wx.setClipboardData({ data: row.data.text || "" });
   },
   async probeAccountCapabilities() {
-    if (typeof wx.request !== "function") return;
+    if (this.data.accountProbeChecking || typeof wx.request !== "function") return;
+    this.setData({ accountProbeChecking: true, accountProbeError: "" });
     try {
       const capability = await createTransport(
         accountServiceOrigin(wx),
         () => null,
+        wx,
       )("GET", "/api/v4/capabilities");
+      const passwordAccounts = capability.features?.registration === true;
+      this.setData({ passwordAccounts, legacyAccountActivation: !passwordAccounts });
+    } catch (error) {
+      if (error.status === 404) {
+        this.setData({ passwordAccounts: false, legacyAccountActivation: true });
+        return;
+      }
+      const messages = {
+        REQUEST_DOMAIN_NOT_ALLOWED: "微信未允许访问同步域名，请在小程序后台配置 request 合法域名。",
+        REQUEST_TIMEOUT: "连接同步服务超时，请检查网络后重试。",
+      };
       this.setData({
-        passwordAccounts: capability.features?.registration === true,
+        legacyAccountActivation: false,
+        accountProbeError: messages[error.reason] || "暂时连不上同步服务，请重试。",
       });
-    } catch (_) {
-      /* Legacy/offline service keeps its existing activation UI. */
+    } finally {
+      this.setData({ accountProbeChecking: false });
     }
   },
   onAccountField(event) {

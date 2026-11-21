@@ -42,8 +42,14 @@ function createTransport(base, getToken, runtime = wx) {
               ),
             );
         },
-        fail() {
-          reject(new Error("暂时连不上服务，本机内容已保留"));
+        fail(error) {
+          const detail = error?.errMsg || "";
+          const reason = /not in domain list|not in legal domain|url domain/i.test(detail)
+            ? "REQUEST_DOMAIN_NOT_ALLOWED"
+            : /timeout|timed out/i.test(detail)
+              ? "REQUEST_TIMEOUT"
+              : "REQUEST_FAILED";
+          reject(Object.assign(new Error("暂时连不上服务，本机内容已保留"), { reason }));
         },
       });
     });
