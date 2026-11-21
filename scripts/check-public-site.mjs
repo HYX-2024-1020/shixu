@@ -32,6 +32,9 @@ const files = new Map([
   ["/404.html", "404.html"],
   ["/assets/site.css", "assets/site.css"],
   ["/assets/icon.svg", "assets/icon.svg"],
+  ...["bucket", "collect", "world", "source", "deadlines", "ddl"].map(
+    (name) => ["/assets/" + name + ".webp", "assets/" + name + ".webp"],
+  ),
   ["/robots.txt", "robots.txt"],
   ["/sitemap.xml", "sitemap.xml"],
 ]);
@@ -40,6 +43,7 @@ const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".webp": "image/webp",
   ".txt": "text/plain; charset=utf-8",
   ".xml": "application/xml",
 };
@@ -189,6 +193,13 @@ try {
       );
       return visible.length === 1 && visible[0].classList.contains(name);
     }, panel);
+    const capture = page.locator(`.${panel} .product-capture`);
+    assert(await capture.isVisible());
+    assert(
+      await capture.evaluate(
+        (image) => image.complete && image.naturalWidth > 0,
+      ),
+    );
   }
   await page.locator('label[for="flow-catch"]').click();
   await page.locator("#flow-catch").focus();
@@ -198,17 +209,15 @@ try {
   }
   assert(
     await page
-      .locator(".ice-stack i")
+      .locator(".marquee-track")
       .first()
-      .evaluate(
-        (el) => parseFloat(getComputedStyle(el).animationDuration) <= 0.001,
-      ),
+      .evaluate((el) => getComputedStyle(el).animationName === "none"),
     "Respect reduced motion",
   );
   await page.emulateMedia({ reducedMotion: "no-preference" });
   assert(
     await page
-      .locator(".ice-stack i")
+      .locator(".marquee-track")
       .first()
       .evaluate(
         (el) =>
