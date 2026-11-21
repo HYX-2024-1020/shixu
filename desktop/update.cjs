@@ -8,6 +8,7 @@ const { pipeline } = require("node:stream/promises");
 const repo = "HYX-2024-1020/shixu";
 const latest = "https://api.github.com/repos/" + repo + "/releases/latest";
 const releaseURL = "https://github.com/" + repo + "/releases/download/";
+const segmentBytes = 8 * 1024 * 1024;
 
 function selectUpdate(release, current) {
   const version = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(
@@ -96,22 +97,40 @@ class DesktopUpdate {
     return this.status();
   }
 
+  // Small requests also work on proxies that stall on a full installer response.
+  async *installerBytes({ url, size }, signal) {
+    for (let start = 0; start < size; start += segmentBytes) {
+      const end = Math.min(start + segmentBytes, size) - 1;
+      const response = await this.fetcher(url, {
+        redirect: "follow",
+        signal,
+        headers: { Range: "bytes=" + start + "-" + end },
+      }).catch(() => {
+        throw Error("无法连接安装包下载地址，请检查网络后重试");
+      });
+      const full = start === 0 && response.status === 200;
+      const segment =
+        response.status === 206 &&
+        response.headers.get("content-range") ===
+          "bytes " + start + "-" + end + "/" + size;
+      if ((!full && !segment) || !response.body) {
+        await response.body?.cancel();
+        throw Error("安装包下载不完整，请重试");
+      }
+      yield* Readable.fromWeb(response.body);
+      if (full) return;
+    }
+  }
+
   async download() {
     if (this.phase !== "available") return this.status();
     this.phase = "downloading";
     this.progress = 0;
     this.error = "";
-    const { url, size, digest } = this.candidate;
+    const { size, digest } = this.candidate;
     const partial = this.file + ".part";
     try {
       const signal = AbortSignal.timeout(600000);
-      const response = await this.fetcher(url, {
-        redirect: "follow",
-        signal,
-      }).catch(() => {
-        throw Error("无法连接安装包下载地址，请检查网络后重试");
-      });
-      if (!response.ok || !response.body) throw Error("暂时无法下载安装包");
       await mkdir(this.cache, { recursive: true });
       const hash = createHash("sha256");
       let count = 0;
@@ -125,7 +144,7 @@ class DesktopUpdate {
         },
       });
       await pipeline(
-        Readable.fromWeb(response.body),
+        Readable.from(this.installerBytes(this.candidate, signal)),
         track,
         createWriteStream(partial),
         { signal },
