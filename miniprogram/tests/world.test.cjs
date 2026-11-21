@@ -472,7 +472,7 @@ test("lost AI acknowledgement persists a stable request and retries it after pag
   }
   remote(p);
   await p.organizeRecord(event("p"));
-  assert.match(p.data.error, /response lost/);
+  assert.match(p.data.rows.find((row) => row.id === "p").organizeIssue, /response lost/);
   const saved = f.store.get("shixu:mini:jobs:v1:http://127.0.0.1:8788");
   assert.equal(saved[0].state, "submitting");
   const reopened = fixture({ store: f.store }).page;
@@ -502,7 +502,7 @@ test("AI job storage failure prevents transmission and preserves draft and packe
   rejectJobs = true;
   await p.organizeRecord(event("p"));
   assert.equal(calls, 0);
-  assert.match(p.data.error, /disk full/);
+  assert.match(p.data.rows.find((row) => row.id === "p").organizeIssue, /disk full/);
   assert.equal(p._client.records().length, 1);
 });
 test("filtering a manual reorder preserves every hidden slot", () => {
@@ -1593,7 +1593,7 @@ test("a whole-card short touch routes actions, but the release from a lifted car
   p.onUnload();
 });
 
-test("fox waits for its decoded resource package and ignores a late load after switching skins", () => {
+test("fox audio starts without the atlas and a late image event does not restart it", () => {
   let plays = 0;
   const audio = {
     onEnded() {},
@@ -1608,15 +1608,16 @@ test("fox waits for its decoded resource package and ignores a late load after s
   p.openSkins();
   p.previewSkin(event("bunny"));
   p.interactSkin();
-  assert.equal(plays, 0);
-  assert.equal(p._foxLoading, true);
+  assert.equal(plays, 1);
+  assert.equal(p.data.foxPreviewReady, false);
   p.previewSkin(event("ice"));
-  p.foxResourceReady();
-  assert.equal(plays, 0);
+  p.foxResourceReady({ currentTarget: { dataset: { preview: true } } });
+  assert.equal(plays, 1);
+  assert.equal(p.data.foxPreviewReady, false);
   assert.equal(p.data.skinAnimating, false);
   p.previewSkin(event("bunny"));
   p.interactSkin();
-  assert.equal(plays, 1);
+  assert.equal(plays, 2);
   p.onUnload();
 });
 

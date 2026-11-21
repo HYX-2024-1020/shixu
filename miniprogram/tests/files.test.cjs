@@ -364,7 +364,7 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
   assert.equal(f.page.data.connected, true);
   await f.page.importLocal();
   assert.equal(f.page.data.pendingFiles, 1);
-  assert.match(f.page.data.error, /原件/);
+  assert.match(f.page.data.syncStatus, /原件待上传/);
   await f.page.sync();
   assert.equal(f.page.data.error, "");
   assert.equal(f.page.data.pendingFiles, 0);

@@ -26,7 +26,7 @@ async function render(page: any, width: number, template: string, row: any) {
   const wxml = read("miniprogram/pages/index/index.wxml");
   const marketStart = wxml.indexOf('<view wx:if="{{skinOpen}}"');
   const marketHeadStart = wxml.indexOf(
-    '    ><view class="section-top skin-market-header"',
+    '<view class="section-top skin-market-header"',
     marketStart,
   );
   const marketHeadEnd = wxml.indexOf(
@@ -48,7 +48,7 @@ async function render(page: any, width: number, template: string, row: any) {
           wxml.indexOf('    <view class="editor">'),
         )
       : template === "market"
-        ? wxml.slice(marketHeadStart, marketHeadEnd).trim().slice(1) +
+        ? wxml.slice(marketHeadStart, marketHeadEnd).trim() +
           ">" +
           wxml.slice(marketPreviewStart, marketPreviewEnd).trim().slice(1) +
           ">"
@@ -58,7 +58,7 @@ async function render(page: any, width: number, template: string, row: any) {
   source = source.replace(
     /<fox-player\b([^>]*?)\/>/g,
     (_, attrs) =>
-      `<view${attrs}>${read("miniprogram/assets/fox/player.wxml").replace("{{position}}", "{{bunnyPosition}}").replace("/assets/fox/atlas.webp", "{{bunnySheet}}")}</view>`,
+      `<view${attrs}>${read("miniprogram/assets/fox/player.wxml").replace("{{position}}", "{{bunnyPosition}}")}</view>`,
   );
   await page.setViewportSize({ width, height: 900 });
   const host =
@@ -92,8 +92,11 @@ async function render(page: any, width: number, template: string, row: any) {
         },
         skinOpen: false,
         skinAnimating: !!row.playing,
-        bunnySheet: row.sheet || "",
-        bunnyPosition: row.position || "left:0%;top:0%",
+        source: row.sheet || "",
+        bunnyPlaying: !!row.playing,
+        foxHomeReady: !!row.sheet,
+        foxPreviewReady: !!row.sheet,
+        bunnyPosition: row.position || "",
         skinNativeMotion: false,
         skinAnimation: null,
         skinMessage: "hello",
@@ -102,7 +105,7 @@ async function render(page: any, width: number, template: string, row: any) {
           { id: "voice-1", label: "声音一" },
           { id: "voice-2", label: "声音二" },
         ],
-        expandedCardId: "",
+        expandedCardId: row.expanded ? row.id : "",
         checkingId: "",
         leavingId: "",
         dragId: "",
@@ -200,7 +203,7 @@ test("native bunny timeline keeps the same crop in home and market", async ({
       image,
       sheet,
       playing: true,
-      position: "left:-100%;top:-200%",
+      position: "transform:translate3d(-10%,-18.1818%,0)",
     });
     const viewport = page.locator(".bunny-window");
     await expect(viewport).toBeVisible();
@@ -277,14 +280,12 @@ for (const width of [320, 375, 414]) {
       shadowIndex: 1,
     };
     await render(page, width, "itemCard", row);
-    await expect(page.locator(".xc-title")).toHaveCSS(
+    await expect(page.locator(".xc-kind-label")).toHaveCSS(
       "background-color",
       "rgb(255, 218, 50)",
     );
-    await expect(page.locator(".xc-footer")).toHaveCSS(
-      "background-color",
-      "rgb(255, 218, 50)",
-    );
+    await expect(page.locator(".xc-compact-detail")).toBeVisible();
+    await expect(page.locator(".xc-footer")).toHaveCount(0);
     const shadow = await page
       .locator(".xc-card")
       .evaluate((el) => getComputedStyle(el).boxShadow);
@@ -309,14 +310,20 @@ for (const width of [320, 375, 414]) {
       ...row,
       kind: "event",
       kindLabel: "日程 / 活动",
+      expanded: true,
       title:
         "很长的事项标题需要完整换行并保持足够的行距与清晰的阅读区域".repeat(3),
       group: "很长的课程分组名称",
     });
-    await expect(page.locator(".xc-title")).toHaveCSS(
+    await expect(page.locator(".xc-kind-label")).toHaveCSS(
       "background-color",
       "rgb(195, 176, 255)",
     );
+    for (const action of [".xc-detail", ".xc-delete"]) {
+      const target = page.locator(action);
+      await expect(target).toBeVisible();
+      expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);
@@ -335,6 +342,7 @@ for (const width of [320, 375, 414]) {
       ],
       kind: "task",
       urgency: "today",
+      deadlineTone: "urgent",
       title: "完成品牌提案",
       countdown: "今天截止",
       countdownStatus: "today",
@@ -344,9 +352,9 @@ for (const width of [320, 375, 414]) {
     });
     await expect(page.locator(".card-file")).toContainText("完整交付清单");
     await expect(page.locator(".ddl-countdown")).toHaveText("今天截止");
-    await expect(page.locator(".ddl-countdown")).toHaveCSS(
+    await expect(page.locator(".ddl-time")).toHaveCSS(
       "background-color",
-      "rgb(255, 218, 50)",
+      "rgb(255, 201, 201)",
     );
     for (const target of await page
       .locator(

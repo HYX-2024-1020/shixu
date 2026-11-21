@@ -2770,7 +2770,7 @@ Page({
             });
         }
         if (published) await this._client.sync();
-        this._saveJobs([...this._jobs.filter((job) => !remoteTaskIds.has(job.id)), ...jobs]);
+        this._saveJobs([...jobs, ...this._jobs.filter((job) => !remoteTaskIds.has(job.id))]);
       }
       for (const saved of this._jobs.slice()) {
         if (saved.pendingAction) {
@@ -2865,7 +2865,7 @@ Page({
       throw error;
     }
   },
-  async _startJob(kind, packetId, itemId, instruction) {
+  async _startJob(kind, packetId, itemId, instruction, { reuseExisting = false } = {}) {
     if (this.data.jobBusy) return;
     if (this.data.localMode) {
       if (kind !== "chat") this.openAiSettings();
@@ -2888,7 +2888,7 @@ Page({
         this.data.pendingFiles
       )
         throw new Error(this.data.error || this.data.syncStatus || "请先完成未同步操作");
-      if (kind === "organize") {
+      if (kind === "organize" && reuseExisting) {
         await this._pollJobs();
         const existing = this._organizeJob(packetId);
         if (existing && !canResubmitOrganize(existing)) {
@@ -2963,7 +2963,7 @@ Page({
     this.setData({ captureResultAnchor: "capture-result" });
   },
   organizeRecord(event) {
-    return this._startJob("organize", event.currentTarget.dataset.id);
+    return this._startJob("organize", event.currentTarget.dataset.id, undefined, undefined, { reuseExisting: true });
   },
   acceptMaterialUse() {
     const notice = this._reading?.materialUseNotice;
@@ -3075,6 +3075,9 @@ Page({
       iceVoice: collection.iceVoice || "voice-1",
       activeSkin,
       previewSkin: activeSkin,
+      ...(this.data.activeSkin.id !== activeSkin.id
+        ? { foxHomeReady: false, foxPreviewReady: false }
+        : {}),
       skinMessage: activeSkin.hello,
     });
   },
@@ -3162,8 +3165,10 @@ Page({
       );
   },
   foxResourceReady(event) {
+    const preview = event.currentTarget.dataset.preview;
+    if ((preview ? this.data.previewSkin : this.data.activeSkin).id !== "bunny") return;
     this.setData({
-      [event.currentTarget.dataset.preview ? "foxPreviewReady" : "foxHomeReady"]: true,
+      [preview ? "foxPreviewReady" : "foxHomeReady"]: true,
     });
   },
   foxResourceError(event) {
