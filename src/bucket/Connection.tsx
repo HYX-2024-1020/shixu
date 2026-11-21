@@ -12,11 +12,14 @@ import AdminTestGuide from "./AdminTestGuide";
 import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection(
-  props: Parameters<typeof LegacyConnection>[0],
+  { onCloudSyncSettled, ...props }: Parameters<typeof LegacyConnection>[0] & {
+    onCloudSyncSettled?: () => Promise<void>;
+  },
 ) {
   return window.desktop ? (
     <AccountConnection
       canSwitch={props.canSwitchCloud}
+      onSyncSettled={onCloudSyncSettled}
       onClose={props.onClose}
       notify={props.notify}
     />
