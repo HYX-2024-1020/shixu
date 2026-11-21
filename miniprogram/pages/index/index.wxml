@@ -65,7 +65,9 @@
         ><text>草稿自动保存</text><text>{{draft.length}} / 60000</text></view
       ></view
     >
-    <view class="button-row"><button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信文件</button><button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view><view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
+    <view class="button-row"><button hover-class="btn-press" class="small-button" bindtap="chooseFiles" disabled="{{filesBusy}}">＋ 微信聊天文件</button><button hover-class="btn-press" class="small-button" bindtap="chooseImages" disabled="{{filesBusy}}">＋ 图片 / 拍照</button><text class="quiet">每份不超过 10 MB · 最多 20 份</text></view>
+    <text class="settings-copy">PDF、文档等可先发到微信文件传输助手，再从「微信聊天文件」选取。</text>
+    <view wx:for="{{draftFiles}}" wx:key="id" class="draft-file"><text>{{item.name}}</text><text class="quiet">{{item.size}} 字节 · 本机已保存</text><button hover-class="text-press" class="text-button" data-id="{{item.id}}" bindtap="removeDraftFile">移出草稿</button></view><view class="capture-toolbar"
       ><text class="quiet"
         >{{localMode ? '本机保存 · 连接后可导入同步' : '独立服务 · 离线修改会保留'}}</text
       ><button hover-class="btn-press" class="primary" bindtap="submit" disabled="{{filesBusy || (!draft.length && !draftFiles.length)}}">
@@ -195,7 +197,12 @@
   <view wx:else class="settings"
     ><text class="eyebrow">MAKE YOURSELF AT HOME</text
     ><view class="section-top"><text class="section-title">激活与设置</text><button hover-class="btn-press" class="small-button" bindtap="closeSettings">返回{{settingsReturnTab === 'ddl' ? 'DDL' : settingsReturnTab === 'world' ? '世界' : '桶'}}</button></view
-    ><view class="card-paper ai-connection"
+    ><view wx:if="{{connected && materialUseNotice}}" class="card-paper">
+      <text class="subheading">资料用途与保存期限</text>
+      <text class="settings-copy">{{materialUseNotice.text}}</text>
+      <button class="small-button" bindtap="acceptMaterialUse" disabled="{{materialConsentAccepted}}">{{materialConsentAccepted ? '已确认资料用途和保存期限' : '我已了解资料用途和保存期限'}}</button>
+    </view>
+    <view class="card-paper ai-connection"
       ><text class="subheading">服务端 AI</text><text class="settings-copy">{{accountAiState}}</text>
       <text class="settings-copy">连接后资料同步至服务器；选择AI整理或事项对话时，相关材料会发送至DeepSeek。</text>
       <text class="settings-copy">{{!connected ? '输入邀请码激活此微信身份；本地记录仍可使用。' : capabilities.aiOrganize ? '服务端 AI 已启用，可以在投递记录中点击 AI 整理。' : '同步服务已连接，服务端 AI 尚未启用。原文可继续保存，也可以手动记成事项。'}}</text>
@@ -290,10 +297,6 @@
     </button><button class="nav-button {{tab === 'ddl' ? 'active' : ''}}" data-tab="ddl" bindtap="switchTab" hover-class="nav-press" aria-label="DDL，截止事项"><text class="nav-icon">◷</text><text class="nav-label">DDL</text><text wx:if="{{ddlCount}}" class="nav-badge">{{ddlCount}}</text></button></view
   >
 <view wx:if="{{originalNotice}}" class="notice">{{originalNotice}}</view>
-<view wx:if="{{tab === 'settings' && connected && materialUseNotice}}" class="job-strip">
-  <text>资料用途与保存期限</text><text>{{materialUseNotice.text}}</text>
-  <button bindtap="acceptMaterialUse" disabled="{{materialConsentAccepted}}">{{materialConsentAccepted ? '已确认资料用途和保存期限' : '我已了解资料用途和保存期限'}}</button>
-</view>
 <view wx:if="{{tab === 'settings' && originalStorage}}" class="job-strip">
   <text>云端原件：{{originalStorage.usedBytes}} / {{originalStorage.limitBytes}} 字节，预留 {{originalStorage.reservedBytes}} 字节</text>
   <text>保存30天，提前7天提醒，到期后7天待清理；投递回收站7天，单项最近删除30天。</text>
