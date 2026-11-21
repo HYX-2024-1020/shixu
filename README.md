@@ -4,9 +4,9 @@
 
 **[下载 Windows 最新版](https://github.com/HYX-2024-1020/shixu/releases/latest) · [拾序官网](https://www.shixunote.top/) · [Windows 使用指南](docs/guides/windows.md)**
 
-## Windows **0.3.32**
+## Windows **0.3.33**
 
-本版新增世界页手动同步与软件内更新，并将小组与类型管理移至小组筛选旁。
+本版修复 GitHub 匿名 API 限流导致的软件更新检查失败。
 
 1. 从 GitHub Releases 下载 Windows x64 安装器。覆盖升级前先备份，再从系统托盘退出拾序，安装时沿用原目录。
 2. 从桌面「拾序」入口打开。可直接在本机录入、查看和备份资料。账号同步与 AI 服务按实际开通状态使用。
@@ -17,7 +17,7 @@
 - **桌面看板**包含多份规划、短期及长期事项、独立资料库，以及可拖动和调整大小的悬浮窗口。
 - **资料管理**可在本机备份与恢复事项、草稿和原件。接入账号的资料按空间管理。
 
-[版本说明](docs/releases/windows-0.3.32.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/HYX-2024-1020/shixu/issues/new/choose)
+[版本说明](docs/releases/windows-0.3.33.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/HYX-2024-1020/shixu/issues/new/choose)
 
 ## 其他入口
 

@@ -2,6 +2,10 @@
 
 安装包与校验值：[最新 Release](https://github.com/HYX-2024-1020/shixu/releases/latest)。main 可能包含后续开发更新，不等于已经替换的安装包。
 
+## 0.3.33 · 2026-11-21
+
+修复 GitHub 匿名 API 限流时软件无法检查更新的问题。[发行说明](docs/releases/windows-0.3.33.md)。
+
 ## 0.3.32 · 2026-11-21
 
 Windows 新增世界页「刷新卡片」和软件内更新，小组与类型管理入口移到小组筛选旁。[发行说明](docs/releases/windows-0.3.32.md)。

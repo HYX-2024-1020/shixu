@@ -7,28 +7,31 @@ const { pipeline } = require("node:stream/promises");
 
 const repo = "HYX-2024-1020/shixu";
 const latest = "https://api.github.com/repos/" + repo + "/releases/latest";
-const releaseURL = "https://github.com/" + repo + "/releases/download/";
+const releases = "https://github.com/" + repo + "/releases/";
+const checksums = releases + "latest/download/SHA256SUMS.txt";
+const checksumLine =
+  /^([a-fA-F0-9]{64})[ \t]+\*?(Shixu-Setup-(\d+\.\d+\.\d+)\.exe)$/;
+const maximumInstallerBytes = 2 ** 31 - 1;
 
-function selectUpdate(release, current) {
+function isNewer(tag, current) {
   const version = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(
-    release?.tag_name,
+    tag,
   );
   const installed = /^(\d+)\.(\d+)\.(\d+)(-[\w.-]+)?$/.exec(current);
-  if (
-    !version ||
-    !installed ||
-    release.draft !== false ||
-    release.prerelease !== false
-  )
-    throw Error("发行信息无法验证");
+  if (!version || !installed) throw Error("发行信息无法验证");
   const difference = [1, 2, 3]
     .map((index) => Number(version[index]) - Number(installed[index]))
     .find((difference) => difference !== 0);
-  if (difference < 0 || (difference === undefined && !installed[4]))
-    return null;
+  return difference === undefined ? Boolean(installed[4]) : difference > 0;
+}
 
-  const name = "Shixu-Setup-" + version[0].slice(1) + ".exe";
-  const url = releaseURL + version[0] + "/" + name;
+function selectUpdate(release, current) {
+  if (release?.draft !== false || release.prerelease !== false)
+    throw Error("发行信息无法验证");
+  if (!isNewer(release.tag_name, current)) return null;
+  const version = release.tag_name.slice(1);
+  const name = "Shixu-Setup-" + version + ".exe";
+  const url = releases + "download/" + release.tag_name + "/" + name;
   const asset = release.assets?.find((asset) => asset.name === name);
   if (
     asset?.state !== "uploaded" ||
@@ -39,10 +42,26 @@ function selectUpdate(release, current) {
   )
     throw Error("新版安装包或校验信息尚不可用");
   return {
-    version: version[0].slice(1),
+    version,
     url,
     size: asset.size,
     digest: asset.digest.slice(7),
+  };
+}
+
+function selectChecksumUpdate(manifest, current) {
+  const entries = manifest
+    .split(/\r?\n/)
+    .map((line) => checksumLine.exec(line))
+    .filter(Boolean);
+  if (entries.length !== 1) throw Error("安装包校验信息无法验证");
+  const [, digest, name, version] = entries[0];
+  const tag = "v" + version;
+  if (!isNewer(tag, current)) return null;
+  return {
+    version,
+    url: releases + "download/" + tag + "/" + name,
+    digest: digest.toLowerCase(),
   };
 }
 
@@ -79,15 +98,25 @@ class DesktopUpdate {
     this.candidate = null;
     this.error = "";
     try {
-      const response = await this.fetcher(latest, {
-        headers: { Accept: "application/vnd.github+json" },
-        redirect: "error",
-        signal: AbortSignal.timeout(15000),
-      }).catch(() => {
-        throw Error("无法连接更新服务，请检查网络后重试");
-      });
-      if (!response.ok) throw Error("暂时无法读取发行信息，请稍后重试");
-      this.candidate = selectUpdate(await response.json(), this.version);
+      try {
+        // Public release assets do not count toward the anonymous API quota.
+        const response = await this.fetcher(checksums, {
+          redirect: "follow",
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) throw Error("发行校验文件不可用");
+        this.candidate = selectChecksumUpdate(await response.text(), this.version);
+      } catch {
+        const response = await this.fetcher(latest, {
+          headers: { Accept: "application/vnd.github+json" },
+          redirect: "error",
+          signal: AbortSignal.timeout(15000),
+        }).catch(() => {
+          throw Error("无法连接更新服务，请检查网络后重试");
+        });
+        if (!response.ok) throw Error("暂时无法读取发行信息，请稍后重试");
+        this.candidate = selectUpdate(await response.json(), this.version);
+      }
       this.phase = this.candidate ? "available" : "current";
     } catch (error) {
       this.phase = "idle";
@@ -112,15 +141,21 @@ class DesktopUpdate {
         throw Error("无法连接安装包下载地址，请检查网络后重试");
       });
       if (!response.ok || !response.body) throw Error("暂时无法下载安装包");
+      const length = Number(response.headers.get("content-length"));
+      const expectedSize =
+        size ?? (Number.isSafeInteger(length) && length > 0 ? length : undefined);
+      const limit =
+        size ?? Math.min(expectedSize ?? maximumInstallerBytes, maximumInstallerBytes);
       await mkdir(this.cache, { recursive: true });
       const hash = createHash("sha256");
       let count = 0;
       const track = new Transform({
         transform: (chunk, _encoding, callback) => {
           count += chunk.length;
-          if (count > size) return callback(Error("安装包大小校验失败"));
+          if (count > limit) return callback(Error("安装包大小校验失败"));
           hash.update(chunk);
-          this.progress = Math.min(99, Math.floor((100 * count) / size));
+          if (expectedSize)
+            this.progress = Math.min(99, Math.floor((100 * count) / expectedSize));
           callback(null, chunk);
         },
       });
@@ -130,7 +165,10 @@ class DesktopUpdate {
         createWriteStream(partial),
         { signal },
       );
-      if (count !== size || hash.digest("hex") !== digest)
+      if (
+        (expectedSize !== undefined && count !== expectedSize) ||
+        hash.digest("hex") !== digest
+      )
         throw Error("安装包校验失败，请重新下载");
       await rename(partial, this.file);
       this.progress = 100;
