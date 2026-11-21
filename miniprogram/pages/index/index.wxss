@@ -1651,6 +1651,13 @@ input {
   flex: 1 1 0;
   min-width: 0;
 }
+.ai-quota {
+  display: block;
+  margin: -4rpx 0 14rpx;
+  color: #655f4e;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
 .page .ai-entry .text-button,
 .page .settings-heading .small-button {
   flex: 0 0 auto;

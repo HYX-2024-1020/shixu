@@ -94,6 +94,7 @@
   </view>
   <view wx:if="{{tab === 'capture'}}" class="capture">
     <view class="ai-entry"><text>{{!connected ? 'AI 未连接 · 可先保存原文' : capabilities.aiOrganize ? 'AI 整理已可用' : '同步已连接 · 服务端 AI 未启用'}}</text><button hover-class="text-press" class="text-button" bindtap="openAiSettings">AI 连接</button></view>
+    <text wx:if="{{connected && !authExpired && !passwordChangeRequired}}" class="ai-quota">{{accountAiState}}</text>
     <view class="hero">
       <view class="hero-title"><text class="line-break">什么都行，</text><text class="hero-highlight">喂给它。</text></view>
       <view class="home-character {{activeSkin.id === 'ice' ? 'with-voices' : activeSkin.id === 'bunny' ? 'with-fox' : ''}}"><view class="bucket-drawing skin-mascot {{!skinOpen && skinAnimating ? 'skin-interacting' : ''}}" data-motion="{{!skinOpen && skinAnimating ? activeSkin.motion : 'idle'}}" bindtap="interactSkin"><image wx:if="{{activeSkin.id !== 'bunny' || !bunnyPlaying || !foxHomeReady || skinOpen}}" animation="{{activeSkin.id === 'ice' || skinOpen ? null : skinAnimation}}" class="mascot skin-body skin-motion-{{!skinNativeMotion && !skinOpen && skinAnimating ? activeSkin.motion : 'idle'}} {{activeSkin.id === 'ice' ? 'is-plain-art' : ''}}" src="{{activeSkin.image}}" mode="{{activeSkin.id === 'ice' ? 'widthFix' : 'aspectFit'}}"/><fox-player wx:if="{{activeSkin.id === 'bunny'}}" class="fox-player {{bunnyPlaying && foxHomeReady && !skinOpen ? 'is-playing' : ''}}" position="{{bunnyPosition}}" bindready="foxResourceReady" binderror="foxResourceError"/><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-bubble">{{skinOpen ? activeSkin.hello : skinMessage}}</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-one">✦</text><text wx:if="{{activeSkin.id !== 'ice' && activeSkin.id !== 'bunny'}}" class="skin-spark skin-spark-two">✧</text></view><view wx:if="{{activeSkin.id === 'ice'}}" class="ice-home-voices"><button wx:for="{{iceVoices}}" wx:key="id" data-voice="{{item.id}}" bindtap="changeIceVoice" class="small-button {{iceVoice === item.id ? 'voice-selected' : ''}}" aria-label="{{item.label}}" aria-pressed="{{iceVoice === item.id}}" hover-class="btn-press"><text class="ice-voice-label">{{item.label}}</text></button></view></view>
@@ -137,7 +138,7 @@
         <template wx:for="{{item.items}}" wx:for-item="row" wx:key="id" is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: false}}"/>
       </block>
       <view wx:else class="capture-pending">
-        <text role="status">{{organizingPacketId === item.id ? '正在提交整理' : item.pendingOriginals ? '原件待上传' : item.organizeJob ? 'AI 整理 · ' + jobLabels[item.organizeJob.state] : item.organized ? '本次没有生成卡片' : '已投喂，待整理'}}</text>
+        <text role="status">{{item.hadCards ? '本次没有可显示的卡片' : organizingPacketId === item.id ? '正在提交整理' : item.pendingOriginals ? '原件待上传' : item.organizeJob ? 'AI 整理 · ' + jobLabels[item.organizeJob.state] : item.organized ? '本次没有生成卡片' : '已投喂，待整理'}}</text>
         <view class="capture-pending-actions">
           <button wx:if="{{(!item.organizeJob && !item.organized) || item.organizeJob.retryable}}" class="small-button" data-id="{{item.id}}" bindtap="organizeRecord" disabled="{{jobBusy}}" hover-class="btn-press">{{item.organizeJob.retryable ? '重试整理' : 'AI 整理'}}</button>
           <button class="text-button" data-id="{{item.id}}" bindtap="createManual" hover-class="text-press">手动记成事项</button>
@@ -157,7 +158,7 @@
         bindtap="openSkins"
     /></view>
     <view wx:if="{{connected}}" class="workspace-status">
-      <text role="status">{{authExpired ? '账号授权已失效' : syncing ? '正在同步卡片…' : offline ? '当前离线 · 修改会保留' : syncStatus || '等待同步'}}</text>
+      <text role="status">{{authExpired ? '账号授权已失效' : syncing ? '正在同步卡片…' : offline ? '当前离线 · 修改会保留' : pending ? pending + ' 条修改待同步' : syncStatus || '等待同步'}}</text>
       <button wx:if="{{authExpired}}" class="small-button" data-tab="settings" bindtap="switchTab" hover-class="btn-press">重新登录</button>
       <button wx:else class="small-button" bindtap="refreshWorld" disabled="{{refreshingWorld}}" loading="{{refreshingWorld}}" hover-class="btn-press">{{refreshingWorld ? '刷新中' : '刷新卡片'}}</button>
     </view>

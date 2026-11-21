@@ -137,6 +137,34 @@ test("manual world refresh shares in-flight sync and honors the server retry win
   assert.match(page.data.syncStatus, /秒后恢复同步/);
 });
 
+test("card edits during sync follow up once and removed cards leave the latest capture", async () => {
+  const { page } = pageFixture();
+  page.onDraft({ detail: { value: "合成双端事项" } });
+  page.submit();
+  const packet = page.data.currentCaptureId;
+  page._client.put(packet, {
+    itemIds: ["test-card"],
+    result: { summary: "", items: [{ kind: "task", title: "合成事项", summary: "", facts: [], due: null }] },
+  });
+  page._refresh();
+  assert.equal(page.data.currentRows[0].items.length, 1);
+  const id = page.data.currentRows[0].items[0].id;
+  page._changeItem(id, { deletedAt: "2026-11-21T10:00:00.000Z" });
+  assert.equal(page.data.currentRows[0].items.length, 0);
+  assert.equal(page.data.currentRows[0].hadCards, true);
+
+  let release, followups = 0;
+  page._syncing = new Promise((resolve) => { release = resolve; }).finally(() => { page._syncing = null; });
+  page._client = { pendingCount: () => 1 };
+  page.syncQuietly = () => { followups++; };
+  const followup = page._syncCardChanges();
+  page._syncCardChanges();
+  assert.equal(followups, 0);
+  release();
+  await followup;
+  assert.equal(followups, 1);
+});
+
 test("organizing a capture with a server task keeps the original task even after an error", async () => {
   const { page } = pageFixture();
   page.setData({ localMode: false, connected: true, capabilities: { aiOrganize: true } });

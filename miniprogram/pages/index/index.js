@@ -557,8 +557,9 @@ Page({
         .map((r) => ({
           id: r.id,
           organized: !!r.data.result,
+          hadCards: !!r.data.result?.items?.length,
           organizeJob: this._jobViews([this._organizeJob(r.id)].filter(Boolean))[0] || null,
-          items: itemsFor([r]).slice(0, 60).map(this._cardView),
+          items: itemsFor([r]).filter((row) => !row.deleted).slice(0, 60).map(this._cardView),
           pendingOriginals: this._deliveryFiles(r).pendingOriginals,
         })),
       localCount: this._localWorkspace()
@@ -1654,6 +1655,19 @@ Page({
     if (this._client && !this.data.localMode && !this.data.connecting && !this.data.authExpired)
       return this._sync();
   },
+  _syncCardChanges() {
+    const running = this._syncing;
+    if (!running) return this.syncQuietly();
+    if (this._cardSyncFollowup === running) return;
+    this._cardSyncFollowup = running;
+    const client = this._client;
+    // The current run may already be polling tasks after it drained the card queue.
+    return running.then(() => {
+      if (this._cardSyncFollowup === running) this._cardSyncFollowup = null;
+      if (this._client === client && client.pendingCount() > 0)
+        return this.syncQuietly();
+    });
+  },
   submit() {
     if (this.data.connecting) {
       wx.showToast({ title: "正在激活，请稍后投递", icon: "none" });
@@ -2057,7 +2071,7 @@ Page({
         selected: { ...this.data.selected, id: patch.itemIds[row.index] },
       });
     if (!deferRefresh) this._refresh();
-    this.syncQuietly();
+    this._syncCardChanges();
   },
   async toggleDone(event) {
     if (this._blockDragTap()) return;
@@ -2158,7 +2172,7 @@ Page({
       else this._changeItem(row.id, { deletedAt: "" });
       this._acknowledge(row.packetDeleted ? "整次投递已恢复" : "事项已恢复");
       this._refresh();
-      this.syncQuietly();
+      this._syncCardChanges();
     } catch (error) {
       this._error(error);
     }
@@ -2310,7 +2324,7 @@ Page({
       this._client.put(row.packetId, { ...patch, result });
       this.setData({ editing: false });
       this._refresh();
-      this.syncQuietly();
+      this._syncCardChanges();
       this._acknowledge("修改已保存");
     } catch (error) {
       this._error(error);
