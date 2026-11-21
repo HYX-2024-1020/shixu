@@ -45,6 +45,7 @@ export default function SoftwareUpdate() {
   }
 
   const phase = status?.phase;
+  const progress = status?.progress ?? 0;
   return (
     <section className="connection-data" aria-label="软件更新">
       <h3>软件更新</h3>
@@ -57,7 +58,8 @@ export default function SoftwareUpdate() {
         {phase === "available" && <p>发现新版本 {status?.available}</p>}
         {phase === "downloading" && (
           <p>
-            正在下载 {status?.available} · {status?.progress}%
+            正在下载 {status?.available}
+            {progress > 0 && ` · ${progress}%`}
           </p>
         )}
         {phase === "ready" && (

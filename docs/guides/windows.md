@@ -2,7 +2,7 @@
 
 ## 安装与升级
 
-从 [GitHub 最新 Release](https://github.com/HYX-2024-1020/shixu/releases/latest) 下载 Windows x64 安装器。当前安装器为 `Shixu-Setup-0.3.32.exe`，下载页提供 `SHA256SUMS.txt`。安装包未签名，Windows 可能显示无法验证发布者。
+从 [GitHub 最新 Release](https://github.com/HYX-2024-1020/shixu/releases/latest) 下载 Windows x64 安装器。当前安装器为 `Shixu-Setup-0.3.33.exe`，下载页提供 `SHA256SUMS.txt`。安装包未签名，Windows 可能显示无法验证发布者。
 
 升级前先从设置导出备份，再从系统托盘选择「退出拾序」。运行安装器，沿用原安装位置，从原桌面快捷方式打开。关闭主窗口会收进托盘。安装后可直接使用，无需 Node.js。
 
@@ -28,4 +28,4 @@
 
 设置可以导出和恢复资料备份。备份可能包含个人资料及原件，请保存在自己控制的位置。皮肤收藏属于本机设置。账号凭据、同步口令和备份请勿上传至公开 Issue。
 
-[拾序官网](https://www.shixunote.top/) · [版本说明与回退](../releases/windows-0.3.32.md)
+[拾序官网](https://www.shixunote.top/) · [版本说明与回退](../releases/windows-0.3.33.md)

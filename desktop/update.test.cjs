@@ -9,6 +9,10 @@ const { DesktopUpdate, selectUpdate } = require("./update.cjs");
 const installer = Buffer.from("synthetic Windows installer");
 const assetURL =
   "https://github.com/HYX-2024-1020/shixu/releases/download/v0.3.32/Shixu-Setup-0.3.32.exe";
+const checksumsURL =
+  "https://github.com/HYX-2024-1020/shixu/releases/latest/download/SHA256SUMS.txt";
+const apiURL =
+  "https://api.github.com/repos/HYX-2024-1020/shixu/releases/latest";
 const release = {
   tag_name: "v0.3.32",
   draft: false,
@@ -23,8 +27,11 @@ const release = {
     },
   ],
 };
+const checksumLine = release.assets[0].digest.slice(7) + "  Shixu-Setup-0.3.32.exe";
+const checksumFile = checksumLine + "\r\n" +
+  release.assets[0].digest.slice(7) + "  Shixu-Setup-0.3.32.exe.blockmap\r\n";
 
-async function fixture(t, getAsset) {
+async function fixture(t, getAsset, getChecksums = () => new Response(checksumFile), getAPI) {
   const cache = await mkdtemp(path.join(tmpdir(), "shixu-updater-test-"));
   t.after(() => rm(cache, { recursive: true, force: true }));
   const requests = [];
@@ -35,11 +42,9 @@ async function fixture(t, getAsset) {
     fetcher: async (url) => {
       requests.push(String(url));
       if (url === assetURL) return getAsset();
-      assert.equal(
-        url,
-        "https://api.github.com/repos/HYX-2024-1020/shixu/releases/latest",
-      );
-      return Response.json(release);
+      if (url === checksumsURL) return getChecksums();
+      assert.equal(url, apiURL);
+      return getAPI ? getAPI() : new Response(null, { status: 403 });
     },
   });
   return { updater, requests };
@@ -65,7 +70,7 @@ test("only a newer official Windows installer with a verified digest is eligible
 test("downloads only on request, verifies bytes, saves drafts and opens the installer", async (t) => {
   const { updater, requests } = await fixture(t, () => new Response(installer));
   assert.equal((await updater.check()).phase, "available");
-  assert.equal(requests.length, 1);
+  assert.deepEqual(requests, [checksumsURL]);
   assert.equal((await updater.download()).progress, 100);
   assert.deepEqual(requests.slice(1), [assetURL]);
   const events = [];
@@ -82,6 +87,28 @@ test("downloads only on request, verifies bytes, saves drafts and opens the inst
     },
   });
   assert.deepEqual(events, ["saved", "opened", "quit"]);
+});
+
+test("an older release without a checksum file can still use the API", async (t) => {
+  const { updater, requests } = await fixture(
+    t,
+    () => new Response(installer),
+    () => new Response(null, { status: 404 }),
+    () => Response.json(release),
+  );
+  assert.equal((await updater.check()).available, "0.3.32");
+  assert.deepEqual(requests, [checksumsURL, apiURL]);
+});
+
+test("ambiguous checksums cannot select an installer when the API is rate limited", async (t) => {
+  const { updater, requests } = await fixture(
+    t,
+    () => assert.fail("Installer must not be downloaded"),
+    () => new Response(checksumLine + "\n" + checksumLine),
+  );
+  assert.equal((await updater.check()).phase, "idle");
+  assert.equal((await updater.download()).available, undefined);
+  assert.deepEqual(requests, [checksumsURL, apiURL]);
 });
 
 test("partial or changed files cannot install and leave a download retry", async (t) => {
