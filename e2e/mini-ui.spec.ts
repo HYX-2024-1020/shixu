@@ -44,8 +44,8 @@ async function render(page: any, width: number, template: string, row: any) {
   let source =
     template === "home"
       ? wxml.slice(
-          wxml.indexOf('      <view class="home-character'),
-          wxml.indexOf('      <view class="count-line'),
+          wxml.indexOf('    <view class="hero">'),
+          wxml.indexOf('    <view class="editor">'),
         )
       : template === "market"
         ? wxml.slice(marketHeadStart, marketHeadEnd).trim().slice(1) +
@@ -63,7 +63,7 @@ async function render(page: any, width: number, template: string, row: any) {
   await page.setViewportSize({ width, height: 900 });
   const host =
     template === "home"
-      ? '<view class="page"><view class="hero" id="cards"></view></view>'
+      ? '<view class="page"><view class="capture" id="cards"></view></view>'
       : template === "market"
         ? '<view class="sheet skin-market-sheet" id="cards"></view>'
         : '<view class="page"><view class="world"><view class="world-grid" id="cards"></view></view></view>';
@@ -211,10 +211,13 @@ test("native bunny timeline keeps the same crop in home and market", async ({
     expect(inner!.width / box!.width).toBeCloseTo(10, 1);
     expect(inner!.height / box!.height).toBeCloseTo(11, 1);
     if (template === "home") {
-      expect(box!.height).toBeGreaterThanOrEqual(210);
-      const button = await page.locator(".skin-home-change").boundingBox();
-      expect(button!.y - box!.y - box!.height).toBeGreaterThanOrEqual(14);
-      await expect(page.locator(".skin-home-change")).toContainText("绯樱狐");
+      const character = await page.locator(".home-character").boundingBox();
+      const title = await page.locator(".hero-title").boundingBox();
+      expect(box!.y).toBeGreaterThanOrEqual(character!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(
+        character!.y + character!.height,
+      );
+      expect(box!.x + box!.width).toBeLessThanOrEqual(title!.x);
     } else {
       const stage = await page.locator(".skin-preview-stage").boundingBox();
       const name = await page
@@ -371,7 +374,7 @@ for (const width of [320, 375, 414]) {
 }
 
 for (const width of [320, 375, 414]) {
-  test(`native home centers the actual ice image without an oversized air box at ${width}px`, async ({
+  test(`native capture fits the ice character and voice controls beside the heading at ${width}px`, async ({
     page,
   }, info) => {
     const whale =
@@ -383,18 +386,19 @@ for (const width of [320, 375, 414]) {
     await render(page, width, "home", { skin: "whale", image: whale });
     await page.locator(".mascot").evaluate((img: any) => img.decode());
     const whaleArt = await page.locator(".mascot").boundingBox();
-    const whaleBox = await page.locator(".home-character").boundingBox();
     await render(page, width, "home", { skin: "ice", image: ice });
     await page.locator(".mascot").evaluate((img: any) => img.decode());
     const art = await page.locator(".mascot").boundingBox();
-    const anchor = await page.locator(".home-character").boundingBox();
+    const title = await page.locator(".hero-title").boundingBox();
     const controls = await page.locator(".ice-home-voices").boundingBox();
-    expect(Math.abs(art!.x + art!.width / 2 - width / 2)).toBeLessThan(1);
-    expect(art!.width / whaleArt!.width).toBeGreaterThanOrEqual(1);
-    expect(art!.width / whaleArt!.width).toBeLessThan(1.1);
-    expect(anchor!.height).toBeLessThanOrEqual(whaleBox!.height + 2);
-    expect(controls!.x).toBeGreaterThan(art!.x + art!.width - 2);
-    expect(controls!.x + controls!.width).toBeLessThan(width);
+    expect(art!.width).toBeCloseTo(whaleArt!.width, 0);
+    expect(art!.x + art!.width).toBeLessThanOrEqual(title!.x);
+    expect(controls!.y).toBeGreaterThanOrEqual(art!.y + art!.height);
+    for (const button of await page.locator(".ice-home-voices button").all()) {
+      const box = await button.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(title!.x);
+    }
     await expect(
       page.getByRole("button", { name: "声音一", exact: true }),
     ).toBeVisible();
