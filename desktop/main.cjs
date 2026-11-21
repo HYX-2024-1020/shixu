@@ -27,6 +27,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { resolveAsset } = require("./paths.cjs");
 const { mediaType, mediaResponse } = require("./media-response.cjs");
+const { DesktopUpdate } = require("./update.cjs");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -52,7 +53,19 @@ app.setPath(
 let mainWindow,
   boardWindow,
   tray,
-  quitting = false;
+  quitting = false,
+  savingBeforeQuit = false;
+const flushDrafts = async () => {
+  await mainWindow?.webContents.executeJavaScript(
+    "(async()=>{await window.flushDesktopDraft?.();await window.flushBoardDraft?.();})()",
+  );
+  if (boardWindow?.win && !boardWindow.win.isDestroyed())
+    await boardWindow.win.webContents.executeJavaScript("window.flushBoardDraft?.()");
+};
+const quitAfterSaving = () => {
+  quitting = true;
+  app.quit();
+};
 const show = () => {
   mainWindow?.show();
   mainWindow?.focus();
@@ -66,19 +79,12 @@ else {
   app.on("before-quit", (event) => {
     if (quitting) return;
     event.preventDefault();
-    (async () => {
-      try {
-        await mainWindow?.webContents.executeJavaScript(
-          "(async()=>{await window.flushDesktopDraft?.();await window.flushBoardDraft?.();})()",
-        );
-        if(boardWindow?.win&&!boardWindow.win.isDestroyed())await boardWindow.win.webContents.executeJavaScript('window.flushBoardDraft?.()');
-      } catch (e) {
-        dialog.showErrorBox("退出前保存失败", e.message);
-        return;
-      }
-      quitting = true;
-      app.quit();
-    })();
+    if (savingBeforeQuit) return;
+    savingBeforeQuit = true;
+    void flushDrafts().then(quitAfterSaving, (error) => {
+      savingBeforeQuit = false;
+      dialog.showErrorBox("退出前保存失败", error.message);
+    });
   });
   app
     .whenReady()
@@ -134,6 +140,48 @@ else {
         )
           throw new Error("来源无效");
       };
+      // Keep Chromium's system proxy support without opening renderer network access.
+      const updates = session.fromPartition("shixu-updates", { cache: false });
+      const updateOrigins = new Set([
+        "https://api.github.com",
+        "https://github.com",
+        "https://release-assets.githubusercontent.com",
+      ]);
+      updates.webRequest.onBeforeRequest(({ url, method }, callback) => {
+        const target = new URL(url);
+        callback({
+          cancel: method !== "GET" || !updateOrigins.has(target.origin) ||
+            Boolean(target.username || target.password),
+        });
+      });
+      const update = new DesktopUpdate({
+        version: app.getVersion(),
+        cache: path.join(app.getPath("userData"), "update"),
+        supported:
+          app.isPackaged && process.platform === "win32" && process.arch === "x64",
+        fetcher: (url, options) => updates.fetch(url, { ...options, credentials: "omit" }),
+      });
+      ipcMain.handle("update", async (event, action) => {
+        validSender(event);
+        if (action === "status") return update.status();
+        if (action === "check") return update.check();
+        if (action === "download") return update.download();
+        if (action !== "install") throw Error("操作无效");
+        if (savingBeforeQuit) return update.status();
+        savingBeforeQuit = true;
+        try {
+          return await update.install({
+            prepare: flushDrafts,
+            launch: async (file) => {
+              const error = await shell.openPath(file);
+              if (error) throw Error("无法打开安装程序，请重试");
+            },
+            quit: quitAfterSaving,
+          });
+        } finally {
+          savingBeforeQuit = false;
+        }
+      });
       ipcMain.handle("workspace", (event) => {
         validSender(event);
         return cloud.config.active;

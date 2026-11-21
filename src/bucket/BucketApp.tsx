@@ -193,6 +193,7 @@ export default function BucketApp() {
     [loaded, setLoaded] = useState(false),
     [settings, setSettings] = useState(false),
     [toast, setToast] = useState(""),
+    [refreshingCards, setRefreshingCards] = useState(false),
     [drag, setDrag] = useState(false),
     [submitting, setSubmitting] = useState(false),
     [online, setOnline] = useState(navigator.onLine),
@@ -222,13 +223,45 @@ export default function BucketApp() {
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
   const refreshCloudCards = useCallback(async (isCurrent: () => boolean = () => true) => {
-    if (!isCurrent() || working.current || submitLock.current) return;
+    if (!isCurrent() || working.current || submitLock.current) return false;
     const rows = await allPackets();
     if (isCurrent() && !working.current && !submitLock.current) {
       packetsRef.current = rows;
       setPackets(rows);
+      return true;
     }
+    return false;
   }, []);
+  const refreshWorld = useCallback(async () => {
+    const desktop = window.desktop;
+    if (!desktop || refreshingCards) return;
+    if (working.current || submitLock.current) {
+      notify("正在保存资料，请稍后刷新");
+      return;
+    }
+    setRefreshingCards(true);
+    let refreshed = false;
+    try {
+      let updated;
+      try {
+        if (navigator.onLine)
+          updated = await desktop.cloud("sync", { force: true });
+      } finally {
+        refreshed = await refreshCloudCards();
+      }
+      if (!refreshed) notify("正在保存资料，请稍后刷新");
+      else if (!updated) notify("已刷新本机卡片。联网后可同步双端。");
+      else if (!updated.base) notify("已刷新本机卡片。登录拾序后可同步双端。");
+      else if (updated.error) notify("已刷新本机卡片，同步未完成：" + updated.error);
+      else if (updated.conflicts.length) notify("卡片已刷新，有同步冲突待处理");
+      else if (updated.pending) notify("卡片已刷新，仍有资料等待上传");
+      else notify("卡片已刷新，双端同步完成");
+    } catch (error) {
+      notify((refreshed ? "已刷新本机卡片，同步未完成：" : "刷新未全部完成：") + message(error));
+    } finally {
+      setRefreshingCards(false);
+    }
+  }, [notify, refreshingCards, refreshCloudCards]);
   useEffect(() => {
     if (!loaded || !window.desktop) return;
     void window.desktop
@@ -1953,6 +1986,8 @@ export default function BucketApp() {
             reorder={reorderCards}
             onRecords={() => setRecordsOpen(true)}
             onTasks={window.desktop ? () => setTasksOpen(true) : undefined}
+            onRefresh={window.desktop && loaded ? refreshWorld : undefined}
+            refreshing={refreshingCards}
             saveMany={saveMany}
             onRetry={retry}
             onApplyProposals={confirmChatProposals}

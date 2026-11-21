@@ -13,7 +13,7 @@ import { rateFor, type UsageRecord } from "../../shared/usage.mjs";
 
 export default function Connection(
   { onCloudSyncSettled, ...props }: Parameters<typeof LegacyConnection>[0] & {
-    onCloudSyncSettled?: () => Promise<void>;
+    onCloudSyncSettled?: () => Promise<boolean>;
   },
 ) {
   return window.desktop ? (

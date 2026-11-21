@@ -85,9 +85,11 @@ try {
     itemState: {},
   });
   await mini.sync();
-  await page.evaluate(() => window.desktop.cloud("sync"));
-  await page.reload();
   await page.getByRole("button", { name: "整理结果", exact: true }).click();
+  await page.getByRole("button", { name: "刷新卡片", exact: true }).click();
+  await expect(
+    page.getByText("卡片已刷新，双端同步完成", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "手机送来的待办", exact: true }),
   ).toBeVisible();
