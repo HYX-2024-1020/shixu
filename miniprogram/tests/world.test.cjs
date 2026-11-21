@@ -491,7 +491,8 @@ test("AI job storage failure prevents transmission and preserves draft and packe
   p._connection = { base: "http://127.0.0.1:8788" };
   p._jobs = [];
   p.setData({ localMode: false, capabilities: { aiOrganize: true } });
-  p.sync = async () => {};
+  p.sync = async () => true;
+  p._epoch = "test";
   p._transport = async (method) => {
     if (method === "POST") calls++;
     return { epoch: "test" };

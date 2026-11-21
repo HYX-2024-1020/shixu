@@ -38,7 +38,15 @@ function createTransport(base, getToken, runtime = wx) {
               Object.assign(
                 new Error((body && body.error) || "服务返回异常，请稍后重试"),
                 body && typeof body === "object" ? body : {},
-                { status: response.statusCode },
+                {
+                  status: response.statusCode,
+                  ...(response.statusCode === 429 ? {
+                    retryAfterSeconds: Number(
+                      Object.entries(response.header || {}).find(([key]) => key.toLowerCase() === "retry-after")?.[1]
+                        || body?.retryAfterSeconds,
+                    ) || 30,
+                  } : {}),
+                },
               ),
             );
         },

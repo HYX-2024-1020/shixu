@@ -83,7 +83,10 @@ async function fixture(t, options = {}) {
       ? await response.json()
       : Buffer.from(await response.arrayBuffer());
     if (!response.ok)
-      throw Object.assign(Error(body.error), body, { status: response.status });
+      throw Object.assign(Error(body.error), body, {
+        status: response.status,
+        retryAfter: response.headers.get("retry-after"),
+      });
     return body;
   }
   async function windows(invite, keys = generateKeyPairSync("ed25519")) {
@@ -425,7 +428,10 @@ test("Windows proofs bind method, path, body and nonce; replay and account rate 
     denied("INVALID_PROOF"),
   );
   f.registry().limits(a.userId, { requestsPerMinute: 0 });
-  await assert.rejects(f.request(device, "GET", path), denied("RATE_LIMIT"));
+  await assert.rejects(f.request(device, "GET", path), (error) =>
+    error.code === "RATE_LIMIT" && error.status === 429 &&
+    Number(error.retryAfter) === error.retryAfterSeconds &&
+    error.retryAfterSeconds >= 1 && error.retryAfterSeconds <= 60);
 });
 
 test("global concurrency is two, per account one, and queue length and budget are enforced durably", async (t) => {

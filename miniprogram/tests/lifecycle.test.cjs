@@ -120,6 +120,40 @@ test("account capability detection separates a blocked domain from a legacy serv
   assert.equal(page.data.passwordAccounts, false);
   assert.equal(page.data.legacyAccountActivation, true);
 });
+test("manual world refresh shares in-flight sync and honors the server retry window", async () => {
+  const { page } = pageFixture();
+  page.setData({ localMode: false, connected: true, tab: "world" });
+  let requests = 0;
+  page._client.sync = async () => {
+    requests++;
+    throw Object.assign(Error("请求较多"), { status: 429, retryAfterSeconds: 10 });
+  };
+
+  await Promise.all([page.syncQuietly(), page.refreshWorld()]);
+  assert.equal(requests, 1);
+  assert.equal(page.data.refreshingWorld, false);
+  await page.refreshWorld();
+  assert.equal(requests, 1);
+  assert.match(page.data.syncStatus, /秒后恢复同步/);
+});
+
+test("organizing a capture with a server task keeps the original task even after an error", async () => {
+  const { page } = pageFixture();
+  page.setData({ localMode: false, connected: true, capabilities: { aiOrganize: true } });
+  page._connection = { protocolVersion: 3, userId: "test" };
+  page._jobs = [{
+    id: "model-task", state: "error", serverAccepted: true,
+    request: { kind: "organize", packetId: "capture" },
+  }];
+  page.sync = async () => true;
+  page._transport = () => assert.fail("must not submit another task");
+
+  await page.organizeRecord({ currentTarget: { dataset: { id: "capture" } } });
+  assert.match(page.data.notice, /已有整理任务/);
+  assert.equal(page._jobs.length, 1);
+  assert.equal(page.data.jobBusy, false);
+});
+
 test("a failed draft clear reuses the durable capture ID after restart", () => {
   let full = false;
   const fixture = pageFixture({

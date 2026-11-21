@@ -57,6 +57,11 @@ const { createTouchOrder, ddlLists } = require("../../lib/touch-order");
 const SKINS = "shixu:mini:skins:v1";
 const FILTERS = "shixu:mini:filters:v1";
 const jobsKey = (base) => `shixu:mini:jobs:v1:${base}`;
+const ACTIVE_JOB_STATES = ["submitting", "queued", "running", "applying"];
+const canResubmitOrganize = (job) =>
+  !job.serverAccepted && !job.actions?.includes("continue") &&
+  ["error", "conflict"].includes(job.state);
+const captureKey = (space) => `shixu:mini:last-capture:${space}`;
 const DRAFT = "shixu:mini:draft:v1";
 const stateKey = (base) => `shixu:mini:workspace:v1:${base}`;
 function dateInfo() {
@@ -125,6 +130,10 @@ Page({
     activationState: "未激活",
     connecting: false,
     syncing: false,
+    refreshingWorld: false,
+    syncStatus: "",
+    savedAccount: false,
+    organizingPacketId: "",
     aiChecking: false,
     showAiGuide: false,
     error: "",
@@ -264,12 +273,13 @@ Page({
     }
     this._network = (result) => {
       this.setData({ offline: !result.isConnected });
-      if (result.isConnected) this.syncQuietly();
+      if (result.isConnected && this._visible) this.syncQuietly();
     };
     wx.onNetworkStatusChange(this._network);
     this._prepareSkinAudio();
   },
   onShow() {
+    this._visible = true;
     this.setData({ updateReady: getApp().globalData.updateReady });
     this._refresh();
     this.syncQuietly();
@@ -277,9 +287,10 @@ Page({
     this._timer = setInterval(() => {
       this._refresh();
       this.syncQuietly();
-    }, 8000);
+    }, 15000);
   },
   onHide() {
+    this._visible = false;
     this.cancelDrag();
     clearInterval(this._timer);
     clearTimeout(this._queryTimer);
@@ -287,6 +298,7 @@ Page({
     this._stopSkinInteraction();
   },
   onUnload() {
+    this._visible = false;
     this.cancelDrag();
     clearInterval(this._timer);
     clearTimeout(this._queryTimer);
@@ -311,10 +323,7 @@ Page({
               materialConsentAccepted: !materialUseNotice || wx.getStorageSync("material-use:" + spaceKey(connection)) === materialUseNotice.version,
               passwordAccounts: !!account.authentication,
               accountClaimed: !!account.authentication?.claimed,
-              accountUsername:
-                this.data.accountUsername ||
-                account.authentication?.username ||
-                "",
+              accountUsername: this.data.accountUsername || account.authentication?.username || "",
             });
             const day = new Date().toISOString().slice(0, 10),
               used = account.ai.usage.find((u) => u.day === day)?.requests || 0;
@@ -337,17 +346,23 @@ Page({
       request: transport,
       protocolVersion: connection.protocolVersion || 2,
     });
+    const jobs = wx.getStorageSync(jobsKey(space));
+    if (jobs && !Array.isArray(jobs))
+      throw new Error("任务记录无法读取，请保留资料联系开发者");
     this._connection = connection;
     this._epoch = connection.epoch || null;
     this._transport = transport;
     this._client = client;
-    const jobs = wx.getStorageSync(jobsKey(space));
-    if (jobs && !Array.isArray(jobs))
-      throw new Error("任务记录无法读取，请保留资料联系开发者");
     this._jobs = jobs || [];
     this._loadDraft();
     this.setData({
       connected: true,
+      savedAccount: true,
+      accountUsername: "",
+      accountDevices: [],
+      accountClaimed: false,
+      capabilities: {},
+      accountAiState: "正在核对账号能力",
       activationState: "设备凭证已保存，等待核验",
       serverUrl: base,
       localMode: false,
@@ -361,12 +376,11 @@ Page({
   _refresh() {
     if (this._drag || this._completionLock) return;
     if (!this._client) return;
+    const records = this._client.records();
     try {
       const library = this._library();
       if (library)
-        for (const row of this._client
-          .records()
-          .filter((r) => r.purged && !r.pending))
+        for (const row of records.filter((r) => r.purged && !r.pending))
           library.forgetPacket(
             row.id,
             this.data.localMode ? "local" : this._space(),
@@ -376,15 +390,19 @@ Page({
         new Error("投递已永久删除，本机原件缓存清理尚未完成，请保留资料后重试"),
       );
     }
-    const all = this._client.records().filter((row) => !row.purged && row.data && row.data.recordType !== 'board-workspace');
+    const all = records.filter((row) => !row.purged && row.data && row.data.recordType !== 'board-workspace');
     const recordRows = all.filter(
       (row) => !!row.deletedAt === this.data.showDeleted,
+    );
+    const recordPage = Math.min(
+      this.data.recordPage,
+      Math.max(0, Math.ceil(recordRows.length / 30) - 1),
     );
     const rows = recordRows
       .sort((a, b) =>
         (b.data.capturedAt || "").localeCompare(a.data.capturedAt || ""),
       )
-      .slice(this.data.recordPage * 30, (this.data.recordPage + 1) * 30)
+      .slice(recordPage * 30, (recordPage + 1) * 30)
       .map((row) => {
         const rawText = row.data.text || "",
           title = (
@@ -404,16 +422,17 @@ Page({
           deleted: !!row.deletedAt,
           conflict: !!row.conflict,
           state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
-          hasResult: !!row.data.result,
+          hasResult: itemsFor([row]).length > 0,
+          organizeJob: this._jobViews([this._organizeJob(row.id)].filter(Boolean))[0] || null,
           attachments: (row.data.attachments || []).filter((f) => !f.deletedAt),
         };
       });
-    const view = worldView(this._client.records(), this.data);
+    const view = worldView(records, this.data);
     const clock = new Date();
     const day = `${clock.getFullYear()}-${String(clock.getMonth() + 1).padStart(2, "0")}-${String(clock.getDate()).padStart(2, "0")}`;
     const clockText = `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`;
     const ddl = ddlLists(
-      itemsFor(this._client.records()),
+      itemsFor(records),
       day,
       clockText,
       this.data.ddlDays[this.data.ddlIndex],
@@ -436,6 +455,7 @@ Page({
         countdownStatus: countdown.status,
       };
     };
+    const activePackets = new Set(all.filter((row) => !row.deletedAt).map((row) => row.id));
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
@@ -451,9 +471,7 @@ Page({
               .entries(null, this._space())
               .filter(
                 (e) =>
-                  !e.remote &&
-                  this._record(e.packetId) &&
-                  !this._record(e.packetId).deletedAt,
+                  !e.remote && activePackets.has(e.packetId),
               ).length
           : 0,
       ddlOverdue: ddl.overdue.slice(0, this.data.ddlLimit).map(ddlCard),
@@ -492,19 +510,21 @@ Page({
       ddlUnsureTotal: ddl.unsure.length,
       ddlDoneTotal: ddl.done.length,
       recordTotal: recordRows.length,
+      recordPage,
       count: all.filter((row) => !row.deletedAt).length,
       pending: this._client.pendingCount(),
       conflicts: this._client.conflicts().length,
       ...this._worldPatch(view),
       selected: selected || null,
       currentRows: all
-        .filter((r) => r.id === this.data.currentCaptureId)
+        .filter((r) => r.id === this.data.currentCaptureId && !r.deletedAt)
         .map((r) => ({
           id: r.id,
           text: r.data.text,
           status: r.data.status,
           error: r.data.error || "",
           summary: (r.data.result && r.data.result.summary) || "",
+          organizeJob: this._jobViews([this._organizeJob(r.id)].filter(Boolean))[0] || null,
           items: itemsFor([r]).slice(0, 60).map(this._cardView),
           attachments: (r.data.attachments || []).filter((f) => !f.deletedAt),
         })),
@@ -646,10 +666,11 @@ Page({
     try {
       if (this._reading?.features?.submissionManifest) {
         const pending = library.entries(null, base).filter((e) => !e.remote);
+        let attached = false;
         for (const packetId of new Set(pending.map((e) => e.packetId))) {
           const row = this._record(packetId);
           if (!row || row.deletedAt || row.conflict) continue;
-          const entries = library.entries(packetId, base);
+          const entries = pending.filter((entry) => entry.packetId === packetId);
           const newFiles = entries.map((e) => ({
             id: e.id,
             name: e.name,
@@ -659,7 +680,7 @@ Page({
           }));
           const manifest = [
             ...(row.data.attachments || []).filter(
-              (f) => !newFiles.some((n) => n.id === f.id),
+              (f) => !f.deletedAt && !newFiles.some((n) => n.id === f.id),
             ),
             ...newFiles,
           ];
@@ -706,10 +727,8 @@ Page({
               entry,
               library.bytes(entry),
             );
-          await this._transport(
-            "POST",
-            `/api/v4/submissions/${saved.id}/commit`,
-            {
+          try {
+            await this._transport("POST", `/api/v4/submissions/${saved.id}/commit`, {
               manifestHash: submission.manifestHash,
               epoch,
               operation: {
@@ -719,18 +738,24 @@ Page({
                 baseVersion: saved.baseVersion,
                 data: { attachments: manifest },
               },
-            },
-          );
+            });
+          } catch (error) {
+            if (error.code === "REVISION_CONFLICT" && error.current?.id === packetId &&
+                !error.current.deletedAt && !error.current.purged) {
+              // The server rejected this operation before committing the upload.
+              wx.setStorageSync(key, { ...saved, baseVersion: error.current.version });
+            }
+            throw error;
+          }
           for (const entry of entries)
             library.markUploaded(
               entry,
               manifest.find((f) => f.id === entry.id),
             );
           wx.setStorageSync(key, null);
+          attached = true;
         }
-        if (pending.length) await this._client.sync();
-        const storage = await this._transport("GET", "/api/v4/storage");
-        this.setData({ originalStorage: storage });
+        if (attached) await this._client.sync();
         return;
       }
       let changed = false;
@@ -762,6 +787,11 @@ Page({
     } finally {
       this.setData({ filesBusy: false });
     }
+  },
+  async _refreshOriginalStorage() {
+    if (!this._reading?.features?.submissionManifest) return;
+    const storage = await this._transport("GET", "/api/v4/storage");
+    this.setData({ originalStorage: storage });
   },
   async _reuploadTemporary(packetId) {
     if (!this._reading?.features?.submissionManifest) return;
@@ -892,19 +922,26 @@ Page({
       this.setData({ filesBusy: false });
     }
   },
-  async openAttachment(event) {
+  openAttachment(event) {
+    return this._openAttachment(event.currentTarget.dataset, false);
+  },
+  exportAttachment(event) {
+    return this._openAttachment(event.currentTarget.dataset, true);
+  },
+  async _openAttachment({ id, packet }, exporting) {
     if (this.data.filesBusy) return;
     this.setData({ filesBusy: true, error: "", notice: "" });
     try {
-      const { id, packet } = event.currentTarget.dataset,
-        row = this._record(packet);
+      const row = this._record(packet);
       if (!row || row.deletedAt) throw new Error("请先恢复整次投递");
       const file = (row.data.attachments || []).find(
         (f) => f.id === id && !f.deletedAt,
       );
       if (!file) throw new Error("附件不存在");
       const library = this._library();
-      if (!library) throw new Error("当前环境不支持原件预览");
+      if (!library) throw new Error("当前环境无法读取原件");
+      if (exporting && typeof wx.shareFileMessage !== "function")
+        throw Error("当前微信版本无法发送原件，请更新微信后重试");
       const space = this.data.localMode ? "local" : this._space();
       let entry = library.entries(packet, space).find((e) => e.id === id),
         path;
@@ -917,6 +954,8 @@ Page({
         }
       }
       if (!path) {
+        if (this.data.localMode) throw Error("这份原件未在本机保存");
+        if (this.data.offline) throw Error("联网后才能取回云端原件");
         if (!this._epoch) await this.sync();
         if (!this._epoch) throw new Error("请先完成同步并核对服务资料版本");
         const bytes = await createFileTransport(
@@ -934,7 +973,20 @@ Page({
           )
         )
           throw new Error("投递状态已变化，未保存下载的原件");
+        if (file.hash && originalHash(bytes) !== file.hash)
+          throw Error("原件校验不一致，请重新同步后再试");
         path = library.cache(file, packet, space, bytes);
+      }
+      if (exporting) {
+        await new Promise((resolve, reject) => wx.shareFileMessage({
+          filePath: path,
+          fileName: file.name,
+          success: resolve,
+          fail: (error) => /cancel/i.test(error?.errMsg || "")
+            ? resolve()
+            : reject(Error("微信暂时无法发送这份原件，文件已保留")),
+        }));
+        return;
       }
       const ext = extension(file.name);
       if (["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(ext))
@@ -966,13 +1018,15 @@ Page({
         this.setData({
           originalPreview: {
             name: file.name,
+            id,
+            packet,
             text: text.slice(0, 60000),
             truncated: text.length > 60000,
           },
         });
       } else
         this.setData({
-          notice: "原件已完整保存在本机；此格式暂不支持微信内预览",
+          notice: "这种格式无法在微信内预览，可点「导出」发送原件",
         });
     } catch (error) {
       this._error(error);
@@ -1046,8 +1100,17 @@ Page({
   _loadDraft() {
     const saved = wx.getStorageSync(this._draftKey());
     this._draftId = saved && typeof saved === "object" ? saved.id : null;
+    this._syncRetryAt = 0;
+    this._nextJobPoll = 0;
     this.setData({
       draft: typeof saved === "string" ? saved : saved?.text || "",
+      currentCaptureId: wx.getStorageSync(captureKey(this._space())) || "",
+      captureResultAnchor: "",
+      originalStorage: null,
+      originalNotice: "",
+      expandedCardId: "",
+      expandedId: "",
+      syncStatus: "",
       draftFiles: [],
       selected: null,
       originalPreview: null,
@@ -1072,6 +1135,7 @@ Page({
       });
       wx.setStorageSync(CONNECTION + ":active", true);
       this._activate(connection);
+      this.setData({ notice: "已切回云端账号", error: "" });
       await this.sync();
     } catch (error) {
       this._error(error);
@@ -1081,14 +1145,22 @@ Page({
     this._client = this._localWorkspace();
     this._connection = null;
     this._transport = null;
+    this._reading = null;
+    this._epoch = null;
     this._jobs = [];
     this._loadDraft();
     this.setData({
       localMode: true,
       connected: false,
-      activationState: "未激活 · 本机空间",
+      savedAccount: !!wx.getStorageSync(CONNECTION)?.token,
+      activationState: "当前在本机空间",
       jobs: [],
-      accountAiState: "未激活 · 本机资料可用",
+      accountDevices: [],
+      accountClaimed: false,
+      taskPreview: null,
+      materialUseNotice: null,
+      materialConsentAccepted: false,
+      accountAiState: "本机空间 · 可记录和管理事项",
       capabilities: {},
     });
     this._refresh();
@@ -1111,7 +1183,8 @@ Page({
       this._activateLocal();
       this.setData({
         tab: "capture",
-        notice: "已切换到本机资料，服务端资料及未同步操作仍保留",
+        error: "",
+        notice: "已切换到本机空间，云端账号仍保留。可随时切回云端。",
       });
     } catch (error) {
       this._error(error);
@@ -1120,8 +1193,7 @@ Page({
   async importLocal() {
     if (this.data.localMode || this.data.syncing) return;
     try {
-      await this.sync();
-      if (this.data.error) return;
+      if (!await this.sync()) return;
       const local = this._localWorkspace()
         .records()
         .filter((r) => !r.purged && !r.deletedAt);
@@ -1196,6 +1268,7 @@ Page({
       captureResultAnchor: "",
     });
     if (target === "settings") void this.probeAccountCapabilities();
+    if (["settings", "world"].includes(target)) this.syncQuietly();
     this._refresh();
   },
   closeSettings() {
@@ -1275,44 +1348,96 @@ Page({
       this.setData({ connecting: false });
     }
   },
-  async sync() {
-    if (!this._client || this.data.localMode || this.data.syncing) return;
+  sync() {
+    return this._sync({ interactive: true, details: this.data.tab === "settings" });
+  },
+  async refreshWorld() {
+    if (this.data.localMode || this.data.refreshingWorld) return;
+    this.setData({ refreshingWorld: true });
+    try {
+      await this._sync({ interactive: true });
+    } finally {
+      this.setData({ refreshingWorld: false });
+    }
+  },
+  _sync({ interactive = false, details = false } = {}) {
+    if (this._syncing) return this._syncing;
+    if (!this._client || this.data.localMode) return Promise.resolve(false);
+    const wait = Math.ceil(((this._syncRetryAt || 0) - Date.now()) / 1000);
+    if (this.data.offline || wait > 0) {
+      if (interactive)
+        this.setData({ syncStatus: this.data.offline
+          ? "当前离线，修改已保留"
+          : `请求较多，约 ${wait} 秒后恢复同步` });
+      return Promise.resolve(false);
+    }
+    this._syncing = this._runSync({ interactive, details }).finally(() => {
+      this._syncing = null;
+    });
+    return this._syncing;
+  },
+  _rememberRateLimit(error) {
+    if (error.status !== 429) return false;
+    const seconds = Math.max(1, Math.min(60, error.retryAfterSeconds || 30));
+    this._syncRetryAt = Date.now() + seconds * 1000;
+    return true;
+  },
+  async _runSync({ interactive, details }) {
     this.setData({ syncing: true });
     try {
       const result = await this._client.sync();
       this._epoch = result.epoch;
-      this.setData({ capabilities: result.capabilities || {} });
-      if (this.data.passwordAccounts)
-        this.setData({
-          accountDevices: (
-            await this._transport("GET", "/api/v4/devices")
-          ).devices.map((device) => ({
-            ...device,
-            lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
-          })),
-        });
-      await this._uploadFiles(result.epoch);
-      await this._pollJobs();
-      const pendingFiles = this._library()
-        ? this._library()
-            .entries(null, this._space())
-            .filter(
-              (e) =>
-                !e.remote &&
-                this._record(e.packetId) &&
-                !this._record(e.packetId).deletedAt,
-            ).length
-        : 0;
+      const checkedAt = new Date();
+      const time = [checkedAt.getHours(), checkedAt.getMinutes()]
+        .map((part) => String(part).padStart(2, "0")).join(":");
       this.setData({
-        error: "",
-        notice: result.conflicts
-          ? "有修改冲突，本机副本已保留"
-          : pendingFiles
-            ? `还有 ${pendingFiles} 份原件保存在本机，尚未完成上传`
-            : "资料已同步",
+        capabilities: result.capabilities || {},
+        syncStatus: result.conflicts
+          ? "有同步冲突，本机副本已保留"
+          : `${time} · 已同步卡片`,
+        ...(interactive ? { error: "" } : {}),
       });
+      this._refresh();
+      try {
+        await this._uploadFiles(result.epoch);
+      } catch (error) {
+        this._rememberRateLimit(error);
+        this.setData({ syncStatus: `卡片已同步，原件待上传：${error.message}` });
+        if (interactive) this._error(error);
+        return false;
+      }
+      this._refresh();
+      if (this.data.pendingFiles)
+        this.setData({ syncStatus: "卡片已同步，仍有原件待上传" });
+      try {
+        const active = this._jobs?.some((job) =>
+          job.pendingAction || ACTIVE_JOB_STATES.includes(job.state));
+        if (!this.data.jobBusy && (active || interactive || Date.now() >= (this._nextJobPoll || 0))) {
+          await this._pollJobs();
+          this._nextJobPoll = Date.now() + 45000;
+        }
+        if (this.data.tab === "settings" && (details || !this.data.originalStorage))
+          await this._refreshOriginalStorage();
+        if (this.data.tab === "settings" && this.data.passwordAccounts &&
+            (details || !this.data.accountDevices.length)) {
+          const { devices } = await this._transport("GET", "/api/v4/devices");
+          this.setData({
+            accountDevices: devices.map((device) => ({
+              ...device,
+              lastSeenLabel: new Date(device.lastSeen).toLocaleString(),
+            })),
+          });
+        }
+      } catch (error) {
+        this._rememberRateLimit(error);
+        this.setData({ syncStatus: `卡片已同步，部分状态待刷新：${error.message}` });
+      }
+      return true;
     } catch (error) {
-      this._error(error);
+      this._rememberRateLimit(error);
+      this.setData({ syncStatus: `同步未完成：${error.message}` });
+      if (interactive || error.status === 401) this._error(error);
+      return false;
     } finally {
       this.setData({ syncing: false });
       this._refresh();
@@ -1320,7 +1445,7 @@ Page({
   },
   syncQuietly() {
     if (this._client && !this.data.localMode && !this.data.connecting)
-      return this.sync();
+      return this._sync();
   },
   submit() {
     if (this.data.connecting) {
@@ -1371,10 +1496,15 @@ Page({
         currentCaptureId: id,
         notice: this.data.localMode
           ? "已保存在本机；可手动记成事项，连接后再同步和整理"
-          : "文字已保存，等待整理",
+          : "已保存本次投递，可以整理或手动记成事项",
         skinMessage: this.data.activeSkin.feeding,
         skinAnimating: true,
       });
+      try {
+        wx.setStorageSync(captureKey(this._space()), id);
+      } catch {
+        // The capture is already durable; this only restores its position.
+      }
       this.feedSkin();
       this._refresh();
       this.setData({ captureResultAnchor: "" }, () => {
@@ -2121,7 +2251,7 @@ Page({
     this.setData({ [event.currentTarget.dataset.field]: event.detail.value });
   },
   async credentialAction(event) {
-    if (this.data.connecting || this.data.syncing) return;
+    if (this.data.connecting || this.data.syncing || this.data.filesBusy || this.data.jobBusy) return;
     let operationState;
     const { action, replace } = event.currentTarget.dataset;
     if (replace) {
@@ -2238,6 +2368,14 @@ Page({
       this._error(error);
     }
   },
+  _organizeJob(packetId) {
+    const jobs = (this._jobs || []).filter((job) =>
+      job.state !== "purged" && (job.kind || job.request?.kind) === "organize" &&
+      (job.packetId || job.request?.packetId) === packetId,
+    );
+    return jobs.find((job) => ACTIVE_JOB_STATES.includes(job.state)) ||
+      jobs[jobs.length - 1];
+  },
   _jobViews(jobs) {
     return jobs.map(
       ({
@@ -2246,6 +2384,7 @@ Page({
         error,
         output,
         actions,
+        serverAccepted,
         calls,
         hasPreview,
         reusedBlocks,
@@ -2260,6 +2399,7 @@ Page({
         id,
         state,
         error,
+        retryable: canResubmitOrganize({ state, actions, serverAccepted }),
         hasOutput: !!output,
         hasPreview: !!hasPreview,
         calls: calls || 0,
@@ -2282,26 +2422,41 @@ Page({
     this._jobs = jobs;
     this.setData({ jobs: this._jobViews(jobs) });
   },
-  async _pollJobs() {
-    if (this._pollingJobs || !this._connection || !this._jobs) return;
-    this._pollingJobs = true;
+  _pollJobs() {
+    if (!this._connection || !this._jobs) return;
+    if (!this._pollingJobs) this._pollingJobs = this._updateJobs().finally(() => {
+      this._pollingJobs = null;
+    });
+    return this._pollingJobs;
+  },
+  async _updateJobs() {
     try {
       const records = this._client.records();
+      const remoteTaskIds = new Set();
       if (this._reading) {
         const remote = await this._transport("GET", "/api/v4/tasks");
-        const jobs = this._jobs.slice();
-        for (const task of remote.tasks) {
+        const jobsById = new Map(this._jobs.map((job) => [job.id, job]));
+        const jobs = [];
+        let published = false;
+        for (const task of remote.tasks.slice().reverse()) {
+          remoteTaskIds.add(task.id);
           if (this.data.taskPreview?.taskId === task.id) this.setData({ taskPreview: task.state === "purged" ? null
             : { ...this.data.taskPreview, published: ["done", "partial"].includes(task.state) } });
-          const old = jobs.find((j) => j.id === task.id);
-          if (old) Object.assign(old, task);
+          const old = jobsById.get(task.id);
+          if (old) {
+            if (["done", "partial"].includes(task.state) && old.state !== task.state) published = true;
+            jobs.push({ ...old, ...task, protocol: 4, serverAccepted: true });
+          }
           else
             jobs.push({
               ...task,
+              protocol: 4,
+              serverAccepted: true,
               request: { packetId: task.packetId, kind: task.kind || "organize", ...(task.itemId?{itemId:task.itemId}:{}) },
             });
         }
-        this._saveJobs(jobs);
+        if (published) await this._client.sync();
+        this._saveJobs([...this._jobs.filter((job) => !remoteTaskIds.has(job.id)), ...jobs]);
       }
       for (const saved of this._jobs.slice()) {
         if (saved.pendingAction) {
@@ -2319,7 +2474,7 @@ Page({
               request,
             );
           } catch (error) {
-            if ([401, 403, 404, 409, 422, 426, 429, 503].includes(error.status))
+            if ([401, 403, 404, 409, 422, 426, 503].includes(error.status))
               this._saveJobs(
                 this._jobs.map((j) =>
                   j.id === saved.id
@@ -2344,7 +2499,7 @@ Page({
           );
           continue;
         }
-        const record = records.find((r) => r.id === saved.request.packetId);
+        const record = records.find((r) => r.id === (saved.packetId || saved.request?.packetId));
         if (record && record.purged) {
           this._saveJobs(this._jobs.filter((j) => j.id !== saved.id));
           continue;
@@ -2353,6 +2508,8 @@ Page({
           !["submitting", "queued", "running", "applying"].includes(saved.state)
         )
           continue;
+        if (this._reading && saved.state !== "submitting" &&
+            remoteTaskIds.has(saved.id)) continue;
         let job;
         try {
           if (saved.state === "submitting" && saved.protocol === 4) this._requireMaterialConsent();
@@ -2370,7 +2527,7 @@ Page({
                   `${saved.protocol === 4 ? "/api/v4/tasks" : "/api/v2/jobs"}/${saved.id}`,
                 );
         } catch (error) {
-          if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error.status)) {
+          if ([400, 403, 404, 409, 413, 422, 503].includes(error.status)) {
             this._saveJobs(
               this._jobs.map((j) =>
                 j.id === saved.id
@@ -2383,12 +2540,13 @@ Page({
           throw error;
         }
         this._saveJobs(
-          this._jobs.map((j) => (j.id === saved.id ? { ...j, ...job } : j)),
+          this._jobs.map((j) => (j.id === saved.id ? { ...j, ...job, serverAccepted: true } : j)),
         );
-        if (job.state === "done") await this._client.sync();
+        if (["done", "partial"].includes(job.state)) await this._client.sync();
       }
-    } finally {
-      this._pollingJobs = false;
+    } catch (error) {
+      this._rememberRateLimit(error);
+      throw error;
     }
   },
   async _startJob(kind, packetId, itemId, instruction) {
@@ -2400,15 +2558,27 @@ Page({
       );
       return;
     }
-    this.setData({ jobBusy: true, error: "" });
+    this.setData({
+      jobBusy: true,
+      error: "",
+      organizingPacketId: kind === "organize" ? packetId : "",
+    });
     try {
-      await this.sync();
+      const synced = await this.sync();
       if (
-        this.data.error ||
+        !synced ||
         this._client.pendingCount() ||
         this.data.pendingFiles
       )
-        throw new Error(this.data.error || "请先完成未同步操作");
+        throw new Error(this.data.error || this.data.syncStatus || "请先完成未同步操作");
+      if (kind === "organize") {
+        await this._pollJobs();
+        const existing = this._organizeJob(packetId);
+        if (existing && !canResubmitOrganize(existing)) {
+          this.setData({ notice: "这次投递已有整理任务，请在原文下方查看进度" });
+          return;
+        }
+      }
       if (
         !(kind === "chat"
           ? this.data.capabilities.itemChat
@@ -2421,7 +2591,6 @@ Page({
       const record = this._record(packetId);
       if (!record || record.deletedAt || record.conflict)
         throw new Error("请先恢复投递并解决同步冲突");
-      const status = await this._transport("GET", "/api/v2/status");
       const costWallet = this._reading
         ? await this._transport("GET", "/api/v4/wallet") : null;
       const request = {
@@ -2429,7 +2598,7 @@ Page({
         kind,
         packetId,
         baseVersion: record.version,
-        epoch: status.epoch,
+        epoch: this._epoch,
         ...(this._reading ? {
           contractVersion: 1,
           expectedCostOperation: costWallet?.costAuditOperation || null,
@@ -2438,6 +2607,7 @@ Page({
       };
       const entry = {
         id: request.id,
+        createdAt: new Date().toISOString(),
         request,
         state: "submitting",
         error: "",
@@ -2446,7 +2616,7 @@ Page({
       // Do not evict active requests; they may already have incurred a model charge.
       const jobs = this._jobs || [],
         active = jobs.filter((j) =>
-          ["submitting", "queued", "running", "applying"].includes(j.state),
+          ACTIVE_JOB_STATES.includes(j.state),
         );
       if (active.length >= 20) throw new Error("任务较多，请等待已有任务完成");
       this._saveJobs([
@@ -2459,15 +2629,22 @@ Page({
       if (submitted?.state === "error")
         throw new Error(submitted.error || "模型任务未创建，请核对后重试");
       this.setData({
-        notice: "模型任务已保存；可继续操作，结果就绪后自动同步",
+        notice: kind === "chat" ? "对话任务已提交，可在设置中查看进度" : "",
         chatInput: "",
       });
     } catch (error) {
+      this._rememberRateLimit(error);
       this._error(error);
     } finally {
-      this.setData({ jobBusy: false });
+      this.setData({ jobBusy: false, organizingPacketId: "" });
       this._refresh();
     }
+  },
+  showDelivery(event) {
+    const id = event.currentTarget.dataset.id;
+    this.setData({ tab: "capture", recordsOpen: false, currentCaptureId: id, captureResultAnchor: "" });
+    this._refresh();
+    this.setData({ captureResultAnchor: "capture-result" });
   },
   organizeRecord(event) {
     return this._startJob("organize", event.currentTarget.dataset.id);
@@ -2488,9 +2665,12 @@ Page({
     try {
       const preview = await this._transport("GET", `/api/v4/tasks/${encodeURIComponent(id)}/preview?offset=${offset || 0}`);
       if (space !== this._space()) return;
-      this.setData({ taskPreview: preview, error: "" });
+      this.setData({ taskPreview: preview, recordsOpen: false, error: "" });
     } catch (error) { this._error(error); }
     finally { this.setData({ jobBusy: false }); }
+  },
+  closeTaskPreview() {
+    this.setData({ taskPreview: null });
   },
   _requireMaterialConsent() {
     const notice = this._reading?.materialUseNotice;
@@ -2530,6 +2710,7 @@ Page({
       this._saveJobs(this._jobs.map((j) => (j.id === id ? job : j)));
       await this._pollJobs();
       await this.sync();
+      this._refresh();
     } catch (error) {
       this._error(error);
     } finally {
