@@ -6,6 +6,8 @@
 }
 .bunny-sheet {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1000%;
   height: 1100%;
   max-width: none;

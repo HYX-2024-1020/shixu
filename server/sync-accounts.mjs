@@ -221,7 +221,9 @@ export class AccountRegistry {
       this.db.prepare("SELECT n FROM request_rates WHERE key=?").get(key).n >
       max
     )
-      reject(429, "RATE_LIMIT", "请求较多，请稍后重试");
+      throw new SyncError(429, "RATE_LIMIT", "请求较多，请稍后重试", {
+        retryAfterSeconds: Math.ceil(((window + 1) * 60000 - now) / 1000),
+      });
   }
   revoke(userId, kind) {
     this.account(userId);

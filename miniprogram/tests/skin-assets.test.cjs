@@ -2,6 +2,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { readFileSync, readdirSync, statSync } = require("node:fs");
 const { resolve, join } = require("node:path");
+const { prepareSkinImage } = require("../lib/skin-images");
 const root = resolve(__dirname, "..");
 
 test("fox atlas retains true-color alpha at 240px and lives in a bounded resource package", () => {
@@ -18,7 +19,7 @@ test("fox atlas retains true-color alpha at 240px and lives in a bounded resourc
       .component,
     true,
   );
-  const atlas = readFileSync(join(root, pkg.root, "atlas.webp"));
+  const atlas = readFileSync(join(root, pkg.root, "atlas.bin"));
   assert.equal(atlas.subarray(0, 4).toString(), "RIFF");
   assert.equal(atlas.subarray(12, 16).toString(), "VP8X");
   assert.ok(atlas[20] & 16, "alpha is present");
@@ -45,4 +46,25 @@ test("fox atlas retains true-color alpha at 240px and lives in a bounded resourc
   const png = readFileSync(join(root, "assets/bunny.png"));
   assert.equal(png[25], 6, "idle PNG is true RGBA, not a limited palette");
   assert.equal(png.readUInt32BE(16), 480);
+});
+
+test("skin picker converts a large phone image and keeps the converted format", async () => {
+  const calls = [];
+  const runtime = {
+    getImageInfo({ src, success, fail }) {
+      if (src === "photo.heic") fail();
+      else success({ width: 640, height: 480, type: "jpeg" });
+    },
+    compressImage(options) {
+      calls.push(options.src);
+      options.success({ tempFilePath: "compressed.tmp" });
+    },
+    getFileSystemManager: () => ({
+      statSync: () => ({ size: 6 }),
+      readFile: ({ success }) => success({ data: "/9j/AA==" }),
+    }),
+  };
+  const image = await prepareSkinImage(runtime, "photo.heic", () => assert.fail("canvas not needed"));
+  assert.equal(image, "data:image/jpeg;base64,/9j/AA==");
+  assert.deepEqual(calls, ["photo.heic"]);
 });

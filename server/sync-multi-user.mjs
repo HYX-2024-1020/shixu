@@ -923,6 +923,8 @@ function createAccountService(
         res.destroy();
         return;
       }
+      if (error instanceof SyncError && error.code === "RATE_LIMIT")
+        res.setHeader("Retry-After", error.details.retryAfterSeconds);
       send(res, error instanceof SyncError ? error.status : 500, {
         code: error instanceof SyncError ? error.code : "INTERNAL_ERROR",
         error:

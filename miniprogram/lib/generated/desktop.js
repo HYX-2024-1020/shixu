@@ -37,6 +37,7 @@ __export(stdin_exports, {
   deadlineCountdown: () => deadlineCountdown,
   deadlineLabel: () => deadlineLabel,
   deadlineSections: () => deadlineSections,
+  deadlineTone: () => deadlineTone,
   habitCheckin: () => habitCheckin,
   imageProgressView: () => imageProgressView,
   isSkinImage: () => isSkinImage,
@@ -211,6 +212,16 @@ function calendarDay(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
   const date = /* @__PURE__ */ new Date(`${value}T00:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() / 864e5 : NaN;
+}
+function deadlineTone(date, day, done = false) {
+  if (done) return "done";
+  const days = calendarDay(date) - calendarDay(day);
+  if (days <= 1) return "urgent";
+  if (days <= 3) return "near";
+  if (days <= 7) return "week";
+  if (days <= 14) return "fortnight";
+  if (days <= 30) return "month";
+  return "later";
 }
 function deadlineCountdown(date, day, time, clock2, done = false) {
   if (done) return { label: "已完成", status: "done" };

@@ -1,1 +1,1 @@
-<view class="bunny-window"><image class="bunny-sheet" src="/assets/fox/atlas.webp" style="{{position}}" mode="scaleToFill" bindload="ready" binderror="failed"/></view>
+<view class="bunny-window"><image wx:if="{{source}}" class="bunny-sheet" src="{{source}}" style="{{position}}" mode="scaleToFill" bindload="ready" binderror="failed"/></view>

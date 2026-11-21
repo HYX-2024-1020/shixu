@@ -128,8 +128,10 @@ function createTouchOrder(wx) {
         event.touches.length !== 1
       )
         return;
-      this._stopDragSettle();
+      if (this.data.dragGhost) this._stopDragSettle();
       this._dragTapUntil = 0;
+      this._dragJustEndedAt = 0;
+      if (event.currentTarget.dataset.noDrag || event.target?.dataset?.cardControl) return;
       const touch = event.touches[0];
       this._dragTouch = {
         id: event.currentTarget.dataset.id,
@@ -524,11 +526,7 @@ function createTouchOrder(wx) {
             wx.setStorageSync("shixu:mini:filters:v1", { sort: "custom" });
             this.setData({ sort: "custom", sortIndex: 4 });
           }
-          this.setData({
-            notice:
-              "顺序已保存" +
-              (s.tab === "ddl" ? "，截止时间未改变" : "，已切换为手动排序"),
-          });
+          this._acknowledge(s.tab === "ddl" ? "顺序已保存" : "顺序已保存，已切换为手动排序");
           this.syncQuietly();
         }
       } catch (error) {

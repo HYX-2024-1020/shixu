@@ -106,6 +106,8 @@ test("AI entry explains server configuration and refreshes capability without mo
   const { page, store } = fixture();
   page.openAiSettings();
   assert.equal(page.data.tab, "settings");
+  assert.equal(page.data.showAiGuide, false);
+  page.toggleAiGuide();
   assert.equal(page.data.showAiGuide, true);
   assert.equal(page.data.connected, false);
   page.setData({ connected: true });
@@ -470,7 +472,7 @@ test("lost AI acknowledgement persists a stable request and retries it after pag
   }
   remote(p);
   await p.organizeRecord(event("p"));
-  assert.match(p.data.error, /response lost/);
+  assert.match(p.data.rows.find((row) => row.id === "p").organizeIssue, /response lost/);
   const saved = f.store.get("shixu:mini:jobs:v1:http://127.0.0.1:8788");
   assert.equal(saved[0].state, "submitting");
   const reopened = fixture({ store: f.store }).page;
@@ -491,7 +493,8 @@ test("AI job storage failure prevents transmission and preserves draft and packe
   p._connection = { base: "http://127.0.0.1:8788" };
   p._jobs = [];
   p.setData({ localMode: false, capabilities: { aiOrganize: true } });
-  p.sync = async () => {};
+  p.sync = async () => true;
+  p._epoch = "test";
   p._transport = async (method) => {
     if (method === "POST") calls++;
     return { epoch: "test" };
@@ -499,7 +502,7 @@ test("AI job storage failure prevents transmission and preserves draft and packe
   rejectJobs = true;
   await p.organizeRecord(event("p"));
   assert.equal(calls, 0);
-  assert.match(p.data.error, /disk full/);
+  assert.match(p.data.rows.find((row) => row.id === "p").organizeIssue, /disk full/);
   assert.equal(p._client.records().length, 1);
 });
 test("filtering a manual reorder preserves every hidden slot", () => {
@@ -564,7 +567,12 @@ test("DDL creates grounded dates, infers omitted clocks, shares completion, and 
   assert.equal(page.data.editing, true);
   page.setData({ editDate: "2026-12-31", editTime: "" });
   page.saveEdit();
-  assert.equal(itemsFor(page._client.records())[0].time, "23:59");
+  const inferred = itemsFor(page._client.records())[0].item.due;
+  assert.equal(inferred.time, "23:59");
+  page.beginEdit();
+  page.setData({ editTitle: "只修改标题" });
+  page.saveEdit();
+  assert.deepEqual(itemsFor(page._client.records())[0].item.due, inferred);
   await page.toggleDone(event(row.id));
   assert.equal(page.data.ddlDone.length, 1);
   assert.equal(page.data.ddlCount, 0);
@@ -1554,6 +1562,8 @@ test("card filenames preserve active originals and metadata while hiding soft-de
     ],
   );
   assert.ok(rows[0].item);
+  assert.equal(worldView([{ id: p.id, data: p }], { query: "实验要求.pdf" }).matched, rows.length);
+  assert.equal(worldView([{ id: p.id, data: p }], { query: "已删除.png" }).matched, 0);
 });
 
 test("a whole-card short touch routes actions, but the release from a lifted card cannot activate a control", () => {
@@ -1583,7 +1593,7 @@ test("a whole-card short touch routes actions, but the release from a lifted car
   p.onUnload();
 });
 
-test("fox waits for its decoded resource package and ignores a late load after switching skins", () => {
+test("fox audio starts without the atlas and a late image event does not restart it", () => {
   let plays = 0;
   const audio = {
     onEnded() {},
@@ -1598,15 +1608,16 @@ test("fox waits for its decoded resource package and ignores a late load after s
   p.openSkins();
   p.previewSkin(event("bunny"));
   p.interactSkin();
-  assert.equal(plays, 0);
-  assert.equal(p._foxLoading, true);
+  assert.equal(plays, 1);
+  assert.equal(p.data.foxPreviewReady, false);
   p.previewSkin(event("ice"));
-  p.foxResourceReady();
-  assert.equal(plays, 0);
+  p.foxResourceReady({ currentTarget: { dataset: { preview: true } } });
+  assert.equal(plays, 1);
+  assert.equal(p.data.foxPreviewReady, false);
   assert.equal(p.data.skinAnimating, false);
   p.previewSkin(event("bunny"));
   p.interactSkin();
-  assert.equal(plays, 1);
+  assert.equal(plays, 2);
   p.onUnload();
 });
 
@@ -1655,20 +1666,23 @@ test("bunny plays its timeline once, restarts cleanly, stops on hide and persist
   const p = f.page;
   p.openSkins();
   p.previewSkin(event("bunny"));
-  p.foxResourceReady();
   p.interactSkin();
   assert.equal(audio.src, "/assets/bunny-voice.mp3");
+  assert.equal(calls.at(-1), "play", "sound starts before the atlas finishes loading");
+  assert.equal(p.data.foxPreviewReady, false);
+  p.foxResourceReady({ currentTarget: { dataset: { preview: true } } });
+  assert.equal(p.data.foxPreviewReady, true);
   assert.equal(p.data.skinAnimating, true);
-  assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
+  assert.equal(p.data.bunnyPlaying, true);
   now = 1400;
   tasks.get(p._bunnyTimer)();
-  assert.equal(p.data.bunnySheet, "/assets/fox/atlas.webp");
-  assert.equal(p.data.bunnyPosition, "left:-100%;top:-200%");
+  assert.equal(p.data.bunnyPosition, "transform:translate3d(-10%,-18.181818181818183%,0)");
   p.interactSkin();
   assert.deepEqual(calls.slice(-2), ["stop", "play"]);
-  assert.equal(p.data.bunnyPosition, "left:0%;top:0%");
+  assert.equal(p.data.bunnyPosition, "transform:translate3d(0%,0%,0)");
   ended();
   assert.equal(p.data.skinAnimating, false);
+  assert.equal(p.data.bunnyPlaying, false);
   p.interactSkin();
   p.onHide();
   assert.equal(p.data.skinAnimating, false);
@@ -1724,4 +1738,78 @@ test("ice voices select distinct single-shot assets, stop before replay and pers
   assert.equal(reopened.data.activeSkin.id, "ice");
   page.onUnload();
   reopened.onUnload();
+});
+
+test("submit resets and re-applies the capture anchor after each render", () => {
+  const { page } = fixture();
+  page.onDraft({ detail: { value: "第一条结果" } });
+  page.submit();
+  assert.equal(page.data.captureResultAnchor, "capture-result");
+  const firstId = page.data.currentCaptureId;
+  page.onDraft({ detail: { value: "第二条结果" } });
+  page.submit();
+  assert.equal(page.data.captureResultAnchor, "capture-result");
+  assert.notEqual(page.data.currentCaptureId, firstId);
+  page.switchTab(tabEvent("world"));
+  assert.equal(page.data.captureResultAnchor, "");
+  page.onUnload();
+});
+
+test("search clear and filter reset restore the whole world without stale timers", () => {
+  const { page } = fixture();
+  page._client.put("p", packet());
+  page._refresh();
+  page.setData({ query: "实验", kind: "task", starOnly: true, group: "课程" });
+  page._refreshWorld();
+  assert.equal(page.data.filterActive, true);
+  page.clearSearch();
+  assert.equal(page.data.query, "");
+  assert.equal(page._queryTimer, null);
+  assert.equal(page.data.filterActive, true);
+  page.resetWorldFilters();
+  assert.equal(page.data.filtersOpen, false);
+  assert.equal(page.data.filterActive, false);
+  assert.equal(page.data.items.length, 2);
+  page.onUnload();
+});
+
+test("notices and status strips live inside the main scroll region", () => {
+  const xml = readFileSync(resolve(__dirname, "../pages/index/index.wxml"), "utf8");
+  const bottomNav = xml.indexOf('class="bottom-nav"');
+  const scrollEnd = xml.lastIndexOf("</scroll-view>", bottomNav);
+  assert.ok(scrollEnd > 0 && scrollEnd < bottomNav);
+  for (const content of [
+    "{{originalNotice}}",
+    'class="job-strip"',
+    "拾序小程序 · 集中调试预览",
+  ]) {
+    const position = xml.indexOf(content);
+    assert.ok(position > -1 && position < scrollEnd, `${content} must scroll`);
+  }
+});
+
+test("detail view shows the original text once instead of repeating identical sources", () => {
+  const { page } = fixture();
+  const row = {
+    id: "p1",
+    sourceText: "明天下午三点前提交实验报告",
+    sources: [
+      { id: "input", name: "随手输入", text: "明天下午三点前提交实验报告" },
+      { id: "chat", name: "聊天记录", text: "导师：记得交实验报告" },
+      { id: "file", name: "实验通知.txt", text: "明天下午三点前提交实验报告" },
+    ],
+    additions: [],
+    chat: [],
+    history: [],
+  };
+  const detail = page._presentDetail(row);
+  assert.equal(detail.sourceText, "明天下午三点前提交实验报告");
+  assert.deepEqual(
+    detail.sources.map((s) => s.id),
+    ["chat", "file"],
+    "matching text in an independent source keeps its source attribution",
+  );
+  // Keep the original record intact.
+  assert.equal(row.sources.length, 3);
+  page.onUnload();
 });

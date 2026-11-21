@@ -221,6 +221,14 @@ export default function BucketApp() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 7000);
   }, []);
+  const refreshCloudCards = useCallback(async (isCurrent: () => boolean = () => true) => {
+    if (!isCurrent() || working.current || submitLock.current) return;
+    const rows = await allPackets();
+    if (isCurrent() && !working.current && !submitLock.current) {
+      packetsRef.current = rows;
+      setPackets(rows);
+    }
+  }, []);
   useEffect(() => {
     if (!loaded || !window.desktop) return;
     void window.desktop
@@ -243,7 +251,14 @@ export default function BucketApp() {
         const state = await window.desktop!.cloud("status");
         setCloudActive(!!state.base);
         if (!state.base) return;
-        const updated = await window.desktop!.cloud("sync");
+        let updated;
+        try {
+          updated = await window.desktop!.cloud("sync");
+        } finally {
+          // The queue commits card changes before original downloads and task
+          // polling. Read those cards even if a later request fails.
+          await refreshCloudCards(() => !stopped).catch(() => {});
+        }
         if (stopped) return;
         setCloudUsage(updated.account?.usageSummary || null);
         const ai = updated.account?.ai;
@@ -259,11 +274,6 @@ export default function BucketApp() {
                 (updated.account.wallet?.available || 0) > 0
               : !!ai?.enabled && used < ai.dailyLimit,
         );
-        const rows = await allPackets();
-        if (!stopped && !working.current && !submitLock.current) {
-          packetsRef.current = rows;
-          setPackets(rows);
-        }
       } catch {
         setCloudUsage(null);
         setCloudReady(
@@ -283,7 +293,7 @@ export default function BucketApp() {
       window.removeEventListener("online", refresh);
       window.removeEventListener("focus", refresh);
     };
-  }, [loaded]);
+  }, [loaded, refreshCloudCards]);
   const purgePacket = useCallback(
     async (id: string) => {
       await removePacket(id);
@@ -2367,6 +2377,7 @@ export default function BucketApp() {
       )}
       {settings && (
         <Connection
+          onCloudSyncSettled={refreshCloudCards}
           canSwitchCloud={() =>
             !working.current && !submitLock.current && !chatLocks.current.size
           }
