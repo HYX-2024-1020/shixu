@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("desktop", {
     return ipcRenderer.invoke("store", method, value, await workspace);
   },
   cloud: (action, value) => ipcRenderer.invoke("cloud", action, value),
+  update: (action) => ipcRenderer.invoke("update", action),
   key: (action, value) => ipcRenderer.invoke("key", action, value),
   backup: (action) => ipcRenderer.invoke("backup", action),
   archive: (bytes, extension) =>

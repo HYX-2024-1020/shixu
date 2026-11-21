@@ -4,6 +4,9 @@ interface Window {
   flushDesktopDraft?: () => Promise<void>;
   desktop?: {
     board?: BoardHost;
+    update?(
+      action: "status" | "check" | "download" | "install",
+    ): Promise<DesktopUpdateStatus>;
     cloud(
       action: string,
       value?: unknown,
@@ -149,6 +152,22 @@ interface Window {
     ): Promise<{ name: string; bytes?: ArrayBuffer; error?: string }[]>;
     office(bytes: ArrayBuffer, extension: string): Promise<string>;
   };
+}
+
+interface DesktopUpdateStatus {
+  version: string;
+  phase:
+    | "unavailable"
+    | "idle"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "installing";
+  available?: string;
+  progress: number;
+  error: string;
 }
 
 interface BoardHost {

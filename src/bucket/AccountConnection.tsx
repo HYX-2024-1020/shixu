@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { allPackets } from "./store";
 import { readableFileName } from "./file-display";
 import { errorMessage } from "./error-message";
+import SoftwareUpdate from "./SoftwareUpdate";
 import {
   walletView,
   reuseView,
@@ -23,7 +24,7 @@ export default function AccountConnection({
   mode?: "settings" | "tasks";
   canSwitch: () => boolean;
   onClose: () => void;
-  onSyncSettled?: () => Promise<void>;
+  onSyncSettled?: () => Promise<boolean>;
   notify: (message: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -235,6 +236,7 @@ export default function AccountConnection({
             ["originals", "云端原件"],
             ["ai", "AI与用量"],
             ["backup", "本机备份"],
+            ...(window.desktop?.update ? [["update", "软件更新"]] : []),
           ].map(([id, label]) => (
             <button
               key={id}
@@ -246,6 +248,7 @@ export default function AccountConnection({
           ))}
         </nav>
       )}
+      {mode === "settings" && section === "update" && <SoftwareUpdate />}
       {mode === "tasks" && (
         <div className="result-controls">
           <button

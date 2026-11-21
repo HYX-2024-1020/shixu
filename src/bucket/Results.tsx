@@ -59,6 +59,8 @@ function Results({
   onChat,
   onRecords,
   onTasks,
+  onRefresh,
+  refreshing = false,
   onRetry,
   onApplyProposals,
 }: {
@@ -67,6 +69,8 @@ function Results({
   reorder: (ids: string[]) => Promise<void>;
   onRecords: () => void;
   onTasks?: () => void;
+  onRefresh?: () => Promise<void>;
+  refreshing?: boolean;
   onRetry?: (packet: Packet) => Promise<void>;
   onApplyProposals?: (packetId: string, itemId: string) => Promise<void>;
   packets: Packet[];
@@ -502,6 +506,11 @@ function Results({
             </span>
           </div>
           <div className="result-controls">
+            {onRefresh && (
+              <button disabled={refreshing} onClick={() => void onRefresh()}>
+                {refreshing ? "正在刷新…" : "刷新卡片"}
+              </button>
+            )}
             <button onClick={onRecords}>整理记录</button>
             {onTasks && <button onClick={onTasks}>整理任务</button>}
             <button
