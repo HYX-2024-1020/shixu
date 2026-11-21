@@ -257,6 +257,7 @@
   padding: 18rpx;
   font-size: 26rpx;
   line-height: 1.8;
+  animation: compact-open 155ms ease-out both;
 }
 .sheet.detail-sheet .detail-top {
   background: #fff6ce;

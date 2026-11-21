@@ -726,7 +726,7 @@ input {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: sheet-in 0.24s ease-out;
+  animation: sheet-in 180ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
 }
 .sheet-scroll {
   height: 69vh;
@@ -852,9 +852,6 @@ input {
   justify-content: center;
   margin: 10rpx 0;
 }
-.current-delivery {
-  margin: 24rpx 0;
-}
 .job-strip {
   padding: 0 0 24rpx;
 }
@@ -882,11 +879,11 @@ input {
 }
 @keyframes sheet-in {
   from {
-    transform: translateY(30rpx);
-    opacity: 0;
+    transform: translate3d(0, 30rpx, 0);
+    opacity: 0.75;
   }
   to {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 }
@@ -1392,20 +1389,6 @@ page {
   flex: 1 0 auto;
   padding: 14rpx 12rpx;
   font-size: 24rpx;
-}
-
-/* 投递结果保留原文入口，长内容在详情中完整阅读。 */
-.current-delivery .source-preview {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  overflow: hidden;
-}
-.current-delivery > .card-paper > .item-summary {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
 }
 
 /* Phone controls: two large targets; secondary options appear only on request. */
@@ -2280,9 +2263,13 @@ page {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .compact-expanded {
+  .compact-expanded,
+  .xc-expanded,
+  .page .ddl-card-summary,
+  .sheet {
     animation: none;
   }
+  .xc-chevron-mark { transition: none; }
 }
 
 .ice-voices {
@@ -2477,6 +2464,10 @@ page {
   white-space: nowrap;
 }
 
+.cloud-original {
+  background: #fffef8;
+}
+
 .cloud-original .attachment-file-name {
   display: block;
 }
@@ -2492,6 +2483,49 @@ page {
   margin: 0;
   min-height: 44px;
   white-space: nowrap;
+}
+
+.cloud-original-status {
+  display: block;
+  color: #514b35;
+  font-size: 25rpx;
+  line-height: 1.45;
+  margin-top: 8rpx;
+}
+
+.cloud-original-failed {
+  color: #862e27;
+}
+
+.capture-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8rpx 16rpx;
+  padding: 8rpx 0 12rpx;
+  color: #514b35;
+  font-size: 26rpx;
+}
+
+.capture-pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 16rpx;
+}
+
+.capture-pending-actions button {
+  width: auto;
+  margin: 0;
+  min-height: 44px;
+}
+
+.skin-image-canvas {
+  position: absolute;
+  left: -2000px;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }
 
 .delivery-upload,

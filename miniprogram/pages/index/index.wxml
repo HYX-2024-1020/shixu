@@ -132,35 +132,18 @@
       ><text class="empty-title">现在乱一点，也没关系。</text
       ><text>先留住原文，再把事情一件件理清。</text></view
     >
-    <view wx:for="{{currentRows}}" wx:key="id" class="current-delivery"
-      ><view class="card-paper"
-        ><text class="badge"
-          >{{item.status === 'ready' ? '已记录' : '原文已保存'}}</text
-        ><text wx:if="{{item.text}}" class="source-preview" selectable>{{item.text}}</text
-        ><template wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: item.id, disabled: filesBusy}}"/><text class="item-summary">{{item.summary}}</text
-        ><text wx:if="{{item.error && !item.organizeJob}}" class="error">{{item.error}}</text>
-        <template is="deliveryUpload" data="{{item, offline, syncing, filesBusy}}"/>
-        <template is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.items.length}}"/>
-        <view class="button-row"
-          ><button
-            wx:if="{{(!item.organizeJob && !item.summary) || item.organizeJob.retryable}}"
-            hover-class="btn-press" class="small-button"
-            data-id="{{item.id}}"
-            bindtap="organizeRecord"
-            disabled="{{jobBusy}}"
-          >
-            AI 整理</button
-          ><button
-            hover-class="text-press" class="text-button"
-            data-id="{{item.id}}"
-            bindtap="createManual"
-          >
-            ＋ 手动记成事项
-          </button></view
-        ></view
-      ><block wx:for="{{item.items}}" wx:for-item="row" wx:key="id"
-        ><template is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: tab === 'world'}}" /></block
-    ></view>
+    <block wx:for="{{currentRows}}" wx:key="id">
+      <block wx:if="{{item.items.length}}">
+        <template wx:for="{{item.items}}" wx:for-item="row" wx:key="id" is="itemCard" data="{{row, sort, checkingId, leavingId, expandedCardId, dragId, dragView, allowDrag: false}}"/>
+      </block>
+      <view wx:else class="capture-pending">
+        <text role="status">{{organizingPacketId === item.id ? '正在提交整理' : item.pendingOriginals ? '原件待上传' : item.organizeJob ? 'AI 整理 · ' + jobLabels[item.organizeJob.state] : item.organized ? '本次没有生成卡片' : '已投喂，待整理'}}</text>
+        <view class="capture-pending-actions">
+          <button wx:if="{{(!item.organizeJob && !item.organized) || item.organizeJob.retryable}}" class="small-button" data-id="{{item.id}}" bindtap="organizeRecord" disabled="{{jobBusy}}" hover-class="btn-press">{{item.organizeJob.retryable ? '重试整理' : 'AI 整理'}}</button>
+          <button class="text-button" data-id="{{item.id}}" bindtap="createManual" hover-class="text-press">手动记成事项</button>
+        </view>
+      </view>
+    </block>
   </view>
   <view wx:elif="{{tab === 'world'}}" class="world">
     <view class="world-heading"
@@ -328,11 +311,15 @@
     <text wx:elif="{{item.state === 'deleted' || item.state === 'cleaned'}}" class="quiet">云端已清除</text>
     <text wx:elif="{{item.mode === 'temporary'}}" class="quiet">临时原件</text>
     <view class="button-row cloud-original-actions">
-      <button wx:if="{{item.mode === 'retained' && item.available}}" class="small-button" disabled="{{filesBusy || offline || (originalActionFeedback.rowKey === item.rowKey && originalActionFeedback.needsRefresh)}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'renew'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="renew" bindtap="originalAction" hover-class="btn-press">续期30天</button>
-      <button wx:if="{{item.available}}" class="small-button" disabled="{{filesBusy || offline}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'download'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="download" bindtap="originalAction" hover-class="btn-press">下载到本机</button>
-      <button wx:if="{{item.state !== 'deleted' && item.state !== 'cleaned'}}" class="text-button danger" disabled="{{filesBusy || offline}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'delete'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="delete" bindtap="originalAction" hover-class="text-press">删除云端原件</button>
+      <button wx:if="{{item.localCopy}}" class="small-button" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="open" bindtap="openCachedOriginal" hover-class="btn-press">打开</button>
+      <button wx:if="{{item.localCopy}}" class="text-button" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="export" bindtap="openCachedOriginal" hover-class="text-press">导出</button>
+      <button wx:elif="{{item.available}}" class="small-button" disabled="{{offline || originalActionBusy.rowKey === item.rowKey}}" loading="{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'download'}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="download" bindtap="originalAction" hover-class="btn-press">{{originalActionBusy.rowKey === item.rowKey && originalActionBusy.action === 'download' ? '正在下载' : originalActionFeedback.rowKey === item.rowKey && originalActionFeedback.retryDownload ? '重试下载' : '下载到本机'}}</button>
+      <button wx:if="{{item.mode === 'retained' && item.available}}" class="text-button" disabled="{{offline || originalActionBusy.rowKey === item.rowKey || (originalActionFeedback.rowKey === item.rowKey && originalActionFeedback.needsRefresh)}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="renew" bindtap="originalAction" hover-class="text-press">续期30天</button>
+      <button wx:if="{{item.state !== 'deleted' && item.state !== 'cleaned'}}" class="text-button danger" disabled="{{offline || originalActionBusy.rowKey === item.rowKey}}" data-id="{{item.id}}" data-packet="{{item.packetId}}" data-action="delete" bindtap="originalAction" hover-class="text-press">删除云端原件</button>
     </view>
-    <text wx:if="{{originalActionFeedback.rowKey === item.rowKey}}" class="{{originalActionFeedback.failed ? 'error' : 'quiet'}}" role="status" selectable>{{originalActionFeedback.message}}</text>
+    <text wx:if="{{originalActionBusy.rowKey === item.rowKey}}" class="cloud-original-status" role="status">{{originalActionBusy.action === 'download' ? '正在下载并校验原件…' : originalActionBusy.action === 'renew' ? '正在续期…' : '正在处理删除…'}}</text>
+    <text wx:elif="{{originalActionFeedback.rowKey === item.rowKey}}" class="cloud-original-status {{originalActionFeedback.failed ? 'cloud-original-failed' : ''}}" role="status" selectable>{{originalActionFeedback.message}}</text>
+    <text wx:elif="{{item.localCopy}}" class="cloud-original-status">已下载到本机</text>
   </view>
   <button wx:if="{{originalStorage.hasMore}}" class="small-button" bindtap="moreOriginals" disabled="{{filesBusy || offline}}" hover-class="btn-press">更多原件</button>
 </view><view wx:if="{{jobs.length}}" class="job-strip"
@@ -398,7 +385,7 @@
           ></view
         ><text wx:if="{{item.body}}" class="source-preview" selectable>{{item.body}}</text
         ><template wx:for="{{item.attachments}}" wx:for-item="file" wx:key="id" is="attachmentActions" data="{{file, packet: item.id, disabled: filesBusy || item.deleted}}"/><text class="quiet">{{item.date}}</text
-        ><template is="deliveryUpload" data="{{item, offline, syncing, filesBusy}}"/><template wx:if="{{!item.deleted}}" is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.hasResult}}"/><view class="button-row"
+        ><text wx:if="{{item.summary}}" class="item-summary">{{item.summary}}</text><text wx:if="{{item.error && !item.organizeJob}}" class="error">{{item.error}}</text><template is="deliveryUpload" data="{{item, offline, syncing, filesBusy}}"/><template wx:if="{{!item.deleted}}" is="deliveryJob" data="{{job: item.organizeJob, jobLabels, jobBusy, submitting: organizingPacketId === item.id, hasCards: item.hasResult}}"/><view class="button-row"
           ><button
             wx:if="{{item.conflict}}"
             hover-class="btn-press" class="small-button"
@@ -673,12 +660,12 @@
         ></block
       ><block wx:else
         ><image
-          wx:if="{{skinForm.image}}"
+          wx:if="{{skinFormPreview}}"
           class="preview-art"
-          src="{{skinForm.image}}"
+          src="{{skinFormPreview}}"
           mode="aspectFit"
-        /><button hover-class="btn-press" class="small-button" bindtap="chooseSkinImage">
-          选择角色图片</button
+        /><canvas id="skin-image-canvas" type="2d" class="skin-image-canvas"/><button hover-class="btn-press" class="small-button" bindtap="chooseSkinImage" loading="{{skinImageBusy}}" disabled="{{skinImageBusy}}">
+          {{skinImageBusy ? '正在处理图片' : '选择角色图片'}}</button
         ><text class="field-label">名字</text
         ><input
           value="{{skinForm.name}}"
@@ -715,7 +702,7 @@
           value="{{motionIndex}}"
           bindchange="onMotion"
           ><view hover-class="chip-press" class="filter">{{motionLabels[motionIndex]}} ▾</view></picker
-        ><button hover-class="btn-press" class="primary" bindtap="saveCustomSkin">
+        ><button hover-class="btn-press" class="primary" bindtap="saveCustomSkin" disabled="{{skinImageBusy}}">
           保存并使用
         </button></block
       ></scroll-view
@@ -738,7 +725,7 @@
   <text wx:if="{{!taskPreview.items.length}}">暂无已通过依据核对的可预览内容。</text>
   <button wx:if="{{taskPreview.nextOffset !== null}}" data-id="{{taskPreview.taskId}}" data-offset="{{taskPreview.nextOffset}}" bindtap="taskPreview" disabled="{{jobBusy}}" hover-class="btn-press">下一页预览</button>
 </view></scroll-view></view></view>
-<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="sheet-handle"></view><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view><button class="small-button" data-id="{{originalPreview.id}}" data-packet="{{originalPreview.packet}}" bindtap="exportAttachment" disabled="{{filesBusy}}" hover-class="btn-press">导出原件</button><view wx:if="{{error}}" class="error panel-feedback" selectable>{{error}}</view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>
+<view wx:if="{{originalPreview}}" class="scrim original-scrim" bindtap="closeOriginal"><view class="sheet" catchtap="stopTap"><view class="sheet-handle"></view><view class="section-top"><text class="subheading">{{originalPreview.name}}</text><button class="icon-button" bindtap="closeOriginal" hover-class="icon-press" hover-stop-propagation="{{true}}">×</button></view><button class="small-button" data-id="{{originalPreview.id}}" data-packet="{{originalPreview.packet}}" data-local-original="{{originalPreview.localOriginal}}" data-action="export" bindtap="exportAttachment" disabled="{{filesBusy}}" hover-class="btn-press">导出原件</button><view wx:if="{{error}}" class="error panel-feedback" selectable>{{error}}</view><text wx:if="{{originalPreview.truncated}}" class="quiet">仅预览前 60000 字，原件未截断。</text><scroll-view scroll-y class="sheet-scroll"><text class="detail-line" selectable>{{originalPreview.text}}</text></scroll-view></view></view>
 
 <view wx:if="{{dragGhost}}" id="drag-ghost" class="drag-ghost {{dragSettling ? 'is-settling' : ''}}" style="transform: {{dragGhost.transform || 'scale(1.025)'}}; height: {{dragGhost.height}}px; left: {{dragGhost.left}}px; top: {{dragGhost.top}}px; width: {{dragGhost.width}}px;"><text class="drag-ghost-label">移动中 · 松手放下</text><text class="drag-ghost-title">{{dragGhost.title}}</text><text class="drag-ghost-summary">{{dragGhost.summary}}</text></view>
 <view wx:if="{{dragId}}" class="drag-toolbar"><text>{{dragNotice}}</text><button bindtap="cancelDrag" hover-class="btn-press" hover-stop-propagation="{{true}}">取消移动</button></view>

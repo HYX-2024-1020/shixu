@@ -1,7 +1,7 @@
 const { createSyncClient, makeId } = require("../../lib/sync-client");
 const { createTransport, normalizeServiceURL } = require("../../lib/transport");
 const { sha256: originalHash } = require("../../lib/originals");
-const { packedWebp } = require("../../lib/skin-images");
+const { localSkinAsset, prepareSkinImage } = require("../../lib/skin-images");
 const {
   CONNECTION,
   SERVICE_ORIGIN,
@@ -210,9 +210,11 @@ Page({
     foxHomeReady: false,
     foxPreviewReady: false,
     bunnyPlaying: false,
-    bunnyPosition: "left:0%;top:0%",
+    bunnyPosition: "",
     skinEditor: false,
+    skinImageBusy: false,
     skinForm: {},
+    skinFormPreview: "",
     motionLabels: Object.values(SKIN_MOTIONS),
     motionKeys: Object.keys(SKIN_MOTIONS),
     motionIndex: 0,
@@ -296,6 +298,7 @@ Page({
       if (result.isConnected && this._visible) this.syncQuietly();
     };
     wx.onNetworkStatusChange(this._network);
+    wx.setInnerAudioOption?.({ obeyMuteSwitch: false, mixWithOther: true });
     this._prepareSkinAudio();
   },
   onShow() {
@@ -305,7 +308,8 @@ Page({
     this.syncQuietly();
     clearInterval(this._timer);
     this._timer = setInterval(() => {
-      this._refresh();
+      const minute = Math.floor(Date.now() / 60000);
+      if (minute !== this._lastRefreshMinute) this._refresh();
       this.syncQuietly();
     }, 15000);
   },
@@ -319,6 +323,7 @@ Page({
   },
   onUnload() {
     this._visible = false;
+    this._skinImageRequest = null;
     this.cancelDrag();
     clearInterval(this._timer);
     clearTimeout(this._queryTimer);
@@ -402,6 +407,7 @@ Page({
   _refresh() {
     if (this._drag || this._completionLock) return;
     if (!this._client) return;
+    this._lastRefreshMinute = Math.floor(Date.now() / 60000);
     const records = this._client.records();
     try {
       const library = this._library();
@@ -448,6 +454,8 @@ Page({
           deleted: !!row.deletedAt,
           conflict: !!row.conflict,
           state: row.conflict ? "需处理冲突" : row.pending ? "待同步" : "已同步",
+          summary: row.data.result?.summary || "",
+          error: row.data.error || "",
           hasResult: itemsFor([row]).length > 0,
           organizeJob: this._jobViews([this._organizeJob(row.id)].filter(Boolean))[0] || null,
           ...this._deliveryFiles(row),
@@ -486,7 +494,7 @@ Page({
     const selected =
       this.data.selected &&
       this._presentDetail(this._detail(this.data.selected.id));
-    this.setData({
+    const patch = {
       rows,
       draftFiles: this._fileEntries(this._draftId).map((entry) => ({
         ...this._library().metadata(entry),
@@ -548,18 +556,21 @@ Page({
         .filter((r) => r.id === this.data.currentCaptureId && !r.deletedAt)
         .map((r) => ({
           id: r.id,
-          text: r.data.text,
-          status: r.data.status,
-          error: r.data.error || "",
-          summary: (r.data.result && r.data.result.summary) || "",
+          organized: !!r.data.result,
           organizeJob: this._jobViews([this._organizeJob(r.id)].filter(Boolean))[0] || null,
           items: itemsFor([r]).slice(0, 60).map(this._cardView),
-          ...this._deliveryFiles(r),
+          pendingOriginals: this._deliveryFiles(r).pendingOriginals,
         })),
       localCount: this._localWorkspace()
         .records()
         .filter((r) => !r.purged && !r.deletedAt).length,
-    });
+    };
+    // Quiet sync should not send entire lists across WeChat's render bridge.
+    const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) =>
+      typeof value === "object"
+        ? JSON.stringify(value) !== JSON.stringify(this.data[key])
+        : value !== this.data[key]));
+    if (Object.keys(changed).length) this.setData(changed);
   },
   _worldPatch(view) {
     return {
@@ -865,12 +876,23 @@ Page({
   },
   async _refreshOriginalStorage() {
     if (!this._reading?.features?.submissionManifest || this.data.originalActionBusy) return;
+    const generation = this._originalViewGeneration;
     const storage = await this._transport("GET", "/api/v4/storage");
-    if (!this.data.originalActionBusy)
+    if (!this.data.originalActionBusy && generation === this._originalViewGeneration)
       this.setData({
-        originalStorage: { ...storage, originals: storage.originals.map(presentOriginal) },
-        originalActionFeedback: null,
+        originalStorage: { ...storage, originals: this._presentOriginals(storage.originals) },
+        ...(this.data.originalActionFeedback?.needsRefresh ? { originalActionFeedback: null } : {}),
       });
+  },
+  _presentOriginals(rows) {
+    const copies = new Map((this._library()?.entries(null, this._space()) || [])
+      .filter((entry) => !entry.volatile)
+      .map((entry) => [`${entry.packetId}:${entry.id}`, entry]));
+    return rows.map((row) => {
+      const view = presentOriginal(row);
+      const entry = copies.get(view.rowKey);
+      return { ...view, localCopy: !!entry && (!row.hash || row.hash === entry.remote?.hash) };
+    });
   },
   async _reuploadTemporary(packetId) {
     if (!this._reading?.features?.submissionManifest) return;
@@ -916,12 +938,17 @@ Page({
     const f = this.data.originalStorage?.originals.find(
       (f) => f.id === id && f.packetId === packet,
     );
-    if (!f || this.data.filesBusy) return;
-    if (this.data.offline) {
-      this._error(Error("离线时不能修改云端原件；联网后刷新再操作"));
+    if (!f) return;
+    const index = this.data.originalStorage.originals.indexOf(f);
+    const rowKey = `${packet}:${id}`;
+    const feedback = (message, extra = {}) => this.setData({ originalActionFeedback: { rowKey, message, ...extra } });
+    if (this.data.filesBusy) {
+      if (this.data.originalActionBusy?.rowKey !== rowKey)
+        wx.showToast?.({ title: "另一个原件正在处理，请稍候", icon: "none" });
       return;
     }
-    const rowKey = `${packet}:${id}`;
+    if (this.data.offline) return feedback("当前离线，联网后再试", { failed: true });
+    this._originalViewGeneration = (this._originalViewGeneration || 0) + 1;
     const key = `shixu:original-action:${this._space()}:${rowKey}:${f.version}:${action}`;
     this.setData({ filesBusy: true, originalActionBusy: { rowKey, action }, originalActionFeedback: null });
     try {
@@ -938,7 +965,8 @@ Page({
       }
       if (action === "download") {
         if (!this._epoch) throw Error("请先同步账号再下载");
-        if (!this._library()) throw Error("当前微信环境无法保存原件");
+        const library = this._library();
+        if (!library) throw Error("当前微信环境无法保存原件");
         const bytes = await createFileTransport(
           this._connection.base,
           () => this._connection.token,
@@ -947,8 +975,11 @@ Page({
         ).download(packet, id, this._epoch);
         if (originalHash(bytes) !== f.hash)
           throw Error("下载校验不一致，未保存原件");
-        this._library().cache(f, packet, this._space(), bytes);
-        this.setData({ originalActionFeedback: { rowKey, message: "已保存到本机，可在投递记录或事项详情中预览、导出" } });
+        library.cache(f, packet, this._space(), bytes);
+        this.setData({
+          [`originalStorage.originals[${index}].localCopy`]: true,
+          originalActionFeedback: { rowKey, message: "下载完成，已保存到本机" },
+        });
         return;
       }
       let operationId = wx.getStorageSync(key);
@@ -989,7 +1020,7 @@ Page({
             ? Math.max(0, storage.usedBytes - f.size) : storage.usedBytes,
           originals: storage.originals.map((row) =>
             row.id === id && row.packetId === packet
-              ? presentOriginal(updated || { ...row, expiresAt: null })
+              ? { ...presentOriginal(updated || { ...row, expiresAt: null }), localCopy: row.localCopy }
               : row),
         },
         originalActionFeedback: {
@@ -1003,7 +1034,7 @@ Page({
     } catch (e) {
       this._rememberRateLimit(e);
       if (e.status === 401) this._error(e);
-      this.setData({ originalActionFeedback: { rowKey, message: e.message || "操作未完成，请重试", failed: true } });
+      feedback(e.message || "操作未完成，请重试", { failed: true, retryDownload: action === "download" });
     } finally {
       this.setData({ filesBusy: false, originalActionBusy: null });
     }
@@ -1026,7 +1057,7 @@ Page({
           ...next,
           originals: [
             ...this.data.originalStorage.originals,
-            ...next.originals.map(presentOriginal),
+            ...this._presentOriginals(next.originals),
           ],
         },
       });
@@ -1040,7 +1071,43 @@ Page({
     return this._openAttachment(event.currentTarget.dataset, false);
   },
   exportAttachment(event) {
+    if (event.currentTarget.dataset.localOriginal) return this.openCachedOriginal(event);
     return this._openAttachment(event.currentTarget.dataset, true);
+  },
+  async openCachedOriginal(event) {
+    const { id, packet, action } = event.currentTarget.dataset;
+    const rowKey = `${packet}:${id}`;
+    if (this.data.filesBusy) {
+      wx.showToast?.({ title: "另一个原件正在处理，请稍候", icon: "none" });
+      return;
+    }
+    const file = this.data.originalStorage?.originals.find((row) => row.rowKey === rowKey);
+    if (!file?.localCopy) return;
+    this.setData({ filesBusy: true, ...(this.data.originalPreview?.localOriginal ? { error: "" } : {}) });
+    try {
+      const library = this._library();
+      const entry = library?.entries(packet, this._space()).find((entry) => entry.id === id);
+      let path;
+      try {
+        path = entry && library.path(entry);
+      } catch {
+        // The cached file may have been removed by the operating system.
+      }
+      if (!path) {
+        const index = this.data.originalStorage.originals.indexOf(file);
+        this.setData({ [`originalStorage.originals[${index}].localCopy`]: false });
+        throw Error(file.available ? "本机副本已不可用，请重新下载" : "本机副本已不可用，云端没有可下载的原件");
+      }
+      await this._presentAttachment(file, packet, path, action === "export", true);
+    } catch (error) {
+      const message = error.message || "未能打开这份原件";
+      this.setData({
+        originalActionFeedback: { rowKey, message, failed: true },
+        ...(this.data.originalPreview?.localOriginal ? { error: message } : {}),
+      });
+    } finally {
+      this.setData({ filesBusy: false });
+    }
   },
   async _openAttachment({ id, packet }, exporting) {
     if (this.data.filesBusy) return;
@@ -1054,8 +1121,6 @@ Page({
       if (!file) throw new Error("附件不存在");
       const library = this._library();
       if (!library) throw new Error("当前环境无法读取原件");
-      if (exporting && typeof wx.shareFileMessage !== "function")
-        throw Error("当前微信版本无法发送原件，请更新微信后重试");
       const space = this.data.localMode ? "local" : this._space();
       let entry = library.entries(packet, space).find((e) => e.id === id),
         path;
@@ -1091,65 +1156,67 @@ Page({
           throw Error("原件校验不一致，请重新同步后再试");
         path = library.cache(file, packet, space, bytes);
       }
-      if (exporting) {
-        await new Promise((resolve, reject) => wx.shareFileMessage({
-          filePath: path,
-          fileName: file.name,
-          success: resolve,
-          fail: (error) => /cancel/i.test(error?.errMsg || "")
-            ? resolve()
-            : reject(Error("微信暂时无法发送这份原件，文件已保留")),
-        }));
-        return;
-      }
-      const ext = extension(file.name);
-      if (["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(ext))
-        wx.previewImage({
-          urls: [path],
-          current: path,
-          fail: () => this._error(new Error("图片预览失败，原件仍保留")),
-        });
-      else if (
-        ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf"].includes(ext)
-      )
-        wx.openDocument({
-          filePath: path,
-          fileType: ext,
-          showMenu: true,
-          fail: () =>
-            this._error(new Error("微信暂时无法打开这份原件，文件已保留")),
-        });
-      else if (
-        /\.(txt|md|csv|tsv|json|ya?ml|xml|html?|css|js|mjs|cjs|ts|tsx|jsx|py|java|c|cpp|h|rs|go|sql|log)$/i.test(
-          file.name,
-        )
-      ) {
-        if (file.size > 400000)
-          throw new Error("原件已保存；文字超过预览上限，请使用原文件查看");
-        const text = wx.getFileSystemManager().readFileSync(path, "utf8");
-        if (typeof text !== "string")
-          throw new Error("当前环境无法解码这份文字，原件已保留");
-        this.setData({
-          originalPreview: {
-            name: file.name,
-            id,
-            packet,
-            text: text.slice(0, 60000),
-            truncated: text.length > 60000,
-          },
-        });
-      } else
-        this.setData({
-          notice: "这种格式无法在微信内预览，可点「导出」发送原件",
-        });
+      await this._presentAttachment(file, packet, path, exporting);
     } catch (error) {
       this._error(error);
     } finally {
       this.setData({ filesBusy: false });
     }
   },
+  async _presentAttachment(file, packet, path, exporting, localOriginal = false) {
+    if (exporting) {
+      if (typeof wx.shareFileMessage !== "function")
+        throw Error("当前微信版本无法发送原件，请更新微信后重试");
+      return new Promise((resolve, reject) => wx.shareFileMessage({
+        filePath: path,
+        fileName: file.name,
+        success: resolve,
+        fail: (error) => /cancel/i.test(error?.errMsg || "")
+          ? resolve()
+          : reject(Error("微信暂时无法发送这份原件，文件已保留")),
+      }));
+    }
+    const ext = extension(file.name);
+    if (["png", "apng", "jpg", "jpeg", "gif", "webp"].includes(ext))
+      return new Promise((resolve, reject) => wx.previewImage({
+        urls: [path],
+        current: path,
+        success: resolve,
+        fail: () => reject(Error("图片预览失败，原件仍保留")),
+      }));
+    if (["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf"].includes(ext))
+      return new Promise((resolve, reject) => wx.openDocument({
+        filePath: path,
+        fileType: ext,
+        showMenu: true,
+        success: resolve,
+        fail: () => reject(Error("微信暂时无法打开这份原件，文件已保留")),
+      }));
+    if (/\.(txt|md|csv|tsv|json|ya?ml|xml|html?|css|js|mjs|cjs|tsx|jsx|py|java|c|cpp|h|rs|go|sql|log)$/i.test(file.name)) {
+      if (file.size > 400000)
+        throw Error("原件已保存，文字超过预览上限，可导出后查看");
+      const text = wx.getFileSystemManager().readFileSync(path, "utf8");
+      if (typeof text !== "string")
+        throw Error("当前环境无法解码这份文字，原件已保留");
+      this.setData({
+        originalPreview: {
+          name: file.name,
+          id: file.id,
+          packet,
+          localOriginal,
+          text: text.slice(0, 60000),
+          truncated: text.length > 60000,
+        },
+      });
+      return;
+    }
+    throw Error("这种格式无法在微信内预览，可点「导出」发送原件");
+  },
   closeOriginal() {
-    this.setData({ originalPreview: null });
+    this.setData({
+      originalPreview: null,
+      ...(this.data.originalPreview?.localOriginal ? { error: "" } : {}),
+    });
   },
   _cardView(row, index = 0) {
     const { item, meta, search, ...view } = row;
@@ -1216,6 +1283,7 @@ Page({
     this._draftId = saved && typeof saved === "object" ? saved.id : null;
     this._syncRetryAt = 0;
     this._nextJobPoll = 0;
+    this._originalViewGeneration = (this._originalViewGeneration || 0) + 1;
     this._deliveryIssues = new Map();
     this.setData({
       draft: typeof saved === "string" ? saved : saved?.text || "",
@@ -1697,8 +1765,11 @@ Page({
   onCardAction(event) {
     if (this._drag || (this._dragJustEndedAt && Date.now() - this._dragJustEndedAt < 350)) return;
     const { action, id } = event.currentTarget.dataset;
+    if (action === "toggleCard") {
+      this.onCardActionStart();
+      return this.toggleCard(event);
+    }
     const allowed = [
-      "toggleCard",
       "toggleStar",
       "toggleDone",
       "openItem",
@@ -3000,7 +3071,7 @@ Page({
   },
   _builtinSkinArt(art) {
     try {
-      return packedWebp(`/assets/${art}.bin`, art);
+      return localSkinAsset(wx, `/assets/${art}.bin`, `${art}.webp`);
     } catch {
       return "/assets/mascot.png";
     }
@@ -3014,13 +3085,16 @@ Page({
       previewSkin: this.data.activeSkin,
       skinMessage: this.data.activeSkin.hello,
       skinEditor: false,
+      skinImageBusy: false,
     });
   },
   closeSkins() {
     this._stopSkinInteraction();
+    this._skinImageRequest = null;
     this.setData({
       skinOpen: false,
       skinEditor: false,
+      skinImageBusy: false,
       skinMessage: this.data.activeSkin.hello,
       skinAnimating: false,
     });
@@ -3049,14 +3123,12 @@ Page({
     if (s.art !== "bunny") this._startSkinMotion(s);
     if (skinSound(s, this.data.iceVoice) && this._prepareSkinAudio(s)) {
       try {
+        this._skinSoundActive = true;
         this._skinAudio.play();
         if (s.art === "bunny" && !this._skinAudio.onPlay)
           this._startBunnyClip();
       } catch (_) {
-        this.setData({
-          skinAnimating: false,
-          notice: "声音暂时不可用，资料保存不受影响",
-        });
+        this._skinPlaybackFailed(this._skinAudio);
       }
     } else
       this._skinTimer = setTimeout(
@@ -3079,7 +3151,7 @@ Page({
     const generation = (this._bunnyGeneration || 0) + 1;
     this._bunnyGeneration = generation;
     const started = Date.now();
-    this.setData({ bunnyPlaying: true });
+    let lastPosition;
     const advance = () => {
       if (generation !== this._bunnyGeneration || !this.data.skinAnimating)
         return;
@@ -3089,10 +3161,13 @@ Page({
         return;
       }
       const frame = bunnyFrame(time);
-      this.setData({
-        bunnyPosition: `left:${-frame.x * (BUNNY_CLIP.columns - 1)}%;top:${-frame.y * (BUNNY_CLIP.rows - 1)}%`,
-      });
-      this._bunnyTimer = setTimeout(advance, 1000 / BUNNY_CLIP.fps);
+      const position = `transform:translate3d(${-frame.x * (BUNNY_CLIP.columns - 1) / BUNNY_CLIP.columns}%,${-frame.y * (BUNNY_CLIP.rows - 1) / BUNNY_CLIP.rows}%,0)`;
+      if (position !== lastPosition) {
+        this.setData({ bunnyPosition: position, ...(lastPosition ? {} : { bunnyPlaying: true }) });
+        lastPosition = position;
+      }
+      const frameMs = 1000 / BUNNY_CLIP.fps;
+      this._bunnyTimer = setTimeout(advance, Math.max(1, frameMs - ((Date.now() - started) % frameMs)));
     };
     advance();
   },
@@ -3144,22 +3219,33 @@ Page({
       : this.data.activeSkin;
     clearTimeout(this._skinMotionTimer);
     this._skinMotionGeneration = (this._skinMotionGeneration || 0) + 1;
-    const reset = wx.createAnimation && wx.createAnimation({ duration: 100 });
+    const reset = this.data.skinNativeMotion && wx.createAnimation?.({ duration: 100 });
     if (reset) reset.translateY(0).scale(1, 1).rotate(0).step();
     this.setData({
       skinAnimating: false,
+      skinNativeMotion: false,
       bunnyPlaying: false,
-      bunnyPosition: "left:0%;top:0%",
+      bunnyPosition: "",
       skinMessage: skin.hello,
       ...(reset ? { skinAnimation: reset.export() } : {}),
     });
   },
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
+    this._skinSoundActive = false;
     try {
       if (this._skinAudio) this._skinAudio.stop();
     } catch (_) {}
     this._finishSkinInteraction();
+  },
+  _skinPlaybackFailed(audio) {
+    if (this._skinAudio !== audio || !this._skinSoundActive) return;
+    this._skinSoundActive = false;
+    this._skinAudio = null;
+    try { audio.destroy(); } catch {}
+    this._finishSkinInteraction();
+    if (this.data.skinOpen || this.data.tab === "capture")
+      wx.showToast?.({ title: "声音暂时播不出", icon: "none" });
   },
   changeIceVoice(event) {
     const voice = event.currentTarget.dataset.voice;
@@ -3174,33 +3260,36 @@ Page({
   _prepareSkinAudio(skin = this.data.activeSkin) {
     const file = skinSound(skin, this.data.iceVoice);
     if (!file) return false;
-    const source = "/assets/" + file;
-    if (this._skinAudio) {
-      if (this._skinAudio.src !== source) this._skinAudio.src = source;
-      return true;
-    }
+    if (this._skinAudio && this._skinAudioFile === file) return true;
     if (!wx.createInnerAudioContext) return false;
     let audio;
     try {
+      const source = localSkinAsset(wx, "/assets/" + file, file);
+      this._skinAudio?.destroy();
+      this._skinAudio = null;
       audio = wx.createInnerAudioContext();
-      audio.onEnded(() => this._finishSkinInteraction());
+      const isCurrent = () => this._skinAudio === audio && this._skinSoundActive;
+      audio.onEnded(() => {
+        if (!isCurrent()) return;
+        this._skinSoundActive = false;
+        this._finishSkinInteraction();
+      });
       if (audio.onPlay)
         audio.onPlay(() => {
+          if (!isCurrent()) return;
           const s = this.data.skinOpen
             ? this.data.previewSkin
             : this.data.activeSkin;
           if (s.art === "bunny" && this.data.skinAnimating)
             this._startBunnyClip();
         });
-      audio.onError(() => {
-        this._finishSkinInteraction();
-        this.setData({ notice: "声音播放失败，请重试" });
-      });
+      audio.onError(() => this._skinPlaybackFailed(audio));
       audio.obeyMuteSwitch = false;
       audio.volume = SKIN_INTERACTION.volume;
       audio.loop = false;
       audio.src = source;
       this._skinAudio = audio;
+      this._skinAudioFile = file;
       return true;
     } catch (_) {
       try {
@@ -3258,63 +3347,58 @@ Page({
     this.setData({
       skinEditor: true,
       skinForm: skin,
+      skinFormPreview: old ? this._skinPath(old) : "",
       motionIndex: Object.keys(SKIN_MOTIONS).indexOf(skin.motion),
     });
   },
   onSkinField(event) {
     const field = event.currentTarget.dataset.field;
     if (["name", "description", "hello", "greeting", "feeding"].includes(field))
-      this.setData({
-        skinForm: { ...this.data.skinForm, [field]: event.detail.value },
-      });
+      this.setData({ [`skinForm.${field}`]: event.detail.value });
   },
   onMotion(event) {
     const i = Number(event.detail.value);
     this.setData({
       motionIndex: i,
-      skinForm: { ...this.data.skinForm, motion: this.data.motionKeys[i] },
+      "skinForm.motion": this.data.motionKeys[i],
     });
   },
-  chooseSkinImage() {
-    if (!wx.chooseMedia || !wx.getFileSystemManager) return this._error(Error("当前微信环境无法选择图片"));
-    const editingId = this.data.skinForm.id;
-    wx.chooseMedia({
-      count: 1,
-      mediaType: ["image"],
-      sourceType: ["album", "camera"],
-      success: (answer) => {
-        const file = answer.tempFiles?.[0];
-        if (!file) return;
-        if (file.size > 250000) {
-          this._error(new Error("请选择小于 250 KB 的 PNG、JPG 或 WebP 图片"));
-          return;
-        }
-        wx.getFileSystemManager().readFile({
-          filePath: file.tempFilePath,
-          encoding: "base64",
-          success: (result) => {
-            if (!this.data.skinEditor || this.data.skinForm.id !== editingId) return;
-            const type = /\.png$/i.test(file.tempFilePath)
-              ? "png"
-              : /\.webp$/i.test(file.tempFilePath)
-                ? "webp"
-                : "jpeg";
-            this.setData({
-              skinForm: {
-                ...this.data.skinForm,
-                image: `data:image/${type};base64,${result.data}`,
-              },
-            });
-          },
-          fail: () => this._error(new Error("图片读取失败")),
+  async chooseSkinImage() {
+    if (this.data.skinImageBusy) return;
+    if (!wx.chooseMedia || !wx.getImageInfo || !wx.getFileSystemManager)
+      return this._error(Error("当前微信环境无法选择图片"));
+    const request = {};
+    this._skinImageRequest = request;
+    this.setData({ skinImageBusy: true, error: "" });
+    try {
+      const answer = await new Promise((success, fail) => wx.chooseMedia({
+        count: 1, mediaType: ["image"], sourceType: ["album", "camera"],
+        sizeType: ["original", "compressed"], success, fail,
+      }));
+      const source = answer.tempFiles?.[0]?.tempFilePath;
+      if (!source || this._skinImageRequest !== request) return;
+      const image = await prepareSkinImage(wx, source, () => new Promise((resolve) => {
+        const query = wx.createSelectorQuery();
+        query.select("#skin-image-canvas").fields({ node: true }, (result) => resolve(result?.node));
+        query.exec();
+      }));
+      if (this._skinImageRequest === request)
+        this.setData({
+          "skinForm.image": image,
+          skinFormPreview: this._skinPath({ id: "editor-preview", image }),
         });
-      },
-      fail: (error) => {
-        if (!/cancel/i.test(error?.errMsg || "")) this._error(Error("未能打开相册或相机"));
-      },
-    });
+    } catch (error) {
+      if (this._skinImageRequest === request && !/cancel/i.test(error?.errMsg || ""))
+        this._error(Error(error?.message || "无法读取这张图片，请换一张试试"));
+    } finally {
+      if (this._skinImageRequest === request) {
+        this._skinImageRequest = null;
+        this.setData({ skinImageBusy: false });
+      }
+    }
   },
   saveCustomSkin() {
+    if (this.data.skinImageBusy) return;
     try {
       const skin = this.data.skinForm,
         custom = (this._skinCollection.custom || []).filter(

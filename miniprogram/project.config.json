@@ -21,7 +21,10 @@
       { "type": "file", "value": "assets/fox/atlas.bin" },
       { "type": "file", "value": "assets/capybara.bin" },
       { "type": "file", "value": "assets/owl.bin" },
-      { "type": "file", "value": "assets/bunny-voice.mp3" }
+      { "type": "file", "value": "assets/bunny-voice.mp3" },
+      { "type": "file", "value": "assets/ice-voice-1.mp3" },
+      { "type": "file", "value": "assets/ice-voice-2.mp3" },
+      { "type": "file", "value": "assets/laugh.mp3" }
     ]
   }
 }

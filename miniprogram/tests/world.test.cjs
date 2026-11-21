@@ -1675,10 +1675,10 @@ test("bunny plays its timeline once, restarts cleanly, stops on hide and persist
   assert.equal(p.data.bunnyPlaying, true);
   now = 1400;
   tasks.get(p._bunnyTimer)();
-  assert.equal(p.data.bunnyPosition, "left:-100%;top:-200%");
+  assert.equal(p.data.bunnyPosition, "transform:translate3d(-10%,-18.181818181818183%,0)");
   p.interactSkin();
   assert.deepEqual(calls.slice(-2), ["stop", "play"]);
-  assert.equal(p.data.bunnyPosition, "left:0%;top:0%");
+  assert.equal(p.data.bunnyPosition, "transform:translate3d(0%,0%,0)");
   ended();
   assert.equal(p.data.skinAnimating, false);
   assert.equal(p.data.bunnyPlaying, false);

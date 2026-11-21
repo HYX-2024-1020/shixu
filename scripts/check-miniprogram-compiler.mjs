@@ -122,6 +122,10 @@ function view() {
   assert.ok(tree);
   return nodes(tree);
 }
+assert.ok(view().some((node) => node.attr?.class?.includes("xc-card")));
+assert.ok(!view().some((node) =>
+  ["organizeRecord", "createManual"].includes(node.attr?.bindtap)),
+  "a finished capture shows cards with delivery controls in the history");
 page.setData({ tab: "world" });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("xc-card")),
@@ -477,14 +481,14 @@ page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
 assert.equal(page.data.activeSkin.id, "bunny");
 page.setData({
   skinAnimating: true,
-  bunnyPosition: "left:-100%;top:-200%",
+  bunnyPosition: "transform:translate3d(-10%,-18.181818181818183%,0)",
 });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("fox-player")),
   "native bunny viewport renders",
 );
 assert.ok(
-  view().some((node) => node.attr?.position === "left:-100%;top:-200%"),
+  view().some((node) => node.attr?.position === page.data.bunnyPosition),
   "native timeline sheet and cell render",
 );
 page.closeSkins();

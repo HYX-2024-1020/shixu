@@ -95,6 +95,7 @@
   border: solid #514b5b;
   border-width: 0 4rpx 4rpx 0;
   transform: translateY(-3rpx) rotate(45deg);
+  transition: transform 150ms ease-out;
 }
 .xc-chevron-open .xc-chevron-mark {
   transform: translateY(3rpx) rotate(225deg);
@@ -133,6 +134,7 @@
   margin-top: 16rpx;
   padding: 16rpx 8rpx 6rpx;
   border-top: 2rpx dashed #9e9383;
+  animation: compact-open 155ms ease-out both;
 }
 .xc-summary {
   display: block;
