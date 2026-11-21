@@ -19,6 +19,7 @@ const messages = {
   INVALID_PASSWORD: "密码需8至128个字符，且不能超过1024 UTF-8字节",
   DEVICE_SLOTS_FULL: "设备槽位已满，请选择要替换的设备",
   CLAIM_REQUIRED: "旧账号需要在原有效设备上补设账号密码",
+  CURRENT_PASSWORD_REJECTED: "当前密码不正确，请核对后重试",
   ALREADY_CLAIMED: "此账号已设置密码，请使用账号密码登录",
   USERNAME_UNAVAILABLE: "账号名称已被使用，请换一个",
   REGISTRATION_FULL: "内测账号名额已满",
@@ -672,7 +673,13 @@ export class AccountsV4 {
       .prepare("SELECT * FROM account_credentials WHERE user_id=?")
       .get(account);
     if (!row) fail("CLAIM_REQUIRED", 409);
-    await this.verify(row.username, value.oldPassword, ip);
+    try {
+      await this.verify(row.username, value.oldPassword, ip);
+    } catch (error) {
+      if (error instanceof SyncError && error.status === 401)
+        fail("CURRENT_PASSWORD_REJECTED", 403);
+      throw error;
+    }
     const salt = randomBytes(32).toString("hex"),
       hash = await this.hash(value.newPassword, salt);
     return this.registry.transaction(() => {

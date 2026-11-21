@@ -289,8 +289,11 @@ function createFileTransport(
             reject(new Error("原件上传确认无效，请保留本机原件后重试"));
           }
         },
-        fail() {
-          reject(new Error("原件暂时传不上去，本机原件已保留"));
+        fail(error) {
+          const timedOut = /timeout/i.test(error?.errMsg || "");
+          reject(new Error(method === "GET"
+            ? timedOut ? "下载超时，请重试" : "下载失败，请检查网络后重试"
+            : "原件暂时传不上去，本机原件已保留"));
         },
       }),
     );

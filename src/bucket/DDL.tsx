@@ -18,7 +18,7 @@ import { leaveCard, resetCard } from "./motion";
 import { useCardMotion } from "./useCardMotion";
 import { useCardDrag } from "./useCardDrag";
 import { mergeCardOrder } from "./card-order";
-import { deadlineCountdown } from "./deadline-countdown";
+import { deadlineCountdown, deadlineTone } from "./deadline-countdown";
 import "./ddl.css";
 
 const stops = [1, 3, 7, 14, 30];
@@ -218,22 +218,7 @@ export default function DDL({
       clock,
       row.done,
     );
-    const daysLeft = row.date
-      ? (Date.parse(row.date) - Date.parse(day)) / 86400000
-      : Infinity;
-    const tone = row.done
-      ? "done"
-      : daysLeft <= 1
-        ? "urgent"
-        : daysLeft <= 3
-          ? "near"
-          : daysLeft <= 7
-            ? "week"
-            : daysLeft <= 14
-              ? "fortnight"
-              : daysLeft <= 30
-                ? "month"
-                : "later";
+    const tone = deadlineTone(row.date, day, row.done);
     return (
       <article
         className={"ddl-item urgency-" + urgency}

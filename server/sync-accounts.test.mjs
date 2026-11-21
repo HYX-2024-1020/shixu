@@ -11,9 +11,11 @@ import {
 import { AccountRegistry, proofMessage } from "./sync-accounts.mjs";
 import { runAdmin } from "./sync-admin.mjs";
 import { createRequire } from "node:module";
-const { createSyncClient } = createRequire(import.meta.url)(
-  "../miniprogram/lib/sync-client.js",
-);
+import { ReadingLedger } from "./reading/ledger.mjs";
+const require = createRequire(import.meta.url);
+const { createSyncClient } = require("../miniprogram/lib/sync-client.js");
+const { hydrateReadingChanges } = require("../miniprogram/lib/reading-transport.js");
+const { itemsFor, statePatch } = require("../miniprogram/lib/world.js");
 
 async function fixture(t, options = {}) {
   const directory = mkdtempSync(join(tmpdir(), "shixu-accounts-test-"));
@@ -83,7 +85,10 @@ async function fixture(t, options = {}) {
       ? await response.json()
       : Buffer.from(await response.arrayBuffer());
     if (!response.ok)
-      throw Object.assign(Error(body.error), body, { status: response.status });
+      throw Object.assign(Error(body.error), body, {
+        status: response.status,
+        retryAfter: response.headers.get("retry-after"),
+      });
     return body;
   }
   async function windows(invite, keys = generateKeyPairSync("ed25519")) {
@@ -425,7 +430,10 @@ test("Windows proofs bind method, path, body and nonce; replay and account rate 
     denied("INVALID_PROOF"),
   );
   f.registry().limits(a.userId, { requestsPerMinute: 0 });
-  await assert.rejects(f.request(device, "GET", path), denied("RATE_LIMIT"));
+  await assert.rejects(f.request(device, "GET", path), (error) =>
+    error.code === "RATE_LIMIT" && error.status === 429 &&
+    Number(error.retryAfter) === error.retryAfterSeconds &&
+    error.retryAfterSeconds >= 1 && error.retryAfterSeconds <= 60);
 });
 
 test("global concurrency is two, per account one, and queue length and budget are enforced durably", async (t) => {
@@ -560,9 +568,16 @@ test("global pause blocks AI only; invalid inputs do not spend quota; opening ad
 });
 
 test("the real shared queue syncs Windows and verified WeChat within one account without mixing another account", async (t) => {
+  const ledger = new ReadingLedger(":memory:");
+  ledger.freezePrice({
+    id: "card-sync", model: "synthetic", currency: "CNY", source: "synthetic", verifiedAt: 1,
+    inputMicrosPerMillion: 1, cachedMicrosPerMillion: 0, outputMicrosPerMillion: 1,
+  });
   const f = await fixture(t, {
     wechat: async () => "fixture-verified-wechat-identity",
+    reading: { ledger, reader() {}, provider() {}, priceId: "card-sync", modelVersion: "synthetic" },
   });
+  t.after(() => ledger.close());
   const [a, b] = f.registry().generate(2),
     windows = await f.windows(a.invite),
     other = await f.windows(b.invite);
@@ -572,6 +587,7 @@ test("the real shared queue syncs Windows and verified WeChat within one account
   });
   const client = (device) => {
     let stored = null;
+    const request = (method, path, data) => f.request(device, method, path, data);
     return createSyncClient({
       protocolVersion: 3,
       read: () => stored,
@@ -580,7 +596,9 @@ test("the real shared queue syncs Windows and verified WeChat within one account
       },
       makeId: () => randomBytes(16).toString("hex"),
       request: (method, path, data) =>
-        f.request(device, method, path.replace("/api/v2/", "/api/v3/"), data),
+        path.startsWith("/api/v3/changes?")
+          ? hydrateReadingChanges(request, path)
+          : request(method, path, data),
     });
   };
   const desktop = client(windows),
@@ -592,6 +610,8 @@ test("the real shared queue syncs Windows and verified WeChat within one account
   desktop.put("capture", {
     id: "capture",
     text: "合成跨端事项",
+    itemIds: ["task"],
+    result: { summary: "", warnings: [], items: [{ kind: "task", title: "原始标题", summary: "", facts: [], due: null }] },
     itemState: { task: { due: "2026-11-01", starred: true } },
   });
   await desktop.sync();
@@ -606,6 +626,34 @@ test("the real shared queue syncs Windows and verified WeChat within one account
   await desktop.sync();
   assert.equal(desktop.records()[0].data.itemState.task.notes, "微信补充");
   assert.equal(desktop.records()[0].data.itemState.task.due, "2026-11-01");
+
+  for (const [sender, receiver, platform] of [[desktop, mini, "Windows"], [mini, desktop, "微信"]]) {
+    const record = sender.records()[0].data;
+    const title = platform + "编辑后的标题";
+    sender.put(record.id, {
+      result: { ...record.result, items: [{ ...record.result.items[0], title }] },
+      ...statePatch(record, itemsFor(sender.records())[0], { status: "done" }),
+    });
+    await sender.sync();
+    await receiver.sync();
+    assert.equal(itemsFor(receiver.records())[0].title, title);
+    assert.equal(itemsFor(receiver.records())[0].done, true);
+
+    const finished = sender.records()[0].data;
+    sender.put(finished.id, statePatch(finished, itemsFor(sender.records())[0], {
+      status: "active", deletedAt: "2026-11-21T10:00:00.000Z",
+    }));
+    await sender.sync();
+    await receiver.sync();
+    assert.equal(itemsFor(receiver.records())[0].deleted, true);
+    assert.equal(itemsFor(receiver.records())[0].done, false);
+
+    const removed = sender.records()[0].data;
+    sender.put(removed.id, statePatch(removed, itemsFor(sender.records())[0], { deletedAt: "" }));
+    await sender.sync();
+    await receiver.sync();
+    assert.equal(itemsFor(receiver.records())[0].deleted, false);
+  }
 });
 
 test("an in-flight model interruption keeps the reservation and never bills again after restart", async (t) => {

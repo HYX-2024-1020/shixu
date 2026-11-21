@@ -92,6 +92,9 @@ vm.runInNewContext(readFileSync(pageFile, "utf8"), {
     showModal: (o) => o.success({ confirm: true, content: "编译器验收事项" }),
   },
 });
+const sourceTemplate = readFileSync(join(mini, "pages/index/index.wxml"), "utf8");
+for (const [, handler] of sourceTemplate.matchAll(/(?:bindtap|catchtap)="(\w+)"/g))
+  assert.equal(typeof definition[handler], "function", `template action ${handler}`);
 const page = {
   ...definition,
   data: structuredClone(definition.data),
@@ -119,7 +122,27 @@ function view() {
   assert.ok(tree);
   return nodes(tree);
 }
+assert.ok(view().some((node) => node.attr?.class?.includes("xc-card")));
+assert.ok(!view().some((node) =>
+  ["organizeRecord", "createManual"].includes(node.attr?.bindtap)),
+  "a finished capture shows cards with delivery controls in the history");
+page.setData({ connected: true, accountAiQuota: "已用 ¥0.15 · 可用 ¥2.85" });
+const captureControls = view().find((node) => node.attr?.class === "capture-toolbar");
+assert.deepEqual(Array.from(captureControls.children[0].children, (node) => node.attr?.bindtap),
+  ["chooseFiles", "chooseImages"]);
+assert.equal(captureControls.children[1].attr.bindtap, "submit");
+assert.ok(nodes(captureControls.children[1]).some((node) => node.attr?.class === "submit-label"));
+const heroCopy = view().find((node) => node.attr?.class === "hero-copy");
+assert.ok(heroCopy.children.some((node) => node.attr?.class === "skin-bubble"));
+assert.ok(!view().filter((node) => node.attr?.class?.includes("skin-mascot"))
+  .some((stage) => nodes(stage).some((node) => node.attr?.class === "skin-bubble")));
+assert.ok(view().some((node) => node.attr?.class === "ai-quota"
+  && node.children.includes("已用 ¥0.15 · 可用 ¥2.85")));
 page.setData({ tab: "world" });
+assert.ok(view().some((node) => node.attr?.bindrefresherrefresh === "refreshWorld"));
+assert.ok(view().some((node) => node.attr?.class === "world-sync-footer"));
+assert.ok(!view().some((node) => node.attr?.bindtap === "refreshWorld"));
+page.setData({ connected: false });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("xc-card")),
   "item template rendered",
@@ -160,7 +183,21 @@ assert.ok(
   view().some((n) => n.attr?.["data-action"] === "openItem"),
   "detail is available before expanding",
 );
-page.toggleCard({ currentTarget: { dataset: { id: page.data.items[0].id } } });
+const foldingId = page.data.items[0].id;
+const findChevron = () => view().find((node) =>
+  node.attr?.class?.includes("xc-chevron ") && node.attr?.["data-id"] === foldingId);
+const hasExpandedBody = () => view().some((node) => node.attr?.class === "xc-expanded");
+assert.equal(hasExpandedBody(), false);
+assert.ok(!findChevron().attr.class.includes("xc-chevron-open"));
+const pressChevron = () => page[findChevron().attr.bindtap]({
+  currentTarget: { dataset: { id: foldingId, action: "toggleCard" } },
+});
+pressChevron();
+assert.equal(hasExpandedBody(), true);
+assert.ok(findChevron().attr.class.includes("xc-chevron-open"));
+pressChevron();
+assert.equal(hasExpandedBody(), false);
+pressChevron();
 assert.ok(
   view().some(
     (node) =>
@@ -460,15 +497,14 @@ page.previewSkin({ currentTarget: { dataset: { id: "bunny" } } });
 assert.equal(page.data.activeSkin.id, "bunny");
 page.setData({
   skinAnimating: true,
-  bunnySheet: "/assets/fox/atlas.webp",
-  bunnyPosition: "left:-100%;top:-200%",
+  bunnyPosition: "transform:translate3d(-10%,-18.181818181818183%,0)",
 });
 assert.ok(
   view().some((node) => node.attr?.class?.includes("fox-player")),
   "native bunny viewport renders",
 );
 assert.ok(
-  view().some((node) => node.attr?.position === "left:-100%;top:-200%"),
+  view().some((node) => node.attr?.position === page.data.bunnyPosition),
   "native timeline sheet and cell render",
 );
 page.closeSkins();

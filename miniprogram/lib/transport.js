@@ -38,12 +38,26 @@ function createTransport(base, getToken, runtime = wx) {
               Object.assign(
                 new Error((body && body.error) || "服务返回异常，请稍后重试"),
                 body && typeof body === "object" ? body : {},
-                { status: response.statusCode },
+                {
+                  status: response.statusCode,
+                  ...(response.statusCode === 429 ? {
+                    retryAfterSeconds: Number(
+                      Object.entries(response.header || {}).find(([key]) => key.toLowerCase() === "retry-after")?.[1]
+                        || body?.retryAfterSeconds,
+                    ) || 30,
+                  } : {}),
+                },
               ),
             );
         },
-        fail() {
-          reject(new Error("暂时连不上服务，本机内容已保留"));
+        fail(error) {
+          const detail = error?.errMsg || "";
+          const reason = /not in domain list|not in legal domain|url domain/i.test(detail)
+            ? "REQUEST_DOMAIN_NOT_ALLOWED"
+            : /timeout|timed out/i.test(detail)
+              ? "REQUEST_TIMEOUT"
+              : "REQUEST_FAILED";
+          reject(Object.assign(new Error("暂时连不上服务，本机内容已保留"), { reason }));
         },
       });
     });

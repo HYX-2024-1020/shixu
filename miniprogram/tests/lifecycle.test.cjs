@@ -55,6 +55,7 @@ function pageFixture({
   failWrite = () => false,
   app = { globalData: { updateReady: true } },
   confirm = false,
+  request,
 } = {}) {
   let definition,
     applies = 0;
@@ -79,6 +80,7 @@ function pageFixture({
         if (failWrite(key, value)) throw new Error("disk full");
         store.set(key, structuredClone(value));
       },
+      request,
       onNetworkStatusChange() {},
       offNetworkStatusChange() {},
       getAccountInfoSync: () => ({ miniProgram: { envVersion: "develop" } }),
@@ -99,6 +101,87 @@ function pageFixture({
   page.onLoad();
   return { page, store, applied: () => applies };
 }
+test("account capability detection separates a blocked domain from a legacy service", async () => {
+  let reply = ({ fail }) => fail({ errMsg: "request:fail url not in domain list" });
+  const { page } = pageFixture({ request: (options) => reply(options) });
+
+  await page.probeAccountCapabilities();
+  assert.match(page.data.accountProbeError, /request 合法域名/);
+  assert.equal(page.data.legacyAccountActivation, false);
+
+  reply = ({ success }) => success({ statusCode: 200, data: { features: { registration: true } } });
+  await page.probeAccountCapabilities();
+  assert.equal(page.data.accountProbeError, "");
+  assert.equal(page.data.passwordAccounts, true);
+  assert.equal(page.data.legacyAccountActivation, false);
+
+  reply = ({ success }) => success({ statusCode: 404, data: {} });
+  await page.probeAccountCapabilities();
+  assert.equal(page.data.passwordAccounts, false);
+  assert.equal(page.data.legacyAccountActivation, true);
+});
+test("manual world refresh shares in-flight sync and honors the server retry window", async () => {
+  const { page } = pageFixture();
+  page.setData({ localMode: false, connected: true, tab: "world" });
+  let requests = 0;
+  page._client.sync = async () => {
+    requests++;
+    throw Object.assign(Error("请求较多"), { status: 429, retryAfterSeconds: 10 });
+  };
+
+  await Promise.all([page.syncQuietly(), page.refreshWorld()]);
+  assert.equal(requests, 1);
+  assert.equal(page.data.refreshingWorld, false);
+  await page.refreshWorld();
+  assert.equal(requests, 1);
+  assert.match(page.data.syncStatus, /秒后恢复同步/);
+});
+
+test("card edits during sync follow up once and removed cards leave the latest capture", async () => {
+  const { page } = pageFixture();
+  page.onDraft({ detail: { value: "合成双端事项" } });
+  page.submit();
+  const packet = page.data.currentCaptureId;
+  page._client.put(packet, {
+    itemIds: ["test-card"],
+    result: { summary: "", items: [{ kind: "task", title: "合成事项", summary: "", facts: [], due: null }] },
+  });
+  page._refresh();
+  assert.equal(page.data.currentRows[0].items.length, 1);
+  const id = page.data.currentRows[0].items[0].id;
+  page._changeItem(id, { deletedAt: "2026-11-21T10:00:00.000Z" });
+  assert.equal(page.data.currentRows[0].items.length, 0);
+  assert.equal(page.data.currentRows[0].hadCards, true);
+
+  let release, followups = 0;
+  page._syncing = new Promise((resolve) => { release = resolve; }).finally(() => { page._syncing = null; });
+  page._client = { pendingCount: () => 1 };
+  page.syncQuietly = () => { followups++; };
+  const followup = page._syncCardChanges();
+  page._syncCardChanges();
+  assert.equal(followups, 0);
+  release();
+  await followup;
+  assert.equal(followups, 1);
+});
+
+test("organizing a capture with a server task keeps the original task even after an error", async () => {
+  const { page } = pageFixture();
+  page.setData({ localMode: false, connected: true, capabilities: { aiOrganize: true } });
+  page._connection = { protocolVersion: 3, userId: "test" };
+  page._jobs = [{
+    id: "model-task", state: "error", serverAccepted: true,
+    request: { kind: "organize", packetId: "capture" },
+  }];
+  page.sync = async () => true;
+  page._transport = () => assert.fail("must not submit another task");
+
+  await page.organizeRecord({ currentTarget: { dataset: { id: "capture" } } });
+  assert.match(page.data.notice, /已有整理任务/);
+  assert.equal(page._jobs.length, 1);
+  assert.equal(page.data.jobBusy, false);
+});
+
 test("a failed draft clear reuses the durable capture ID after restart", () => {
   let full = false;
   const fixture = pageFixture({

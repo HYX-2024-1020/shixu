@@ -3,6 +3,9 @@
   "subPackages": [
     { "root": "assets/fox", "name": "fox-skin", "pages": ["entry"] }
   ],
+  "preloadRule": {
+    "pages/index/index": { "network": "all", "packages": ["fox-skin"] }
+  },
   "window": {
     "navigationBarTitleText": "拾序",
     "navigationBarBackgroundColor": "#fff9e6",

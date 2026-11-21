@@ -18,16 +18,6 @@ const desktopStyle = await readFile(
   "utf8",
 ).then((css) => css.replace(/\/\*[\s\S]*?\*\//g, ""));
 const sharedSelectors = new Map([
-  [".result-card", ".item-card"],
-  [".result-card.is-pinned", ".item-card.is-pinned"],
-  [".result-card:nth-child(4n + 2)", ".item-card.shadow-1"],
-  [".result-card:nth-child(4n + 4)", ".item-card.shadow-3"],
-  [".result-card:nth-child(4n + 3)", ".item-card.shadow-2"],
-  [".card-kind", ".item-card .kind-label"],
-  [".card-open h2", ".item-card .item-title"],
-  [".card-open p", ".item-card .item-summary"],
-  [".card-bottom", ".item-card .card-foot"],
-  [".card-source-link", ".item-card .card-source-link"],
   [".world-heading h1", ".world .world-title"],
   [".world-heading h1 span", ".world .hero-highlight"],
 ]);
@@ -75,7 +65,13 @@ const palette = await readFile(
   path.join(root, "src/bucket/card-palette.css"),
   "utf8",
 );
-const nativeCSS = (nativeMotion + visuals + palette)
+const deadlineStyles = await readFile(path.join(root, "src/bucket/ddl.css"), "utf8");
+const nativeDeadlineTones = deadlineStyles
+  .split("\n")
+  .filter((line) => line.includes("--deadline-tone:"))
+  .join("\n")
+  .replace(/\.ddl-item\[data-urgency="(\w+)"\]/g, ".ddl-item.tone-$1");
+const nativeCSS = (nativeMotion + visuals + palette + "\n" + nativeDeadlineTones + "\n")
   .replace(/touch-action:\s*[^;]+;/g, "")
   .replace(/[ \t]+$/gm, "")
   .replace(/(-?[\d.]+)px\b/g, (_, n) => `${Number(n) * 2}rpx`);
@@ -148,7 +144,7 @@ const bundled = await build({
     contents: `export const NATIVE_SKIN_MOTIONS = ${JSON.stringify(nativeSkinMotions)};
     export { categories, SKIN_INTERACTION } from './src/bucket/client-ui';
     export { BUILTIN_SKINS, ICE_VOICES, skinSound, BUNNY_CLIP, bunnyFrame, SKIN_MOTIONS, MAX_CUSTOM_SKINS, parseSkinCollection, isSkinImage } from './src/bucket/skins';
-    export { deadlineCountdown } from './src/bucket/deadline-countdown';
+    export { deadlineCountdown, deadlineTone } from './src/bucket/deadline-countdown';
     export { itemDeadlineTime } from './shared/deadline-time.mjs';
     export { absoluteItem, absoluteText, deadlineLabel, setDeadline, parseDeadline, deadlineSections } from './shared/deadlines.mjs';
     export { compareItems, habitCheckin } from './src/bucket/management';
@@ -207,8 +203,6 @@ outputs.set(
 // Artwork and single-utterance audio are copied byte-for-byte from desktop assets.
 for (const name of [
   "ice.png",
-  "capybara.webp",
-  "owl.webp",
   "ice-voice-1.mp3",
   "ice-voice-2.mp3",
   "bunny.png",
@@ -218,10 +212,15 @@ for (const name of [
     `miniprogram/assets/${name}`,
     await readFile(path.join(root, "public", name)),
   );
-outputs.set(
-  "miniprogram/assets/fox/atlas.webp",
-  await readFile(path.join(root, "public/fox-atlas.webp")),
-);
+for (const [source, target] of [
+  ["capybara", "capybara"],
+  ["owl", "owl"],
+  ["fox-atlas", "fox/atlas"],
+])
+  outputs.set(
+    `miniprogram/assets/${target}.bin`,
+    await readFile(path.join(root, `public/${source}.webp`)),
+  );
 outputs.set(
   "miniprogram/assets/mascot.png",
   await readFile(path.join(root, "public/mascot.png")),

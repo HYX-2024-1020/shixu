@@ -25,6 +25,8 @@ const shutdownMessages = {
     "全站月预算不足，进度保留；维护者调整预算或下月恢复后请主动继续",
   READING_TASK_FAILED:
     "处理结果未通过核对，资料与累计费用保留；不会自动重试，主动继续可能再次计费",
+  INVALID_MODEL_OUTPUT:
+    "模型返回的内容未通过核对，已保存原文、进度和费用记录。可查看已读内容，再决定是否继续。",
   NO_READABLE_MATERIAL:
     "本步没有可读内容，未派发新的模型请求；请核对文件与读取覆盖",
   ADMIN_PAUSED: "管理员已暂停后续 AI 派发，进度保留；恢复权限后请主动继续",
@@ -160,7 +162,14 @@ export function createReadingRoutes({
       });
     inflight.set(key, pending);
   }
-  const view = (e, t, roots) => {
+  function taskWallet(account) {
+    try {
+      return ledger.wallet(account);
+    } catch {
+      return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
+    }
+  }
+  const view = (e, t, roots, wallet = taskWallet(e.account)) => {
     const info = e.chat.publicInfo(t.id);
     const diagnostic = e.diagnostics.latest(t.id);
     const savedRoot = roots?.get(t.packet) || e.roots.stats(t.id);
@@ -169,13 +178,6 @@ export function createReadingRoutes({
       reason: savedRoot.reason || info.chatSafetyReason || "",
     };
     roots?.set(t.packet, root);
-    const wallet = (() => {
-      try {
-        return ledger.wallet(e.account);
-      } catch {
-        return { available: 0, pausedReason: "RECONCILIATION_REQUIRED" };
-      }
-    })();
     const taskCostUnresolved = ledger.taskHasUnresolvedCost(e.account, t.id);
     const auditedCostAvailable =
       recoverable.includes(t.state) &&
@@ -901,9 +903,19 @@ export function createReadingRoutes({
         const result = store.pull({
           cursor: Number(cursor),
           epoch: url.searchParams.get("epoch"),
-          limit: 1,
+          limit: 8,
         });
-        return { ...result, records: result.records.map(paged) };
+        const records = [];
+        let bytes = 0;
+        for (const row of result.records) {
+          const record = paged(row);
+          const size = Buffer.byteLength(JSON.stringify(record));
+          if (records.length && bytes + size > 512 * 1024)
+            return { ...result, records, cursor: records.at(-1).version, more: true };
+          bytes += size;
+          records.push(record);
+        }
+        return { ...result, records };
       }
       const recordMatch = /^\/api\/v4\/records\/([\w-]{1,120})$/.exec(
         url.pathname,
@@ -944,6 +956,7 @@ export function createReadingRoutes({
       const e = engine(account, store);
       if (url.pathname === "/api/v4/tasks" && method === "GET") {
         const roots = new Map();
+        const wallet = taskWallet(e.account);
         return {
           contractVersion: 1,
           tasks: e.db
@@ -951,7 +964,7 @@ export function createReadingRoutes({
               "SELECT * FROM reading_tasks ORDER BY rowid DESC LIMIT 100",
             )
             .all()
-            .map((t) => view(e, t, roots)),
+            .map((t) => view(e, t, roots, wallet)),
         };
       }
       if (url.pathname === "/api/v4/tasks" && method === "POST") {

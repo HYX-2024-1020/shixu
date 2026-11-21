@@ -224,6 +224,7 @@ function createSyncClient({
         (result.more && result.cursor <= cursor)
       )
         throw issue("INVALID_RESPONSE", "同步响应无效，本机内容已保留");
+      if (result.cursor === cursor && !result.records.length) return;
       const next = copy(state);
       result.records.forEach((row) => {
         if (
@@ -239,7 +240,7 @@ function createSyncClient({
   }
   async function execute() {
     const status = await request("GET", `${api}/status`);
-    if (protocolVersion === 3 && status.protocolVersion === 3) {
+    if (protocolVersion === 3 && status.protocolVersion === 3 && !status.epoch) {
       const account = await request("GET", `${api}/account`);
       status.epoch = account.epoch;
     }
@@ -260,6 +261,7 @@ function createSyncClient({
       commit(next);
     }
     await pull();
+    const hadOperations = state.outbox.length > 0;
     while (state.outbox.length) {
       const entry = copy(state.outbox[0]);
       if (entry.dependsOn)
@@ -331,7 +333,7 @@ function createSyncClient({
       });
       commit(next);
     }
-    await pull();
+    if (hadOperations) await pull();
     return {
       pending: state.outbox.length,
       conflicts: state.conflicts.length,

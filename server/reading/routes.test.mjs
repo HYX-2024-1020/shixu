@@ -101,6 +101,24 @@ test("published output beyond 800KB is paged losslessly, ordinary edits preserve
       hydrateReadingChanges(request, path),
       (e) => e.code === "REVISION_CONFLICT",
     );
+
+    const cursor = store.sequence;
+    for (let index = 0; index < 4; index++) {
+      const id = `deleted-${index}`;
+      const created = store.apply(device.deviceId, {
+        opId: crypto.randomUUID(), id, type: "put", baseVersion: 0,
+        data: { text: "合成待删除事项" },
+      }, store.epoch);
+      store.apply(device.deviceId, {
+        opId: crypto.randomUUID(), id, type: "delete",
+        baseVersion: created.record.version,
+      }, store.epoch);
+    }
+    const changes = await hydrateReadingChanges(request, path.replace("cursor=0", `cursor=${cursor}`));
+    assert.equal(changes.more, false);
+    assert.equal(changes.cursor, store.sequence);
+    assert.equal(changes.records.length, 4);
+    assert.ok(changes.records.every((record) => record.deletedAt));
   } finally {
     await routes.close();
     ledger.close();

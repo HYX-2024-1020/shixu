@@ -6,6 +6,7 @@ const { createRequire } = require("node:module");
 const vm = require("node:vm");
 const files = require("../lib/files");
 const transport = require("../lib/transport");
+const { sha256 } = require("../lib/originals");
 
 function filesystem() {
   const data = new Map(),
@@ -105,6 +106,48 @@ const source = (f, body = Buffer.from("合成原件"), name = "通知.txt") => {
   f.fs.data.set("/chosen/file", body);
   return { path: "/chosen/file", name, size: body.length };
 };
+
+test("a settings download reports timeout, retries, then opens the cached original in place", async () => {
+  const body = Buffer.from("合成下载");
+  let request;
+  const { page, wx, fs } = fixture({ request: (options) => { request = options; } });
+  const file = {
+    id: "file", packetId: "packet", rowKey: "packet:file", version: 1,
+    name: "合成.txt", size: body.length, hash: sha256(body), available: true,
+  };
+  page._connection = { base: "https://synthetic.example", token: "synthetic" };
+  page._epoch = "epoch";
+  page.setData({ originalStorage: { originals: [file] } });
+  const setData = page.setData;
+  page.setData = (patch) => {
+    const key = "originalStorage.originals[0].localCopy";
+    if (Object.hasOwn(patch, key)) page.data.originalStorage.originals[0].localCopy = patch[key];
+    setData.call(page, patch);
+  };
+  const event = (action) => ({ currentTarget: { dataset: { id: "file", packet: "packet", action } } });
+  const initial = page.originalAction(event("download"));
+  assert.equal(page.data.originalActionBusy.rowKey, file.rowKey);
+  request.fail({ errMsg: "request:fail timeout" });
+  await initial;
+  assert.equal(page.data.originalActionFeedback.retryDownload, true);
+  assert.match(page.data.originalActionFeedback.message, /下载超时/);
+  const retry = page.originalAction(event("download"));
+  request.success({ statusCode: 200, data: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) });
+  await retry;
+  assert.equal(page.data.originalStorage.originals[0].localCopy, true);
+  await page.openCachedOriginal(event("open"));
+  assert.equal(page.data.originalPreview.text, "合成下载");
+  assert.equal(page.data.originalPreview.localOriginal, true);
+  let shared;
+  wx.shareFileMessage = ({ filePath, fileName, success }) => {
+    shared = fileName;
+    assert.deepEqual(fs.data.get(filePath), body);
+    success();
+  };
+  await page.openCachedOriginal(event("export"));
+  assert.equal(shared, file.name);
+  page.onUnload();
+});
 
 test("a refused original revalidation clears the saved task action and is not uploaded again by polling", async () => {
   for (const data of [
@@ -321,7 +364,7 @@ test("real HTTP upload acknowledgement loss retries the same bytes and retains l
   assert.equal(f.page.data.connected, true);
   await f.page.importLocal();
   assert.equal(f.page.data.pendingFiles, 1);
-  assert.match(f.page.data.error, /原件/);
+  assert.match(f.page.data.syncStatus, /原件待上传/);
   await f.page.sync();
   assert.equal(f.page.data.error, "");
   assert.equal(f.page.data.pendingFiles, 0);

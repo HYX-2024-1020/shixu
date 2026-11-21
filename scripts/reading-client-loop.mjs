@@ -443,7 +443,7 @@ export async function runClientLoop({
       await page.sync(); await cloud.action("sync");
       await assert.rejects(cloud.action("ai", { kind: "organize", packetId: "packet" }), /确认资料用途/);
       await page._startJob("organize", "packet");
-      assert.match(page.data.error, /确认资料用途/);
+      assert.match(page.data.rows.find((row) => row.id === "packet").organizeIssue, /确认资料用途/);
       assert.equal(calls, 0); assert.equal(parserRuns, 0);
       assert.equal(cloud.readJobs().length, 0); assert.equal(page._jobs.length, 0);
       await cloud.action("materialConsent", { accepted: true });
@@ -905,6 +905,7 @@ export async function runClientLoop({
       assert.equal(storage.usedBytes, 0);
     }
     if (verifyLifecycle) {
+      page.setData({ tab: "settings" });
       await page.sync();
       const f = page.data.originalStorage.originals[0];
       assert.equal(f.mode, originalQuota === 1 ? "temporary" : "retained");
@@ -915,6 +916,7 @@ export async function runClientLoop({
           },
         });
         assert.equal(page.data.error, "");
+        assert.match(page.data.originalActionFeedback.message, /续期/);
         await cloud.action("sync");
         assert.equal(
           cloud.status().originalStorage.originals[0].version,
@@ -926,6 +928,7 @@ export async function runClientLoop({
           },
         });
         assert.equal(page.data.error, "");
+        assert.match(page.data.originalActionFeedback.message, /下载完成/);
       }
       const row = cloud.status().originalStorage.originals[0];
       await cloud.action("deleteOriginal", { ...row, stopTask: true });

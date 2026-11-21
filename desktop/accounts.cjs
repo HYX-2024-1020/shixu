@@ -248,6 +248,9 @@ class AccountWorkspace extends CloudWorkspace {
     atomic(this.space().cache.file("jobs.json"), JSON.stringify(jobs));
   }
   async pollJobs() {
+    let published = false;
+    const newlyPublished = (task, old) =>
+      ["done", "partial"].includes(task.state) && task.state !== old?.state;
     if (this.accountState?.reading) {
       const remote = await this.request(
         this.config.active,
@@ -265,6 +268,7 @@ class AccountWorkspace extends CloudWorkspace {
                   published: ["done", "partial"].includes(task.state),
                 };
         const old = jobs.find((j) => j.id === task.id);
+        published ||= newlyPublished(task, old);
         if (old) Object.assign(old, task);
         else
           jobs.push({
@@ -304,6 +308,7 @@ class AccountWorkspace extends CloudWorkspace {
             );
           throw error;
         }
+        published ||= newlyPublished(task, action === "remaining" ? null : job);
         if (action === "remaining") {
           const latest = this.readJobs().map((j) =>
             j.id === job.id
@@ -373,10 +378,12 @@ class AccountWorkspace extends CloudWorkspace {
         result = { state: "error", error: error.message };
       }
       const jobs = this.readJobs();
+      published ||= newlyPublished(result, job);
       const index = jobs.findIndex((j) => j.id === job.id);
       jobs[index] = { ...jobs[index], ...result };
       this.writeJobs(jobs);
     }
+    return published;
   }
   async sync({ force = false } = {}) {
     if (!this.config.active) return this.status();
@@ -422,7 +429,7 @@ class AccountWorkspace extends CloudWorkspace {
           "GET",
           "/api/v4/storage",
         );
-      await this.pollJobs();
+      if (await this.pollJobs()) await this.space().client.sync();
       this.accountState = await this.request(
         this.config.active,
         "GET",

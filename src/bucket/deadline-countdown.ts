@@ -8,6 +8,17 @@ function calendarDay(value: string) {
     : NaN;
 }
 
+export function deadlineTone(date: string, day: string, done = false) {
+  if (done) return "done";
+  const days = calendarDay(date) - calendarDay(day);
+  if (days <= 1) return "urgent";
+  if (days <= 3) return "near";
+  if (days <= 7) return "week";
+  if (days <= 14) return "fortnight";
+  if (days <= 30) return "month";
+  return "later";
+}
+
 export function deadlineCountdown(
   date: string,
   day: string,
