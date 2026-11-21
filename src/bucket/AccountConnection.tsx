@@ -14,6 +14,7 @@ type State = Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>;
 export default function AccountConnection({
   canSwitch,
   onClose,
+  onSyncSettled,
   notify,
   mode = "settings",
   conflictPacket,
@@ -22,6 +23,7 @@ export default function AccountConnection({
   mode?: "settings" | "tasks";
   canSwitch: () => boolean;
   onClose: () => void;
+  onSyncSettled?: () => Promise<void>;
   notify: (message: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -165,6 +167,7 @@ export default function AccountConnection({
         /* Keep the original action error and local state. */
       }
     } finally {
+      if (name === "sync") await onSyncSettled?.().catch(() => {});
       setBusy(false);
     }
   }
