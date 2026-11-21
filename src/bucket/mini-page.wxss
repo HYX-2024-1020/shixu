@@ -116,10 +116,11 @@
   text-align: left;
 }
 .hero-copy {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
 }
 .hero-title {
-  grid-column: 2;
   font-size: 52rpx;
   font-weight: 900;
   line-height: 1.22;
@@ -145,15 +146,6 @@
 .hero .mascot {
   width: 200rpx;
   height: 200rpx;
-}
-.hero .skin-bubble {
-  left: 50%;
-  top: -8rpx;
-  min-width: 150rpx;
-  max-width: 220rpx;
-  padding: 8rpx 12rpx;
-  font-size: 24rpx;
-  transform: translateX(-50%) rotate(-2deg);
 }
 .hero .home-character.with-fox .bucket-drawing,
 .hero .home-character.with-fox .mascot {
@@ -223,12 +215,11 @@
   letter-spacing: 2rpx;
 }
 .skin-bubble {
-  position: absolute;
-  left: 46%;
-  top: -12rpx;
-  min-width: 190rpx;
-  max-width: 280rpx;
-  padding: 10rpx 16rpx;
+  display: table;
+  box-sizing: border-box;
+  max-width: calc(100% - 6rpx);
+  margin: 16rpx 0 6rpx;
+  padding: 8rpx 12rpx;
   background: #fff;
   border: 4rpx solid #111;
   border-radius: 6rpx;
@@ -236,7 +227,8 @@
   font-size: 24rpx;
   font-weight: 800;
   line-height: 1.5;
-  transform: rotate(2deg);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .editor,
 .card-paper {
@@ -278,12 +270,26 @@
   font-size: 30rpx;
 }
 .capture-toolbar .submit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   margin: 0;
   padding: 12rpx;
   font-size: 32rpx;
   white-space: nowrap;
+}
+.capture-toolbar .submit-button[disabled] {
+  opacity: 1;
+  color: #645c4c;
+  background: #eee9d9;
+  border-color: #a39a86;
+  box-shadow: none;
+}
+.capture-toolbar .submit-button[disabled] .submit-label {
+  color: #645c4c;
 }
 .text-button {
   display: inline-flex;
@@ -1320,23 +1326,8 @@ page {
   margin: 30rpx auto;
   padding-top: 36rpx;
 }
-.skin-preview-stage .skin-bubble {
-  left: 50%;
-  transform: translateX(-50%) rotate(-2deg);
-  width: max-content;
-  max-width: 90%;
-}
-.skin-bubble::after {
-  content: "";
-  position: absolute;
-  bottom: -12rpx;
-  left: 32rpx;
-  width: 18rpx;
-  height: 18rpx;
-  background: #fff;
-  border-right: 4rpx solid #111;
-  border-bottom: 4rpx solid #111;
-  transform: rotate(45deg);
+.skin-preview > .skin-bubble {
+  margin: 0 auto 16rpx;
 }
 .world-heading > view {
   min-width: 0;

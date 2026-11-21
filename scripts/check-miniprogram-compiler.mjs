@@ -131,6 +131,11 @@ const captureControls = view().find((node) => node.attr?.class === "capture-tool
 assert.deepEqual(Array.from(captureControls.children[0].children, (node) => node.attr?.bindtap),
   ["chooseFiles", "chooseImages"]);
 assert.equal(captureControls.children[1].attr.bindtap, "submit");
+assert.ok(nodes(captureControls.children[1]).some((node) => node.attr?.class === "submit-label"));
+const heroCopy = view().find((node) => node.attr?.class === "hero-copy");
+assert.ok(heroCopy.children.some((node) => node.attr?.class === "skin-bubble"));
+assert.ok(!view().filter((node) => node.attr?.class?.includes("skin-mascot"))
+  .some((stage) => nodes(stage).some((node) => node.attr?.class === "skin-bubble")));
 assert.ok(view().some((node) => node.attr?.class === "ai-quota"
   && node.children.includes("已用 ¥0.15 · 可用 ¥2.85")));
 page.setData({ tab: "world" });
