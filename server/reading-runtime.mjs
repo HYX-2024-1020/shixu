@@ -115,7 +115,6 @@ export function createReadingRuntime(
       invalid();
     return current.id;
   };
-  if (config.enabled) priceAt();
   const reader = createBrokerClient(config.brokerSocket, {
     pdfVisualWindows: config.pdfVisual,
   });
