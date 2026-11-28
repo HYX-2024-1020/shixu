@@ -40,7 +40,7 @@ async function openSettings(page, connected = false, unavailable = false) {
     },
     { connected, unavailable },
   );
-  await page.goto("/e2e/fixtures/account-settings.html");
+  await page.goto("/tests/e2e/fixtures/account-settings.html");
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 

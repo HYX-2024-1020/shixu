@@ -14,7 +14,7 @@ test("published current link starts the actual runtime and maintenance entrypoin
   try {
     const current = join(root, "current");
     symlinkSync(
-      fileURLToPath(new URL("../../", import.meta.url)),
+      fileURLToPath(new URL("../../../", import.meta.url)),
       current,
       process.platform === "win32" ? "junction" : "dir",
     );
