@@ -127,3 +127,11 @@
 - `src/bucket/Results.tsx`
 - `src/bucket/card-merge.ts`
 - `src/bucket/item-chat.ts`
+
+## 第三批：三项边界风险修复与可测性改造
+
+针对上方列出的三项边界风险，已完成代码修复、脚本可测性拆分及对应自动化回归：
+
+1. **控制台安装清单校验与原子落盘**（`scripts/build-console-release.mjs`、`deploy/windows/console-release.test.mjs`）：抽离导出 `verifyInstallationManifest` 与 `writeConsoleRelease`，复用既有发行目录前严格核对 `application`、`fingerprint`、40 位 `sourceRevision`、`node`、`nodeLicense` 与完整有序文件表，保留同内容首次提交来源；新建发行目录通过同级临时目录写入并原子重命名，清单或受管文件损坏时报错并保留现场。
+2. **云端发行目录同文件系统原子交付**（`scripts/build-cloud-release.mjs`、`deploy/sync/cloud-release.test.mjs`）：抽离导出 `buildCloudRelease` 与 `verifyStagedCloudRelease`，在目标同父目录私有临时目录下完成基础包与云端扩展写入，发布前自检密封清单与逐文件 `SHA256SUMS`，通过后原子重命名；失败自动清理临时目录且绝不覆盖已有目标。
+3. **微信角色音频停止与卸载容错**（`miniprogram/pages/index/index.js`、`miniprogram/tests/world.test.cjs`）：`stop()` 抛错时解除旧音频实例引用并清空缓存文件名，尽力调用 `destroy()` 且维持单次动画收尾；`_skinPlaybackFailed()` 同步清空缓存文件名，`onUnload()` 容忍 `destroy()` 抛错以保证网络监听正常解除。真机换肤、连点与页面卸载仍保留为实机抽检项。

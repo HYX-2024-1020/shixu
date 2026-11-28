@@ -330,7 +330,14 @@ Page({
     clearTimeout(this._queryTimer);
     this._queryTimer = null;
     this._stopSkinInteraction();
-    if (this._skinAudio) this._skinAudio.destroy();
+    const audio = this._skinAudio;
+    this._skinAudio = null;
+    this._skinAudioFile = "";
+    if (audio) {
+      try {
+        audio.destroy?.();
+      } catch (_) {}
+    }
     if (this._network) wx.offNetworkStatusChange(this._network);
   },
   _activate(connection) {
@@ -3263,16 +3270,28 @@ Page({
   _stopSkinInteraction() {
     clearTimeout(this._skinTimer);
     this._skinSoundActive = false;
-    try {
-      if (this._skinAudio) this._skinAudio.stop();
-    } catch (_) {}
+    const audio = this._skinAudio;
+    if (audio) {
+      try {
+        audio.stop();
+      } catch (_) {
+        if (this._skinAudio === audio) {
+          this._skinAudio = null;
+          this._skinAudioFile = "";
+        }
+        try {
+          audio.destroy?.();
+        } catch (_) {}
+      }
+    }
     this._finishSkinInteraction();
   },
   _skinPlaybackFailed(audio) {
     if (this._skinAudio !== audio || !this._skinSoundActive) return;
     this._skinSoundActive = false;
     this._skinAudio = null;
-    try { audio.destroy(); } catch {}
+    this._skinAudioFile = "";
+    try { audio.destroy?.(); } catch {}
     this._finishSkinInteraction();
     if (this.data.skinOpen || this.data.tab === "capture")
       wx.showToast?.({ title: "声音暂时播不出", icon: "none" });

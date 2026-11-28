@@ -17,6 +17,7 @@ function fixture({
   date = Date,
   selectorQuery,
   failAudio = false,
+  offNetworkStatusChange,
   clock = { setTimeout, clearTimeout },
 } = {}) {
   let definition;
@@ -38,7 +39,7 @@ function fixture({
         ? {
             createInnerAudioContext: () => {
               if (failAudio) throw Error("audio unavailable");
-              return audio;
+              return typeof audio === "function" ? audio() : audio;
             },
           }
         : {}),
@@ -48,7 +49,9 @@ function fixture({
         store.set(key, structuredClone(value));
       },
       onNetworkStatusChange() {},
-      offNetworkStatusChange() {},
+      offNetworkStatusChange(fn) {
+        offNetworkStatusChange?.(fn);
+      },
       getAccountInfoSync: () => ({ miniProgram: { envVersion: "develop" } }),
       showModal: (o) => o.success(modal),
       showToast() {},
@@ -1812,4 +1815,96 @@ test("detail view shows the original text once instead of repeating identical so
   // Keep the original record intact.
   assert.equal(row.sources.length, 3);
   page.onUnload();
+});
+
+test("audio stop failure detaches and destroys the stale instance without breaking subsequent playback or unload", () => {
+  const instances = [];
+  let offNetworkCalls = 0;
+  const makeAudio = (options = {}) => {
+    const callbacks = { ended: null, error: null, play: null };
+    const instance = {
+      src: "",
+      failStop: !!options.failStop,
+      failDestroy: !!options.failDestroy,
+      playCalls: 0,
+      stopCalls: 0,
+      destroyCalls: 0,
+      onEnded(fn) {
+        callbacks.ended = fn;
+      },
+      onError(fn) {
+        callbacks.error = fn;
+      },
+      onPlay(fn) {
+        callbacks.play = fn;
+      },
+      play() {
+        instance.playCalls++;
+      },
+      stop() {
+        instance.stopCalls++;
+        if (instance.failStop) throw Error("stop failed");
+      },
+      destroy() {
+        instance.destroyCalls++;
+        if (instance.failDestroy) throw Error("destroy failed");
+      },
+      triggerEnded() {
+        callbacks.ended?.();
+      },
+      triggerError() {
+        callbacks.error?.();
+      },
+    };
+    instances.push(instance);
+    return instance;
+  };
+  let nextIndex = 0;
+  const audioFactory = () => {
+    const idx = nextIndex++;
+    if (idx === 0) return makeAudio({ failDestroy: true });
+    return makeAudio({ failDestroy: true });
+  };
+  const { page } = fixture({
+    audio: audioFactory,
+    offNetworkStatusChange: () => {
+      offNetworkCalls++;
+    },
+  });
+  page._network = () => {};
+
+  // onLoad preloads instance #0; first interaction reuses and plays it.
+  assert.equal(instances.length, 1);
+  page.interactSkin();
+  assert.equal(instances.length, 1);
+  assert.equal(instances[0].playCalls, 1);
+  assert.equal(page.data.skinAnimating, true);
+
+  // Simulate platform stop() + destroy() throwing on the active instance.
+  instances[0].failStop = true;
+  page._stopSkinInteraction();
+  assert.equal(instances[0].stopCalls, 2);
+  assert.equal(instances[0].destroyCalls, 1);
+  assert.equal(page._skinAudio, null);
+  assert.equal(page._skinAudioFile, "");
+  assert.equal(page.data.skinAnimating, false);
+
+  // Next interaction creates a fresh instance #1 instead of reusing broken #0.
+  page.interactSkin();
+  assert.equal(instances.length, 2);
+  assert.equal(instances[1].playCalls, 1);
+  assert.equal(page.data.skinAnimating, true);
+
+  // Late callbacks from broken #0 must not cancel or hijack active playback on #1.
+  instances[0].triggerEnded();
+  instances[0].triggerError();
+  assert.equal(page.data.skinAnimating, true);
+  assert.equal(page._skinAudio, instances[1]);
+
+  // Unload tolerates destroy() throwing and still removes network listener.
+  page.onUnload();
+  assert.equal(instances[1].destroyCalls, 1);
+  assert.equal(page._skinAudio, null);
+  assert.equal(page._skinAudioFile, "");
+  assert.equal(offNetworkCalls, 1);
 });
