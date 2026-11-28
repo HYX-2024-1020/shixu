@@ -1231,12 +1231,12 @@ test("release starts independently; two devices, restart, WAL backup and restore
     }
     assert.deepEqual((await readdir(release)).sort(), [
       "SHA256SUMS",
+      "apps",
       "deploy",
+      "packages",
       "release.json",
-      "server",
-      "shared",
     ]);
-    assert.deepEqual((await readdir(join(release, "server"))).sort(), [
+    assert.deepEqual((await readdir(join(release, "apps/server"))).sort(), [
       "account-safety.mjs",
       "accounts-v4.mjs",
       "admin-backend.mjs",
