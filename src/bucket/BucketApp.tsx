@@ -111,6 +111,68 @@ function message(error: unknown) {
   return "暂时没整理好，内容已经保留";
 }
 
+// 单个附件不合规时跳过它；再加入会超出数量或容量上限时停止接收后续文件。
+function collectAttachments(
+  attachments: Attachment[],
+  files: FileList | File[],
+  cloudActive: boolean,
+  notify: (message: string) => void,
+): Attachment[] {
+  const next = [...attachments];
+  for (const file of Array.from(files)) {
+    const cloud = !!window.desktop && cloudActive;
+    const fileLimitMiB = cloud ? 10 : 32;
+    const batchLimitMiB = cloud ? 20 : 96;
+    if (file.size > fileLimitMiB * 1024 * 1024) {
+      notify(`${file.name} 超过${fileLimitMiB} MiB，请选择较小的文件`);
+      continue;
+    }
+    if (next.length >= 8) {
+      notify("一次最多放入8个附件");
+      break;
+    }
+    if (
+      next.reduce((n, a) => n + a.size, 0) + file.size >
+      batchLimitMiB * 1024 * 1024
+    ) {
+      notify(`这一组附件合计不能超过${batchLimitMiB} MiB`);
+      break;
+    }
+    if (file.name.length > 200) {
+      notify("文件名过长，请缩短后重试");
+      continue;
+    }
+    next.push({
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      blob: file,
+    });
+    if (!supportedFiles.test(file.name))
+      notify(`${file.name} 已保存为附件；此格式暂不能提取内容`);
+  }
+  return next;
+}
+
+function createPendingPacket(text: string, attachments: Attachment[]): Packet {
+  const at = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    text: text.trim(),
+    attachments: [...attachments],
+    sources: [],
+    capturedAt: at,
+    captureDate: localDate(),
+    captureTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    status: "pending",
+    result: null,
+    error: "",
+    doneIds: [],
+    updatedAt: at,
+  };
+}
+
 export default function BucketApp() {
   const [boardOpened,setBoardOpened]=useState(false);
   const [skinMarket, setSkinMarket] = useState(false);
@@ -1144,38 +1206,7 @@ export default function BucketApp() {
       return;
     }
     if (!files) return;
-    const next = [...attachments];
-    for (const file of Array.from(files)) {
-      const cloud = !!window.desktop && cloudActive;
-      if (file.size > (cloud ? 10 : 32) * 1024 * 1024) {
-        notify(`${file.name} 超过${cloud ? 10 : 32} MiB，请选择较小的文件`);
-        continue;
-      }
-      if (next.length >= 8) {
-        notify("一次最多放入8个附件");
-        break;
-      }
-      if (
-        next.reduce((n, a) => n + a.size, 0) + file.size >
-        (cloud ? 20 : 96) * 1024 * 1024
-      ) {
-        notify(`这一组附件合计不能超过${cloud ? 20 : 96} MiB`);
-        break;
-      }
-      if (file.name.length > 200) {
-        notify("文件名过长，请缩短后重试");
-        continue;
-      }
-      next.push({
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        blob: file,
-      });
-      if (!supportedFiles.test(file.name))
-        notify(`${file.name} 已保存为附件；此格式暂不能提取内容`);
-    }
+    const next = collectAttachments(attachments, files, cloudActive, notify);
     setAttachments(next);
     if (input.current) input.current.value = "";
     textarea.current?.focus();
@@ -1200,21 +1231,7 @@ export default function BucketApp() {
     submitLock.current = true;
     setSubmitting(true);
     try {
-      const at = new Date().toISOString(),
-        packet: Packet = {
-          id: crypto.randomUUID(),
-          text: text.trim(),
-          attachments: [...attachments],
-          sources: [],
-          capturedAt: at,
-          captureDate: localDate(),
-          captureTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          status: "pending",
-          result: null,
-          error: "",
-          doneIds: [],
-          updatedAt: at,
-        };
+      const packet = createPendingPacket(text, attachments);
       await save(packet);
       setFeedSignal((n) => n + 1);
       setCurrentCaptureId(packet.id);

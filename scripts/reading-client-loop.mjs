@@ -15,7 +15,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import vm from "node:vm";

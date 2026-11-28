@@ -3,7 +3,7 @@ import { officeImageBytes } from "../server/reading/office-fixtures.mjs";
 import { zipBytes } from "../server/reading/archive-fixtures.mjs";
 import { rar4Bytes } from "../server/reading/native-archive-fixtures.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { sourceLocation, imageProgressView } from "../shared/reading-view.mjs";
+import { sourceLocation } from "../shared/reading-view.mjs";
 export async function runOfficeClients({
   directory,
   reader,

@@ -1,7 +1,6 @@
 import {tmpdir} from 'node:os';
 import assert from "node:assert/strict";
 import {
-  readFileSync,
   writeFileSync,
   copyFileSync,
   mkdirSync,

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, chown, chmod, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, chown, chmod, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";
-import { createLinuxReader } from "../server/reading/linux-broker.mjs";
 
 const base = resolve(process.argv[2] || ""),
   runtime = join(base, "runtime");

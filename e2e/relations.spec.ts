@@ -9,7 +9,6 @@ import {
 } from "./current-ui";
 import { buildGroups } from "../shared/relations.mjs";
 import { test, expect, type Page } from "@playwright/test";
-import { readFile } from "node:fs/promises";
 const KEY = "fixture-relations-key-not-real";
 async function setup(page: Page) {
   const calls: { kind: string; payload: any }[] = [],

@@ -11,7 +11,7 @@ import {
   lstat,
 } from "node:fs/promises";
 import { existsSync, openSync, closeSync } from "node:fs";
-import { join, resolve, dirname, delimiter } from "node:path";
+import { join, resolve, delimiter } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 

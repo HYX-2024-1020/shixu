@@ -1,4 +1,4 @@
-import type { Packet, ItemState } from "./types";
+import type { Packet } from "./types";
 export class CardOperationError extends Error {}
 export function mergeCardDeletion(
   packets: Packet[],

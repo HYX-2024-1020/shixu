@@ -1,6 +1,6 @@
 // Explicit user request: generate twenty fictional deliveries through the real UI/API.
 import { _electron as electron, expect } from "@playwright/test";
-import { mkdir, copyFile, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, copyFile, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { Resvg } from "@resvg/resvg-js";
