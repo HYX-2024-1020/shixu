@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runWindowSafetyClients } from "../../scripts/reading-window-safety-clients.mjs";
+import { runWindowSafetyClients } from "../../scripts/reading/reading-window-safety-clients.mjs";
 import { readMaterial } from "./material.mjs";
 for (const deleted of [false, true])
   test(

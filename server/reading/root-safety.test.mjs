@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ReadingLedger } from "./ledger.mjs";
 import { ReadingRootSafety } from "./root-safety.mjs";
 import { readMaterial } from "./material.mjs";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 import { spawnSync } from "node:child_process";
 
 const snapshot = {

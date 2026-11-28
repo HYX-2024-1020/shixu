@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runApngClients } from "../../scripts/reading-apng-clients.mjs";
+import { runApngClients } from "../../scripts/reading/reading-apng-clients.mjs";
 for (const deleted of [false, true])
   test(
     "APNG dual signed clients preserve frames, stop/reupload, paid visual review and semantic publication " +

@@ -419,7 +419,7 @@ test("a delayed unauthorized response cannot invalidate the new account", async 
 });
 test("signed cloud original purge is atomic, shared bytes survive and orphan capture can be stopped without AI", async (t) => {
   const { accountUIFixture } = await import(
-    "../scripts/account-ui-fixture.mjs"
+    "../scripts/desktop/account-ui-fixture.mjs"
   );
   const { ReadingLedger } = await import("../server/reading/ledger.mjs");
   const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-stability-http-")),

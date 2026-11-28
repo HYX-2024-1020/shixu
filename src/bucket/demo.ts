@@ -1,5 +1,5 @@
 import { validateResult } from "../../shared/bucket-engine.mjs";
-import { localDate } from "../organize";
+import { localDate } from "./local-date";
 import type { Packet } from "./types";
 export const SAMPLE_TEXT =
   "老师说下周三 23:59 前交课程调研报告，具体要求看附件。\n另外，突然想到：做一个校园旧书地图。\n想每天睡前读十分钟书。";

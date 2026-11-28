@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runImageClients } from "../../scripts/reading-image-clients.mjs";
+import { runImageClients } from "../../scripts/reading/reading-image-clients.mjs";
 import { readMaterial } from "./material.mjs";
 for (const deleted of [false, true])
   test(

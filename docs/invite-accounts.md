@@ -1,6 +1,6 @@
 # 邀请账号与服务端 AI（Issue #40）
 
-本任务从 2026-10-25 最新 main `006a0c7` 开始。当前源码实现 v3 服务端与 Windows/微信邀请码激活、固定服务地址、账号缓存隔离和共用服务端 AI 队列。ECS现已通过独立安装器切换v3，已安装客户端尚未更新；HTTPS、微信域名及客户端发布验收前不能开放朋友正式使用，详见[部署记录](accounts-deployment-2026-10-25.md)。
+本任务从 2026-10-25 最新 main `006a0c7` 开始。当前源码实现 v3 服务端与 Windows/微信邀请码激活、固定服务地址、账号缓存隔离和共用服务端 AI 队列。ECS现已通过独立安装器切换v3，已安装客户端尚未更新；HTTPS、微信域名及客户端发布验收前不能开放朋友正式使用，详见[部署记录](archive/milestones/accounts-deployment-2026-10-25.md)。
 
 Windows 新入口为 `desktop/accounts.cjs` 和 `AccountConnection.tsx`；旧连接配置与旧模型 Key 不读取、不迁移。新账号配置存入系统加密的 account.enc，每个账号以 account:UUID 标识缓存目录，旧页面的空间租约禁止写入新账号。激活响应丢失前设备私钥已经落盘，同邀请码重试复用安装身份。主进程使用固定服务地址，渲染层网络被阻止。开发未打包实例只有显式隔离 profile 与 SHIXU_TEST_SERVICE_ORIGIN 测试环境才能覆盖地址；正式安装版忽略此项。
 

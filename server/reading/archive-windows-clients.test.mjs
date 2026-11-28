@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readMaterial } from "./material.mjs";
-import { runArchiveWindowsClients } from "../../scripts/reading-archive-windows-clients.mjs";
+import { runArchiveWindowsClients } from "../../scripts/reading/reading-archive-windows-clients.mjs";
 for (const format of ["zip", "rar", "7z"])
   test(
     `${format} PDF windows cross clients, same-hash reupload, paid reuse and per-member progress`,

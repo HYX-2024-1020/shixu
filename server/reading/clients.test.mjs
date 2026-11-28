@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClientLoop as runLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop as runLoop } from "../../scripts/reading/reading-client-loop.mjs";
 const runClientLoop = options => runLoop({ ...options, tenantSafety: true });
 import { readMaterial } from "./material.mjs";
 import { docxBytes, paragraph } from "./docx-fixtures.mjs";

@@ -6,7 +6,7 @@ import { projectVisualReview, visualClaims } from "./visual-review.mjs";
 for (const sample of ["pipeline", "replay"]) {
   test(`current visual projection replays archived scanned-PDF evidence: ${sample}`, () => {
     const evidence = JSON.parse(readFileSync(new URL(
-      `../../docs/bcd/evidence/visual-review-real-${sample}.json`, import.meta.url,
+      `../../test-fixtures/reading-evidence/visual-review-real-${sample}.json`, import.meta.url,
     ), "utf8"));
     const [upstream] = evidence.modelResponses;
     const imageIds = new Set(evidence.coverage.flatMap(

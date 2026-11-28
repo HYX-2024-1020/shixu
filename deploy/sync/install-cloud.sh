@@ -17,7 +17,7 @@ chmod 0750 /etc/shixu-cloud
 chmod 0640 /etc/shixu-cloud/runtime.json
 chmod 0640 /etc/shixu-cloud/service.env
 if [ ! -d /opt/shixu-cloud/runtime ]; then
-  python3 scripts/reading-prepare-runtime.py /opt/shixu-cloud/runtime --pdf-visual "$release/server/reading/generated-pdf-visual/linux-x64"
+  python3 scripts/ops/reading-prepare-runtime.py /opt/shixu-cloud/runtime --pdf-visual "$release/server/reading/generated-pdf-visual/linux-x64"
 fi
 cat > /etc/systemd/system/shixu-cloud-reader.service <<UNIT
 [Unit]
@@ -68,7 +68,7 @@ systemctl stop shixu-cloud-operations.timer 2>/dev/null || true
 systemctl stop shixu-cloud-operations.service 2>/dev/null || true
 systemctl stop shixu-cloud
 ln -sfn "$release" /opt/shixu-cloud/current
-node --env-file=/etc/shixu-cloud/service.env "$release/scripts/cloud-operations-worker.mjs" --seal-floor
+node --env-file=/etc/shixu-cloud/service.env "$release/scripts/ops/cloud-operations-worker.mjs" --seal-floor
 systemctl restart shixu-cloud-reader
 systemctl restart shixu-cloud
 for attempt in $(seq 1 20); do

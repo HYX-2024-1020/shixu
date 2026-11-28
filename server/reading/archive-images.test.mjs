@@ -13,7 +13,7 @@ import {
 } from "./native-archive-fixtures.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { FIRST_ARCHIVE_WINDOW } from "./archive-window.mjs";
-import { runImageClients } from "../../scripts/reading-image-clients.mjs";
+import { runImageClients } from "../../scripts/reading/reading-image-clients.mjs";
 
 const reader = Object.assign((f, o) => readMaterial(f, o), {
   pdfWindows: true,

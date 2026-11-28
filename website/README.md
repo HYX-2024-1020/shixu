@@ -11,7 +11,7 @@
 
 ## 2026-11-12 明亮漫画卡片版
 
-已按用户授权完成[实际替换与验证](../docs/project-continuity/site-redesign-20261113.md)；旧网站交付记录保留为历史证据。
+已按用户授权完成[实际替换与验证](../docs/archive/continuity/site-redesign-20261113.md)；旧网站交付记录保留为历史证据。
 
 用户明确授权替换线上网站。接入外部设计交付的完整首页、指引、隐私与404页：明亮漫画海报、客户端冰块CSS主视觉、黄/粉/蓝卡片、CSS动效与四步流程演示。HTML/CSS及冰块示意为设计代理创作，保留原项目标识和ICP备案信息；未引用的旧AI人物图不纳入源码或发布包。
 
@@ -33,4 +33,4 @@ CSS带版本查询参数，nginx对静态内容启用no-cache再验证，避免�
 
 ## 部署与备案
 
-参见[服务器部署说明](../deploy/website/README.md)及[本轮网站与备案记录](../docs/project-continuity/public-website-filing-20261112.md)。网站上线、源码合入与公安审核是不同状态。
+参见[服务器部署说明](../deploy/website/README.md)及[本轮网站与备案记录](../docs/archive/continuity/public-website-filing-20261112.md)。网站上线、源码合入与公安审核是不同状态。

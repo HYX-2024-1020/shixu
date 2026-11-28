@@ -1,6 +1,6 @@
 # 桌面产品计划
 
-更新：2026-11-02。当前状态以[接续入口](current-baseline.md)为准，成果位置和后续推进见[复用约束](project-continuity/README.md)。功能开发保持暂停，本次整理不启动后续条目。
+更新：2026-11-02。当前状态以[接续入口](current-baseline.md)为准，成果位置和后续推进见[复用约束](archive/continuity/README.md)。功能开发保持暂停，本次整理不启动后续条目。
 
 ## 已确认方向与交付边界
 

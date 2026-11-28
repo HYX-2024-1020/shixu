@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeConsoleRelease } from "../../scripts/build-console-release.mjs";
+import { writeConsoleRelease } from "../../scripts/build/build-console-release.mjs";
 
 const sampleContent = () => [
   { path: "server/console-gateway.mjs", bytes: Buffer.from("export default 1;\n") },

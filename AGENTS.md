@@ -1,10 +1,10 @@
 # 仓库协作要求
 
-本文件适用于 `shixu-governance/` 仓库内的所有开发任务。修改前结合 [贡献流程](CONTRIBUTING.md) 与 [项目交接](HANDOFF.md) 核对适用验证；桌面产品变更可参考 [桌面产品计划](docs/desktop-product-plan.md) 和 [桌面实现](docs/desktop-implementation.md)，历史阶段归档见 [当前基线](docs/current-baseline.md) 与 [成果复用记录](docs/project-continuity/README.md)。
+本文件适用于 `shixu/` 主仓库内的所有开发任务。修改前结合 [贡献流程](CONTRIBUTING.md) 与 [项目交接](HANDOFF.md) 核对适用验证；桌面产品变更参考 [桌面产品计划](docs/desktop-product-plan.md) 和 [桌面实现](docs/desktop-implementation.md)，当前基线与历史归档见 [当前基线](docs/current-baseline.md) 与 [历史归档](docs/archive/README.md)。
 
 ## 日常开发与 PR 流程
 
-1. **固定目录与任务分支**：在登记的日常开发目录 `shixu-governance/` 工作（其他旧 checkout 仅作只读参考）。先检查 `git status --short --branch` 与远端 `origin/main`，不在 `main` 或 `detached HEAD` 直接编辑；禁止自动 `reset`、`clean`、`stash` 或覆盖未提交改动。
+1. **唯一主仓与任务分支**：在登记的主仓库目录 `shixu/` 工作。先检查 `git status --short --branch` 与远端 `origin/main`，不在 `main` 或 `detached HEAD` 直接编辑；禁止自动 `reset`、`clean`、`stash` 或覆盖未提交改动。
 2. **分支与提交格式**：任务分支使用 `feat/`、`fix/`、`docs/`、`refactor/`、`test/`、`chore/`、`ci/`、`perf/` + 小写英文连字符；显式暂存本任务文件（禁止 `git add .` / `-A`）；提交与 PR 标题遵循 Conventional Commits。纯阅读或咨询不制造空提交/空 PR。
 3. **有效验证与诚实记录**：按 [CONTRIBUTING.md](CONTRIBUTING.md) 运行适用检查；修复缺陷优先补充能复现问题的回归测试。不把模拟测试、真实 API 验证、Windows UI 测试或真机测试混为一谈；未执行的检查如实说明。
 4. **PR 合并授权**：PR 正文保留「变更内容 / 验证结果 / 风险与回滚 / 双端影响」四节并关联 Issue（未完成保留 Draft PR）。维护者已长期授权：任务完成适用验证、全部必需 CI 通过且无未解决审查阻塞后，由代理直接 squash merge，无需重复请示；禁止绕过 `main` 保护或强推。
@@ -15,7 +15,7 @@
 - **共同能力默认双端评估**：产品行为变更默认评估 Windows 与微信小程序，同步更新 [双端能力表](docs/client-parity.md)（PR policy 强制校验），并在 PR 中写清实际影响与平台适配；单端改动说明判断依据即可。
 - **共享产物同源生成**：修改 `shared/`、桌面共享逻辑或微信样式/素材后运行 `npm run mini:build` 并随源提交，由 `npm run mini:check` 校验一致；禁止手改自动生成文件。
 - **保留既有核心规则**：
-  - 触及已有模块时保留既有修复并跑对应回归（参考 [固定开发位置与回归入口](docs/project-continuity/local-workspace.md)）。
+  - 触及已有模块时保留既有修复并跑对应回归（参考 [单仓开发与基线检查](docs/guides/local-workspace.md)）。
   - **DDL 日期与时刻策略**：明确时刻不得丢失，省略年份/月日或缺失时刻均以保存的录入日为基准推定，支持日期与时刻区间，保留人工覆盖与原文；不得退回旧版“缺少年份/时刻一律留空或待确认”策略。
 
 ## 数据、费用与发布安全

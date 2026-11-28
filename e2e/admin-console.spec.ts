@@ -17,7 +17,7 @@ import { readMaterial } from "../server/reading/material.mjs";
 import {
   accountUIFixture,
   fixtureItem,
-} from "../scripts/account-ui-fixture.mjs";
+} from "../scripts/desktop/account-ui-fixture.mjs";
 
 /**
  * 管理台浏览器回归：明确区分合成适配层与真实HTTP/数据库的隔离夹具。

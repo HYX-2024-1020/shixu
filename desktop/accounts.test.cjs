@@ -8,7 +8,7 @@ const { DesktopStore } = require("./storage.cjs");
 
 test("installed protocol reads XLSX cells, retains cross-card proposals after restart and saves only after confirmation", async (t) => {
   const { accountUIFixture, fixtureItem } = await import(
-    "../scripts/account-ui-fixture.mjs"
+    "../scripts/desktop/account-ui-fixture.mjs"
   );
   const { ReadingLedger } = await import("../server/reading/ledger.mjs");
   const { readMaterial } = await import("../server/reading/material.mjs");
@@ -190,7 +190,7 @@ test("installed protocol reads XLSX cells, retains cross-card proposals after re
 
 test("installed account status follows independent AI gates after refresh and restart", async (t) => {
   const { accountUIFixture } = await import(
-    "../scripts/account-ui-fixture.mjs"
+    "../scripts/desktop/account-ui-fixture.mjs"
   );
   const { ReadingLedger } = await import("../server/reading/ledger.mjs");
   const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-status-gates-"));
@@ -270,7 +270,7 @@ test("installed account status follows independent AI gates after refresh and re
 for (const scenario of ["stop", "settlement"])
   test(`installed XLSX adapter ${scenario === "stop" ? "stops without waiting for the provider" : "returns a settled wallet with a task completed during polling"}`, async (t) => {
     const { accountUIFixture } = await import(
-      "../scripts/account-ui-fixture.mjs"
+      "../scripts/desktop/account-ui-fixture.mjs"
     );
     const { ReadingLedger } = await import("../server/reading/ledger.mjs");
     const { readMaterial } = await import("../server/reading/material.mjs");
@@ -854,7 +854,7 @@ round2test(
   "removed merge rejects new requests while historical cards remain restart-safe and undo protects later edits",
   async (t) => {
     const { accountUIFixture, fixtureItem } = await import(
-      "../scripts/account-ui-fixture.mjs"
+      "../scripts/desktop/account-ui-fixture.mjs"
     );
     const { ReadingLedger } = await import("../server/reading/ledger.mjs");
     const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-merge-"));

@@ -8,7 +8,7 @@ import { readMaterial, sha256 } from "./material.mjs";
 import { zipBytes } from "./archive-fixtures.mjs";
 import { FIRST_ARCHIVE_WINDOW } from "./archive-window.mjs";
 import { ReadingWindows } from "./windows.mjs";
-import { runImageClients } from "../../scripts/reading-image-clients.mjs";
+import { runImageClients } from "../../scripts/reading/reading-image-clients.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

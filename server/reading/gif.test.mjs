@@ -17,7 +17,7 @@ import { sourceLocation } from "../../shared/reading-view.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 
 test("GIF tiny comment sub-blocks remain bounded and cannot enter model input",async()=>{
   const original=gifBytes({width:2,height:1});

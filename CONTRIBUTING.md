@@ -38,7 +38,7 @@ npm run desktop:start
 | 变更                       | 合并前验证                                                                                                                 |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | 所有变更                   | `git diff --check`，检查 PR 描述、无凭据或个人数据；CI 全部必需检查                                                        |
-| 文档/仓库配置              | 检查链接、命令和配置语法；`node scripts/check-docs.mjs` 检查文档链接，`node --test scripts/check-pr.test.mjs` 验证 PR 门禁 |
+| 文档/仓库配置              | 检查链接、命令和配置语法；`node scripts/check/check-docs.mjs` 检查文档链接，`node --test scripts/check/check-pr.test.mjs` 验证 PR 门禁 |
 | 前端/共享整理逻辑          | `npm test`、`npm run build`、`npm run test:e2e`                                                                            |
 | 个人服务                   | 上述核心检查及 `npm run test:server`                                                                                       |
 | Electron/文件/备份/桌面 UI | `npm run test:desktop`、`npm run desktop:build`、`npm run test:desktop:ui`（Windows）                                      |
@@ -53,11 +53,11 @@ npx playwright install chromium webkit
 npm run test:e2e
 ```
 
-`desktop-live-*.mjs` 使用已保存的真实密钥并产生费用，不属于默认测试；只有获得用户授权后才运行。Windows 安装包与 GitHub Releases 需要另外完成发布验收，不以源码测试成功代替。
+Windows 安装包与 GitHub Releases 需要另外完成发布验收，不以源码测试成功代替。
 
 ## 提交前检查
 
-产品源码变动还须通过 `node --test scripts/check-client-parity.test.mjs`。PR policy 对真实 PR 比较执行 `scripts/check-client-parity.mjs`，拒绝没有更新双端能力表的产品变更；该检查不能代替两端功能实现、交互验收和人工审查。角色音频与原画均从桌面资源生成，不在手机侧另存不同版本。
+产品源码变动还须通过 `node --test scripts/check/check-client-parity.test.mjs`。PR policy 对真实 PR 比较执行 `scripts/check/check-client-parity.mjs`，拒绝没有更新双端能力表的产品变更；该检查不能代替两端功能实现、交互验收和人工审查。角色音频与原画均从桌面资源生成，不在手机侧另存不同版本。
 
 产品更新须同时评估 Windows 与微信小程序，维护 [双端能力表](docs/client-parity.md)。卡片文案/排序、皮肤预设/原画、整理/事项对话规则修改后运行 `npm run mini:build`，提交生成结果；CI 的 `npm run mini:check` 拒绝过期副本。`npm run test:sync` 包含小程序页面生命周期和本机 API 回归，不代表微信编译或手机测试。新增功能未实现的另一端须关联明确 Issue 与适配计划；不能只勾选模板宣称覆盖。
 
