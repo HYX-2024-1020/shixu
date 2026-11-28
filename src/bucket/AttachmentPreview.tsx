@@ -103,7 +103,7 @@ export default function AttachmentPreview({
           if ((content.match(/\ufffd/g) || []).length > 3)
             content = new TextDecoder("gb18030").decode(buffer);
         } else if (!content && /\.docx$/i.test(attachment.name)) {
-          const { extractFile } = await import("../files");
+          const { extractFile } = await import("./files");
           content = await extractFile(new File([blob], attachment.name));
         }
         if (!cancelled) {

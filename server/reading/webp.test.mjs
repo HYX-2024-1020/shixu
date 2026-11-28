@@ -11,7 +11,7 @@ import { readMaterial, sha256, coverageOnly } from "./material.mjs";
 import { ReadingWindows } from "./windows.mjs";
 import { zipBytes } from "./archive-fixtures.mjs";
 import { FIRST_ARCHIVE_WINDOW } from "./archive-window.mjs";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 
 const fixture = (name) =>
   readFileSync(new URL("./fixtures/" + name, import.meta.url));

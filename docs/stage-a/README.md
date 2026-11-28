@@ -2,7 +2,7 @@
 
 日期：2026-10-28。关联 [实施总跟踪 #69](https://github.com/HYX-2024-1020/shixu/issues/69)、[阶段 A #71](https://github.com/HYX-2024-1020/shixu/issues/71)。
 
-依据 [重要方案 PR #70](https://github.com/HYX-2024-1020/shixu/pull/70)，固定基线为 [da28c1f 的方案](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/docs/server-client-plan-2026-10-28.md) 与 [术语表](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/GLOSSARY.md)。开始时 #70 仍为 Draft，main 为 2574a5e，没有方案文件。本分支从该 main 建立，不合并或复制其他任务分支；上述固定链接在 #70 合入前仍可读。后续方案变动须审查差异、更新契约版本和证据，不能自动解释为已实现。
+依据 [重要方案 PR #70](https://github.com/HYX-2024-1020/shixu/pull/70)，固定基线为 [da28c1f 的方案](../archive/milestones/server-client-plan-2026-10-28.md) 与 [术语表](https://github.com/HYX-2024-1020/shixu/blob/da28c1fbf76a0e7c5aae15228d25ecef6cca3ad9/GLOSSARY.md)。开始时 #70 仍为 Draft，main 为 2574a5e，没有方案文件。本分支从该 main 建立，不合并或复制其他任务分支；上述固定链接在 #70 合入前仍可读。后续方案变动须审查差异、更新契约版本和证据，不能自动解释为已实现。
 
 **A 交付的是设计和离线演练。应用服务尚未导入演练模块，没有启用新账号、预算、读取器、清理或任务接口。B–F 的真实功能和生产迁移必须分别实现、验证。**
 

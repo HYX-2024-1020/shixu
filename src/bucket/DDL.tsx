@@ -11,7 +11,7 @@ import {
   setDeadline,
   deadlineLabel,
 } from "../../shared/deadlines.mjs";
-import { localDate } from "../organize";
+import { localDate } from "./local-date";
 import type { Packet, ItemState } from "./types";
 import DeliverySources from "./DeliverySources";
 import { leaveCard, resetCard } from "./motion";

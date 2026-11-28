@@ -5,7 +5,7 @@ import { AccountRegistry } from "./sync-accounts.mjs";
 import { createAttachmentStore } from "./sync-files.mjs";
 import { OriginalStore } from "./originals.mjs";
 import { ReadingLedger } from "./reading/ledger.mjs";
-import { runRuntimeSchemaRehearsal } from "../scripts/runtime-schema-rehearsal.mjs";
+import { runRuntimeSchemaRehearsal } from "../scripts/ops/runtime-schema-rehearsal.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";

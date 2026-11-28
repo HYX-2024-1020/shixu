@@ -74,7 +74,7 @@ test("actual PDF hallucination fixture preserves true requirements and moves foo
   const raw = JSON.parse(
     readFileSync(
       new URL(
-        "../../docs/bcd/evidence/pdf-visual-real-published.json",
+        "../../test-fixtures/reading-evidence/pdf-visual-real-published.json",
         import.meta.url,
       ),
     ),

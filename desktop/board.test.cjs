@@ -294,7 +294,7 @@ test("offline board and original queue roundtrip uses existing real sync service
 });
 
 test('signed account v4 board originals use retained quota and survive client restart without any AI call',async t=>{
-  const {accountUIFixture}=await import('../scripts/account-ui-fixture.mjs');
+  const {accountUIFixture}=await import('../scripts/desktop/account-ui-fixture.mjs');
   const {ReadingLedger}=await import('../server/reading/ledger.mjs');
   const {readMaterial}=await import('../server/reading/material.mjs');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'shixu-board-v4-'));

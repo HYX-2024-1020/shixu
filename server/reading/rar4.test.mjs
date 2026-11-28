@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runArchiveWindowsClients } from "../../scripts/reading-archive-windows-clients.mjs";
+import { runArchiveWindowsClients } from "../../scripts/reading/reading-archive-windows-clients.mjs";
 import { openNativeArchive } from "./native-archive.mjs";
 import {
   rar4FirstCompressedFixture,

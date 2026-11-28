@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runOfficeClients } from "../../scripts/reading-office-clients.mjs";
+import { runOfficeClients } from "../../scripts/reading/reading-office-clients.mjs";
 import { readMaterial } from "./material.mjs";
 for (const [format, archiveFormat] of [
   ["docx", undefined],

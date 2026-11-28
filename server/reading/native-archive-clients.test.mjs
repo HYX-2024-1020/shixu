@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 import { nativeArchiveSample } from "./native-archive-fixtures.mjs";
 import { readMaterial } from "./material.mjs";
 import { readingView } from "../../shared/reading-view.mjs";

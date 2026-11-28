@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 test("Windows and actual Page/Node signed HTTP show all legacy states and retained unverified results, sync cleared caches and never run old work", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-legacy-jobs-clients-"));
   try {

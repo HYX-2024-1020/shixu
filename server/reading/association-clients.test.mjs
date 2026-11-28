@@ -2,7 +2,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runAssociationClients } from "../../scripts/reading-association-clients.mjs";
+import { runAssociationClients } from "../../scripts/reading/reading-association-clients.mjs";
 for (const deleted of [false, true])
   test(
     "both signed clients publish history links in the shared wallet without changing old items " +

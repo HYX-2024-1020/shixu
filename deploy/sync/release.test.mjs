@@ -9,7 +9,7 @@ import { once } from "node:events";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { DatabaseSync } from "node:sqlite";
-import { buildRelease } from "../../scripts/build-sync-release.mjs";
+import { buildRelease } from "../../scripts/build/build-sync-release.mjs";
 import { backupDatabase } from "./backup.mjs";
 import { verifyService } from "./verify.mjs";
 import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";

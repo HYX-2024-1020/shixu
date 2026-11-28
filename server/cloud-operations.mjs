@@ -80,7 +80,7 @@ export function isSealedCloudRelease(value) {
       "server/reading-runtime.mjs",
       "server/cloud-backup.mjs",
       "server/cloud-operations.mjs",
-      "scripts/cloud-operations-worker.mjs",
+      "scripts/ops/cloud-operations-worker.mjs",
       "dist/admin/index.html",
       "deploy/sync/install-cloud.sh",
     ].every((p) => value.files.includes(p))

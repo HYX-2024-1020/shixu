@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readMaterial } from "./material.mjs";
-import { runCostAuditClients } from "../../scripts/reading-cost-audit-clients.mjs";
+import { runCostAuditClients } from "../../scripts/reading/reading-cost-audit-clients.mjs";
 for (const disposition of ["usage", "not-billed"])
   test(
     `both clients require a fresh action after ${disposition} evidence audit and resume exact archive PDF material`,

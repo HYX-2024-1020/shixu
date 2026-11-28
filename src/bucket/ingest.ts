@@ -1,4 +1,4 @@
-import { extractFile } from "../files";
+import { extractFile } from "./files";
 import {
   requestJSON,
   type RequestOptions,

@@ -14,7 +14,7 @@ import {
 import {
   buildCloudRelease,
   verifyStagedCloudRelease,
-} from "../../scripts/build-cloud-release.mjs";
+} from "../../scripts/build/build-cloud-release.mjs";
 
 const sha256Hex = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -69,7 +69,7 @@ test("an incomplete cloud build is never selectable as a compatible release", ()
     "server/reading-runtime.mjs",
     "server/cloud-backup.mjs",
     "server/cloud-operations.mjs",
-    "scripts/cloud-operations-worker.mjs",
+    "scripts/ops/cloud-operations-worker.mjs",
     "dist/admin/index.html",
     "deploy/sync/install-cloud.sh",
   ];
@@ -100,7 +100,7 @@ test("invalid source identity fails before creating any partial deployment direc
     target = join(root, "release");
   try {
     const script = fileURLToPath(
-      new URL("../../scripts/build-cloud-release.mjs", import.meta.url),
+      new URL("../../scripts/build/build-cloud-release.mjs", import.meta.url),
     );
     const result = spawnSync(process.execPath, [script, target, "bad-source"], {
       encoding: "utf8",
@@ -121,13 +121,13 @@ test("cloud release stages atomically, verifies checksums, and leaves no partial
   const outRoot = join(sandbox, "out");
   const target = join(outRoot, "cloud-rel");
   const extraFiles = [
-    "scripts/cloud-operations-worker.mjs",
+    "scripts/ops/cloud-operations-worker.mjs",
     "dist/admin/index.html",
     "deploy/sync/install-cloud.sh",
   ];
   try {
     await seedCloudWorkspace(workspace, [
-      ["scripts/cloud-operations-worker.mjs", "export const worker = 1;\n"],
+      ["scripts/ops/cloud-operations-worker.mjs", "export const worker = 1;\n"],
       ["dist/admin/index.html", "<html>console</html>\n"],
       ["deploy/sync/install-cloud.sh", "#!/bin/sh\n"],
     ]);

@@ -1,0 +1,335 @@
+{
+  "kind": "synthetic-real-scanned-pdf-development",
+  "testedAt": "2026-10-31T13:16:10.703Z",
+  "realProviderCalls": 3,
+  "price": {
+    "id": "deepseek-flash-1017-20261028-offpeak",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "currency": "CNY",
+    "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "verifiedAt": 1793452565495,
+    "inputMicrosPerMillion": 1000000,
+    "cachedMicrosPerMillion": 20000,
+    "outputMicrosPerMillion": 4000000
+  },
+  "inputHash": "dc4700cde0885acde3a719e461b9a78f0d562fcd17a19d4f3911cec485a0fa4f",
+  "checks": {
+    "published": true,
+    "taskNumber": true,
+    "format": true,
+    "filename": true,
+    "deadline": true,
+    "algorithm": true,
+    "complexity": true,
+    "pageAndPixelSource": true,
+    "allPages": true,
+    "imageWarning": true
+  },
+  "state": "done",
+  "reason": "",
+  "elapsedMs": 5132.2330999999995,
+  "spentMicros": 5510,
+  "calls": [
+    {
+      "id": "a5f0e681-3e46-4e82-a8eb-b1f9883fe8dc",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 26063,
+      "actual": 1975,
+      "usage": "{\"prompt_tokens\":1566,\"completion_tokens\":447,\"prompt_cache_hit_tokens\":1408}"
+    },
+    {
+      "id": "5acddc3b-a168-47aa-b795-146d96a22406",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 24928,
+      "actual": 2819,
+      "usage": "{\"prompt_tokens\":1331,\"completion_tokens\":372,\"prompt_cache_hit_tokens\":0}"
+    },
+    {
+      "id": "ac7c6647-aba1-4d4d-922c-765d844cb34e",
+      "state": "settled",
+      "price": "deepseek-flash-1017-20261028-offpeak",
+      "reserved": 22668,
+      "actual": 716,
+      "usage": "{\"prompt_tokens\":721,\"completion_tokens\":30,\"prompt_cache_hit_tokens\":128}"
+    }
+  ],
+  "modelResponses": [
+    {
+      "summary": "收下1份合成通知图片，内容为提交图像实验报告的任务，包含截止时间、PDF命名及报告要求。",
+      "items": [
+        {
+          "kind": "task",
+          "title": "提交图像实验报告",
+          "summary": "按通知要求提交图像实验报告，任务编号9537；截止2026年11月3日16:45，格式PDF，命名为学号_姓名。报告需说明算法思路与时间复杂度。",
+          "facts": [
+            "标题：WebP开发验证：合成通知",
+            "请提交图像实验报告，任务编号9537。",
+            "截止：2026年11月3日16:45。",
+            "格式：PDF，命名：学号_姓名。",
+            "要求：说明算法思路与时间复杂度。",
+            "尾部核对：9537，禁止遗漏此编号。"
+          ],
+          "nextSteps": [
+            "按“学号_姓名”命名PDF文件并核对任务编号9537",
+            "在报告中写明算法思路与时间复杂度的说明部分"
+          ],
+          "uncertainties": [
+            "报告中没有说明提交平台或上传入口",
+            "“尾部核对：9537，禁止遗漏此编号”具体要求写到报告何处未说明"
+          ],
+          "due": {
+            "date": "2026-11-03",
+            "time": "16:45",
+            "anchor": "2026年11月3日16:45",
+            "sourceId": "image_6105d6cc76af_vp1_i1"
+          },
+          "evidence": [
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "请提交图像实验报告，任务编号9537。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "截止：2026年11月3日16:45。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "格式：PDF，命名：学号_姓名。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "要求：说明算法思路与时间复杂度。"
+            },
+            {
+              "sourceId": "image_6105d6cc76af_vp1_i1",
+              "quote": "尾部核对：9537，禁止遗漏此编号。"
+            }
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "visualReviews": [
+    {
+      "fingerprint": "9df3548d0f8fc02a6c2e803dcec1a725fa1e86d05b6aa65f68277aedd0c4fc67",
+      "upstream": "31e0dd0d68a8a951df895b96eb805473a9a37cea1075a1054d5741266d09bcb9",
+      "call_id": "5acddc3b-a168-47aa-b795-146d96a22406",
+      "result": {
+        "claims": [
+          {
+            "id": "summary",
+            "status": "supported",
+            "reason": "图片包含任务、截止时间、PDF命名及报告要求"
+          },
+          {
+            "id": "i0_title",
+            "status": "supported",
+            "reason": "图片首行类标题含图像实验报告提交意思"
+          },
+          {
+            "id": "i0_summary",
+            "status": "supported",
+            "reason": "各项要点均与图中文字相符"
+          },
+          {
+            "id": "i0_facts_0",
+            "status": "supported",
+            "reason": "图中标题文字一致"
+          },
+          {
+            "id": "i0_facts_1",
+            "status": "supported",
+            "reason": "图为原文提交命令与编号"
+          },
+          {
+            "id": "i0_facts_2",
+            "status": "supported",
+            "reason": "图中截止时间一致"
+          },
+          {
+            "id": "i0_facts_3",
+            "status": "supported",
+            "reason": "图中格式和命名要求一致"
+          },
+          {
+            "id": "i0_facts_4",
+            "status": "supported",
+            "reason": "图中要求文字一致"
+          },
+          {
+            "id": "i0_facts_5",
+            "status": "supported",
+            "reason": "图中尾部核对文字一致"
+          },
+          {
+            "id": "i0_nextSteps_0",
+            "status": "supported",
+            "reason": "命名和编号均来自图中明确要求"
+          },
+          {
+            "id": "i0_nextSteps_1",
+            "status": "supported",
+            "reason": "图中要求说明算法思路与时间复杂度"
+          },
+          {
+            "id": "i0_due",
+            "status": "supported",
+            "reason": "日期时间与图中截止一致且非推定"
+          },
+          {
+            "id": "i0_quote_0",
+            "status": "supported",
+            "reason": "逐字与图中文字一致"
+          },
+          {
+            "id": "i0_quote_1",
+            "status": "supported",
+            "reason": "逐字与图中文字一致"
+          },
+          {
+            "id": "i0_quote_2",
+            "status": "supported",
+            "reason": "逐字与图中文字一致"
+          },
+          {
+            "id": "i0_quote_3",
+            "status": "supported",
+            "reason": "逐字与图中文字一致"
+          }
+        ]
+      }
+    },
+    {
+      "fingerprint": "8304c7a5666cc0f471b56435adc9318b5a3349d27da2071321abac34b2f7361d",
+      "upstream": "31e0dd0d68a8a951df895b96eb805473a9a37cea1075a1054d5741266d09bcb9",
+      "call_id": "ac7c6647-aba1-4d4d-922c-765d844cb34e",
+      "result": {
+        "claims": [
+          {
+            "id": "i0_quote_4",
+            "status": "supported",
+            "reason": "图中页尾逐字可见该句"
+          }
+        ]
+      }
+    }
+  ],
+  "result": {
+    "summary": "收下1份合成通知图片，内容为提交图像实验报告的任务，包含截止时间、PDF命名及报告要求。",
+    "warnings": [
+      "图像内容由模型识别，请对照原图核对文字、日期和关系"
+    ],
+    "items": [
+      {
+        "kind": "task",
+        "title": "提交图像实验报告",
+        "summary": "按通知要求提交图像实验报告，任务编号9537；截止2026年11月3日16:45，格式PDF，命名为学号_姓名。报告需说明算法思路与时间复杂度。",
+        "facts": [
+          "标题：WebP开发验证：合成通知",
+          "请提交图像实验报告，任务编号9537。",
+          "截止：2026年11月3日16:45。",
+          "格式：PDF，命名：学号_姓名。",
+          "要求：说明算法思路与时间复杂度。",
+          "尾部核对：9537，禁止遗漏此编号。"
+        ],
+        "nextSteps": [
+          "按“学号_姓名”命名PDF文件并核对任务编号9537",
+          "在报告中写明算法思路与时间复杂度的说明部分"
+        ],
+        "uncertainties": [
+          "报告中没有说明提交平台或上传入口",
+          "“尾部核对：9537，禁止遗漏此编号”具体要求写到报告何处未说明"
+        ],
+        "evidence": [
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "请提交图像实验报告，任务编号9537。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "截止：2026年11月3日16:45。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "格式：PDF，命名：学号_姓名。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "要求：说明算法思路与时间复杂度。"
+          },
+          {
+            "sourceId": "image_6105d6cc76af_vp1_i1",
+            "quote": "尾部核对：9537，禁止遗漏此编号。"
+          }
+        ],
+        "sourceIds": [
+          "image_6105d6cc76af_vp1_i1"
+        ],
+        "due": {
+          "date": "2026-11-03",
+          "time": "16:45",
+          "anchor": "2026年11月3日16:45",
+          "sourceId": "image_6105d6cc76af_vp1_i1",
+          "dateInferred": false
+        },
+        "importance": 1,
+        "importanceReason": "暂无明确重要程度依据，按普通处理",
+        "group": ""
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "attachmentId": "image",
+      "name": "合成扫描通知.pdf",
+      "contentHash": "dc4700cde0885acde3a719e461b9a78f0d562fcd17a19d4f3911cec485a0fa4f",
+      "readerVersion": "pdf-visual/1;pdfjs/6.2.108;canvas/1.0.13",
+      "normalizationVersion": "pdf-108dpi-white-png/1",
+      "state": "read",
+      "covered": [
+        {
+          "name": "合成扫描通知.pdf",
+          "kind": "image",
+          "sourceId": "image_6105d6cc76af_vp1_i1",
+          "start": 0,
+          "end": 1,
+          "page": 1,
+          "rotation": 0,
+          "tile": 1,
+          "totalTiles": 1,
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 600,
+          "imageWidth": 900,
+          "imageHeight": 600,
+          "imageHash": "b7b36c8900b528ad20e59bc19b7ff3e189f016ed43b549c82a1526f5c301de18",
+          "dpi": 108
+        }
+      ],
+      "uncovered": [],
+      "reasons": [],
+      "pdfVisualPagination": {
+        "page": 1,
+        "startTile": 1,
+        "totalTiles": 1,
+        "totalPages": 1,
+        "width": 900,
+        "height": 600,
+        "startOffset": 0,
+        "nextOffset": 1,
+        "next": null
+      },
+      "readRetries": 0
+    }
+  ],
+  "boundaries": [
+    "No UI window",
+    "Local Node decoder, not Linux isolation evidence",
+    "Model visual understanding, not a guarantee of verbatim transcription",
+    "No personal material submitted"
+  ]
+}

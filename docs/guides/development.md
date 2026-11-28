@@ -23,7 +23,7 @@ npm run dev
 | `npm run test:server`         | 可选旧个人网页服务                       |
 | `npm run test:sync`           | v2 同步服务与小程序逻辑                  |
 | `npm run test:sync:release`   | 服务发布包、重启、备份与恢复             |
-| `node scripts/check-docs.mjs` | 当前文档本地链接与入口约定               |
+| `node scripts/check/check-docs.mjs` | 当前文档本地链接与入口约定               |
 
 首次运行浏览器测试可能需要 `npx playwright install chromium webkit`；本机默认 Edge，CI 使用 Chromium/WebKit。微信生命周期模拟不等于开发者工具编译或真机验收。
 
@@ -43,9 +43,9 @@ npm run desktop:pack
 
 生产构建生成 `version.json`，包含包版本与源码提交，不含个人信息。发布后核对该文件和皮肤入口。域名访问、部署状态与浏览器离线缓存是不同环节，排查时先确认远端提交再看缓存。
 
-## 手工与真实模型验收
+## 手工与真机验收
 
-`scripts/desktop-live-*.mjs` 会使用已保存密钥、产生 API 费用，不属于默认验证，只有明确授权后运行。原生 QQ/微信拖入、iOS 系统入口也需真实环境。不要上传真实通知、密钥、个人 profile、数据库或备份。
+真实付费模型调用仅在明确授权范围内执行，不属于默认自动测试。原生 QQ/微信拖入、iOS 系统入口与微信小程序交互均需真机核验。不要上传真实通知、密钥、个人 profile、数据库或备份。
 
 旧个人网页服务与 v2 同步服务是不同入口：当前同步工作使用 [deploy/sync](../../deploy/sync/README.md)，不要把旧 `/api` 当作当前桌面全量同步协议。
 

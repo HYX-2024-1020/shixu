@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClientLoop } from "../../scripts/reading-client-loop.mjs";
+import { runClientLoop } from "../../scripts/reading/reading-client-loop.mjs";
 import { readMaterial } from "./material.mjs";
 import { pdfWindowSample } from "./pdf-fixtures.mjs";
-import { executionLimitReader } from "../../scripts/reading-limit-fixture.mjs";
+import { executionLimitReader } from "../../scripts/reading/reading-limit-fixture.mjs";
 
 test(
   "known exhausted PDF time can be audited by the trusted host and explicitly continued by the other client",

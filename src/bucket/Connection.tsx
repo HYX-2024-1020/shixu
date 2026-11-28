@@ -402,11 +402,6 @@ function LegacyConnection({
           >
             查看开源项目与部署说明
           </a>
-          {!window.desktop && !ADMIN_TEST && (
-            <a href={`${import.meta.env.BASE_URL}?legacy=1`}>
-              打开旧版资料空间
-            </a>
-          )}
         </details>
       </div>
     </dialog>
