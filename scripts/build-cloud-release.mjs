@@ -1,12 +1,6 @@
 import { buildRelease } from "./build-sync-release.mjs";
-import {
-  readFile,
-  writeFile,
-  mkdir,
-  readdir,
-  copyFile,
-} from "node:fs/promises";
-import { resolve, join, dirname } from "node:path";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 const root = fileURLToPath(new URL("../", import.meta.url));

@@ -1,9 +1,14 @@
-import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+
+function sha256Hex(data) {
+  return createHash("sha256").update(data).digest("hex");
+}
+
 if (process.platform !== "win32" || !/^v24\./.test(process.version))
   throw Error("WINDOWS_NODE24_REQUIRED");
 const appRoot = resolve(process.argv[2] || ""),
@@ -64,15 +69,14 @@ try {
   const notice = manifest.files.find(
     (f) => f.path === "notices/Node-LICENSE.txt",
   );
-  const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
   if (
     manifest.node !== process.version ||
     manifest.nodeLicense !== source ||
-    digest(await readFile(process.execPath)) !== nodeFile?.sha256
+    sha256Hex(await readFile(process.execPath)) !== nodeFile?.sha256
   )
     throw Error("RUNTIME_CHANGED");
   const cached = await readFile(join(cachedRoot, "notices/Node-LICENSE.txt"));
-  if (digest(cached) !== notice?.sha256) throw Error("LICENSE_CHANGED");
+  if (sha256Hex(cached) !== notice?.sha256) throw Error("LICENSE_CHANGED");
   license = cached;
 } catch {
   /* first install or changed runtime: retrieve exact official version */
@@ -101,23 +105,20 @@ content.sort((a, b) => a.path.localeCompare(b.path, "en"));
 const files = content.map(({ path, bytes }) => ({
   path,
   bytes: bytes.length,
-  sha256: createHash("sha256").update(bytes).digest("hex"),
+  sha256: sha256Hex(bytes),
 }));
-const fingerprint = createHash("sha256")
-    .update(files.map((f) => `${f.sha256}  ${f.path}\n`).join(""))
-    .digest("hex"),
-  release = "cloud-" + fingerprint.slice(0, 40),
-  target = join(appRoot, "releases", release);
+// 排序后的文件校验行共同决定发行目录名，空格和换行也参与指纹计算。
+const fingerprint = sha256Hex(
+  files.map((file) => `${file.sha256}  ${file.path}\n`).join(""),
+);
+const release = "cloud-" + fingerprint.slice(0, 40);
+const target = join(appRoot, "releases", release);
 await mkdir(target, { recursive: true });
 for (const { path, bytes } of content) {
   const file = join(target, path);
   await mkdir(dirname(file), { recursive: true });
   if (existsSync(file)) {
-    if (
-      createHash("sha256")
-        .update(await readFile(file))
-        .digest("hex") !== createHash("sha256").update(bytes).digest("hex")
-    )
+    if (sha256Hex(await readFile(file)) !== sha256Hex(bytes))
       throw Error("IMMUTABLE_RELEASE_MISMATCH");
   } else await writeFile(file, bytes, { flag: "wx" });
 }
