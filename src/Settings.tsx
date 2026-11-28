@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Modal } from "./components";
 import {
-  DEFAULT_PREFS,
   type Entry,
   type Preferences,
   type Snapshot,

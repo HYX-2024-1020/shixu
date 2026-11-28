@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readMaterial, sha256 } from "./material.mjs";
-import { readPdfVisual, validatePdfVisualWindow } from "./pdf-visual.mjs";
+import { validatePdfVisualWindow } from "./pdf-visual.mjs";
 import { scanPattern, scannedPdfBytes } from "./pdf-visual-fixtures.mjs";
 import { decodePng } from "./image.mjs";
 import { ReadingWindows } from "./windows.mjs";
@@ -16,7 +16,6 @@ import { mkdtemp, copyFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
-import { decodeJpeg } from "./jpeg.mjs";
 
 const descriptor = (body, name = "scan.pdf") => ({
   id: "scan",

@@ -6,7 +6,6 @@ import {
   readdirSync,
   realpathSync,
   lstatSync,
-  unlinkSync,
   chmodSync,
 } from "node:fs";
 import { dirname, join } from "node:path";

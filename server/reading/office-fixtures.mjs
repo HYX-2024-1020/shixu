@@ -1,4 +1,4 @@
-import { docxBytes, paragraph, WORD_NS } from "./docx-fixtures.mjs";
+import { docxBytes, paragraph } from "./docx-fixtures.mjs";
 import { xlsxBytes, inline, SHEET_NS } from "./xlsx-fixtures.mjs";
 import { encodePng } from "./image.mjs";
 export const REL =

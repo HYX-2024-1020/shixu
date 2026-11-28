@@ -1045,6 +1045,78 @@ export class ReadingTasks {
     );
     return this.get(id);
   }
+  #windowCapabilities() {
+    return {
+      archiveWindows: this.reader.archiveWindows === true,
+      imageWindows: this.reader.imageWindows === true,
+      pdfVisualWindows:
+        this.reader.pdfVisualWindows === true && this.provider.imageInput === true,
+      officeWindows:
+        this.reader.officeWindows === true && this.provider.imageInput === true,
+    };
+  }
+
+  // 读取一个输入窗口，核对覆盖范围后再把材料交给后续整理步骤。
+  async #readInput(file, id, paged, readSafe, materials) {
+    if (
+      isImageName(file.name) &&
+      (this.reader.imageWindows !== true ||
+        this.provider.imageInput !== true)
+    ) {
+      materials.push({
+        attachmentId: file.id,
+        name: file.name,
+        contentHash: file.hash,
+        readerVersion: READER_VERSION,
+        state: "unsupported",
+        covered: [],
+        uncovered: [{ kind: "image", code: "IMAGE_PROVIDER_UNSUPPORTED" }],
+        reasons: ["IMAGE_PROVIDER_UNSUPPORTED"],
+        segments: [],
+      });
+      return;
+    }
+    const selection = paged
+      ? this.windows.select(id, file, this.#windowCapabilities())
+      : {};
+    if (selection.skip) return;
+    const material = await readSafe(
+      file,
+      selection.pdfWindow,
+      selection.archiveWindow,
+      selection.imageWindow,
+      selection.pdfVisualWindow,
+      selection.officeWindow,
+    );
+    if (paged)
+      this.windows.verify(
+        material,
+        selection.pdfWindow,
+        selection.archiveWindow,
+        selection.imageWindow,
+        selection.pdfVisualWindow,
+        selection.officeWindow,
+      );
+    // Archive members require the same image capability gate as top-level
+    // images. Never substitute their descriptive placeholder for pixels.
+    if (
+      material.segments.some((s) => s.image) &&
+      (this.reader.imageWindows !== true ||
+        this.provider.imageInput !== true)
+    ) {
+      for (const segment of material.segments.filter((s) => s.image))
+        material.uncovered.push({
+          ...segment.range,
+          code: "IMAGE_PROVIDER_UNSUPPORTED",
+        });
+      material.segments = material.segments.filter((s) => !s.image);
+      material.covered = material.covered.filter((r) => r.kind !== "image");
+      material.state = material.segments.length ? "partial" : "unsupported";
+      material.reasons.push("IMAGE_PROVIDER_UNSUPPORTED");
+    }
+    materials.push(material);
+  }
+
   async step(id) {
     const task = this.get(id);
     if (!task || task.state !== "queued")
@@ -1336,85 +1408,22 @@ export class ReadingTasks {
         (!paged || !this.windows.select(id, pendingInputs[0]).skip)
       )
         materials.push(chatMaterial);
-      const readInput = async (file) => {
-        if (
-          isImageName(file.name) &&
-          (this.reader.imageWindows !== true ||
-            this.provider.imageInput !== true)
-        ) {
-          materials.push({
-            attachmentId: file.id,
-            name: file.name,
-            contentHash: file.hash,
-            readerVersion: READER_VERSION,
-            state: "unsupported",
-            covered: [],
-            uncovered: [{ kind: "image", code: "IMAGE_PROVIDER_UNSUPPORTED" }],
-            reasons: ["IMAGE_PROVIDER_UNSUPPORTED"],
-            segments: [],
-          });
-          return;
-        }
-        const selection = paged
-          ? this.windows.select(id, file, {
-              archiveWindows: this.reader.archiveWindows === true,
-              imageWindows: this.reader.imageWindows === true,
-              pdfVisualWindows:
-                this.reader.pdfVisualWindows === true &&
-                this.provider.imageInput === true,
-              officeWindows:
-                this.reader.officeWindows === true &&
-                this.provider.imageInput === true,
-            })
-          : {};
-        if (selection.skip) return;
-        const material = await readSafe(
-          file,
-          selection.pdfWindow,
-          selection.archiveWindow,
-          selection.imageWindow,
-          selection.pdfVisualWindow,
-          selection.officeWindow,
-        );
-        if (paged)
-          this.windows.verify(
-            material,
-            selection.pdfWindow,
-            selection.archiveWindow,
-            selection.imageWindow,
-            selection.pdfVisualWindow,
-            selection.officeWindow,
-          );
-        // Archive members require the same image capability gate as top-level
-        // images. Never substitute their descriptive placeholder for pixels.
-        if (
-          material.segments.some((s) => s.image) &&
-          (this.reader.imageWindows !== true ||
-            this.provider.imageInput !== true)
-        ) {
-          for (const segment of material.segments.filter((s) => s.image))
-            material.uncovered.push({
-              ...segment.range,
-              code: "IMAGE_PROVIDER_UNSUPPORTED",
-            });
-          material.segments = material.segments.filter((s) => !s.image);
-          material.covered = material.covered.filter((r) => r.kind !== "image");
-          material.state = material.segments.length ? "partial" : "unsupported";
-          material.reasons.push("IMAGE_PROVIDER_UNSUPPORTED");
-        }
-        materials.push(material);
-      };
       // 60k codepoints fit the legacy validator's 120k UTF-16 bound. This is a
       // per-step adaptation, never a total material cap.
-      if (!this.materials.has(id) && input) await readInput(input);
+      if (!this.materials.has(id) && input)
+        await this.#readInput(input, id, paged, readSafe, materials);
       for (const f of isChat || this.materials.has(id)
         ? []
         : (packet.attachments || []).filter((f) => !f.deletedAt)) {
         if (!this.current(task)) return this.get(id);
         if (paged && materials.length) break;
         try {
-          await readInput(
+          await this.#readInput(
             this.store.files.get(task.packet, f.id, { forReading: true }),
+            id,
+            paged,
+            readSafe,
+            materials,
           );
         } catch (e) {
           if (
@@ -1465,18 +1474,7 @@ export class ReadingTasks {
           this.transaction(() => this.windows.advance(id, readable));
           this.windows.safety.confirm(id);
           this.dropMaterial(id);
-          if (
-            this.windows.pending(id, pendingInputs, {
-              archiveWindows: this.reader.archiveWindows === true,
-              imageWindows: this.reader.imageWindows === true,
-              pdfVisualWindows:
-                this.reader.pdfVisualWindows === true &&
-                this.provider.imageInput === true,
-              officeWindows:
-                this.reader.officeWindows === true &&
-                this.provider.imageInput === true,
-            })
-          )
+          if (this.windows.pending(id, pendingInputs, this.#windowCapabilities()))
             return this.get(id);
         }
         throw Error("NO_READABLE_MATERIAL");
@@ -1742,18 +1740,7 @@ export class ReadingTasks {
         this.transaction(() => this.windows.advance(id, readable));
         this.windows.safety.confirm(id);
         this.dropMaterial(id);
-        if (
-          this.windows.pending(id, pendingInputs, {
-            archiveWindows: this.reader.archiveWindows === true,
-            imageWindows: this.reader.imageWindows === true,
-            pdfVisualWindows:
-              this.reader.pdfVisualWindows === true &&
-              this.provider.imageInput === true,
-            officeWindows:
-              this.reader.officeWindows === true &&
-              this.provider.imageInput === true,
-          })
-        )
+        if (this.windows.pending(id, pendingInputs, this.#windowCapabilities()))
           return this.get(id);
       }
       if (!isChat && this.merge.begin(task)) return this.get(id);

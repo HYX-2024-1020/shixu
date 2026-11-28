@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { writeFile, mkdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import {
   nativeArchiveSample,

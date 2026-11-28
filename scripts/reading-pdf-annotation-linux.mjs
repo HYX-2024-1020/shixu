@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, chown, chmod, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, chown, chmod, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { createBrokerService } from "../server/reading/broker-service.mjs";

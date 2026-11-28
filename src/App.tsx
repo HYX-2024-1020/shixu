@@ -9,20 +9,15 @@ import {
 } from "react";
 import {
   Archive,
-  ArrowDown,
   ArrowRight,
   ArrowUpRight,
-  BookOpen,
   CalendarDays,
   Check,
-  CheckCheck,
   ChevronLeft,
   ChevronRight,
   Cloud,
   Coffee,
-  Command,
   Feather,
-  Flag,
   FolderOpen,
   Inbox,
   LayoutDashboard,
@@ -45,7 +40,6 @@ import {
   Badge,
   Empty,
   EntryRow,
-  LinkArrow,
   Modal,
   SectionHeading,
   dateLabel,
@@ -54,7 +48,7 @@ import { addDays, localDate } from "./organize";
 import { demoEntries } from "./demo";
 import Overview from "./Overview";
 import { useWorkspace } from "./useWorkspace";
-import { type Entry, type Kind, type Snapshot } from "./types";
+import { type Entry, type Snapshot } from "./types";
 const Capture = lazy(() => import("./Capture"));
 const Editor = lazy(() => import("./Editor"));
 const Settings = lazy(() => import("./Settings"));

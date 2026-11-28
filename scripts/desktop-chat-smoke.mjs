@@ -1,7 +1,7 @@
 import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { absoluteText } from "../shared/deadlines.mjs";
 import { _electron as electron, expect } from "@playwright/test";
-import { mkdtemp, copyFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import assert from "node:assert/strict";

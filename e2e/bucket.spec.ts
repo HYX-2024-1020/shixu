@@ -2,7 +2,6 @@ import {
   packets,
   world,
   records,
-  closeRecords,
   finished,
   capture,
   deleteReceipt,

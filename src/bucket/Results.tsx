@@ -45,6 +45,79 @@ import {
 } from "../../shared/relations.mjs";
 import { categories } from "./client-ui";
 export { categories } from "./client-ui";
+function buildSourceSearch(packets: Packet[]) {
+  return new Map(
+    packets.map((p) => [
+      p.id,
+      [
+        p.text,
+        ...p.sources.map((s) => s.name + " " + s.text),
+        ...p.attachments.map((a) => a.name),
+      ]
+        .join("\n")
+        .toLowerCase(),
+    ]),
+  );
+}
+
+// 将每条投递展开为事项行，兼容历史索引与稳定事项 ID，并沿用已有分组。
+function buildResultRows(
+  packets: Packet[],
+  automaticGroups: ReturnType<typeof buildGroups>,
+) {
+  return packets.map(defaultCard).flatMap((p) =>
+    (p.result?.items || []).map((rawItem, index) => {
+      const id = p.itemIds?.[index] || `${p.id}:${index}`,
+        storedMeta = p.itemState?.[id] || {};
+      const item = absoluteItem(
+        rawItem,
+        p.captureDate,
+        p.sources,
+        storedMeta.chat,
+      );
+      const meta = {
+        ...storedMeta,
+        group:
+          storedMeta.group ??
+          (item.group ||
+            automaticGroups.find((g) =>
+              g.refs.includes(itemRef(p.id, p.itemIds?.[index] || index)),
+            )?.title),
+      };
+      return {
+        p,
+        item,
+        index,
+        id,
+        meta,
+        deleted: p.deletedAt || meta.deletedAt,
+        done:
+          item.kind !== "habit" &&
+          (meta.status === "done" || p.doneIds.includes(index)),
+      };
+    }),
+  );
+}
+
+function rankingFields(
+  row: ReturnType<typeof buildResultRows>[number],
+  activeGroup: string,
+) {
+  return {
+    id: row.id,
+    date: row.item.due?.date,
+    time: row.item.due?.time,
+    kind: row.item.kind,
+    importance: row.meta.importance ?? row.item.importance ?? 1,
+    pinned: !!row.meta.pinned,
+    createdAt: row.p.capturedAt,
+    order:
+      (activeGroup ? row.meta.groupOrder?.[activeGroup] : undefined) ??
+      row.meta.order ??
+      row.index,
+  };
+}
+
 function Results({
   skin,
   compact = false,
@@ -320,55 +393,9 @@ function Results({
     }
   }
   const automaticGroups = useMemo(() => buildGroups(packets), [packets]);
-  const sourceSearch = useMemo(
-    () =>
-      new Map(
-        packets.map((p) => [
-          p.id,
-          [
-            p.text,
-            ...p.sources.map((s) => s.name + " " + s.text),
-            ...p.attachments.map((a) => a.name),
-          ]
-            .join("\n")
-            .toLowerCase(),
-        ]),
-      ),
-    [packets],
-  );
+  const sourceSearch = useMemo(() => buildSourceSearch(packets), [packets]);
   const searchTerm = query.toLowerCase();
-  const rows = packets.map(defaultCard).flatMap((p) =>
-    (p.result?.items || []).map((rawItem, index) => {
-      const id = p.itemIds?.[index] || `${p.id}:${index}`,
-        storedMeta = p.itemState?.[id] || {};
-      const item = absoluteItem(
-        rawItem,
-        p.captureDate,
-        p.sources,
-        storedMeta.chat,
-      );
-      const meta = {
-        ...storedMeta,
-        group:
-          storedMeta.group ??
-          (item.group ||
-            automaticGroups.find((g) =>
-              g.refs.includes(itemRef(p.id, p.itemIds?.[index] || index)),
-            )?.title),
-      };
-      return {
-        p,
-        item,
-        index,
-        id,
-        meta,
-        deleted: p.deletedAt || meta.deletedAt,
-        done:
-          item.kind !== "habit" &&
-          (meta.status === "done" || p.doneIds.includes(index)),
-      };
-    }),
-  );
+  const rows = buildResultRows(packets, automaticGroups);
   const scoped = rows.filter(
     (r) =>
       !r.meta.purgedAt &&
@@ -378,23 +405,14 @@ function Results({
         : !r.deleted && (scope === "done" ? r.done : !r.done)),
   );
   const kinds = [...new Set(scoped.map((r) => r.item.kind))];
-  const rankRows = (a: (typeof rows)[number], b: (typeof rows)[number]) => {
-    const rank = (r: typeof a) => ({
-      id: r.id,
-      date: r.item.due?.date,
-      time: r.item.due?.time,
-      kind: r.item.kind,
-      importance: r.meta.importance ?? r.item.importance ?? 1,
-      pinned: !!r.meta.pinned,
-      createdAt: r.p.capturedAt,
-      order:
-        (activeGroup ? r.meta.groupOrder?.[activeGroup] : undefined) ??
-        r.meta.order ??
-        r.index,
-    });
-    return compareItems(rank(a), rank(b), sort, day);
-  };
-  scoped.sort(rankRows);
+  scoped.sort((a, b) =>
+    compareItems(
+      rankingFields(a, activeGroup),
+      rankingFields(b, activeGroup),
+      sort,
+      day,
+    ),
+  );
   const filtered = scoped.filter(
     (r) =>
       (kind === "all" || r.item.kind === kind) &&
