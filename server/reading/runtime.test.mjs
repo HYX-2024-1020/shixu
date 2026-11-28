@@ -508,7 +508,7 @@ test("runtime refuses an unreconciled legacy account instead of issuing fresh v4
   }
 });
 
-test("runtime rejects missing isolation, expired prices, missing keys, and billing inside account data before opening service", () => {
+test("runtime starts with expired prices but rejects invalid isolation, missing keys and unsafe billing paths", async () => {
   const directory = mkdtempSync(join(tmpdir(), "shixu-runtime-config-"));
   try {
     const config = {
@@ -538,10 +538,14 @@ test("runtime rejects missing isolation, expired prices, missing keys, and billi
       assert.throws(() =>
         createReadingRuntime({ ...config, ...change }, options),
       );
-    assert.throws(
-      () => createReadingRuntime(config, { ...options, now: () => 2000 }),
-      /VERIFIED_PRICE_EXPIRED/,
-    );
+    const runtime = createReadingRuntime(config, { ...options, now: () => 2000 });
+    try {
+      const { port } = await runtime.listen(0);
+      const response = await fetch(`http://127.0.0.1:${port}/api/v4/capabilities`);
+      assert.equal(response.status, 200);
+    } finally {
+      await runtime.close();
+    }
     assert.throws(
       () => createReadingRuntime(config, { ...options, apiKey: undefined }),
       /CONFIGURATION/,

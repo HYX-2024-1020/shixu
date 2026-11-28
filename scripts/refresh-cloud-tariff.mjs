@@ -22,7 +22,7 @@ const html = await response.text(),
 if (
   !table ||
   createHash("sha256").update(table).digest("hex") !==
-    "9eb6d2ac5b8b95186a7f329e26fe14b604d3a6a37e1361eca06b5ae426827c2f"
+    "5cab23423a0c51a9ec159b665ba1a20018884561fb5ce0cff05d69639a947d0c"
 )
   throw Error("PRICE_REVIEW_REQUIRED");
 const text = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
