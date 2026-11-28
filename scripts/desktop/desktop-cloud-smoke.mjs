@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { accountUIFixture, fixtureItem } from "./account-ui-fixture.mjs";
 import { waitForPageState } from "./desktop-test-wait.mjs";
 const { createSyncClient } = createRequire(import.meta.url)(
-  "../../miniprogram/lib/sync-client.js",
+  "../../apps/miniprogram/lib/sync-client.js",
 );
 const fixture = await accountUIFixture();
 delete fixture.env.ELECTRON_RUN_AS_NODE;

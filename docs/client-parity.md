@@ -1,3 +1,10 @@
+## 2026-11-28 Monorepo 根目录收拢与顶层结构整理
+
+将仓库根目录从 42 项收拢为 19 项（7 个顶层目录 + 12 个工程必需根文件）：多端代码统一归入 `apps/{web,desktop,miniprogram,server,website}/`，共享规则迁入 `packages/shared/`，端到端测试与夹具合并为 `tests/{e2e,fixtures}/`，社区规范迁入 `.github/`，说明文档归口至 `docs/`，部署环境变量模板迁入 `deploy/env/`，删除已废弃的 `Dockerfile`/`.dockerignore`/`.prettierignore`。
+
+- **Windows 桌面端**：仅调整 Electron 主进程入口路径（`apps/desktop/main.cjs`）与打包资源路径映射，构建输出结构、ASAR 加载协议（`shixu://app/`）、所有业务功能与更新链保持不变。
+- **微信小程序**：原生工程目录迁至 `apps/miniprogram/`（微信开发者工具打开路径相应更新），共享生成产物经 `npm run mini:build` / `npm run mini:check` 验证一致，运行时代码与同步协议无行为变化。
+
 ## 2026-11-28 仓库结构重构与下线 `?legacy=1` 入口
 
 正式移除已退场的 `?legacy=1` 旧版网页前端（17 个根层旧文件）与 `supabase/`、`design/`、`.workbuddy/` 冗余目录，将现代前端仅用的 `localDate` 与 `extractFile` 迁入 `src/bucket/`；按职责将工程脚本分层整理到 `scripts/{build,check,desktop,ops,reading,stage-a}/` 并移除 59 个已完成历史使命的一次性验证/基准脚本；将历史文档统一归档至 `docs/archive/` 并将测试夹具解耦至 `test-fixtures/reading-evidence/`。
@@ -27,7 +34,7 @@ Windows 世界页可点击「刷新卡片」立即尝试上传待传修改、拉
 
 ## 2026-11-21 小程序第二轮真机反馈（#135）
 
-开发收尾继续保留同一投递的任务防重复提交和故障恢复。显式启动新的整理可沿用已有的复用与审计流程，Windows 发现任务新发布时会再拉取卡片结果。开发版本入口见[微信工程说明](../miniprogram/README.md)。
+开发收尾继续保留同一投递的任务防重复提交和故障恢复。显式启动新的整理可沿用已有的复用与审计流程，Windows 发现任务新发布时会再拉取卡片结果。开发版本入口见[微信工程说明](../apps/miniprogram/README.md)。
 
 桶页在「AI 连接」下简要显示已用和可用额度，聊天文件与图片拍照上下排列，投喂按钮在右侧。世界页同步状态移至列表底部，沿用原生手势刷新。
 

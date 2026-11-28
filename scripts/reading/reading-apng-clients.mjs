@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { apngBytes } from "../../server/reading/apng-fixtures.mjs";
-import { zipBytes } from "../../server/reading/archive-fixtures.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
-import { sourceLocation } from "../../shared/reading-view.mjs";
+import { apngBytes } from "../../apps/server/reading/apng-fixtures.mjs";
+import { zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
+import { sourceLocation } from "../../packages/shared/reading-view.mjs";
 export async function runApngClients({
   directory,
   reader,

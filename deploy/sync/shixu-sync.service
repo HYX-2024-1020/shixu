@@ -10,7 +10,7 @@ User=shixu-sync
 Group=shixu-sync
 WorkingDirectory=/opt/shixu-sync/current
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/bin/env node --preserve-symlinks-main --max-old-space-size=256 --env-file=/etc/shixu-sync/service.env server/sync-server.mjs
+ExecStart=/usr/bin/env node --preserve-symlinks-main --max-old-space-size=256 --env-file=/etc/shixu-sync/service.env apps/server/sync-server.mjs
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=25

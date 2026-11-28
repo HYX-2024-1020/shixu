@@ -1,15 +1,25 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+const webRoot = resolve(repoRoot, "apps/web");
+
 export default defineConfig(({ mode }) => ({
-  base: loadEnv(mode, ".", "VITE_").VITE_BASE_PATH || "/",
+  root: webRoot,
+  envDir: repoRoot,
+  base: loadEnv(mode, repoRoot, "VITE_").VITE_BASE_PATH || "/",
   plugins: [react()],
   build: {
+    outDir: resolve(repoRoot, "dist"),
+    emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: "index.html",
-        admin: "admin-test/index.html",
-        console: "admin/index.html",
+        main: resolve(webRoot, "index.html"),
+        admin: resolve(webRoot, "admin-test/index.html"),
+        console: resolve(webRoot, "admin/index.html"),
       },
     },
   },
@@ -30,6 +40,7 @@ export default defineConfig(({ mode }) => ({
       ],
     },
     fs: {
+      allow: [repoRoot],
       deny: [
         ".env",
         ".env.*",

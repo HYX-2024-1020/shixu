@@ -105,7 +105,7 @@ try {
           }),
         );
     },
-    Array.from(await readFile("public/desktop-icon.png")),
+    Array.from(await readFile("apps/web/public/desktop-icon.png")),
   );
   await page.getByAltText("已接收 粘贴截图.png", { exact: true }).waitFor();
   assert.ok(

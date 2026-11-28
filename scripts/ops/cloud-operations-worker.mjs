@@ -16,7 +16,7 @@ import {
   MIN_LEDGER_CORE_VERSION,
   openHostCloudOperations,
   writeHostAuthorityFloor,
-} from "../../server/cloud-operations.mjs";
+} from "../../apps/server/cloud-operations.mjs";
 import {
   takeCloudSnapshot,
   restoreCloudSnapshot,
@@ -24,8 +24,8 @@ import {
   rotateCloudSnapshots,
   cleanCloudStorage,
   recoverCloudMaintenance,
-} from "../../server/cloud-backup.mjs";
-import { readingAuthorityFloor } from "../../server/data-versions.mjs";
+} from "../../apps/server/cloud-backup.mjs";
+import { readingAuthorityFloor } from "../../apps/server/data-versions.mjs";
 
 const ROOT = "/opt/shixu-cloud",
   STATE = "/var/lib/shixu-cloud-ledger/operations.sqlite",

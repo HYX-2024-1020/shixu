@@ -3,13 +3,13 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
-import { createMultiUserService } from "../../server/sync-multi-user.mjs";
-import { ReadingLedger } from "../../server/reading/ledger.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
-import { createBrokerClient } from "../../server/reading/broker-service.mjs";
+import { createMultiUserService } from "../../apps/server/sync-multi-user.mjs";
+import { ReadingLedger } from "../../apps/server/reading/ledger.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
+import { createBrokerClient } from "../../apps/server/reading/broker-service.mjs";
 const require = createRequire(import.meta.url),
-  { AccountWorkspace } = require("../../desktop/accounts.cjs"),
-  { DesktopStore } = require("../../desktop/storage.cjs");
+  { AccountWorkspace } = require("../../apps/desktop/accounts.cjs"),
+  { DesktopStore } = require("../../apps/desktop/storage.cjs");
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const root = await mkdtemp(join(tmpdir(), "shixu-ten-account-"));
 const ledger = new ReadingLedger(join(root, "billing.sqlite"));

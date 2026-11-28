@@ -1,8 +1,8 @@
-import { ReadingLegacyMaintenance } from "../../server/reading/legacy-ledger.mjs";
+import { ReadingLegacyMaintenance } from "../../apps/server/reading/legacy-ledger.mjs";
 import { SyncStore as LegacyStore } from "../stage-a/legacy/sync-store.mjs";
 import { createJobQueue as legacyQueue } from "../stage-a/legacy/sync-jobs.mjs";
-import {acquireDataLease,prepareShadowVersion,activateDataVersion} from '../../server/data-versions.mjs';
-import {createRuntimeMigrator} from '../../server/data-migration.mjs';
+import {acquireDataLease,prepareShadowVersion,activateDataVersion} from '../../apps/server/data-versions.mjs';
+import {createRuntimeMigrator} from '../../apps/server/data-migration.mjs';
 import {registerSyntheticTenantWriter,openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import {
@@ -19,14 +19,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import vm from "node:vm";
-import { createMultiUserService } from "../../server/sync-multi-user.mjs";
-import { ReadingLedger } from "../../server/reading/ledger.mjs";
+import { createMultiUserService } from "../../apps/server/sync-multi-user.mjs";
+import { ReadingLedger } from "../../apps/server/reading/ledger.mjs";
 const require = createRequire(import.meta.url);
-const { AccountWorkspace } = require("../../desktop/accounts.cjs");
-const { DesktopStore } = require("../../desktop/storage.cjs");
-const { SERVICE_ORIGIN } = require("../../miniprogram/lib/accounts.js");
+const { AccountWorkspace } = require("../../apps/desktop/accounts.cjs");
+const { DesktopStore } = require("../../apps/desktop/storage.cjs");
+const { SERVICE_ORIGIN } = require("../../apps/miniprogram/lib/accounts.js");
 const pagePath = fileURLToPath(
-  new URL("../../miniprogram/pages/index/index.js", import.meta.url),
+  new URL("../../apps/miniprogram/pages/index/index.js", import.meta.url),
 );
 const tick = () => new Promise((done) => setTimeout(done, 10));
 

@@ -40,7 +40,7 @@
 
 ## 主程序实际风格上下文
 
-风格来源为当前源码的[desktop.css](../../../src/bucket/desktop.css)、[card-visuals.css](../../../src/bucket/card-visuals.css)、[card-palette.css](../../../src/bucket/card-palette.css)及[设计约束](../../design.md)，交接包中只提取必要CSS与当前源码合成截图，无需外部agent读取整个项目。不要仅取`bucket.css`早期基础绿配色而忽略后加载的实际桌面样式。
+风格来源为当前源码的[desktop.css](../../../apps/web/src/bucket/desktop.css)、[card-visuals.css](../../../apps/web/src/bucket/card-visuals.css)、[card-palette.css](../../../apps/web/src/bucket/card-palette.css)及[设计约束](../../design.md)，交接包中只提取必要CSS与当前源码合成截图，无需外部agent读取整个项目。不要仅取`bucket.css`早期基础绿配色而忽略后加载的实际桌面样式。
 
 | 要素 | 具体要求 |
 | --- | --- |

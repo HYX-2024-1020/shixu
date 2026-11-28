@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { SyncStore } from "../../server/sync-store.mjs";
+import { SyncStore } from "../../apps/server/sync-store.mjs";
 import {
   makeFixture,
   openFixture,

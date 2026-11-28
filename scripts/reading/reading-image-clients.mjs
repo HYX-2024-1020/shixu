@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { encodingPng } from "../../server/reading/png-encoding-fixtures.mjs";
-import { encodePng } from "../../server/reading/image.mjs";
+import { encodingPng } from "../../apps/server/reading/png-encoding-fixtures.mjs";
+import { encodePng } from "../../apps/server/reading/image.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { zipBytes } from "../../server/reading/archive-fixtures.mjs";
+import { zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
 import {
   rarBytes,
   rar4Bytes,
   sevenZipBytes,
-} from "../../server/reading/native-archive-fixtures.mjs";
-import { sha256 } from "../../server/reading/material.mjs";
-import { sourceLocation } from "../../shared/reading-view.mjs";
+} from "../../apps/server/reading/native-archive-fixtures.mjs";
+import { sha256 } from "../../apps/server/reading/material.mjs";
+import { sourceLocation } from "../../packages/shared/reading-view.mjs";
 
 export async function runImageClients({
   directory,
@@ -40,19 +40,19 @@ export async function runImageClients({
     : null;
   if (encoded) pixels = encoded.pixels;
   const jpegFixture = jpeg
-    ? await import("../../server/reading/jpeg-fixtures.mjs")
+    ? await import("../../apps/server/reading/jpeg-fixtures.mjs")
     : null;
-  const gifFixture = gif ? await import("../../server/reading/gif-fixtures.mjs") : null;
-  const imageBody = webp ? await readFile(new URL("../../server/reading/fixtures/webp-wide.webp",import.meta.url)) : gif ? gifFixture.gifBytes({width,height}) : jpeg
+  const gifFixture = gif ? await import("../../apps/server/reading/gif-fixtures.mjs") : null;
+  const imageBody = webp ? await readFile(new URL("../../apps/server/reading/fixtures/webp-wide.webp",import.meta.url)) : gif ? gifFixture.gifBytes({width,height}) : jpeg
     ? jpegFixture.jpegSample({ width: height, height: width, orientation: 6 })
         .body
     : encoded?.body || encodePng(width, height, pixels);
-  if(gif) pixels=(await import("../../server/reading/gif.mjs")).decodeGif(imageBody).pixels;
+  if(gif) pixels=(await import("../../apps/server/reading/gif.mjs")).decodeGif(imageBody).pixels;
   if(webp){
-    const {decodeWebp}=await import("../../server/reading/webp.mjs");
+    const {decodeWebp}=await import("../../apps/server/reading/webp.mjs");
     for(let tile=1;tile<=3;tile++){const image=await decodeWebp(imageBody,tile);
       for(let y=0;y<height;y++)image.pixels.copy(pixels,(y*width+image.x)*4,y*image.tileWidth*4,(y+1)*image.tileWidth*4);}
-    const golden=JSON.parse(await readFile(new URL("../../server/reading/fixtures/webp-goldens.json",import.meta.url),"utf8")).files["webp-wide.webp"];
+    const golden=JSON.parse(await readFile(new URL("../../apps/server/reading/fixtures/webp-goldens.json",import.meta.url),"utf8")).files["webp-wide.webp"];
     assert.equal(sha256(pixels),golden.frames[0].pixelsHash);
   }
   const imagePath=webp ? "02.webp" : gif ? "02.gif" : jpeg ? "02.jpg" : "02.png";

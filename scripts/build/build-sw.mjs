@@ -49,11 +49,11 @@ const hash = createHash("sha256")
     assets.join("\n") +
       buildInfo +
       (await readFile("dist/index.html", "utf8")) +
-      (await readFile("public/sw.js", "utf8")),
+      (await readFile("apps/web/public/sw.js", "utf8")),
   )
   .digest("hex")
   .slice(0, 12);
-const worker = (await readFile("public/sw.js", "utf8"))
+const worker = (await readFile("apps/web/public/sw.js", "utf8"))
   .replace(/const CACHE = [^;]+;/, `const CACHE = CACHE_PREFIX + "${hash}";`)
   .replace(
     /const PRECACHE = \[[\s\S]*?\];/,

@@ -1,11 +1,11 @@
 import { accountUIFixture } from "./account-ui-fixture.mjs";
-import { absoluteText } from "../../shared/deadlines.mjs";
+import { absoluteText } from "../../packages/shared/deadlines.mjs";
 import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
-import { DesktopStore } from "../../desktop/storage.cjs";
+import { DesktopStore } from "../../apps/desktop/storage.cjs";
 const live = process.argv.includes("--live");
 const profile = await mkdtemp(path.join(tmpdir(), "shixu-chat-test-"));
 if (live)

@@ -35,7 +35,7 @@ function samplePdf() {
   result += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return Buffer.from(result);
 }
-const png = new Resvg(await readFile("desktop/fixtures/teacher-notice.svg"))
+const png = new Resvg(await readFile("apps/desktop/fixtures/teacher-notice.svg"))
   .render()
   .asPng();
 const docx = zipSync({

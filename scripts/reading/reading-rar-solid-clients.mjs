@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {runClientLoop} from './reading-client-loop.mjs';
-import {rarSolidSample} from '../../server/reading/rar-solid-fixtures.mjs';
-import {readMaterial} from '../../server/reading/material.mjs';
+import {rarSolidSample} from '../../apps/server/reading/rar-solid-fixtures.mjs';
+import {readMaterial} from '../../apps/server/reading/material.mjs';
 export async function runRarSolidClients({directory,version,reader}) {
     const { body, packed } = await rarSolidSample(version);
     return await runClientLoop({

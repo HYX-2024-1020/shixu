@@ -1,6 +1,6 @@
 # 仓库治理与设置
 
-目标仓库：<https://github.com/HYX-2024-1020/shixu>，默认分支 `main`。代码采用 MIT，第三方材料单独保留许可。开发流程见 [CONTRIBUTING.md](../CONTRIBUTING.md)，代理必须遵守 [AGENTS.md](../AGENTS.md)。
+目标仓库：<https://github.com/HYX-2024-1020/shixu>，默认分支 `main`。代码采用 MIT，第三方材料单独保留许可。开发流程见 [CONTRIBUTING.md](../.github/CONTRIBUTING.md)，代理必须遵守 [AGENTS.md](../AGENTS.md)。
 
 ## GitHub 端的硬门禁
 

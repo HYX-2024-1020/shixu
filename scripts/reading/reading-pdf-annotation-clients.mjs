@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { annotationPdfBytes } from "../../server/reading/pdf-annotation-fixtures.mjs";
-import { zipBytes } from "../../server/reading/archive-fixtures.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
-import { sourceLocation } from "../../shared/reading-view.mjs";
+import { annotationPdfBytes } from "../../apps/server/reading/pdf-annotation-fixtures.mjs";
+import { zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
+import { sourceLocation } from "../../packages/shared/reading-view.mjs";
 export async function runPdfAnnotationClients({directory,reader,archive=false}) {
   const pdf=annotationPdfBytes({pages:2}),body=archive?zipBytes({'annot.pdf':pdf}):pdf;
   return runClientLoop({directory,

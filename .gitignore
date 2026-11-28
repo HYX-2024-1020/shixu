@@ -4,8 +4,9 @@ release/
 .env
 .env.*
 !.env.example
+!.env.sync.example
+!.env.admin.example
 .sites-runtime/
-.openai/
 *.local
 *.log
 *.tsbuildinfo
@@ -18,11 +19,8 @@ backups/
 data/
 .DS_Store
 Thumbs.db
-
-!.env.sync.example
-!.env.admin.example
 project.private.config.json
-server/reading/generated-native/
-server/reading/generated-webp/
-server/reading/generated-pdf-visual/
+apps/server/reading/generated-native/
+apps/server/reading/generated-webp/
+apps/server/reading/generated-pdf-visual/
 .workbuddy/

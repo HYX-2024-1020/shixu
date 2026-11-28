@@ -6,7 +6,7 @@ import {
   chownSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { pricePeriod } from "../../server/reading/price-calendar.mjs";
+import { pricePeriod } from "../../apps/server/reading/price-calendar.mjs";
 const path = process.argv[2];
 if (!path || !path.startsWith("/etc/shixu-cloud/"))
   throw Error("CONFIG_PATH_REQUIRED");

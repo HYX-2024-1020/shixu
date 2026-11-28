@@ -1,5 +1,5 @@
 import { buildRelease } from "./build-sync-release.mjs";
-import { isSealedCloudRelease } from "../../server/cloud-operations.mjs";
+import { isSealedCloudRelease } from "../../apps/server/cloud-operations.mjs";
 import {
   readFile,
   writeFile,

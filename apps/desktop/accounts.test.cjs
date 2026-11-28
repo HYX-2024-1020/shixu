@@ -1,0 +1,1039 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const { tmpdir } = require("node:os");
+const path = require("node:path");
+const { AccountWorkspace } = require("./accounts.cjs");
+const { DesktopStore } = require("./storage.cjs");
+
+test("installed protocol reads XLSX cells, retains cross-card proposals after restart and saves only after confirmation", async (t) => {
+  const { accountUIFixture, fixtureItem } = await import(
+    "../../scripts/desktop/account-ui-fixture.mjs"
+  );
+  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+  const { readMaterial } = await import("../server/reading/material.mjs");
+  const { xlsxBytes, inline } = await import(
+    "../server/reading/xlsx-fixtures.mjs"
+  );
+  const { applyChatProposals } = await import(
+    "../web/src/bucket/chat-proposals.ts"
+  );
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-chat-client-")),
+    ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+  ledger.freezePrice({
+    id: "fixture",
+    model: "fixture",
+    currency: "CNY",
+    source: "synthetic",
+    verifiedAt: 1,
+    inputMicrosPerMillion: 1,
+    cachedMicrosPerMillion: 0,
+    outputMicrosPerMillion: 1,
+  });
+  let chats = 0;
+  const provider = Object.assign(
+    async (sources) => ({
+      usage: { prompt_tokens: 10, completion_tokens: 10 },
+      result: {
+        summary: "合成名单",
+        warnings: [],
+        items: ["核对名单", "另一项合成事项"].map((title) => ({
+          ...fixtureItem(title),
+          evidence: [
+            { sourceId: sources[0].id, quote: sources[0].text.slice(0, 8) },
+          ],
+        })),
+      },
+    }),
+    {
+      chat: async (sources) => {
+        chats++;
+        const context = JSON.parse(sources[0].text);
+        assert.ok(
+          context.attachmentContent[0].sources.some((s) =>
+            s.text.includes("林合成测试"),
+          ),
+        );
+        const target = context.relatedItems[0];
+        return {
+          usage: { prompt_tokens: 10, completion_tokens: 10 },
+          result: {
+            reply: "合成名单包含林合成测试，星标建议等待确认。",
+            patch: {},
+            proposals: [
+              {
+                packetId: target.packetId,
+                itemId: target.itemId,
+                patch: { starred: true },
+              },
+            ],
+          },
+        };
+      },
+    },
+  );
+  const f = await accountUIFixture(
+    {},
+    {
+      reading: {
+        ledger,
+        enabled: true,
+        priceId: "fixture",
+        modelVersion: "fixture",
+        reader: readMaterial,
+        provider,
+      },
+    },
+  );
+  t.after(async () => {
+    await f.close();
+    ledger.close();
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  ledger.grantInitial(f.invitation.userId);
+  const options = {
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: f.base,
+    seal: async (s) => Buffer.from(s),
+    unseal: async (b) => b.toString(),
+  };
+  let client = new AccountWorkspace(options);
+  await client.init();
+  await client.action("activate", { invite: f.invitation.invite });
+  const bytes = xlsxBytes([
+    {
+      name: "名单",
+      xml:
+        '<row r="1">' +
+        inline("A1", "姓名") +
+        '</row><row r="43">' +
+        inline("A43", "林合成测试") +
+        "</row>",
+    },
+  ]);
+  await client.call(
+    "savePackets",
+    [
+      {
+        id: "packet",
+        text: "",
+        sources: [],
+        attachments: [
+          {
+            id: "roster",
+            name: "合成名单.xlsx",
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            bytes,
+          },
+        ],
+        doneIds: [],
+        captureDate: "2026-11-11",
+        capturedAt: "2026-11-11T00:00:00Z",
+        updatedAt: "2026-11-11T00:00:00Z",
+        result: null,
+        status: "pending",
+      },
+    ],
+    client.config.active,
+  );
+  await client.action("sync");
+  const finish = async (job) => {
+    const deadline = Date.now() + 10000;
+    for (;;) {
+      const state = await client.action("sync", { force: true });
+      const row = state.jobs.find((j) => j.id === job);
+      if (["done", "paused", "error"].includes(row?.state)) {
+        assert.equal(row.state, "done", JSON.stringify(row));
+        return;
+      }
+      assert.ok(Date.now() < deadline);
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  };
+  await finish(
+    (await client.action("ai", { kind: "organize", packetId: "packet" })).job,
+  );
+  let packet = (await client.packets())[0],
+    [owner, target] = packet.itemIds;
+  await finish(
+    (
+      await client.action("ai", {
+        kind: "chat",
+        packetId: "packet",
+        itemId: owner,
+        instruction: "核对名单并给另一事项添加星标，先列建议",
+        readAttachments: true,
+        scope: "account",
+      })
+    ).job,
+  );
+  packet = (await client.packets())[0];
+  assert.notEqual(packet.itemState[target]?.starred, true);
+  assert.ok(packet.itemState[owner].chatProposals.items.length);
+  client = new AccountWorkspace(options);
+  await client.init();
+  await client.action("sync", { force: true });
+  const before = ledger.wallet(f.invitation.userId).spent;
+  await client.call(
+    "savePackets",
+    applyChatProposals(await client.packets(), "packet", owner),
+    client.config.active,
+  );
+  await client.action("sync", { force: true });
+  packet = (await client.packets())[0];
+  assert.equal(packet.itemState[target].starred, true);
+  assert.equal(packet.itemState[owner].chatProposals, null);
+  assert.equal(chats, 1);
+  assert.equal(ledger.wallet(f.invitation.userId).spent, before);
+});
+
+test("installed account status follows independent AI gates after refresh and restart", async (t) => {
+  const { accountUIFixture } = await import(
+    "../../scripts/desktop/account-ui-fixture.mjs"
+  );
+  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-status-gates-"));
+  const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+  ledger.freezePrice({
+    id: "synthetic",
+    model: "synthetic",
+    currency: "CNY",
+    source: "synthetic test",
+    verifiedAt: 1,
+    inputMicrosPerMillion: 1,
+    cachedMicrosPerMillion: 0,
+    outputMicrosPerMillion: 1,
+  });
+  let paused = false,
+    maintenance = false;
+  ledger.dispatchGuard = () => {
+    if (maintenance) throw Error("MAINTENANCE");
+    if (paused) throw Error("ADMIN_PAUSED");
+  };
+  const f = await accountUIFixture(
+    {},
+    {
+      reading: {
+        credentials: true,
+        ledger,
+        enabled: true,
+        priceId: "synthetic",
+        modelVersion: "synthetic",
+        reader() {},
+        provider() {},
+      },
+    },
+  );
+  const options = {
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: f.base,
+    seal: async (s) => Buffer.from(s),
+    unseal: async (b) => b.toString(),
+  };
+  try {
+    let client = new AccountWorkspace(options);
+    await client.init();
+    await client.action("register", {
+      username: "status-owner",
+      password: "synthetic-password",
+      invite: f.invitation.invite,
+      deviceName: "合成状态测试",
+    });
+    assert.equal(client.status().account.aiAvailability.available, true);
+    paused = true;
+    await client.action("sync", { force: true });
+    assert.deepEqual(client.status().account.aiAvailability, {
+      available: false,
+      reason: "ADMIN_PAUSED",
+    });
+    client = new AccountWorkspace(options);
+    await client.init();
+    await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.reason, "ADMIN_PAUSED");
+    paused = false;
+    maintenance = true;
+    await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.reason, "MAINTENANCE");
+    maintenance = false;
+    await client.action("sync", { force: true });
+    assert.equal(client.status().account.aiAvailability.available, true);
+    assert.equal(client.status().account.usageSummary.daySpentMicro, 0);
+  } finally {
+    await f.close();
+    ledger.close();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const scenario of ["stop", "settlement"])
+  test(`installed XLSX adapter ${scenario === "stop" ? "stops without waiting for the provider" : "returns a settled wallet with a task completed during polling"}`, async (t) => {
+    const { accountUIFixture } = await import(
+      "../../scripts/desktop/account-ui-fixture.mjs"
+    );
+    const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+    const { readMaterial } = await import("../server/reading/material.mjs");
+    const { xlsxBytes, inline } = await import(
+      "../server/reading/xlsx-fixtures.mjs"
+    );
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-stop-client-"));
+    const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+    ledger.freezePrice({
+      id: "fixture",
+      model: "fixture",
+      currency: "CNY",
+      source: "synthetic",
+      verifiedAt: 1,
+      inputMicrosPerMillion: 1000000,
+      cachedMicrosPerMillion: 0,
+      outputMicrosPerMillion: 1000000,
+    });
+    let started,
+      finish,
+      aborted = false;
+    const entered = new Promise((resolve) => {
+      started = resolve;
+    });
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const fixture = await accountUIFixture(
+      {},
+      {
+        reading: {
+          enabled: true,
+          ledger,
+          priceId: "fixture",
+          modelVersion: "fixture",
+          reader: readMaterial,
+          provider: async (sources, signal) => {
+            signal.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+              },
+              { once: true },
+            );
+            started();
+            await pending;
+            return {
+              usage: { prompt_tokens: 10, completion_tokens: 10 },
+              result: {
+                summary: "合成",
+                warnings: [],
+                items: [
+                  {
+                    kind: "note",
+                    title: "合成要点",
+                    summary: "合成",
+                    facts: [],
+                    nextSteps: [],
+                    uncertainties: [],
+                    due: null,
+                    evidence: [
+                      {
+                        sourceId: sources[0].id,
+                        quote: sources[0].text.slice(0, 10),
+                      },
+                    ],
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    );
+    t.after(async () => {
+      finish();
+      await fixture.close();
+      ledger.close();
+      await fs.rm(root, { recursive: true, force: true });
+    });
+    ledger.grantInitial(fixture.invitation.userId);
+    let settleOnPoll = false;
+    const client = new AccountWorkspace({
+      root: path.join(root, "client"),
+      local: new DesktopStore(path.join(root, "local")),
+      serviceOrigin: fixture.base,
+      fetcher: async (url, init) => {
+        if (settleOnPoll && url.endsWith("/api/v4/tasks")) {
+          settleOnPoll = false;
+          finish();
+          const deadline = Date.now() + 5000;
+          while (fixture.service.readingRoutes.snapshot().accounts) {
+            assert.ok(
+              Date.now() < deadline,
+              "synthetic settlement did not finish",
+            );
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+        }
+        return fetch(url, init);
+      },
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    });
+    await client.init();
+    await client.action("activate", { invite: fixture.invitation.invite });
+    const bytes = xlsxBytes([
+      {
+        name: "资料表",
+        xml: `<row r="1">${inline("A1", "合成完整材料😀。\n".repeat(scenario === "stop" ? 16000 : 100))}</row>`,
+      },
+    ]);
+    await client.call(
+      "savePackets",
+      [
+        {
+          id: "stop-xlsx",
+          text: "",
+          sources: [],
+          attachments: [
+            {
+              id: "original",
+              name: "synthetic.xlsx",
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              bytes,
+            },
+          ],
+          doneIds: [],
+          capturedAt: "2026-11-11T00:00:00Z",
+          captureDate: "2026-11-11",
+          updatedAt: "2026-11-11T00:00:00Z",
+          result: null,
+          status: "pending",
+        },
+      ],
+      client.config.active,
+    );
+    await client.action("sync");
+    const submitted = await client.action("ai", {
+      kind: "organize",
+      packetId: "stop-xlsx",
+    });
+    await entered;
+    if (scenario === "settlement") {
+      settleOnPoll = true;
+      const result = await client.action("sync", { force: true });
+      assert.equal(
+        result.jobs.find((j) => j.id === submitted.job).state,
+        "done",
+      );
+      assert.equal(ledger.wallet(fixture.invitation.userId).spent, 20);
+      assert.equal(
+        result.account.wallet.spent,
+        20,
+        "completed task and returned wallet must include the same settlement",
+      );
+      return;
+    }
+    await client.action("sync");
+    const start = performance.now();
+    const stopped = await client.action("taskAction", {
+      id: submitted.job,
+      action: "stop",
+    });
+    assert.ok(
+      performance.now() - start < 5000,
+      "stop must not wait for the held provider result",
+    );
+    assert.equal(
+      stopped.jobs.find((j) => j.id === submitted.job).state,
+      "cancelled",
+    );
+    assert.equal(aborted, false);
+    assert.equal(ledger.wallet(fixture.invitation.userId).spent, 0);
+    assert.ok(
+      ledger.wallet(fixture.invitation.userId).reserved > 0,
+      "in-flight cost remains reserved until final evidence",
+    );
+    finish();
+    while (fixture.service.readingRoutes.snapshot().accounts) await new Promise(resolve => setTimeout(resolve,10));
+    assert.equal(ledger.wallet(fixture.invitation.userId).spent,20);
+    assert.equal(ledger.wallet(fixture.invitation.userId).reserved,0);
+    assert.equal(ledger.wallet(fixture.invitation.userId).unknownRisk,0);
+    await client.action("sync");
+    assert.equal((await client.packets()).find(p=>p.id==="stop-xlsx").result,null);
+  });
+
+test("installed account adapter can enter restricted temporary-password login and change password before any material sync", async (t) => {
+  const { createMultiUserService } = await import(
+    "../server/sync-multi-user.mjs"
+  );
+  const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-temporary-client-"));
+  const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+  ledger.freezePrice({
+    id: "synthetic",
+    model: "synthetic",
+    currency: "CNY",
+    source: "synthetic",
+    verifiedAt: 1,
+    inputMicrosPerMillion: 1,
+    cachedMicrosPerMillion: 0,
+    outputMicrosPerMillion: 1,
+  });
+  const service = createMultiUserService({
+    directory: path.join(root, "server"),
+    secret: "synthetic-temporary-secret-".repeat(2),
+    reading: {
+      ledger,
+      reader() {},
+      provider() {
+        throw Error("NO_MODEL_CALLS");
+      },
+      priceId: "synthetic",
+      modelVersion: "synthetic",
+      enabled: false,
+      credentials: true,
+      accountSafety: true,
+      tenantSafety: true,
+    },
+  });
+  await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
+  t.after(async () => {
+    await service.quiesce();
+    ledger.close();
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const base = `http://127.0.0.1:${service.server.address().port}`;
+  const make = async (name) => {
+    const client = new AccountWorkspace({
+      root: path.join(root, name),
+      local: new DesktopStore(path.join(root, name + "-local")),
+      serviceOrigin: base,
+      seal: async (v) => Buffer.from(v),
+      unseal: async (v) => v.toString(),
+    });
+    await client.init();
+    return client;
+  };
+  const original = await make("original"),
+    [invite] = service.registry.generate(1);
+  await original.action("register", {
+    username: "synthetic",
+    password: "synthetic-password",
+    invite: invite.invite,
+  });
+  const user = original.config.devices[original.config.active].userId;
+  const reset = await service.credentials.adminReset(
+    user,
+    "admin-reset",
+    "operator",
+  );
+  const client = await make("new");
+  const pending = await client.action("login", {
+    username: "synthetic",
+    password: reset.temporaryPassword,
+  });
+  assert.equal(pending.activation, "active");
+  assert.equal(pending.account.authentication.passwordChangeRequired, true);
+  await assert.rejects(
+    client.request(client.config.active, "GET", "/api/v4/storage"),
+    (e) => e.code === "PASSWORD_CHANGE_REQUIRED",
+  );
+  await client.action("password", {
+    oldPassword: reset.temporaryPassword,
+    newPassword: "new-synthetic-password",
+    revokeAll: false,
+  });
+  assert.equal(
+    client.status().account.authentication.passwordChangeRequired,
+    false,
+  );
+  assert.equal(ledger.wallet(user).spent, 0);
+});
+
+test("installed polling coalesces reads, flushes edits, and preserves paid task state across 429 and 503", async (t) => {
+  const { createMultiUserService } = await import(
+    "../server/sync-multi-user.mjs"
+  );
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-rate-client-"));
+  const service = createMultiUserService({
+    directory: path.join(root, "server"),
+    secret: "synthetic-rate-secret-".repeat(3),
+  });
+  await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
+  t.after(async () => {
+    await new Promise((done) => service.server.close(done));
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const [invitation] = service.registry.generate(1),
+    base = `http://127.0.0.1:${service.server.address().port}`;
+  let requests = 0,
+    transient = 0;
+  const cloud = new AccountWorkspace({
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: base,
+    minimumReadIntervalMs: 10000,
+    seal: async (v) => Buffer.from(v),
+    unseal: async (v) => v.toString(),
+    fetcher: async (url, init) => {
+      requests++;
+      if (url.endsWith("/api/v3/jobs/paid-task"))
+        return transient
+          ? new Response(
+              JSON.stringify({
+                error: "synthetic temporary failure",
+                code: "RATE_LIMIT",
+              }),
+              {
+                status: transient,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Retry-After": "1",
+                },
+              },
+            )
+          : new Response(
+              JSON.stringify({
+                state: "paused",
+                reason: "ADMIN_PAUSED",
+                calls: 1,
+              }),
+              { headers: { "Content-Type": "application/json" } },
+            );
+      return fetch(url, init);
+    },
+  });
+  await cloud.init();
+  await cloud.action("activate", { invite: invitation.invite });
+  const initial = requests;
+  for (let i = 0; i < 100; i++) await cloud.action("sync");
+  assert.equal(
+    requests,
+    initial,
+    "UI wait loops must not exhaust server rate limits",
+  );
+  await cloud.call(
+    "savePackets",
+    [
+      {
+        id: "edit",
+        text: "synthetic edit",
+        sources: [],
+        attachments: [],
+        doneIds: [],
+        result: null,
+        status: "pending",
+      },
+    ],
+    cloud.config.active,
+  );
+  await cloud.action("sync");
+  assert.ok(requests > initial);
+  assert.equal(cloud.space().client.pendingCount(), 0);
+  cloud.writeJobs([
+    {
+      id: "paid-task",
+      state: "running",
+      calls: 1,
+      request: { packetId: "edit", kind: "organize" },
+    },
+  ]);
+  for (const status of [429, 503]) {
+    transient = status;
+    await assert.rejects(cloud.pollJobs(), (e) => e.status === status);
+    assert.equal(cloud.readJobs()[0].state, "running");
+    assert.equal(cloud.readJobs()[0].calls, 1);
+    if (status === 429) {
+      const count = requests;
+      await cloud.action("sync");
+      assert.equal(requests, count);
+      await new Promise((done) => setTimeout(done, 1050));
+    }
+  }
+  transient = 0;
+  await cloud.pollJobs();
+  assert.equal(cloud.readJobs()[0].state, "paused");
+  assert.equal(cloud.readJobs()[0].reason, "ADMIN_PAUSED");
+  assert.equal(cloud.readJobs()[0].calls, 1);
+});
+test("Windows activation retains an encrypted signing identity across lost replies, isolates accounts and routes AI through the server", async (t) => {
+  const { createMultiUserService } = await import(
+    "../server/sync-multi-user.mjs"
+  );
+  const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-account-client-"));
+  let calls = 0,
+    drop = true,
+    loseNextStatus = false;
+  const service = createMultiUserService({
+    directory: path.join(root, "server"),
+    secret: "synthetic-client-secret-with-32-characters",
+    aiLimits: { enabled: true, taskBudgetMicros: 10, dailyBudgetMicros: 100 },
+    ai: {
+      organize: async () => {
+        calls++;
+        return {
+          result: {
+            summary: "合成",
+            items: [{ title: "合成待办", kind: "task" }],
+            warnings: [],
+          },
+        };
+      },
+    },
+  });
+  await new Promise((done) => service.server.listen(0, "127.0.0.1", done));
+  t.after(async () => {
+    await new Promise((done) => service.server.close(done));
+    assert.ok(root.startsWith(path.join(tmpdir(), "shixu-account-client-")));
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const invitations = service.registry.generate(2),
+    base = `http://127.0.0.1:${service.server.address().port}`;
+  const options = {
+    root: path.join(root, "client"),
+    local: new DesktopStore(path.join(root, "local")),
+    serviceOrigin: base,
+    seal: async (v) => Buffer.from(v).map((n) => n ^ 42),
+    unseal: async (v) =>
+      Buffer.from(v)
+        .map((n) => n ^ 42)
+        .toString(),
+    fetcher: async (url, init) => {
+      if (loseNextStatus && url.endsWith("/api/v3/status")) {
+        loseNextStatus = false;
+        throw Error("synthetic first sync offline");
+      }
+      const response = await fetch(url, init);
+      if (drop && url.endsWith("/activate/windows")) {
+        drop = false;
+        throw Error("lost reply");
+      }
+      return response;
+    },
+  };
+  let cloud = new AccountWorkspace(options);
+  await cloud.init();
+  await assert.rejects(
+    cloud.action("activate", { invite: invitations[0].invite }),
+    /lost reply/,
+  );
+  cloud = new AccountWorkspace(options);
+  await cloud.init();
+  loseNextStatus = true;
+  await cloud.action("activate", { invite: invitations[0].invite });
+  assert.match(cloud.status().error, /first sync offline/);
+  await cloud.action("sync");
+  assert.equal(
+    service.registry.db
+      .prepare("SELECT COUNT(*) AS n FROM bindings WHERE revoked=0")
+      .get().n,
+    1,
+  );
+  assert.ok(!JSON.stringify(cloud.status()).includes("PRIVATE KEY"));
+  assert.ok(!JSON.stringify(cloud.status()).includes("sx3_"));
+  const originalSpace = cloud.config.active;
+  const packet = {
+    id: "packet",
+    text: "明天交报告",
+    sources: [],
+    attachments: [
+      {
+        id: "file",
+        name: "fixture.txt",
+        type: "text/plain",
+        bytes: Buffer.from("合成原件"),
+      },
+    ],
+    status: "pending",
+    result: null,
+    itemState: {},
+    doneIds: [],
+    captureDate: "2026-10-25",
+    capturedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  await cloud.call("savePackets", [packet], originalSpace);
+  await cloud.action("sync");
+  await cloud.action("ai", { packetId: "packet", kind: "organize" });
+  for (let i = 0; i < 50; i++) {
+    await cloud.action("sync");
+    if ((await cloud.packets())[0].result) break;
+    await new Promise((done) => setTimeout(done, 10));
+  }
+  assert.equal((await cloud.packets())[0].result.items[0].title, "合成待办");
+  assert.equal(calls, 1);
+  await cloud.call(
+    "saveDraft",
+    { text: "A账号草稿", attachments: [] },
+    originalSpace,
+  );
+  await cloud.action("activate", { invite: invitations[1].invite });
+  assert.equal((await cloud.packets()).length, 0);
+  assert.equal((await cloud.call("draft", null, cloud.config.active)).text, "");
+  await cloud.action("activate", { invite: invitations[0].invite });
+  assert.equal(
+    (await cloud.call("draft", null, originalSpace)).text,
+    "A账号草稿",
+  );
+  await cloud.action("local");
+  assert.equal(cloud.status().base, "");
+  await cloud.action("resume");
+  assert.equal(cloud.config.active, originalSpace);
+  service.registry.revoke(invitations[0].userId, "windows");
+  await assert.rejects(cloud.action("sync"), (e) => e.code === "UNAUTHORIZED");
+  assert.equal((await cloud.packets()).length, 1);
+});
+const { test: round2test } = require("node:test");
+round2test(
+  "world retry explicitly continues the same paused paid task without creating a replacement",
+  async (t) => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-retry-"));
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const cloud = new AccountWorkspace({
+      root,
+      local: new DesktopStore(path.join(root, "local")),
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    });
+    cloud.config = {
+      active: "synthetic",
+      devices: { synthetic: { userId: "owner" } },
+    };
+    cloud.accountState = { reading: { features: {} } };
+    cloud.space = () => ({
+      cache: { file: (name) => path.join(root, name) },
+      client: {
+        records: () => [{ id: "packet", version: 1 }],
+        pendingCount: () => 0,
+        conflicts: () => [],
+      },
+    });
+    cloud.sync = async () => cloud.status();
+    let task = {
+      id: "paid",
+      packetId: "packet",
+      kind: "organize",
+      protocol: 4,
+      state: "paused",
+      generation: 3,
+      inputRevision: "trusted",
+      actions: ["continue", "purge"],
+      calls: 2,
+    };
+    let continued = 0,
+      created = 0;
+    cloud.request = async (_base, method, url, value) => {
+      if (url === "/api/v4/tasks" && method === "GET") return { tasks: [task] };
+      if (url === "/api/v4/tasks/paid/continue") {
+        continued++;
+        assert.equal(value.expectedGeneration, 3);
+        assert.equal(value.expectedRevision, "trusted");
+        task = { ...task, state: "queued", generation: 4, actions: ["stop"] };
+        return task;
+      }
+      if (url === "/api/v4/tasks" && method === "POST") {
+        created++;
+        throw Error("must not replace paid task");
+      }
+      if (url === "/api/v4/tasks/paid") return task;
+      throw Error(url);
+    };
+    cloud.writeJobs([
+      { ...task, request: { packetId: "packet", kind: "organize" } },
+    ]);
+    await cloud.pollJobs();
+    assert.equal(continued, 0, "refresh never automatically resumes paid work");
+    const result = await cloud.action("ai", {
+      kind: "organize",
+      packetId: "packet",
+    });
+    assert.equal(result.job, "paid");
+    assert.equal(continued, 1);
+    assert.equal(created, 0);
+    assert.equal(cloud.readJobs().length, 1);
+    assert.equal(cloud.readJobs()[0].calls, 2);
+  },
+);
+round2test(
+  "removed merge rejects new requests while historical cards remain restart-safe and undo protects later edits",
+  async (t) => {
+    const { accountUIFixture, fixtureItem } = await import(
+      "../../scripts/desktop/account-ui-fixture.mjs"
+    );
+    const { ReadingLedger } = await import("../server/reading/ledger.mjs");
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-merge-"));
+    const ledger = new ReadingLedger(path.join(root, "ledger.sqlite"));
+    ledger.freezePrice({
+      id: "fixture",
+      model: "fixture",
+      currency: "CNY",
+      source: "synthetic",
+      verifiedAt: 1,
+      inputMicrosPerMillion: 1,
+      cachedMicrosPerMillion: 0,
+      outputMicrosPerMillion: 1,
+    });
+    let calls = 0;
+    const f = await accountUIFixture(
+      {},
+      {
+        reading: {
+          ledger,
+          enabled: true,
+          tenantSafety: true,
+          priceId: "fixture",
+          modelVersion: "fixture",
+          reader() {},
+          provider() {
+            calls++;
+            throw Error("no paid call permitted");
+          },
+        },
+      },
+    );
+    t.after(async () => {
+      await f.close();
+      ledger.close();
+      await fs.rm(root, { recursive: true, force: true });
+    });
+    const options = {
+      root: path.join(root, "client"),
+      local: new DesktopStore(path.join(root, "local")),
+      serviceOrigin: f.base,
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    };
+    let cloud = new AccountWorkspace(options);
+    await cloud.init();
+    await cloud.action("activate", { invite: f.invitation.invite });
+    const packets = ["a", "b"].map((id) => ({
+      id,
+      text: "合成材料",
+      sources: [],
+      attachments: [],
+      doneIds: [],
+      status: "ready",
+      captureDate: "2026-11-13",
+      capturedAt: "2026-11-13T10:00:00Z",
+      updatedAt: "2026-11-13T10:00:00Z",
+      itemIds: [id + "_item"],
+      result: { summary: "合成", warnings: [], items: [fixtureItem(id)] },
+    }));
+    await cloud.call("savePackets", packets, cloud.config.active);
+    await cloud.action("sync", { force: true });
+    let rows = await cloud.packets();
+    const targets = rows.map((p) => ({
+      packetId: p.id,
+      itemId: p.itemIds[0],
+      baseVersion: p.syncVersion,
+    }));
+    await assert.rejects(
+      cloud.action("cardOperation", {
+        kind: "merge",
+        targets: [targets[0], { ...targets[1], baseVersion: 0 }],
+        title: "合并",
+        itemId: "main",
+      }),
+    );
+    assert.equal(
+      (await cloud.packets()).find((p) => p.id === "a").result.items.length,
+      1,
+    );
+    await assert.rejects(cloud.action("cardOperation", {kind:"merge",targets,title:"合并",itemId:"main"}),/已移除/);
+    const {mergeCards}=await import("../../tests/fixtures/legacy-card-merge.ts");
+    await cloud.call("savePackets", mergeCards(await cloud.packets(),targets,"main","历史主卡"),cloud.config.active);
+    await cloud.action("sync",{force:true});
+    rows = await cloud.packets();
+    assert.equal(rows.find((p) => p.id === "a").result.items.length, 2);
+    assert.ok(rows.find((p) => p.id === "b").itemState.b_item.mergedInto);
+    await assert.rejects(
+      cloud.request(cloud.config.active, "POST", "/api/v3/operations", {
+        epoch: cloud.config.devices[cloud.config.active].epoch,
+        operation: {
+          opId: "protect-merged-source",
+          type: "delete",
+          id: "b",
+          baseVersion: rows.find((p) => p.id === "b").syncVersion,
+        },
+      }),
+      (e) => e.code === "MERGED_SOURCE_REFERENCED",
+    );
+    cloud = new AccountWorkspace(options);
+    await cloud.init();
+    await cloud.action("sync", { force: true });
+    rows = await cloud.packets();
+    const main = rows.find((p) => p.id === "a");
+    main.result.items[1].summary = "新补充内容";
+    await cloud.call("savePackets", [main], cloud.config.active);
+    await cloud.action("sync", { force: true });
+    rows = await cloud.packets();
+    const undo = {
+      kind: "undo",
+      targets: [
+        {
+          packetId: "a",
+          itemId: "main",
+          baseVersion: rows.find((p) => p.id === "a").syncVersion,
+        },
+      ],
+    };
+    await assert.rejects(cloud.action("cardOperation", undo), /已有修改/);
+    await cloud.action("cardOperation", { ...undo, preserveEdited: true });
+    rows = await cloud.packets();
+    assert.equal(
+      rows.find((p) => p.id === "a").result.items[1].summary,
+      "新补充内容",
+    );
+    assert.equal(
+      rows.find((p) => p.id === "b").itemState.b_item.mergedInto,
+      null,
+    );
+    assert.equal(calls, 0);
+  },
+);
+round2test(
+  "purpose and retention acknowledgements persist independently across closure and never imply an unchecked grant",
+  async (t) => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), "shixu-round2-consent-"));
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const options = {
+      root,
+      local: new DesktopStore(path.join(root, "local")),
+      seal: async (s) => Buffer.from(s),
+      unseal: async (b) => b.toString(),
+    };
+    const prepare = (cloud) => {
+      cloud.accountState = {
+        reading: { materialUseNotice: { version: 3, text: "合成用途说明" } },
+      };
+      cloud.space = () => ({
+        cache: { file: (name) => path.join(root, name) },
+        client: { pendingCount: () => 0, conflicts: () => [] },
+      });
+    };
+    let cloud = new AccountWorkspace(options);
+    await cloud.init();
+    cloud.config = {
+      active: "synthetic",
+      devices: { synthetic: { userId: "owner" } },
+    };
+    prepare(cloud);
+    assert.equal(cloud.materialConsentAccepted(), false);
+    await cloud.action("materialConsent", { kind: "purpose", accepted: true });
+    assert.equal(cloud.status().materialPurposeAccepted, true);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
+    assert.throws(() => cloud.requireMaterialConsent(), /资料用途/);
+    cloud = new AccountWorkspace(options);
+    await cloud.init();
+    prepare(cloud);
+    assert.equal(cloud.status().materialPurposeAccepted, true);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
+    await cloud.action("materialConsent", {
+      kind: "retention",
+      accepted: true,
+    });
+    assert.equal(cloud.materialConsentAccepted(), true);
+    await cloud.action("materialConsent", { kind: "purpose", accepted: false });
+    assert.equal(cloud.materialConsentAccepted(), false);
+    assert.equal(cloud.status().materialRetentionAccepted, true);
+    cloud.accountState.reading.materialUseNotice.version = 4;
+    assert.equal(cloud.materialConsentAccepted(), false);
+    assert.equal(cloud.status().materialRetentionAccepted, false);
+  },
+);

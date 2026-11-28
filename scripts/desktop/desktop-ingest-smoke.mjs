@@ -23,7 +23,7 @@ const app = await electron.launch({ args: ["."], env: fixture.env });
 try {
   const page = await app.firstWindow();
   await fixture.activate(page);
-  const bytes = await readFile("public/desktop-icon.png");
+  const bytes = await readFile("apps/web/public/desktop-icon.png");
   await page
     .locator("input[type=file]")
     .setInputFiles({

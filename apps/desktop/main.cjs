@@ -1,0 +1,341 @@
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  nativeImage,
+  protocol,
+  net,
+  session,
+  dialog,
+  ipcMain,
+  safeStorage,
+  screen,
+  shell,
+  globalShortcut,
+} = require("electron");
+const { BoardService } = require('./board.cjs');
+const { BoardWindow } = require('./board-window.cjs');
+const { externalWebUrl } = require("./external.cjs");
+const { AccountWorkspace } = require("./accounts.cjs");
+const { readPrivateConnection, startPrivateConnection } = require("./connection.cjs");
+const { DesktopStore } = require("./storage.cjs");
+const { exportBackup, importBackup } = require("./backup.cjs");
+const { readArchive } = require("./archive.cjs");
+const { readOffice } = require("./office.cjs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+const { resolveAsset } = require("./paths.cjs");
+const { mediaType, mediaResponse } = require("./media-response.cjs");
+const { DesktopUpdate } = require("./update.cjs");
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "shixu",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+app.setName("拾序");
+const privateConnection = app.isPackaged ? readPrivateConnection(process.env.LOCALAPPDATA || app.getPath("appData")) : null;
+// Dedicated desktop profile. Existing browser test data is left in its browser.
+app.setPath(
+  "userData",
+  process.env.SHIXU_DATA_DIR && path.isAbsolute(process.env.SHIXU_DATA_DIR)
+    ? process.env.SHIXU_DATA_DIR
+    : path.join(app.getPath("appData"), privateConnection ? "ShixuDesktopCloud" : "ShixuDesktop"),
+);
+let mainWindow,
+  boardWindow,
+  tray,
+  quitting = false,
+  savingBeforeQuit = false;
+const flushDrafts = async () => {
+  await mainWindow?.webContents.executeJavaScript(
+    "(async()=>{await window.flushDesktopDraft?.();await window.flushBoardDraft?.();})()",
+  );
+  if (boardWindow?.win && !boardWindow.win.isDestroyed())
+    await boardWindow.win.webContents.executeJavaScript("window.flushBoardDraft?.()");
+};
+const quitAfterSaving = () => {
+  quitting = true;
+  app.quit();
+};
+const show = () => {
+  mainWindow?.show();
+  mainWindow?.focus();
+};
+
+if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  const stopConnection = privateConnection ? startPrivateConnection(privateConnection) : ()=>{};
+  app.on("will-quit", stopConnection);
+  app.on("second-instance", show);
+  app.on("before-quit", (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    if (savingBeforeQuit) return;
+    savingBeforeQuit = true;
+    void flushDrafts().then(quitAfterSaving, (error) => {
+      savingBeforeQuit = false;
+      dialog.showErrorBox("退出前保存失败", error.message);
+    });
+  });
+  app
+    .whenReady()
+    .then(async () => {
+      const store = new DesktopStore(
+        path.join(app.getPath("userData"), "workspace"),
+      );
+      const cloud = new AccountWorkspace({
+        root: path.join(app.getPath("userData"), "cloud"),
+        local: store,
+        saveOriginal: async (file, bytes) => {
+          const selected = await dialog.showSaveDialog(mainWindow, {
+            title: "将原件保存到本机",
+            defaultPath: path.join(app.getPath("downloads"), path.basename(file.name.replaceAll("\\", "/"))),
+          });
+          if (selected.canceled || !selected.filePath) return null;
+          await require("node:fs/promises").writeFile(selected.filePath, bytes);
+          return selected.filePath;
+        },
+        confirmTemporaryLoss: async () =>
+          (
+            await dialog.showMessageBox(mainWindow, {
+              type: "warning",
+              title: "原件未保存",
+              message:
+                "本机原件保存失败，云端空间也不足。本次只能临时整理；停止、失败或关闭后原件将清理，继续需要重新选择。",
+              buttons: ["返回另存原件", "仍临时整理"],
+              defaultId: 0,
+              cancelId: 0,
+            })
+          ).response === 1,
+        ...(!app.isPackaged &&
+        process.env.SHIXU_TEST_SERVICE_ORIGIN &&
+        process.env.SHIXU_DATA_DIR
+          ? { serviceOrigin: process.env.SHIXU_TEST_SERVICE_ORIGIN }
+          : {}),
+          ...(privateConnection ? {serviceOrigin: privateConnection.origin, fetcher: stopConnection.fetch, minimumReadIntervalMs: 10000} : {}),
+        seal: (value) => safeStorage.encryptStringAsync(value),
+        unseal: async (bytes) =>
+          (await safeStorage.decryptStringAsync(bytes)).result,
+      });
+      await cloud.init();
+      await store.cleanup();
+      const cleanupTimer = setInterval(
+        () => store.cleanup().catch(() => {}),
+        60 * 60 * 1000,
+      );
+      cleanupTimer.unref();
+      const validSender = (event) => {
+        if (
+          event.senderFrame !== mainWindow?.webContents.mainFrame ||
+          !event.senderFrame.url.startsWith("shixu://app/")
+        )
+          throw new Error("来源无效");
+      };
+      // Keep Chromium's system proxy support without opening renderer network access.
+      const updates = session.fromPartition("shixu-updates", { cache: false });
+      const updateOrigins = new Set([
+        "https://api.github.com",
+        "https://github.com",
+        "https://release-assets.githubusercontent.com",
+      ]);
+      updates.webRequest.onBeforeRequest(({ url, method }, callback) => {
+        const target = new URL(url);
+        callback({
+          cancel: method !== "GET" || !updateOrigins.has(target.origin) ||
+            Boolean(target.username || target.password),
+        });
+      });
+      const update = new DesktopUpdate({
+        version: app.getVersion(),
+        cache: path.join(app.getPath("userData"), "update"),
+        supported:
+          app.isPackaged && process.platform === "win32" && process.arch === "x64",
+        fetcher: (url, options) => updates.fetch(url, { ...options, credentials: "omit" }),
+      });
+      ipcMain.handle("update", async (event, action) => {
+        validSender(event);
+        if (action === "status") return update.status();
+        if (action === "check") return update.check();
+        if (action === "download") return update.download();
+        if (action !== "install") throw Error("操作无效");
+        if (savingBeforeQuit) return update.status();
+        savingBeforeQuit = true;
+        try {
+          return await update.install({
+            prepare: flushDrafts,
+            launch: async (file) => {
+              const error = await shell.openPath(file);
+              if (error) throw Error("无法打开安装程序，请重试");
+            },
+            quit: quitAfterSaving,
+          });
+        } finally {
+          savingBeforeQuit = false;
+        }
+      });
+      ipcMain.handle("workspace", (event) => {
+        validSender(event);
+        return cloud.config.active;
+      });
+      ipcMain.handle("cloud", async (event, action, value) => {
+        validSender(event);
+        if(['login','local','register','logout','claim','resume'].includes(action)&&boardWindow?.win&&!boardWindow.win.isDestroyed())await boardWindow.win.webContents.executeJavaScript('window.flushBoardDraft?.()');
+        const identity=boardWindow?.service.lease();
+        const result=await cloud.action(action, value);
+        if(boardWindow&&identity!==boardWindow.service.lease()) {boardWindow.win?.destroy();boardWindow.win=undefined;}
+        return result;
+      });
+      ipcMain.handle("store", async (event, method, value, lease) => {
+        validSender(event);
+        return cloud.serial(() => cloud.call(method, value, lease));
+      });
+      ipcMain.handle("archive", async (event, bytes, extension) => {
+        validSender(event);
+        return readArchive(bytes, extension, store.file("cache/archives"));
+      });
+      ipcMain.handle("office", async (event, bytes, extension) => {
+        validSender(event);
+        return readOffice(bytes, extension);
+      });
+      ipcMain.handle("key", async (event, action, value) => {
+        validSender(event);
+        if (action === "read") return "";
+        throw new Error("模型由服务端统一管理，无需本机密钥");
+      });
+      ipcMain.handle("backup", async (event, action) => {
+        validSender(event);
+        if (cloud.config.active)
+          throw new Error(
+            "请先切回本机资料再使用本机备份；云端队列与缓存仍保留在独立空间",
+          );
+        if (action === "export") {
+          const result = await dialog.showSaveDialog(mainWindow, {
+            title: "备份拾序资料",
+            defaultPath: "拾序备份.zip",
+            filters: [{ name: "拾序备份", extensions: ["zip"] }],
+          });
+          return result.canceled
+            ? "已取消备份"
+            : exportBackup(store, result.filePath);
+        }
+        if (action !== "import") throw new Error("操作无效");
+        const result = await dialog.showOpenDialog(mainWindow, {
+          title: "恢复拾序备份（已有记录优先保留）",
+          properties: ["openFile"],
+          filters: [{ name: "拾序备份", extensions: ["zip"] }],
+        });
+        return result.canceled
+          ? "已取消恢复"
+          : importBackup(store, result.filePaths[0]);
+      });
+      protocol.handle("shixu", (request) => {
+        const file = resolveAsset(path.join(__dirname, "../../dist"), request.url);
+        if (file && mediaType(file)) return mediaResponse(file, request);
+        return file
+          ? net.fetch(pathToFileURL(file).href)
+          : new Response("Not found", { status: 404 });
+      });
+      session.defaultSession.setPermissionRequestHandler(
+        (_contents, _permission, callback) => callback(false),
+      );
+      session.defaultSession.webRequest.onBeforeRequest(
+        { urls: ["http://*/*", "https://*/*"] },
+        (_request, callback) => callback({ cancel: true }),
+      );
+      const workArea = screen.getPrimaryDisplay().workAreaSize;
+      if (process.platform === "win32")
+        app.setAppUserModelId("cn.shixu.desktop");
+      mainWindow = new BrowserWindow({
+        title: "拾序",
+        width: Math.min(1180, workArea.width),
+        height: Math.min(820, workArea.height),
+        minWidth: Math.min(720, workArea.width),
+        minHeight: Math.min(560, workArea.height),
+        backgroundColor: "#faf8f4",
+        show: false,
+        icon: path.join(__dirname, "../web/public/desktop-icon.png"),
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true,
+          preload: path.join(__dirname, "preload.cjs"),
+          backgroundThrottling: false,
+        },
+      });
+      Menu.setApplicationMenu(null);
+      mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        const target = externalWebUrl(url);
+        if (target) void shell.openExternal(target).catch(() => {});
+        return { action: "deny" };
+      });
+      mainWindow.webContents.on("will-navigate", (event, url) => {
+        const target = new URL(url);
+        if (target.protocol !== "shixu:" || target.hostname !== "app")
+          event.preventDefault();
+      });
+      mainWindow.on("close", (event) => {
+        if (!quitting && tray) {
+          event.preventDefault();
+          mainWindow.hide();
+        }
+      });
+      mainWindow.once("ready-to-show", show);
+      // Keep a strong reference: the tray must survive while the window is hidden.
+      try {
+        tray = new Tray(
+          nativeImage.createFromPath(
+            path.join(__dirname, "../web/public/desktop-icon.png"),
+          ),
+        );
+        tray.setToolTip("拾序 · 关闭窗口后仍在整理");
+        tray.setContextMenu(
+          Menu.buildFromTemplate([
+            { label: "打开拾序", click: show },
+            { type: "separator" },
+            { label: "退出拾序", click: () => app.quit() },
+          ]),
+        );
+        tray.on("double-click", show);
+      } catch (error) {
+        dialog.showErrorBox(
+          "托盘暂不可用",
+          "关闭窗口将退出拾序。" + error.message,
+        );
+      }
+      boardWindow = new BoardWindow({
+        BrowserWindow, screen, globalShortcut, root: app.getPath("userData"),
+        quitting: () => quitting,
+        mainWindow: () => mainWindow,
+        service: new BoardService(cloud),
+        openPath: (file) => shell.openPath(file),
+      });
+      ipcMain.handle("boardLease", (event) => {
+        boardWindow.valid(event);
+        return boardWindow.service.lease();
+      });
+      ipcMain.handle("board", (event, action, value, lease) => {
+        boardWindow.valid(event);
+        const floating = event.sender === boardWindow.win?.webContents;
+        return boardWindow.action(action, value, lease, floating);
+      });
+      app.on("will-quit", () => {
+        globalShortcut.unregisterAll();
+        boardWindow.cleanOriginalCopies();
+      });
+      await mainWindow.loadURL("shixu://app/");
+      await boardWindow.start();
+    })
+    .catch((error) => {
+      dialog.showErrorBox("拾序启动失败", error.message);
+      app.quit();
+    });
+}

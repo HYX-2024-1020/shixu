@@ -28,13 +28,13 @@ export async function buildReadingWebp({ sourcePath } = {}) {
   if (!["linux-x64", "win32-x64"].includes(platform))
     throw Error("WEBP_BUILD_PLATFORM_UNSUPPORTED");
   const script = fileURLToPath(import.meta.url),
-    adapter = join(root, "server/reading/native/webp-reader.c");
+    adapter = join(root, "apps/server/reading/native/webp-reader.c");
   const patchFile = join(root, "scripts/build/patch-reading-webp.mjs");
   const builderHash = hash(
       Buffer.concat([await readFile(script), await readFile(patchFile)]),
     ),
     adapterHash = hash(await readFile(adapter));
-  const output = join(root, "server/reading/generated-webp"),
+  const output = join(root, "apps/server/reading/generated-webp"),
     name = "reading-webp" + (process.platform === "win32" ? ".exe" : "");
   try {
     const m = JSON.parse(await readFile(join(output, "manifest.json")));

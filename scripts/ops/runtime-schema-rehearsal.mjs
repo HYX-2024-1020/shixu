@@ -1,4 +1,4 @@
-import { reviewDatabaseSchema } from "../../server/database-schema.mjs";
+import { reviewDatabaseSchema } from "../../apps/server/database-schema.mjs";
 // Isolated synthetic rehearsal only. Never accepts an existing data directory.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,12 +8,12 @@ import { DatabaseSync } from "node:sqlite";
 import { AccountRegistry as LegacyRegistry } from "../stage-a/legacy/sync-accounts.mjs";
 import { SyncStore as LegacyStore } from "../stage-a/legacy/sync-store.mjs";
 import { createAttachmentStore as legacyFiles } from "../stage-a/legacy/sync-files.mjs";
-import { AccountRegistry } from "../../server/sync-accounts.mjs";
-import { AccountsV4 } from "../../server/accounts-v4.mjs";
-import { SyncStore } from "../../server/sync-store.mjs";
-import { createAttachmentStore } from "../../server/sync-files.mjs";
-import { OriginalStore } from "../../server/originals.mjs";
-import { ReadingLedger, validateUsage } from "../../server/reading/ledger.mjs";
+import { AccountRegistry } from "../../apps/server/sync-accounts.mjs";
+import { AccountsV4 } from "../../apps/server/accounts-v4.mjs";
+import { SyncStore } from "../../apps/server/sync-store.mjs";
+import { createAttachmentStore } from "../../apps/server/sync-files.mjs";
+import { OriginalStore } from "../../apps/server/originals.mjs";
+import { ReadingLedger, validateUsage } from "../../apps/server/reading/ledger.mjs";
 import {
   TENANT_SYNC_SCHEMA,
   TENANT_ATTACHMENTS_SCHEMA,
@@ -24,7 +24,7 @@ import {
   LEDGER_COST_SCHEMA,
   LEDGER_TIME_SCHEMA,
   LEDGER_CHECKPOINT_SCHEMA,
-} from "../../server/database-schemas.mjs";
+} from "../../apps/server/database-schemas.mjs";
 const secret = "synthetic-schema-rehearsal-secret-32-characters";
 const rows = (db, tables) =>
   Object.fromEntries(

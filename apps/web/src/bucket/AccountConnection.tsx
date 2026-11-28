@@ -1,0 +1,1122 @@
+import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { allPackets } from "./store";
+import { readableFileName } from "./file-display";
+import { errorMessage } from "./error-message";
+import SoftwareUpdate from "./SoftwareUpdate";
+import {
+  walletView,
+  reuseView,
+  pdfProgressView,
+  imageProgressView,
+  mergeProgressView,
+} from "../../../../packages/shared/reading-view.mjs";
+type State = Awaited<ReturnType<NonNullable<Window["desktop"]>["cloud"]>>;
+export default function AccountConnection({
+  canSwitch,
+  onClose,
+  onSyncSettled,
+  notify,
+  mode = "settings",
+  conflictPacket,
+}: {
+  conflictPacket?: string;
+  mode?: "settings" | "tasks";
+  canSwitch: () => boolean;
+  onClose: () => void;
+  onSyncSettled?: () => Promise<boolean>;
+  notify: (message: string) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [showMore, setShowMore] = useState(false);
+  const [section, setSection] = useState(conflictPacket ? "sync" : "account");
+  const [taskOriginals, setTaskOriginals] = useState(false);
+  const [fileNames, setFileNames] = useState<Record<string, string>>({});
+  const [invite, setInvite] = useState(""),
+    [username, setUsername] = useState(""),
+    [password, setPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [currentPassword, setCurrentPassword] = useState(""),
+    [showAccountForm, setShowAccountForm] = useState(false),
+    [authMode, setAuthMode] = useState<"login" | "register">("login"),
+    [lastAction, setLastAction] = useState(""),
+    [actionReceipt, setActionReceipt] = useState(""),
+    [deviceName, setDeviceName] = useState("这台 Windows"),
+    [state, setState] = useState<State | null>(null),
+    [discovering, setDiscovering] = useState(true),
+    [connectionFailed, setConnectionFailed] = useState(false),
+    [busy, setBusy] = useState(false),
+    [online, setOnline] = useState(navigator.onLine),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void allPackets()
+      .then((rows) => {
+        if (active)
+          setFileNames(
+            Object.fromEntries(
+              rows.flatMap((p) =>
+                p.attachments.map((a) => [
+                  p.id + "/" + a.id,
+                  readableFileName(a, p),
+                ]),
+              ),
+            ),
+          );
+      })
+      .catch(() => {
+        if (active) setFileNames({});
+      });
+    return () => {
+      active = false;
+    };
+  }, [state?.base, state?.originalStorage]);
+  useEffect(() => {
+    const connected = () => setOnline(true),
+      disconnected = () => setOnline(false);
+    window.addEventListener("online", connected);
+    window.addEventListener("offline", disconnected);
+    return () => {
+      window.removeEventListener("online", connected);
+      window.removeEventListener("offline", disconnected);
+    };
+  }, []);
+  useEffect(() => {
+    ref.current?.showModal();
+    void discoverConnection();
+    return () => ref.current?.close();
+  }, []);
+  async function discoverConnection() {
+    setDiscovering(true);
+    setConnectionFailed(false);
+    setError("");
+    try {
+      const value = await window.desktop!.cloud("capabilities");
+      setState(value);
+      if (
+        value.base &&
+        value.materialUseNotice &&
+        !value.materialConsentAccepted
+      )
+        setSection("consent");
+      setUsername(value.account?.authentication?.username || "");
+    } catch (e) {
+      setConnectionFailed(true);
+      setError(errorMessage(e));
+      try {
+        setState(await window.desktop!.cloud("status"));
+      } catch {
+        /* Local controls remain available. */
+      }
+    } finally {
+      setDiscovering(false);
+    }
+  }
+  async function action(name: string, value?: unknown, reload = false) {
+    setBusy(true);
+    setLastAction(name);
+    setError("");
+    setActionReceipt("");
+    try {
+      if (
+        !online &&
+        [
+          "moreOriginals",
+          "downloadOriginal",
+          "renewOriginal",
+          "deleteOriginal",
+        ].includes(name)
+      )
+        throw Error("离线时不能操作云端原件；联网后刷新再操作");
+      if (reload) {
+        if (!canSwitch()) throw Error("请等待当前投递或对话完成");
+        await window.flushDesktopDraft?.();
+        await window.flushBoardDraft?.();
+      }
+      const next = await window.desktop!.cloud(name, value);
+      setState(next);
+      if (
+        ["register", "login", "claim", "password", "local", "resume"].includes(
+          name,
+        )
+      ) {
+        setInvite("");
+        setPassword("");
+        setNewPassword("");
+        setCurrentPassword("");
+      }
+      if (reload) location.reload();
+      setActionReceipt(
+        (
+          {
+            downloadOriginal: next.originalDownload
+              ? next.originalDownload.saved
+                ? `原件已校验并保存至：${next.originalDownload.path}`
+                : "已取消另存；原件仍保留在本机材料缓存中。"
+              : "原件已校验并保存到本机，可从材料面板打开或另存。",
+            renewOriginal: "已延长30天，下方到期时间已更新。",
+            deleteOriginal: "云端原件已删除，本机副本保留。",
+            materialConsent: "资料用途确认已保存。",
+          } as Record<string, string>
+        )[name] || "",
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+      try {
+        setState(await window.desktop!.cloud("status"));
+      } catch {
+        /* Keep the original action error and local state. */
+      }
+    } finally {
+      if (name === "sync") await onSyncSettled?.().catch(() => {});
+      setBusy(false);
+    }
+  }
+  const authError = ["login", "register", "claim"].includes(lastAction)
+    ? error
+    : "";
+  const authHint = !online
+    ? "当前离线；联网后再登录或注册，本机资料仍可使用。"
+    : !username.trim()
+      ? "请输入账号名称。"
+      : !password
+        ? `请输入${authMode === "register" ? "注册" : "登录"}密码。`
+        : authMode === "register" && password.length < 8
+          ? "注册密码至少8位。"
+          : authMode === "register" && !invite.trim()
+            ? "首次注册需要邀请码；已有账号请切换到账号登录。"
+            : "";
+  const today = new Date().toISOString().slice(0, 10);
+  const used =
+    state?.account?.ai.usage.find((u) => u.day === today)?.requests || 0;
+  return (
+    <dialog
+      ref={ref}
+      aria-label={mode === "tasks" ? "整理任务" : "账号与设置"}
+      className="bucket-dialog"
+      onCancel={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          const r = e.currentTarget.getBoundingClientRect();
+          if (
+            e.clientX < r.left ||
+            e.clientX > r.right ||
+            e.clientY < r.top ||
+            e.clientY > r.bottom
+          )
+            onClose();
+        }
+      }}
+    >
+      <header>
+        <div>
+          <span className="dialog-kicker">拾序朋友内测</span>
+          <h2>
+            {mode === "tasks"
+              ? "整理任务"
+              : state?.activation === "active"
+                ? "账号与设置"
+                : "登录拾序"}
+          </h2>
+        </div>
+        <button
+          aria-label={mode === "tasks" ? "关闭整理任务" : "关闭设置"}
+          onClick={onClose}
+        >
+          <X size={20} />
+        </button>
+      </header>
+      {mode === "settings" && (
+        <nav className="settings-tabs" aria-label="设置分区">
+          {[
+            ["account", "账号"],
+            ["consent", "用途与期限"],
+            ["devices", "设备与密码"],
+            ["sync", "同步"],
+            ["originals", "云端原件"],
+            ["ai", "AI与用量"],
+            ["backup", "本机备份"],
+            ...(window.desktop?.update ? [["update", "软件更新"]] : []),
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              aria-pressed={section === id}
+              onClick={() => setSection(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
+      {mode === "settings" && section === "update" && <SoftwareUpdate />}
+      {mode === "tasks" && (
+        <div className="result-controls">
+          <button
+            disabled={busy}
+            onClick={() => void action("sync", { force: true })}
+          >
+            刷新任务
+          </button>
+          <button onClick={() => setTaskOriginals(!taskOriginals)}>
+            {taskOriginals ? "返回整理任务" : "管理云端原件"}
+          </button>
+        </div>
+      )}
+      <section
+        className="connection-data"
+        hidden={mode !== "settings" || section !== "account"}
+      >
+        <h3>
+          {state?.activation === "active"
+            ? `已登录 · ${state.account?.authentication?.username || "当前账号"}`
+            : "账号登录与注册"}
+        </h3>
+        <p className="account-purpose">
+          连接后资料同步至服务器；选择 AI 整理或事项对话时，相关材料会发送至
+          DeepSeek。
+        </p>
+        <p>
+          {state?.activation === "invalid"
+            ? state?.capabilities?.features.registration
+              ? "设备授权失效，本地缓存保留；请使用账号密码重新登录。"
+              : "设备授权失效，本地缓存保留；请联系管理员恢复。"
+            : state?.base
+              ? `当前账号：${state.account?.authentication?.username || "已激活账号"}。此设备凭证已保存，日常使用无需重复登录。`
+              : "当前使用本机资料；无需激活也能记录、查看和手动管理事项。"}
+        </p>
+        {connectionFailed ? (
+          <div className="account-feedback" role="alert">
+            <p>
+              暂时无法连接账号服务；本机资料仍可使用。请检查网络，恢复连接后重试。
+            </p>
+            <p>{error}</p>
+            <button
+              disabled={discovering || busy}
+              onClick={() => void discoverConnection()}
+            >
+              重试连接方式
+            </button>
+          </div>
+        ) : discovering ? (
+          <p role="status">正在读取账号连接方式…</p>
+        ) : state?.capabilities?.features.registration ? (
+          state.activation === "active" && !showAccountForm ? (
+            <button disabled={busy} onClick={() => setShowAccountForm(true)}>
+              切换账号
+            </button>
+          ) : (
+            <div className="account-access">
+              {state.activation === "active" && (
+                <button
+                  disabled={busy}
+                  onClick={() => setShowAccountForm(false)}
+                >
+                  保留当前账号
+                </button>
+              )}
+              <div className="account-modes" aria-label="账号操作">
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={authMode === "login"}
+                  onClick={() => {
+                    setAuthMode("login");
+                    setError("");
+                  }}
+                >
+                  已有账号登录
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={authMode === "register"}
+                  onClick={() => {
+                    setAuthMode("register");
+                    setError("");
+                  }}
+                >
+                  首次注册
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (busy || authHint) return;
+                  void action(
+                    authMode,
+                    {
+                      username: username.trim(),
+                      password,
+                      deviceName,
+                      ...(authMode === "register"
+                        ? { invite: invite.trim() }
+                        : {}),
+                    },
+                    true,
+                  );
+                }}
+              >
+                <label>
+                  账号名称
+                  <input
+                    aria-label="账号名称"
+                    value={username}
+                    disabled={busy}
+                    onChange={(e) => setUsername(e.target.value)}
+                    maxLength={20}
+                    autoComplete="username"
+                  />
+                </label>
+                <label>
+                  {authMode === "register" ? "注册密码" : "登录密码"}
+                  <input
+                    aria-label={
+                      authMode === "register" ? "注册密码" : "登录密码"
+                    }
+                    type="password"
+                    value={password}
+                    disabled={busy}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={
+                      authMode === "register"
+                        ? "new-password"
+                        : "current-password"
+                    }
+                  />
+                </label>
+                {authMode === "register" && (
+                  <label>
+                    注册邀请码
+                    <input
+                      aria-label="注册邀请码"
+                      type="password"
+                      value={invite}
+                      disabled={busy}
+                      onChange={(e) => setInvite(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </label>
+                )}
+                <details>
+                  <summary>本机设备名称（可选）</summary>
+                  <label>
+                    设备名称
+                    <input
+                      aria-label="设备名称"
+                      value={deviceName}
+                      disabled={busy}
+                      onChange={(e) => setDeviceName(e.target.value)}
+                      maxLength={80}
+                    />
+                  </label>
+                </details>
+                <p
+                  id="account-action-hint"
+                  className="account-feedback"
+                  aria-live="polite"
+                >
+                  {busy && ["login", "register"].includes(lastAction)
+                    ? authMode === "register"
+                      ? "正在注册并连接云空间…"
+                      : "正在登录并连接云空间…"
+                    : authHint ||
+                      (authMode === "login"
+                        ? "已有账号只需账号和密码，不需要邀请码。"
+                        : "同一账号最多3台Windows和1个微信身份。")}
+                </p>
+                {authError && (
+                  <p className="account-feedback" role="alert">
+                    {authError}；输入与本机资料保留，请核对后重试。
+                  </p>
+                )}
+                <button
+                  className="bucket-primary"
+                  type="submit"
+                  disabled={busy || !!authHint}
+                  aria-describedby="account-action-hint"
+                >
+                  {authMode === "register" ? "注册新账号" : "账号登录"}
+                </button>
+              </form>
+              {state.account?.authentication?.claimed === false && (
+                <button
+                  disabled={busy || !username || password.length < 8}
+                  onClick={() => void action("claim", { username, password })}
+                >
+                  为旧账号补设账号密码
+                </button>
+              )}
+              {state.loginDevices?.map((device) => (
+                <div key={device.id}>
+                  <p>
+                    {device.name} · {device.kind} · 槽位 {device.slot} ·
+                    最近活跃 {new Date(device.lastSeen).toLocaleString()}
+                  </p>
+                  <button
+                    disabled={busy || !password}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "替换后这台旧设备将立即失去云端访问权限，本地副本保留。继续？",
+                        )
+                      )
+                        void action(
+                          "login",
+                          {
+                            username,
+                            password,
+                            deviceName,
+                            replaceBindingId: device.id,
+                          },
+                          true,
+                        );
+                    }}
+                  >
+                    替换这台设备并登录
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : !state ? (
+          <p role="status">正在读取账号连接方式…</p>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void action("activate", { invite }, true);
+            }}
+          >
+            <label>
+              邀请码
+              <input
+                aria-label="邀请码"
+                type="password"
+                autoComplete="off"
+                value={invite}
+                onChange={(e) => setInvite(e.target.value)}
+                required
+                maxLength={100}
+              />
+            </label>
+            <button
+              className="bucket-primary"
+              disabled={busy || !invite.trim()}
+            >
+              激活此设备
+            </button>
+          </form>
+        )}
+        {!state?.base &&
+          (showMore || !state?.capabilities?.features.registration) && (
+            <button
+              disabled={busy}
+              onClick={() => void action("resume", undefined, true)}
+            >
+              返回已激活账号
+            </button>
+          )}
+        {!!state &&
+          !connectionFailed &&
+          !discovering &&
+          !state.capabilities?.features.registration && (
+            <p>
+              一个邀请码绑定一台 Windows
+              安装和一个微信身份。换机或重装后丢失凭证，请联系管理员重置。
+            </p>
+          )}
+      </section>
+      {false && (showAccountForm || !state?.base) && !connectionFailed && (
+        <button
+          className="account-more-settings"
+          onClick={() => setShowMore(!showMore)}
+        >
+          {showMore ? "收起更多设置" : "更多设置与本机资料"}
+        </button>
+      )}
+      <div>
+        {!!state?.materialUseNotice && (
+          <section
+            className="connection-data"
+            hidden={mode !== "settings" || section !== "consent"}
+          >
+            <h3>资料用途与保存期限</h3>
+            <p>{state.materialUseNotice.text}</p>
+            <label className="consent-check">
+              <input
+                type="checkbox"
+                checked={!!state.materialPurposeAccepted}
+                disabled={busy}
+                onChange={(e) =>
+                  void action("materialConsent", {
+                    kind: "purpose",
+                    accepted: e.target.checked,
+                  })
+                }
+              />
+              我同意在主动使用AI时，将相关材料用于读取、整理与事项对话
+            </label>
+            <label className="consent-check">
+              <input
+                type="checkbox"
+                checked={!!state.materialRetentionAccepted}
+                disabled={busy}
+                onChange={(e) =>
+                  void action("materialConsent", {
+                    kind: "retention",
+                    accepted: e.target.checked,
+                  })
+                }
+              />
+              我已了解原件保存30天、到期前7天提醒及到期后7天清理规则；原件到期不删除卡片
+            </label>
+            <p className="quiet">
+              确认后才能发送资料进行AI整理或对话；查看和手动管理本机资料不受影响。
+            </p>
+            {lastAction === "materialConsent" && (
+              <p role="status">
+                {busy ? "正在保存确认…" : error || actionReceipt}
+              </p>
+            )}
+          </section>
+        )}
+        {!!state?.account?.authentication?.claimed && (
+          <section
+            className="connection-data"
+            hidden={mode !== "settings" || section !== "devices"}
+          >
+            <h3>设备与密码</h3>
+            {state.account?.authentication?.passwordChangeRequired && (
+              <p role="alert">
+                请先将管理员签发的临时密码改为自己的新密码，再同步和使用
+                AI。临时密码只能建立一次登录；当前设备凭据已保存。
+              </p>
+            )}
+            {state.devices?.map((device) => (
+              <div key={device.id}>
+                <p>
+                  {device.name} · {device.kind} · 槽位 {device.slot} · 最近活跃{" "}
+                  {new Date(device.lastSeen).toLocaleString()}
+                </p>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "撤销后该设备不能继续访问云端，本地副本保留。继续？",
+                      )
+                    )
+                      void action("revokeDevice", { id: device.id });
+                  }}
+                >
+                  撤销设备
+                </button>
+              </div>
+            ))}
+            <label>
+              当前密码
+              <input
+                aria-label="当前密码"
+                type="password"
+                value={currentPassword}
+                disabled={busy}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </label>
+            <label>
+              新密码
+              <input
+                aria-label="新密码"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+            <p>
+              {busy && lastAction === "password"
+                ? "正在修改密码…"
+                : !currentPassword
+                  ? "请输入当前密码；临时登录时填写管理员签发的临时密码。"
+                  : newPassword.length < 8
+                    ? "新密码至少8位。"
+                    : "修改后全部设备需重新登录；本机资料保留。"}
+            </p>
+            {lastAction === "password" && error && (
+              <p className="account-feedback" role="alert">
+                {error}
+              </p>
+            )}
+            <button
+              disabled={busy || !currentPassword || newPassword.length < 8}
+              onClick={() =>
+                void action("password", {
+                  oldPassword: currentPassword,
+                  newPassword,
+                  revokeAll: true,
+                })
+              }
+            >
+              修改密码并撤销全部设备
+            </button>
+          </section>
+        )}
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "sync"}
+        >
+          <h3>同步</h3>
+          <p>
+            {state?.base
+              ? `${state.pending} 个操作待同步 · ${state.conflicts.length} 个冲突或失败待处理${state.error ? " · 暂时未连接，队列保留" : " · 云空间已打开"}`
+              : "本机空间，不自动上传"}
+          </p>
+          {state?.base && (
+            <>
+              <button
+                disabled={busy}
+                onClick={() => void action("sync", { force: true })}
+              >
+                立即同步
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => void action("local", undefined, true)}
+              >
+                切回本机资料
+              </button>
+            </>
+          )}
+          <p>
+            激活会打开独立账号空间；原本机投递和草稿保留。同步会将云空间的原文、事项和原件上传到我们的服务器。
+          </p>
+          {conflictPacket && !state?.conflicts.some(c => c.id === conflictPacket) && <p role="status">这张卡当前没有待处理冲突，可关闭后继续操作。</p>}
+          {state?.conflicts.filter(c => !conflictPacket || c.id === conflictPacket).map((c) => (
+            <div key={c.id}>
+              <p>
+                {[
+                  "REVISION_CONFLICT",
+                  "DELETED",
+                  "PURGED",
+                  "NOT_DELETED",
+                ].includes(c.code || "")
+                  ? "同步冲突"
+                  : "材料未能同步，后续独立投递仍可继续"}
+                ：{c.text.slice(0, 80)}
+              </p>
+              <p>云端版本与本机待传修改不同，系统已保留两边，未自动覆盖。另存副本会保留本机原文和附件引用，云端原卡不变；采用云端会放弃本次待传修改，已有云端内容保留；恢复草稿适合修改后重新投递，不会自动再次调用AI。</p>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void action("recoverFailedDraft", { id: c.id }, true)
+                }
+              >
+                恢复为草稿后修改
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => void action("resolve", { id: c.id, keep: true })}
+              >
+                另存本机副本
+              </button>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void action("resolve", { id: c.id, keep: false })
+                }
+              >
+                放弃本次待传修改，采用云端版本
+              </button>
+            </div>
+          ))}
+        </section>
+        {state?.originalStorage && (
+          <section
+            className="connection-data"
+            hidden={mode === "tasks" ? !taskOriginals : section !== "originals"}
+          >
+            <h3>云端原件</h3>
+            {["downloadOriginal", "renewOriginal", "deleteOriginal"].includes(
+              lastAction,
+            ) && (
+              <p role={error ? "alert" : "status"}>
+                {busy ? "正在处理原件，请稍候…" : error || actionReceipt}
+              </p>
+            )}
+            {!online && (
+              <p role="status">离线，云端原件操作已暂停；本机副本仍可使用。</p>
+            )}
+            {state.originalStorage.hasMore && (
+              <button
+                disabled={busy || !online}
+                onClick={() => void action("moreOriginals")}
+              >
+                更多原件
+              </button>
+            )}
+            {state.localSaveNotice && (
+              <p role="alert">{state.localSaveNotice}</p>
+            )}
+            <p>
+              逻辑空间 {(state.originalStorage.usedBytes / 1048576).toFixed(2)}{" "}
+              / {(state.originalStorage.limitBytes / 1048576).toFixed(0)} MiB ·
+              上传预留{" "}
+              {(state.originalStorage.reservedBytes / 1048576).toFixed(2)} MiB
+            </p>
+            <p>
+              {state.originalNotice ||
+                "保存30天，提前7天提醒，到期后7天待清理；本机副本独立保留。"}
+            </p>
+            {state.originalStorage.originals.map((f) => (
+              <div key={f.packetId + ":" + f.id}>
+                <p>
+                  <span title={f.name}>
+                    {fileNames[f.packetId + "/" + f.id] || f.name}
+                  </span>{" "}
+                  ·{" "}
+                  {f.packetDeleted &&
+                    "所属投递已删除，请先在最近删除中恢复投递 · "}
+                  {!f.packetDeleted &&
+                    f.attachmentDeleted &&
+                    "附件已移入最近删除，请从材料面板恢复附件后下载 · "}
+                  {!f.packetDeleted &&
+                    f.unlinked &&
+                    "此原件已无对应附件引用，无法下载，可删除云端副本释放空间 · "}
+                  {["deleted", "cleaned"].includes(f.state)
+                    ? "云端已清除"
+                    : f.mode === "temporary"
+                      ? "临时整理，退出后需重传"
+                      : f.state === "legacy_pending_notice"
+                        ? "旧原件待确认期限"
+                        : f.state === "pending_cleanup"
+                          ? "已到期，待清理"
+                          : "云端已保存"}
+                  {f.remind ? " · 请续期或下载保留" : ""}
+                  {f.expiresAt && f.mode === "retained"
+                    ? ` · 到期 ${new Date(f.expiresAt).toLocaleDateString()}`
+                    : ""}
+                </p>
+                {!["deleted", "cleaned"].includes(f.state) && (
+                  <>
+                    {f.available && (
+                      <button
+                        disabled={busy || !online}
+                        onClick={() => void action("downloadOriginal", f)}
+                      >
+                        下载到本机
+                      </button>
+                    )}
+                    {f.mode === "retained" &&
+                      !f.packetDeleted &&
+                      !f.attachmentDeleted &&
+                      !f.unlinked && (
+                        <button
+                          disabled={busy || !online}
+                          onClick={() => void action("renewOriginal", f)}
+                        >
+                          续期30天
+                        </button>
+                      )}
+                    <button
+                      disabled={busy || !online}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "删除云端原件将停止对应任务，本机副本保留。继续？",
+                          )
+                        )
+                          void action("deleteOriginal", {
+                            ...f,
+                            stopTask: true,
+                          });
+                      }}
+                    >
+                      删除云端原件
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "ai"}
+        >
+          <h3>服务端 AI</h3>
+          {state?.account?.aiAvailability && (
+            <p role="status">
+              {state.account.aiAvailability.available
+                ? "当前可以使用AI"
+                : (
+                    {
+                      ADMIN_PAUSED:
+                        "管理员已暂停AI，已有资料和费用保留；恢复后请主动继续任务。",
+                      MAINTENANCE: "服务维护中，查看和手动管理资料仍可使用。",
+                      AI_DISABLED: "AI服务当前关闭。",
+                      PERSONAL_BUDGET: "个人可用额度不足。",
+                      SERVICE_UNAVAILABLE: "暂时无法核对服务状态。",
+                    } as Record<string, string>
+                  )[state.account.aiAvailability.reason] ||
+                  "AI暂不可用，请核对权限和费用状态。"}
+            </p>
+          )}
+          <p>
+            {state?.account?.reading
+              ? walletView(state.account.wallet)
+              : !state?.base
+                ? "未激活"
+                : !state.account
+                  ? "状态尚未刷新"
+                  : !state.account.ai.enabled
+                    ? "服务端暂未启用"
+                    : used >= state.account.ai.dailyLimit
+                      ? "今日额度已用完；记录和同步仍可用"
+                      : `今日 ${used} / ${state.account.ai.dailyLimit} 次（UTC 零点重置）`}
+          </p>
+          <p>
+            密钥和模型由服务端管理；使用 AI
+            时，相关文字和图像区域会发送给模型服务商。请核对整理结果中的来源与未读范围。
+          </p>
+          <details>
+            <summary>支持的文件格式与读取边界</summary>
+            <p>
+              密钥和模型由服务端管理。使用 AI
+              时，相关文字及安全读取的图像区域会发送给模型服务商。
+              服务端启用新版读取后支持 TXT、CSV、DOCX、XLSX、PDF 文字层与
+              ZIP、明确编码的RAR4/RAR5、7z（含已实现的solid共享块）
+              内支持的材料，保留包内路径。启用 Office 图像能力后，DOCX/XLSX
+              中实际引用的图片原图按区域读取，保留段落或工作表/单元格锚点；裁剪、变换、形状、图表、嵌入对象和页面布局仍列为未读。图像事项另经依据核对并共用累计费用，XLSX
+              公式仅用已有缓存值，不重新计算。启用图像能力时支持JPEG/JPG（含EXIF方向校正）和静态PNG（8/16位、1/2/4位灰度或调色板及Adam7交错；16位规范化为8位模型图像），按区域送模型并保留坐标；识别文字与日期需对照原图核对。GIF支持按帧合成后逐区域读取并显示帧序与时间，循环只展开一遍，纯文本/交互扩展及非方形像素尚未支持。WebP支持无损/有损及逐帧动画（严格编码终态，ICC/EXIF等元数据尚未支持）。服务端另行启用页面视觉能力后，PDF含扫描页按页和区域读取并保留页码、108dpi坐标与接续进度；支持的批注/表单保存值与外观也保留来源；缺少必要字体/资源、渲染告警及未支持外观仍明确未读，不把文字层当作视觉已读。其他图片及嵌套归档尚未读取。
+              加密、多卷、RAR4编码不明的名称及部分旧特性暂不支持。资料经过服务器和服务商，统一密钥不代表没有隐私风险。
+            </p>
+          </details>
+        </section>
+        {mode === "tasks" && !state?.account?.reading && (
+          <p role="status">
+            当前没有云端整理任务；连接账号后可在这里查看和主动继续。原有投递仍可从世界的整理记录查看。
+          </p>
+        )}
+        {!!state?.account?.reading && (
+          <section
+            className="connection-data"
+            hidden={mode !== "tasks" || taskOriginals}
+          >
+            <h3>整理任务</h3>
+            <p>
+              停止保留有效付费块；继续需原件一致。清除任务不会退回已消费额度。
+            </p>
+            {state.jobs?.map((task) => (
+              <div key={task.id}>
+                <p>
+                  {task.disposition
+                    ? task.disposition === "kept"
+                      ? "已保留为普通卡"
+                      : "已选择删除（恢复后按普通卡管理）"
+                    : (
+                        {
+                          queued: "排队中",
+                          running: "处理中",
+                          applying: "发布中",
+                          paused: "已暂停",
+                          cancelled: "已停止",
+                          interrupted: "已中断",
+                          done: "已发布",
+                          partial: "已收下部分",
+                          purged: "已清除",
+                        } as Record<string, string>
+                      )[task.state] || "需核对"}{" "}
+                  · 本任务已调用 {task.calls || 0} 次
+                  {reuseView(task.reusedBlocks) &&
+                    ` · ${reuseView(task.reusedBlocks)}`}
+                  {mergeProgressView(
+                    task.phase,
+                    task.completedMergeBatches,
+                    task.completedVisualBatches,
+                    task.completedAssociationBatches,
+                  ) &&
+                    ` · ${mergeProgressView(task.phase, task.completedMergeBatches, task.completedVisualBatches, task.completedAssociationBatches)}`}
+                  {pdfProgressView(task.readingSummary) &&
+                    ` · ${pdfProgressView(task.readingSummary)}`}
+                  {imageProgressView(task.readingSummary) &&
+                    ` · ${imageProgressView(task.readingSummary)}`}
+                  {typeof task.rootCalls === "number" && (
+                    <>
+                      {" "}
+                      · 该投递累计 {task.rootCalls} 次 · 活跃{" "}
+                      {task.rootActiveSeconds || 0} 秒
+                    </>
+                  )}
+                  {task.error}
+                </p>
+                {task.diagnostic && (
+                  <details>
+                    <summary>处理报告 · {task.diagnostic.id}</summary>
+                    <p>
+                      {new Date(task.diagnostic.at).toLocaleString("zh-CN", {
+                        timeZone: "Asia/Shanghai",
+                      })}
+                      （北京时间） · 版本 {task.diagnostic.version}
+                    </p>
+                    <p>
+                      阶段 {task.diagnostic.phase} · 错误 {task.diagnostic.code}
+                      。资料和累计费用保留，可将报告编号提供给管理员。
+                    </p>
+                  </details>
+                )}
+                {task.hasPreview && (
+                  <button
+                    disabled={busy}
+                    onClick={() => void action("taskPreview", { id: task.id })}
+                  >
+                    查看已完成内容
+                  </button>
+                )}
+                {task.actions
+                  ?.filter((a) => a !== "purge")
+                  .map((a) => (
+                    <button
+                      key={a}
+                      disabled={busy}
+                      onClick={() =>
+                        void action("taskAction", { id: task.id, action: a })
+                      }
+                    >
+                      {a === "stop"
+                        ? "停止"
+                        : a === "accept-partial"
+                          ? "收下有效部分"
+                          : a === "remaining"
+                            ? "完成剩余材料"
+                            : "继续"}
+                    </button>
+                  ))}
+                {task.actions?.includes("purge") && (
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "清除任务将丢弃可复用块，已发布事项和已消费额度保留。继续？",
+                        )
+                      )
+                        void action("taskAction", {
+                          id: task.id,
+                          action: "purge",
+                        });
+                    }}
+                  >
+                    清除任务
+                  </button>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
+        {state?.taskPreview && (
+          <section
+            className="connection-data"
+            hidden={mode !== "tasks" || taskOriginals}
+          >
+            <h3>已完成内容（只读）</h3>
+            <p>
+              {state.taskPreview.published
+                ? "对应任务的原始整理结果；卡片中的人工修改另行保留。"
+                : "尚未保存到世界或 DDL；可在核对后收下有效部分。"}
+            </p>
+            {state.taskPreview.items.map((item) => (
+              <div key={item.previewKey}>
+                <strong>{item.title}</strong>
+                <p>{item.summary}</p>
+                {item.due && (
+                  <p>
+                    截止：{item.due.date} {item.due.time}
+                  </p>
+                )}
+                <details>
+                  <summary>依据与细节</summary>
+                  {item.facts?.map((text, i) => (
+                    <p key={`f${i}`}>{text}</p>
+                  ))}
+                  {item.nextSteps?.map((text, i) => (
+                    <p key={`s${i}`}>下一步：{text}</p>
+                  ))}
+                  {item.uncertainties?.map((text, i) => (
+                    <p key={`u${i}`}>待核对：{text}</p>
+                  ))}
+                  {item.evidence?.map((evidence, i) => (
+                    <p key={`e${i}`}>
+                      {evidence.name}：{evidence.quote || "已保留来源定位"}
+                    </p>
+                  ))}
+                </details>
+              </div>
+            ))}
+            {!state.taskPreview.items.length && (
+              <p>暂无已通过依据核对的可预览内容。</p>
+            )}
+            {state.taskPreview.nextOffset !== null && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void action("taskPreview", {
+                    id: state.taskPreview!.taskId,
+                    offset: state.taskPreview!.nextOffset,
+                  })
+                }
+              >
+                下一页预览
+              </button>
+            )}
+          </section>
+        )}
+        <section
+          className="connection-data"
+          hidden={mode !== "settings" || section !== "backup"}
+        >
+          <h3>本机备份</h3>
+          <button
+            disabled={busy || !!state?.base}
+            onClick={async () => {
+              try {
+                await window.flushDesktopDraft?.();
+                await window.flushBoardDraft?.();
+                notify(await window.desktop!.backup("export"));
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            备份全部资料（含草稿、最近删除与原件）
+          </button>
+          <button
+            disabled={busy || !!state?.base}
+            onClick={async () => {
+              try {
+                const result = await window.desktop!.backup("import");
+                notify(result);
+                if (result.startsWith("恢复完成")) location.reload();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            从备份恢复
+          </button>
+          <p>
+            切回本机空间后可备份或恢复本机资料；账号服务器由管理员独立备份。
+          </p>
+        </section>
+        {!connectionFailed &&
+          !authError &&
+          !(lastAction === "password" && error) &&
+          (error || state?.error) && (
+            <p role="alert">
+              {error || state?.error}；本地资料与待同步操作保留。
+            </p>
+          )}
+      </div>
+    </dialog>
+  );
+}

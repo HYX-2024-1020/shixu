@@ -52,7 +52,7 @@ try {
     throw Error("未填写密钥，未提交配置");
   const project = JSON.parse(
     await readFile(
-      new URL("../../miniprogram/project.config.json", import.meta.url),
+      new URL("../../apps/miniprogram/project.config.json", import.meta.url),
       "utf8",
     ),
   );

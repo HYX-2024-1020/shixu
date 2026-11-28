@@ -17,7 +17,7 @@ if (!directory)
 const temporary = mkdtempSync(join(tmpdir(), "shixu-wxml-check-")),
   mini = process.env.WECHAT_PROJECT_DIR
     ? resolve(process.env.WECHAT_PROJECT_DIR)
-    : join(root, "miniprogram");
+    : join(root, "apps/miniprogram");
 const exe = process.platform === "win32" ? ".exe" : "";
 hiddenExec(
   join(directory, "wcc" + exe),

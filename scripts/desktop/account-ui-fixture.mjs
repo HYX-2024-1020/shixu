@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMultiUserService } from "../../server/sync-multi-user.mjs";
+import { createMultiUserService } from "../../apps/server/sync-multi-user.mjs";
 import { waitForPageState } from "./desktop-test-wait.mjs";
 export function fixtureItem(title = "合成事项", summary = title) {
   return {

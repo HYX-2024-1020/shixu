@@ -9,7 +9,7 @@
 - RAR5新增全原始头预检：逐头CRC、受限vint/边界、唯一首主头/显式末结束、原生列表成员数和物理压缩总量相符；隐藏service、加密、文件版本/重定向extra、未知头、未知展开长度及分卷在读取前拒绝，不把可见列表当成全包。RAR4继续全头预检。校验失败不部分增加展开预算。
 - 共享摘要沿现有archiveCompression/窗口/双端来源展示与复用契约，reader archive版本13。原生stdout仍逐次检查实际字节数、CRC、退出码；读取末件时解码器必须处理前置依赖。包内展开仅预检一次，Office内层预算继续共享。
 
-依据：[RAR5官方格式](https://www.rarlab.com/technote.htm)及[固定7-Zip源](https://github.com/ip7z/7zip/releases/tag/26.05)中的RarHandler/Rar5Handler属性和解码行为。样本[来源与完整许可](../../../THIRD_PARTY_NOTICES.md)保留；uu SHA-256：RAR4 `afce8cdb5fd80f8c74225f9141976a86ecf7bc7421e8c9d186eae698a21c3f02`，RAR5 `804caecaf59adf3ea7f2cd8b3f2bdfb92e5658598b730cc1cfc9b5d38ce3ff44`。均是原压缩流，不是修改非solid标志冒充。
+依据：[RAR5官方格式](https://www.rarlab.com/technote.htm)及[固定7-Zip源](https://github.com/ip7z/7zip/releases/tag/26.05)中的RarHandler/Rar5Handler属性和解码行为。样本[来源与完整许可](../../THIRD_PARTY_NOTICES.md)保留；uu SHA-256：RAR4 `afce8cdb5fd80f8c74225f9141976a86ecf7bc7421e8c9d186eae698a21c3f02`，RAR5 `804caecaf59adf3ea7f2cd8b3f2bdfb92e5658598b730cc1cfc9b5d38ce3ff44`。均是原压缩流，不是修改非solid标志冒充。
 
 ## 已执行
 

@@ -3,41 +3,41 @@ import { mkdir, readFile, writeFile, chmod } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
-import { PDF_RESOURCE_CATALOG } from "../../server/reading/pdf-resource-catalog.mjs";
-import { LEDGER_CORE_SCHEMA } from "../../server/database-schemas.mjs";
+import { PDF_RESOURCE_CATALOG } from "../../apps/server/reading/pdf-resource-catalog.mjs";
+import { LEDGER_CORE_SCHEMA } from "../../apps/server/database-schemas.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
-  "server/admin-service.mjs",
-  "server/admin-backend.mjs",
-  "server/admin-risk.mjs",
-  "server/cloud-operations.mjs",
-  "server/cloud-backup.mjs",
-  "server/reading/price-calendar.mjs",
-  "server/reading-runtime.mjs", "server/account-safety.mjs", "server/tenant-safety.mjs", "server/reading/deepseek.mjs", "server/reading/broker-service.mjs", "server/reading/linux-broker.mjs", "server/reading/worker.mjs",
-  "shared/reading-view.mjs", "shared/bucket-engine.mjs", "shared/deadline-date.mjs", "shared/deadline-time.mjs", "shared/deadlines.mjs", "shared/usage.mjs",
-  "server/data-control.mjs", "server/data-migration.mjs", "server/data-versions.mjs", "server/database-schema.mjs", "server/database-schemas.mjs", "server/sync-server.mjs", "server/sync-store.mjs",
-  "server/sync-jobs.mjs", "server/generated/ai-core.mjs",
-  "server/sync-files.mjs",
-  "server/originals.mjs",
-  "server/sync-accounts.mjs", "server/sync-multi-user.mjs", "server/sync-admin.mjs", "server/sync-provider.mjs",
-  "server/reading/remainders.mjs", "server/reading/chat.mjs", "server/reading/association.mjs", "server/reading/routes.mjs", "server/reading/tasks.mjs", "server/reading/material.mjs", "server/reading/image.mjs", "server/reading/jpeg.mjs", "server/reading/jpeg-reader.cjs", "server/reading/jpeg-reader.LICENSE",
-  "server/reading/diagnostics.mjs",
-  "server/reading/legacy-jobs.mjs", "server/reading/legacy-ledger.mjs", "server/reading/ledger.mjs", "server/reading/scheduler.mjs", "server/reading/roots.mjs",
-  "server/accounts-v4.mjs",
-  "server/reading/office.mjs", "server/reading/office-window.mjs", "server/reading/office-images.mjs",
-  "server/reading/docx.mjs", "server/reading/ooxml-zip.mjs",
-  "server/reading/docx-reader.cjs", "server/reading/docx-reader.LICENSE",
-  "server/reading/xlsx.mjs", "server/reading/ooxml-xml.mjs",
-  "server/reading/xlsx-reader.cjs", "server/reading/xlsx-reader.LICENSE",
-  "server/reading/pdf-annotations.mjs", "server/reading/pdf-resource-catalog.mjs", "server/reading/pdf-resources.mjs", "server/reading/pdf-visual.mjs", "server/reading/pdf-canvas.mjs", "server/reading/pdf.mjs", "server/reading/pdf-api.mjs", "server/reading/pdf-core.mjs", "server/reading/pdf-reader.LICENSE",
-  "server/reading/archive.mjs", "server/reading/archive-window.mjs",
-  "server/reading/native-archive.mjs",
-  "server/reading/visual-review.mjs", "server/reading/reuse.mjs", "server/reading/merge.mjs", "server/reading/gif.mjs", "server/reading/apng.mjs", "server/reading/webp.mjs",
-  "server/reading/provider-receipts.mjs", "server/reading/platform-cost.mjs", "server/reading/schema.mjs", "server/reading/window-safety.mjs", "server/reading/window-maintenance.mjs",
-  "server/reading/windows.mjs", "server/reading/pdf-window.mjs",
-  "server/reading/root-safety.mjs",
-  "server/reading/maintenance.mjs", "server/reading/cost-maintenance.mjs", "server/reading/time-maintenance.mjs", "server/reading/checkpoint-maintenance.mjs",
+  "apps/server/admin-service.mjs",
+  "apps/server/admin-backend.mjs",
+  "apps/server/admin-risk.mjs",
+  "apps/server/cloud-operations.mjs",
+  "apps/server/cloud-backup.mjs",
+  "apps/server/reading/price-calendar.mjs",
+  "apps/server/reading-runtime.mjs", "apps/server/account-safety.mjs", "apps/server/tenant-safety.mjs", "apps/server/reading/deepseek.mjs", "apps/server/reading/broker-service.mjs", "apps/server/reading/linux-broker.mjs", "apps/server/reading/worker.mjs",
+  "packages/shared/reading-view.mjs", "packages/shared/bucket-engine.mjs", "packages/shared/deadline-date.mjs", "packages/shared/deadline-time.mjs", "packages/shared/deadlines.mjs", "packages/shared/usage.mjs",
+  "apps/server/data-control.mjs", "apps/server/data-migration.mjs", "apps/server/data-versions.mjs", "apps/server/database-schema.mjs", "apps/server/database-schemas.mjs", "apps/server/sync-server.mjs", "apps/server/sync-store.mjs",
+  "apps/server/sync-jobs.mjs", "apps/server/generated/ai-core.mjs",
+  "apps/server/sync-files.mjs",
+  "apps/server/originals.mjs",
+  "apps/server/sync-accounts.mjs", "apps/server/sync-multi-user.mjs", "apps/server/sync-admin.mjs", "apps/server/sync-provider.mjs",
+  "apps/server/reading/remainders.mjs", "apps/server/reading/chat.mjs", "apps/server/reading/association.mjs", "apps/server/reading/routes.mjs", "apps/server/reading/tasks.mjs", "apps/server/reading/material.mjs", "apps/server/reading/image.mjs", "apps/server/reading/jpeg.mjs", "apps/server/reading/jpeg-reader.cjs", "apps/server/reading/jpeg-reader.LICENSE",
+  "apps/server/reading/diagnostics.mjs",
+  "apps/server/reading/legacy-jobs.mjs", "apps/server/reading/legacy-ledger.mjs", "apps/server/reading/ledger.mjs", "apps/server/reading/scheduler.mjs", "apps/server/reading/roots.mjs",
+  "apps/server/accounts-v4.mjs",
+  "apps/server/reading/office.mjs", "apps/server/reading/office-window.mjs", "apps/server/reading/office-images.mjs",
+  "apps/server/reading/docx.mjs", "apps/server/reading/ooxml-zip.mjs",
+  "apps/server/reading/docx-reader.cjs", "apps/server/reading/docx-reader.LICENSE",
+  "apps/server/reading/xlsx.mjs", "apps/server/reading/ooxml-xml.mjs",
+  "apps/server/reading/xlsx-reader.cjs", "apps/server/reading/xlsx-reader.LICENSE",
+  "apps/server/reading/pdf-annotations.mjs", "apps/server/reading/pdf-resource-catalog.mjs", "apps/server/reading/pdf-resources.mjs", "apps/server/reading/pdf-visual.mjs", "apps/server/reading/pdf-canvas.mjs", "apps/server/reading/pdf.mjs", "apps/server/reading/pdf-api.mjs", "apps/server/reading/pdf-core.mjs", "apps/server/reading/pdf-reader.LICENSE",
+  "apps/server/reading/archive.mjs", "apps/server/reading/archive-window.mjs",
+  "apps/server/reading/native-archive.mjs",
+  "apps/server/reading/visual-review.mjs", "apps/server/reading/reuse.mjs", "apps/server/reading/merge.mjs", "apps/server/reading/gif.mjs", "apps/server/reading/apng.mjs", "apps/server/reading/webp.mjs",
+  "apps/server/reading/provider-receipts.mjs", "apps/server/reading/platform-cost.mjs", "apps/server/reading/schema.mjs", "apps/server/reading/window-safety.mjs", "apps/server/reading/window-maintenance.mjs",
+  "apps/server/reading/windows.mjs", "apps/server/reading/pdf-window.mjs",
+  "apps/server/reading/root-safety.mjs",
+  "apps/server/reading/maintenance.mjs", "apps/server/reading/cost-maintenance.mjs", "apps/server/reading/time-maintenance.mjs", "apps/server/reading/checkpoint-maintenance.mjs",
   "deploy/sync/shixu-sync.service", "deploy/sync/install.sh",
   "deploy/sync/backup.mjs", "deploy/sync/verify.mjs", "deploy/sync/README.md",
   "deploy/sync/backup-accounts.mjs", "deploy/sync/verify-accounts.mjs",
@@ -48,9 +48,9 @@ const hash = (data) => createHash("sha256").update(data).digest("hex");
 // Explicit file allowlist keeps personal profiles, .env, SSH keys and the
 // independently evolving desktop/miniprogram builds out of the server release.
 export async function buildRelease(output) {
-  const native = "server/reading/generated-native/";
+  const native = "apps/server/reading/generated-native/";
   const visual =
-    "server/reading/generated-pdf-visual/" +
+    "apps/server/reading/generated-pdf-visual/" +
     process.platform +
     "-" +
     process.arch +
@@ -102,7 +102,7 @@ export async function buildRelease(output) {
       "source/patch-reading-webp.mjs",
       "source/webp-reader.c",
       "reading-webp" + (process.platform === "win32" ? ".exe" : ""),
-    ].map((f) => "server/reading/generated-webp/" + f),
+    ].map((f) => "apps/server/reading/generated-webp/" + f),
   ];
   const content = await Promise.all(
     releaseFiles.map(async (file) => [file, await readFile(join(root, file))]),
@@ -125,7 +125,7 @@ export async function buildRelease(output) {
   for (const [file, data] of content) {
     await mkdir(dirname(join(destination, file)), { recursive: true });
     await writeFile(join(destination, file), data, { flag: "wx" });
-    if (file === native+"reading-7zz" || file === "server/reading/generated-webp/reading-webp") await chmod(join(destination,file),0o755);
+    if (file === native+"reading-7zz" || file === "apps/server/reading/generated-webp/reading-webp") await chmod(join(destination,file),0o755);
   }
   const manifest =
     JSON.stringify(
@@ -143,8 +143,8 @@ export async function buildRelease(output) {
         protocolVersion: 2,
         schemaVersion: 1,
         supportedProtocols: [2, 3, 4],
-        accountEntry: "server/sync-multi-user.mjs",
-        readingEntry: "server/reading-runtime.mjs",
+        accountEntry: "apps/server/sync-multi-user.mjs",
+        readingEntry: "apps/server/reading-runtime.mjs",
         readingOptIn: true,
         stage: "private-text-sync",
         files: releaseFiles,

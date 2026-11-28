@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT.parent / "outputs" / "bcd-pdf-canvas-license-cache"
-OUTPUT = ROOT / "server/reading/pdf-canvas-sources"
+OUTPUT = ROOT / "apps/server/reading/pdf-canvas-sources"
 CACHE.mkdir(parents=True, exist_ok=True)
 OUTPUT.mkdir(parents=True, exist_ok=True)
 if CACHE.is_symlink() or OUTPUT.is_symlink():
@@ -95,7 +95,7 @@ def gitiles(component):
 if __name__ == "__main__":
     components = {}
     for platform in ["win32-x64", "linux-x64"]:
-        sbom = json.loads((ROOT / f"server/reading/generated-pdf-visual/{platform}/sbom.cdx.json").read_text())
+        sbom = json.loads((ROOT / f"apps/server/reading/generated-pdf-visual/{platform}/sbom.cdx.json").read_text())
         for component in sbom["components"]:
             components[component["purl"]] = component
     registry = sorted((c for c in components.values() if c["purl"].startswith("pkg:cargo/") and c.get("hashes")), key=lambda c: (c["name"], c["version"]))
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     for extra in extras:
         text += f"\n===== Supplementary upstream notice {extra['repository']} {extra['revision']} =====\nSource: {extra['display_url']}\n" + extra["content"] + "\n"
     text = "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
-    (ROOT / "server/reading/pdf-canvas-notices.LICENSE").write_text(text, encoding="utf-8")
+    (ROOT / "apps/server/reading/pdf-canvas-notices.LICENSE").write_text(text, encoding="utf-8")
     manifest = {"canvasGitHead": "00a115d9903647f116daf86eccd2c6ba36128371", "skiaRevision": skia_revision, "components": [r[1] for r in results], "supplementaryNotices": [{"repository": e["repository"], "revision": e["revision"], "url": e["display_url"], "gitBlob": e["sha"]} for e in extras], "freetypeLicenseChoice": "FTL"}
     (OUTPUT / "provenance.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"registry": len(registry), "native": len(native), "missingCrateLicenseFiles": [r[1]["name"] for r in results if "licenseFiles" in r[1] and not r[1]["licenseFiles"]]}))

@@ -2,7 +2,7 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { DesktopStore } from "../../desktop/storage.cjs";
+import { DesktopStore } from "../../apps/desktop/storage.cjs";
 
 const profile = await mkdtemp(path.join(tmpdir(), "shixu-stickers-"));
 const kinds = ["task", "event", "idea", "habit", "notice", "note"];

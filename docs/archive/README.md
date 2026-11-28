@@ -18,4 +18,4 @@
 - [维护者交接日志（2026-10）](maintainer-handoff-2026-10.md)
 - [小程序初始迁移计划（2026-10）](miniprogram-migration-plan-2026-10.md)
 
-当前入口：[文档导航](../README.md) · [当前版本基线](../current-baseline.md) · [Windows 使用指南](../guides/windows.md) · [贡献流程](../../CONTRIBUTING.md)。
+当前入口：[文档导航](../README.md) · [当前版本基线](../current-baseline.md) · [Windows 使用指南](../guides/windows.md) · [贡献流程](../../.github/CONTRIBUTING.md)。

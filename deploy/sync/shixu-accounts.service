@@ -11,7 +11,7 @@ Group=shixu-sync
 WorkingDirectory=/opt/shixu-sync/current
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=SYNC_ACCOUNT_DIR=/var/lib/shixu-sync/accounts-v3
-ExecStart=/usr/bin/env node --preserve-symlinks-main --max-old-space-size=256 --env-file=/etc/shixu-sync/service.env server/sync-multi-user.mjs
+ExecStart=/usr/bin/env node --preserve-symlinks-main --max-old-space-size=256 --env-file=/etc/shixu-sync/service.env apps/server/sync-multi-user.mjs
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=25

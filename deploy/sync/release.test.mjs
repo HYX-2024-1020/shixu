@@ -12,22 +12,22 @@ import { DatabaseSync } from "node:sqlite";
 import { buildRelease } from "../../scripts/build/build-sync-release.mjs";
 import { backupDatabase } from "./backup.mjs";
 import { verifyService } from "./verify.mjs";
-import { docxBytes, paragraph } from "../../server/reading/docx-fixtures.mjs";
-import { xlsxBytes } from "../../server/reading/xlsx-fixtures.mjs";
-import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
+import { docxBytes, paragraph } from "../../apps/server/reading/docx-fixtures.mjs";
+import { xlsxBytes } from "../../apps/server/reading/xlsx-fixtures.mjs";
+import { pdfBytes } from "../../apps/server/reading/pdf-fixtures.mjs";
 import {
   archiveSample,
   archiveWindowSample,
-} from "../../server/reading/archive-fixtures.mjs";
-import { nativeArchiveSample } from "../../server/reading/native-archive-fixtures.mjs";
-import { jpegSample } from "../../server/reading/jpeg-fixtures.mjs";
-import { officeImageBytes } from "../../server/reading/office-fixtures.mjs";
-import { apngBytes } from "../../server/reading/apng-fixtures.mjs";
-import { sevenZipBytes } from "../../server/reading/native-archive-fixtures.mjs";
-import { rarSolidSample } from "../../server/reading/rar-solid-fixtures.mjs";
-import { fontPdfBytes } from "../../server/reading/pdf-font-fixtures.mjs";
-import { annotationPdfBytes } from "../../server/reading/pdf-annotation-fixtures.mjs";
-import { gifBytes } from "../../server/reading/gif-fixtures.mjs";
+} from "../../apps/server/reading/archive-fixtures.mjs";
+import { nativeArchiveSample } from "../../apps/server/reading/native-archive-fixtures.mjs";
+import { jpegSample } from "../../apps/server/reading/jpeg-fixtures.mjs";
+import { officeImageBytes } from "../../apps/server/reading/office-fixtures.mjs";
+import { apngBytes } from "../../apps/server/reading/apng-fixtures.mjs";
+import { sevenZipBytes } from "../../apps/server/reading/native-archive-fixtures.mjs";
+import { rarSolidSample } from "../../apps/server/reading/rar-solid-fixtures.mjs";
+import { fontPdfBytes } from "../../apps/server/reading/pdf-font-fixtures.mjs";
+import { annotationPdfBytes } from "../../apps/server/reading/pdf-annotation-fixtures.mjs";
+import { gifBytes } from "../../apps/server/reading/gif-fixtures.mjs";
 
 test("account service and protected CLI run from the self-contained release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "shixu-accounts-release-"));
@@ -43,10 +43,10 @@ test("account service and protected CLI run from the self-contained release", as
       process.platform === "win32" ? "junction" : "dir",
     );
     const { createMultiUserService } = await import(
-      pathToFileURL(join(release, "server/sync-multi-user.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-multi-user.mjs"))
     );
     const { createReadingRuntime } = await import(
-      pathToFileURL(join(release, "server/reading-runtime.mjs"))
+      pathToFileURL(join(release, "apps/server/reading-runtime.mjs"))
     );
     const releasedRuntime = createReadingRuntime(
       {
@@ -75,16 +75,16 @@ test("account service and protected CLI run from the self-contained release", as
       await releasedRuntime.close();
     }
     const { SyncStore } = await import(
-      pathToFileURL(join(release, "server/sync-store.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-store.mjs"))
     );
     const { ReadingLedger } = await import(
-      pathToFileURL(join(release, "server/reading/ledger.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/ledger.mjs"))
     );
     const { ReadingTasks } = await import(
-      pathToFileURL(join(release, "server/reading/tasks.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/tasks.mjs"))
     );
     const { createJobQueue: releasedQueue } = await import(
-      pathToFileURL(join(release, "server/sync-jobs.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-jobs.mjs"))
     );
     const releasedLegacy = new SyncStore(":memory:");
     try {
@@ -139,19 +139,19 @@ test("account service and protected CLI run from the self-contained release", as
       releasedLegacy.close();
     }
     const { ReadingLegacyMaintenance } = await import(
-      pathToFileURL(join(release, "server/reading/legacy-ledger.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/legacy-ledger.mjs"))
     );
     const { AccountRegistry } = await import(
-      pathToFileURL(join(release, "server/sync-accounts.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-accounts.mjs"))
     );
     const versionHost = await import(
-      pathToFileURL(join(release, "server/data-versions.mjs"))
+      pathToFileURL(join(release, "apps/server/data-versions.mjs"))
     );
     const { createRuntimeMigrator: releasedMigrator } = await import(
-      pathToFileURL(join(release, "server/data-migration.mjs"))
+      pathToFileURL(join(release, "apps/server/data-migration.mjs"))
     );
     const { ReadingRootSafety: ReleasedSafety } = await import(
-      pathToFileURL(join(release, "server/reading/root-safety.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/root-safety.mjs"))
     );
     const retirementRoot = join(directory, "retirement-root"),
       retirementLedgerPath = join(directory, "retirement-ledger.sqlite"),
@@ -273,7 +273,7 @@ test("account service and protected CLI run from the self-contained release", as
     const chatStore = new SyncStore(":memory:"),
       chatLedger = new ReadingLedger(":memory:");
     const { createAttachmentStore } = await import(
-      pathToFileURL(join(release, "server/sync-files.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-files.mjs"))
     );
     createAttachmentStore(chatStore);
     let chatTasks;
@@ -429,7 +429,7 @@ test("account service and protected CLI run from the self-contained release", as
         },
       );
       const { readMaterial: readReleased } = await import(
-        pathToFileURL(join(release, "server/reading/material.mjs"))
+        pathToFileURL(join(release, "apps/server/reading/material.mjs"))
       );
       chatTasks.reader = readReleased;
       chatTasks.enqueue({
@@ -445,7 +445,7 @@ test("account service and protected CLI run from the self-contained release", as
         await chatTasks.run("semantic-task");
       assert.equal(chatTasks.get("semantic-task").state, "done");
       const { encodePng: encodeReleased } = await import(
-        pathToFileURL(join(release, "server/reading/image.mjs"))
+        pathToFileURL(join(release, "apps/server/reading/image.mjs"))
       );
       chatStore.apply(
         device,
@@ -589,7 +589,7 @@ test("account service and protected CLI run from the self-contained release", as
           "--input-type=module",
           "-e",
           `
-        import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/material.mjs")).href)};
+        import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "apps/server/reading/material.mjs")).href)};
         const body=Buffer.from('${fontBody.toString("base64")}','base64');
         const m=await readMaterial({id:'font',name:'font.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
         const annotated=Buffer.from('${annotationBody.toString("base64")}','base64');
@@ -861,7 +861,7 @@ test("account service and protected CLI run from the self-contained release", as
       );
       assert.equal(chatLedger.wallet("synthetic").spent, spent);
       const { ReadingWindowMaintenance } = await import(
-        pathToFileURL(join(release, "server/reading/window-maintenance.mjs"))
+        pathToFileURL(join(release, "apps/server/reading/window-maintenance.mjs"))
       );
       const audit = new ReadingWindowMaintenance(
         chatTasks,
@@ -908,14 +908,14 @@ test("account service and protected CLI run from the self-contained release", as
       chatStore.close();
     }
     const { readMaterial, sha256 } = await import(
-      pathToFileURL(join(release, "server/reading/material.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/material.mjs"))
     );
     const { encodePng, decodePng } = await import(
-      pathToFileURL(join(release, "server/reading/image.mjs"))
+      pathToFileURL(join(release, "apps/server/reading/image.mjs"))
     );
     const webp = await readFile(
       new URL(
-        "../../server/reading/fixtures/webp-lossless.webp",
+        "../../apps/server/reading/fixtures/webp-lossless.webp",
         import.meta.url,
       ),
     );
@@ -934,7 +934,7 @@ test("account service and protected CLI run from the self-contained release", as
     const webpGoldens = JSON.parse(
       await readFile(
         new URL(
-          "../../server/reading/fixtures/webp-goldens.json",
+          "../../apps/server/reading/fixtures/webp-goldens.json",
           import.meta.url,
         ),
         "utf8",
@@ -948,7 +948,7 @@ test("account service and protected CLI run from the self-contained release", as
       webpGoldens.files["webp-lossless.webp"].frames[0].pixelsHash,
     );
     const { scannedPdfBytes, scanPattern } = await import(
-      "../../server/reading/pdf-visual-fixtures.mjs"
+      "../../apps/server/reading/pdf-visual-fixtures.mjs"
     );
     const scan = scanPattern(23, 17),
       scanBody = scannedPdfBytes([scan]);
@@ -959,8 +959,8 @@ test("account service and protected CLI run from the self-contained release", as
     // the released native reader in its own process before owned-tree cleanup.
     const scanProbe=await promisify(execFile)(process.execPath,["--input-type=module","-e",`
       import assert from 'node:assert/strict';
-      import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/material.mjs")).href)};
-      import {decodePng} from ${JSON.stringify(pathToFileURL(join(release, "server/reading/image.mjs")).href)};
+      import {readMaterial,sha256} from ${JSON.stringify(pathToFileURL(join(release, "apps/server/reading/material.mjs")).href)};
+      import {decodePng} from ${JSON.stringify(pathToFileURL(join(release, "apps/server/reading/image.mjs")).href)};
       const body=Buffer.from(process.argv[1],'base64');
       const scanned=await readMaterial({id:'scan',name:'synthetic.pdf',body,size:body.length,hash:sha256(body)},{pdfVisualWindow:{page:1,tile:1,offset:0}});
       assert.equal(scanned.state,'read');assert.equal(scanned.covered[0].page,1);assert.equal(scanned.covered[0].dpi,108);
@@ -976,7 +976,7 @@ test("account service and protected CLI run from the self-contained release", as
         await readFile(
           join(
             release,
-            "server/reading/generated-pdf-visual",
+            "apps/server/reading/generated-pdf-visual",
             process.platform + "-" + process.arch,
             "third-party.LICENSE",
           ),
@@ -1142,7 +1142,7 @@ test("account service and protected CLI run from the self-contained release", as
     const secret = "synthetic-release-secret-32-characters";
     const { stdout } = await promisify(execFile)(
       process.execPath,
-      [join(current, "server/sync-admin.mjs"), "generate", "2"],
+      [join(current, "apps/server/sync-admin.mjs"), "generate", "2"],
       {
         env: {
           ...process.env,
@@ -1176,7 +1176,7 @@ test("account service and protected CLI run from the self-contained release", as
       process.execPath,
       [
         "--preserve-symlinks-main",
-        join(current, "server/sync-admin.mjs"),
+        join(current, "apps/server/sync-admin.mjs"),
         "usage",
         "synthetic-unknown-user",
       ],
@@ -1263,7 +1263,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       "sync-store.mjs",
       "tenant-safety.mjs",
     ]);
-    assert.deepEqual((await readdir(join(release, "server/reading"))).sort(), [
+    assert.deepEqual((await readdir(join(release, "apps/server/reading"))).sort(), [
       "apng.mjs",
       "archive-window.mjs",
       "archive.mjs",
@@ -1331,7 +1331,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
       "xlsx.mjs",
     ]);
     const { createSyncService } = await import(
-      pathToFileURL(join(release, "server/sync-server.mjs"))
+      pathToFileURL(join(release, "apps/server/sync-server.mjs"))
     );
     const database = join(directory, "data", "workspace.sqlite");
     const password = "synthetic-deploy-password-only";
@@ -1401,7 +1401,7 @@ test("release starts independently; two devices, restart, WAL backup and restore
     // Match systemd: chdir through current, then run a relative main script.
     const child = spawn(
       process.execPath,
-      ["--preserve-symlinks-main", "server/sync-server.mjs"],
+      ["--preserve-symlinks-main", "apps/server/sync-server.mjs"],
       {
         cwd: current,
         stdio: "pipe",

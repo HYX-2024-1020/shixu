@@ -1,6 +1,6 @@
 # 开发、验证与打包
 
-先读 [贡献流程](../../CONTRIBUTING.md)。需要 Node.js **24.x**、npm、Git；Electron 运行和桌面 UI 回归需要 Windows。一般测试使用合成资料和模拟模型，无需真实 API 密钥。
+先读 [贡献流程](../../.github/CONTRIBUTING.md)。需要 Node.js **24.x**、npm、Git；Electron 运行和桌面 UI 回归需要 Windows。一般测试使用合成资料和模拟模型，无需真实 API 密钥。
 
 ```bash
 npm ci
