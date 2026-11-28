@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { solidWindowSample } from "../../server/reading/solid-fixtures.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
-import { sourceLocation } from "../../shared/reading-view.mjs";
+import { solidWindowSample } from "../../apps/server/reading/solid-fixtures.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
+import { sourceLocation } from "../../packages/shared/reading-view.mjs";
 export async function runSolidClients({
   directory,
   reader,

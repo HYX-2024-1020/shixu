@@ -54,7 +54,7 @@ if [[ -d "$accounts" ]]; then
 fi
 install -d -m 0700 -o shixu-sync -g shixu-sync "$accounts"
 install -d -m 0755 "$target"
-cp -R server deploy release.json SHA256SUMS "$target/"
+cp -R apps packages deploy release.json SHA256SUMS "$target/"
 chown -R root:root "$target"
 chmod -R u=rwX,go=rX "$target"
 install -m 0644 deploy/sync/shixu-accounts.service "$unit"

@@ -216,7 +216,7 @@ export async function buildReadingArchive({ jobs = 2 } = {}) {
     throw Error("NATIVE_BUILD_PLATFORM_UNSUPPORTED");
   if (![1, 2].includes(jobs)) throw Error("INVALID_BUILD_JOBS");
   const platform = process.platform + "-" + process.arch;
-  const output = join(root, "server/reading/generated-native");
+  const output = join(root, "apps/server/reading/generated-native");
   const name = "reading-7zz" + (process.platform === "win32" ? ".exe" : "");
   const script = fileURLToPath(import.meta.url),
     builderHash = hash(await readFile(script));

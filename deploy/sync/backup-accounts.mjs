@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readdir, lstat, writeFile } from "node:fs/promises";
 import { join, resolve, dirname, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
-import {acquireDataLease,resolveDataVersion} from '../../server/data-versions.mjs';
+import {acquireDataLease,resolveDataVersion} from '../../apps/server/data-versions.mjs';
 
 export async function backupAccounts(
   source,

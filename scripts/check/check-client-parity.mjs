@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 export function validateClientParity(files) {
   const runtime = files.filter(
     (file) =>
-      /^(src\/bucket\/|shared\/|desktop\/|miniprogram\/(pages\/|lib\/|assets\/|app\.)|server\/)/.test(
+      /^(apps\/web\/src\/bucket\/|packages\/shared\/|apps\/desktop\/|apps\/miniprogram\/(pages\/|lib\/|assets\/|app\.)|apps\/server\/)/.test(
         file,
       ) && !/(\.test\.|\/fixtures\/|\/generated\/)/.test(file),
   );

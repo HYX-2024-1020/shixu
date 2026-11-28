@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 // The shipped desktop's own vector design and the Windows system glyph.
 // Rasterize each taskbar/DPI size independently instead of scaling one PNG.
-const source = readFileSync("public/console-icon.svg", "utf8");
+const source = readFileSync("apps/web/public/console-icon.svg", "utf8");
 const sizes = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
 const frames = sizes.map((size) =>
   new Resvg(source, {
@@ -30,4 +30,4 @@ for (let i = 0; i < sizes.length; i++) {
   header.writeUInt32LE(offset, at + 12);
   offset += frames[i].length;
 }
-writeFileSync("public/console-xu-v2.ico", Buffer.concat([header, ...frames]));
+writeFileSync("apps/web/public/console-xu-v2.ico", Buffer.concat([header, ...frames]));

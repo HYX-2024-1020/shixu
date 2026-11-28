@@ -1,7 +1,7 @@
 import { readdir, readFile, mkdir, writeFile, lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { PDF_RESOURCE_CATALOG } from "../../server/reading/pdf-resource-catalog.mjs";
+import { PDF_RESOURCE_CATALOG } from "../../apps/server/reading/pdf-resource-catalog.mjs";
 export async function copyPdfResources(root, output) {
   const names = Object.keys(PDF_RESOURCE_CATALOG.files).sort();
   const actual = [];

@@ -5,7 +5,7 @@ release=$(realpath "$1")
 [[ "$release" == /opt/shixu-cloud/releases/* ]]
 cd "$release"
 sha256sum --strict -c SHA256SUMS > /dev/null
-node --input-type=module -e 'import {readFileSync} from "node:fs";import {isSealedCloudRelease} from "./server/cloud-operations.mjs";if(!isSealedCloudRelease(JSON.parse(readFileSync("release.json","utf8"))))throw Error("UNSEALED_CLOUD_RELEASE");'
+node --input-type=module -e 'import {readFileSync} from "node:fs";import {isSealedCloudRelease} from "./apps/server/cloud-operations.mjs";if(!isSealedCloudRelease(JSON.parse(readFileSync("release.json","utf8"))))throw Error("UNSEALED_CLOUD_RELEASE");'
 test -f /etc/shixu-cloud/service.env
 id shixu-cloud >/dev/null 2>&1 || useradd --system --home-dir /var/lib/shixu-cloud --shell /usr/sbin/nologin shixu-cloud
 install -d -m 0700 -o shixu-cloud -g shixu-cloud /var/lib/shixu-cloud /var/lib/shixu-cloud-ledger
@@ -17,7 +17,7 @@ chmod 0750 /etc/shixu-cloud
 chmod 0640 /etc/shixu-cloud/runtime.json
 chmod 0640 /etc/shixu-cloud/service.env
 if [ ! -d /opt/shixu-cloud/runtime ]; then
-  python3 scripts/ops/reading-prepare-runtime.py /opt/shixu-cloud/runtime --pdf-visual "$release/server/reading/generated-pdf-visual/linux-x64"
+  python3 scripts/ops/reading-prepare-runtime.py /opt/shixu-cloud/runtime --pdf-visual "$release/apps/server/reading/generated-pdf-visual/linux-x64"
 fi
 cat > /etc/systemd/system/shixu-cloud-reader.service <<UNIT
 [Unit]
@@ -30,7 +30,7 @@ Group=shixu-cloud
 RuntimeDirectory=shixu-cloud-reader
 RuntimeDirectoryMode=0750
 ExecStartPre=/usr/bin/install -d -m 0700 -o root -g root /run/shixu-cloud-staging
-ExecStart=/usr/bin/env node $release/server/reading/broker-service.mjs /run/shixu-cloud-reader/reader.sock /opt/shixu-cloud/runtime /run/shixu-cloud-staging --pdf-visual
+ExecStart=/usr/bin/env node $release/apps/server/reading/broker-service.mjs /run/shixu-cloud-reader/reader.sock /opt/shixu-cloud/runtime /run/shixu-cloud-staging --pdf-visual
 Restart=on-failure
 UMask=0077
 [Install]
@@ -47,7 +47,7 @@ User=shixu-cloud
 Group=shixu-cloud
 WorkingDirectory=/opt/shixu-cloud/current
 Environment=SHIXU_AUTHORITY_FLOOR=/var/lib/shixu-cloud-authority/latest.json
-ExecStart=/bin/sh -c 'exec /usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env "\$(/usr/bin/readlink -f /opt/shixu-cloud/current/server/reading-runtime.mjs)"'
+ExecStart=/bin/sh -c 'exec /usr/bin/env node --max-old-space-size=384 --env-file=/etc/shixu-cloud/service.env "\$(/usr/bin/readlink -f /opt/shixu-cloud/current/apps/server/reading-runtime.mjs)"'
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=yes

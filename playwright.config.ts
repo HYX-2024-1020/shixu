@@ -5,7 +5,7 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535)
 const baseURL = `http://localhost:${port}`;
 const channel = process.env.CI ? undefined : "msedge";
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   fullyParallel: false,
   workers: 1,
   use: {

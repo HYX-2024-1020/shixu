@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
-const root = fileURLToPath(new URL("../../website/public/", import.meta.url));
+const root = fileURLToPath(new URL("../../apps/website/public/", import.meta.url));
 const config = await readFile(
   new URL("../../deploy/website/nginx.conf", import.meta.url),
   "utf8",

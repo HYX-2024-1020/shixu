@@ -1,13 +1,13 @@
 // Test-only fault injection through a fully schema-verified current writer.
 // No HTTP route, production bypass switch or constant-return capability function.
 import { join, resolve } from "node:path";
-import { SyncStore } from "../../server/sync-store.mjs";
-import { ensureDatabaseSchema } from "../../server/database-schema.mjs";
+import { SyncStore } from "../../apps/server/sync-store.mjs";
+import { ensureDatabaseSchema } from "../../apps/server/database-schema.mjs";
 import {
   READING_TASKS_SCHEMA,
   READING_ROOTS_SCHEMA,
   READING_WINDOWS_SCHEMA,
-} from "../../server/database-schemas.mjs";
+} from "../../apps/server/database-schemas.mjs";
 const owned = new WeakMap();
 export function registerSyntheticTenantWriter(service, directory) {
   owned.set(service, resolve(directory));

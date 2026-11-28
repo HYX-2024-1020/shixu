@@ -2,7 +2,7 @@
 
 2026-11-13。关联 [实施 #117](https://github.com/HYX-2024-1020/shixu/issues/117)。原始方案由 [PR #116](https://github.com/HYX-2024-1020/shixu/pull/116) 留存；本页按用户三轮小样反馈重写，是后续接入依据。四入口、窄栏双计划页签、取消随手记和面板资料库取代旧版相应设计，不再按旧事件/DDL双页或三个模块混排实现。
 
-用户已取得另一位 agent 制作的前端，将在新对话继续完善。本轮只留存企划及接续文档，尚未查看该前端包，不能据此宣称源码已接入、后端已实现或产品已安装。接续见[实施提示词](../continuity/desktop-board-start-prompt-20261113.md)，材料与状态见[前端交接](../continuity/desktop-board-handoff-20261113.md)，术语见[词汇表](../../../GLOSSARY.md)。
+用户已取得另一位 agent 制作的前端，将在新对话继续完善。本轮只留存企划及接续文档，尚未查看该前端包，不能据此宣称源码已接入、后端已实现或产品已安装。接续见[实施提示词](../continuity/desktop-board-start-prompt-20261113.md)，材料与状态见[前端交接](../continuity/desktop-board-handoff-20261113.md)，术语见[词汇表](../../GLOSSARY.md)。
 
 ## 目标与首版边界
 

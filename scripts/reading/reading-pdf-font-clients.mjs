@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { fontPdfBytes } from "../../server/reading/pdf-font-fixtures.mjs";
-import { zipBytes } from "../../server/reading/archive-fixtures.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
+import { fontPdfBytes } from "../../apps/server/reading/pdf-font-fixtures.mjs";
+import { zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
 export async function runPdfFontClients({directory,reader,archive=false}) {
   const pdf=fontPdfBytes({pages:2}),body=archive?zipBytes({'font.pdf':pdf}):pdf;
   return runClientLoop({

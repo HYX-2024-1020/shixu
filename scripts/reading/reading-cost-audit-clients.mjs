@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { archiveWindowSample, zipBytes } from "../../server/reading/archive-fixtures.mjs";
-import { sha256 } from "../../server/reading/material.mjs";
-import { readingView } from "../../shared/reading-view.mjs";
+import { archiveWindowSample, zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
+import { sha256 } from "../../apps/server/reading/material.mjs";
+import { readingView } from "../../packages/shared/reading-view.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
 
 export async function runCostAuditClients({

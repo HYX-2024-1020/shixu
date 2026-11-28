@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { archiveWindowSample } from "../../server/reading/archive-fixtures.mjs";
+import { archiveWindowSample } from "../../apps/server/reading/archive-fixtures.mjs";
 import {
   rarBytes,
   rar4Bytes,
   sevenZipBytes,
-} from "../../server/reading/native-archive-fixtures.mjs";
-import { sha256 } from "../../server/reading/material.mjs";
-import { readingView, pdfProgressView } from "../../shared/reading-view.mjs";
+} from "../../apps/server/reading/native-archive-fixtures.mjs";
+import { sha256 } from "../../apps/server/reading/material.mjs";
+import { readingView, pdfProgressView } from "../../packages/shared/reading-view.mjs";
 import { runClientLoop } from "./reading-client-loop.mjs";
 
 export async function runArchiveWindowsClients({

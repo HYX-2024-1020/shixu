@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { accountUIFixture } from "./account-ui-fixture.mjs";
 import { waitForPageState, waitForDesktopReady } from "./desktop-test-wait.mjs";
-import { ReadingLedger } from "../../server/reading/ledger.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
+import { ReadingLedger } from "../../apps/server/reading/ledger.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
 const root = await mkdtemp(join(tmpdir(), "shixu-account-v4-ui-")),
   ledger = new ReadingLedger(join(root, "ledger.sqlite"));
 ledger.freezePrice({

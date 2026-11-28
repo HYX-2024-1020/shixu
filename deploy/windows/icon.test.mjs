@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 test("console taskbar icon contains actual independently sized PNG frames for common DPI scales", () => {
   const bytes = readFileSync(
-    new URL("../../public/console-xu-v2.ico", import.meta.url),
+    new URL("../../apps/web/public/console-xu-v2.ico", import.meta.url),
   );
   assert.equal(bytes.readUInt16LE(2), 1);
   const count = bytes.readUInt16LE(4),

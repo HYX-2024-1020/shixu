@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { AccountRegistry, proofMessage } from "../../server/sync-accounts.mjs";
+import { AccountRegistry, proofMessage } from "../../apps/server/sync-accounts.mjs";
 
 export async function verifyAccounts(
   base,

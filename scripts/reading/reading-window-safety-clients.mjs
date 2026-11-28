@@ -1,7 +1,7 @@
 import {openSyntheticTenantWriter}from './reading-synthetic-writer.mjs';
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { pdfBytes } from "../../server/reading/pdf-fixtures.mjs";
+import { pdfBytes } from "../../apps/server/reading/pdf-fixtures.mjs";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
 export async function runWindowSafetyClients({
   directory,

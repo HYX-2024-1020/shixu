@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   isSealedCloudRelease,
   MIN_LEDGER_CORE_VERSION,
-} from "../../server/cloud-operations.mjs";
+} from "../../apps/server/cloud-operations.mjs";
 import {
   buildCloudRelease,
   verifyStagedCloudRelease,
@@ -20,9 +20,9 @@ const sha256Hex = (data) => createHash("sha256").update(data).digest("hex");
 
 async function syntheticBaseRelease(directory) {
   const baseFiles = [
-    ["server/reading-runtime.mjs", "export const runtime = 1;\n"],
-    ["server/cloud-backup.mjs", "export const backup = 1;\n"],
-    ["server/cloud-operations.mjs", "export const ops = 1;\n"],
+    ["apps/server/reading-runtime.mjs", "export const runtime = 1;\n"],
+    ["apps/server/cloud-backup.mjs", "export const backup = 1;\n"],
+    ["apps/server/cloud-operations.mjs", "export const ops = 1;\n"],
   ];
   await mkdir(directory, { recursive: true });
   let sums = "";
@@ -66,9 +66,9 @@ async function seedCloudWorkspace(rootDir, files) {
 
 test("an incomplete cloud build is never selectable as a compatible release", () => {
   const files = [
-    "server/reading-runtime.mjs",
-    "server/cloud-backup.mjs",
-    "server/cloud-operations.mjs",
+    "apps/server/reading-runtime.mjs",
+    "apps/server/cloud-backup.mjs",
+    "apps/server/cloud-operations.mjs",
     "scripts/ops/cloud-operations-worker.mjs",
     "dist/admin/index.html",
     "deploy/sync/install-cloud.sh",

@@ -37,7 +37,7 @@ T05移除处置进展填写，处理按钮只按已有绑定供应商回执自�
 
 ## 新皮肤生成与资源
 
-内置imagegen生成透明PNG，检查后机械缩放/编码为512×512透明WebP，分别25086与25792字节：`public/capybara.webp`、`public/owl.webp`；mini:build逐字节复制，原资源包2MiB门槛继续通过。素材来源/许可记入[说明](../../../THIRD_PARTY_NOTICES.md)。原生成PNG仅本机留存，不依赖个人目录运行。
+内置imagegen生成透明PNG，检查后机械缩放/编码为512×512透明WebP，分别25086与25792字节：`public/capybara.webp`、`public/owl.webp`；mini:build逐字节复制，原资源包2MiB门槛继续通过。素材来源/许可记入[说明](../../THIRD_PARTY_NOTICES.md)。原生成PNG仅本机留存，不依赖个人目录运行。
 
 提示词一（慢慢）：Use case: stylized-concept. Asset type: production transparent PNG character for the Shixu productivity app skin market. Create one original compact capybara mascot, full body, upright relaxed seated pose, small ears and a recognizable long rounded snout, calm knowing expression and tiny natural eyes. Simple and cute with quiet adult taste, not babyish, not a toy, no giant sparkling eyes. Clean hand-inked dark charcoal contours, subtle cel shading, warm oatmeal brown fur and small cream accents. Elegant slightly irregular illustration with strong silhouette readable at 150px. Center the entire isolated animal on genuine transparent alpha, generous 10% padding all around, no props, no scene, no floor, no cast shadow outside the body, no text, logos or watermark. Single character and single pose only, square canvas. This is final usable app artwork, not a mockup.
 

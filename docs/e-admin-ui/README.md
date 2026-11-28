@@ -53,7 +53,7 @@ npm run dev
 
 ## 独立管理登录（Issue #89）
 
-`server/admin-service.mjs` 提供独立监听，`listen()` 固定绑定 `127.0.0.1`。管理员凭据由单独环境配置提供，密码使用 scrypt（N=131072、r=8、p=1、64 字节）验证。配置示例见 [环境模板](../../.env.admin.example)，凭据配置阶段通过导出的 `hashAdminPassword(password)` 生成随机盐哈希，密码长度 12–128 字符。模板空哈希会拒绝启动；配置文件纳入本机私密保管。
+`server/admin-service.mjs` 提供独立监听，`listen()` 固定绑定 `127.0.0.1`。管理员凭据由单独环境配置提供，密码使用 scrypt（N=131072、r=8、p=1、64 字节）验证。配置示例见 [环境模板](../../deploy/env/.env.admin.example)，凭据配置阶段通过导出的 `hashAdminPassword(password)` 生成随机盐哈希，密码长度 12–128 字符。模板空哈希会拒绝启动；配置文件纳入本机私密保管。
 
 先运行 `npm run build`，配置独立的 `.env.admin` 或受保护进程环境，再运行 `npm run admin:start`。默认入口为 `http://127.0.0.1:8789/admin/`，服务自动选择 HTTP 适配层；SSH 隧道的浏览器 origin 需与 `SHIXU_ADMIN_ORIGIN` 一致。普通用户服务继续使用原有入口。
 

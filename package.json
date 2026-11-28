@@ -23,19 +23,19 @@
     "test": "vitest run",
     "check": "tsc -b",
     "test:e2e": "playwright test",
-    "start": "node --env-file-if-exists=.env server/index.mjs",
-    "test:server": "node --test server/server.test.mjs server/database-schema.test.mjs server/admin-service.test.mjs server/admin-backend.test.mjs server/admin-risk.test.mjs server/admin-management.test.mjs server/cloud-backup.test.mjs server/console-gateway.test.mjs",
+    "start": "node --env-file-if-exists=.env apps/server/index.mjs",
+    "test:server": "node --test apps/server/server.test.mjs apps/server/database-schema.test.mjs apps/server/admin-service.test.mjs apps/server/admin-backend.test.mjs apps/server/admin-risk.test.mjs apps/server/admin-management.test.mjs apps/server/cloud-backup.test.mjs apps/server/console-gateway.test.mjs",
     "desktop:build": "tsc -b && vite build --base=/",
     "desktop:start": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --win --x64",
-    "test:desktop": "node --test --test-concurrency=1 desktop/*.test.cjs",
+    "test:desktop": "node --test --test-concurrency=1 apps/desktop/*.test.cjs",
     "test:desktop:ui": "node scripts/desktop/desktop-smoke.mjs && node scripts/desktop/desktop-management-smoke.mjs && node scripts/desktop/desktop-ingest-smoke.mjs && node scripts/desktop/desktop-recovery-smoke.mjs && node scripts/desktop/desktop-upgrade-smoke.mjs && node scripts/desktop/desktop-performance-smoke.mjs && node scripts/desktop/desktop-preview-smoke.mjs && node scripts/desktop/desktop-chat-smoke.mjs && node scripts/desktop/desktop-polish-smoke.mjs && node scripts/desktop/desktop-motion-smoke.mjs && node scripts/desktop/desktop-spatial-smoke.mjs && node scripts/desktop/desktop-skins-smoke.mjs && node scripts/desktop/desktop-cloud-smoke.mjs && node scripts/desktop/desktop-ddl-smoke.mjs && node scripts/desktop/desktop-ddl-time-smoke.mjs && node scripts/desktop/desktop-completion-smoke.mjs && node scripts/desktop/desktop-sticker-smoke.mjs && node scripts/desktop/desktop-board-smoke.mjs",
-    "sync:start": "node --env-file-if-exists=.env.sync server/sync-server.mjs",
-    "test:sync": "node --test server/sync.test.mjs server/sync-files.test.mjs server/sync-accounts.test.mjs server/sync-provider.test.mjs miniprogram/tests/*.test.cjs",
-    "sync:accounts": "node --env-file-if-exists=.env.sync server/sync-multi-user.mjs",
-    "sync:reading": "node --env-file-if-exists=.env.sync server/reading-runtime.mjs",
-    "sync:admin": "node --env-file-if-exists=.env.sync server/sync-admin.mjs",
-    "admin:start": "node --env-file-if-exists=.env.admin server/admin-service.mjs",
+    "sync:start": "node --env-file-if-exists=.env.sync apps/server/sync-server.mjs",
+    "test:sync": "node --test apps/server/sync.test.mjs apps/server/sync-files.test.mjs apps/server/sync-accounts.test.mjs apps/server/sync-provider.test.mjs apps/miniprogram/tests/*.test.cjs",
+    "sync:accounts": "node --env-file-if-exists=.env.sync apps/server/sync-multi-user.mjs",
+    "sync:reading": "node --env-file-if-exists=.env.sync apps/server/reading-runtime.mjs",
+    "sync:admin": "node --env-file-if-exists=.env.sync apps/server/sync-admin.mjs",
+    "admin:start": "node --env-file-if-exists=.env.admin apps/server/admin-service.mjs",
     "sync:configure": "node scripts/ops/configure-sync-secrets.mjs",
     "test:sync:release": "node --test deploy/sync/release.test.mjs deploy/sync/cloud-release.test.mjs deploy/sync/configure-secrets.test.mjs deploy/sync/accounts-deployment.test.mjs",
     "mini:build": "node scripts/build/build-miniprogram.mjs",
@@ -44,7 +44,7 @@
     "reading:archive:build": "node scripts/build/build-reading-archive.mjs",
     "reading:webp:build": "node scripts/build/build-reading-webp.mjs",
     "reading:pdf:visual:build": "node scripts/build/build-reading-pdf-visual.mjs",
-    "test:mini": "node --test miniprogram/tests/*.test.cjs",
+    "test:mini": "node --test apps/miniprogram/tests/*.test.cjs",
     "mini:preview:sync": "node scripts/build/sync-miniprogram-preview.mjs"
   },
   "dependencies": {
@@ -73,7 +73,7 @@
     "vite": "^6.3.0",
     "vitest": "^5.0.5"
   },
-  "main": "desktop/main.cjs",
+  "main": "apps/desktop/main.cjs",
   "build": {
     "appId": "cn.shixu.desktop",
     "productName": "拾序",
@@ -82,10 +82,10 @@
     },
     "files": [
       "dist/**/*",
-      "desktop/**/*.cjs",
-      "!desktop/**/*.test.cjs",
+      "apps/desktop/**/*.cjs",
+      "!apps/desktop/**/*.test.cjs",
       "package.json",
-      "public/desktop-icon.png",
+      "apps/web/public/desktop-icon.png",
       "!node_modules/7zip-bin-full/mac/**/*",
       "!node_modules/7zip-bin-full/linux/**/*",
       "!node_modules/7zip-bin-full/win/ia32/**/*",
@@ -97,7 +97,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/desktop-icon.ico",
+      "icon": "apps/web/public/desktop-icon.ico",
       "signExecutable": false
     },
     "nsis": {

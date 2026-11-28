@@ -1,7 +1,0 @@
-node_modules
-dist
-.openai
-.private
-test-results
-package-lock.json
-*.tsbuildinfo

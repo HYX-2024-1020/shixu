@@ -8,6 +8,6 @@
 - 皮肤市场改变角色及互动，不另建一套过时的桌面布局。
 - 短窗口、触屏、安全区和窄屏做必要适配，不借机重做整体视觉。
 
-运行图像、音频与字体位于 `public/`，皮肤插画在 `src/bucket/SkinArt.tsx`。字体许可与既有角色授权待办见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+运行图像、音频与字体位于 `public/`，皮肤插画在 `src/bucket/SkinArt.tsx`。字体许可与既有角色授权待办见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 
 当前产品截图见 [README](../README.md) 和 [Windows 指南](guides/windows.md)，均来自隔离测试资料。

@@ -88,11 +88,11 @@ if (
   })
     .split("\0")
     .filter(Boolean)
-    .map((file) => file.slice("miniprogram/".length))
+    .map((file) => file.slice("apps/miniprogram/".length))
     .filter(runtimePath);
   const check = process.argv.includes("--check");
   const result = await syncPreview({
-    source: path.join(root, "miniprogram"),
+    source: path.join(root, "apps/miniprogram"),
     target,
     files,
     check,

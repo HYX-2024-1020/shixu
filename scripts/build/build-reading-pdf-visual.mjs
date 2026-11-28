@@ -109,7 +109,7 @@ export async function buildPdfVisual(
         directory: join(directory, "package"),
       });
     }
-    const output = join(root, "server/reading/generated-pdf-visual", platform);
+    const output = join(root, "apps/server/reading/generated-pdf-visual", platform);
     await mkdir(join(output, "source"), { recursive: true });
     const base = archives[0].directory,
       native = archives[1].directory;
@@ -157,7 +157,7 @@ export async function buildPdfVisual(
     );
     await copyFile(join(base, "LICENSE"), join(output, "canvas.LICENSE"));
     await copyFile(
-      join(root, "server/reading/pdf-canvas-notices.LICENSE"),
+      join(root, "apps/server/reading/pdf-canvas-notices.LICENSE"),
       join(output, "third-party.LICENSE"),
     );
     const licenseSources = {};
@@ -169,7 +169,7 @@ export async function buildPdfVisual(
       "provenance.json",
       "upstream-notices.json",
     ]) {
-      const source = join(root, "server/reading/pdf-canvas-sources", name),
+      const source = join(root, "apps/server/reading/pdf-canvas-sources", name),
         target = join(output, "source", name);
       await copyFile(source, target);
       licenseSources[name] = sha(await readFile(target));
@@ -187,7 +187,7 @@ export async function buildPdfVisual(
     await copyFile(new URL("./build-pdf-resources.mjs", import.meta.url), join(output,"source/build-pdf-resources.mjs"));
     await copyFile(new URL("./patch-pdf-fonts.mjs", import.meta.url), join(output,"source/patch-pdf-fonts.mjs"));
     await copyFile(new URL("./patch-pdf-compat.mjs", import.meta.url), join(output,"source/patch-pdf-compat.mjs"));
-    await copyFile(join(root,"server/reading/pdf-number.mjs"), join(output,"source/pdf-number.mjs"));
+    await copyFile(join(root,"apps/server/reading/pdf-number.mjs"), join(output,"source/pdf-number.mjs"));
     let api = await readFile(
       join(root, "node_modules/pdfjs-dist/build/pdf.mjs"),
       "utf8",

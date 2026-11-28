@@ -8,7 +8,7 @@
 
 运行基线沿用第一轮已交付Windows/原ECS/原管理台0.3.26，产品包来源5d7b42c；本轮未重新读取生产服务或物理安装回执，不把仓库主线SHA当作运行包来源。当前原图标/下载/续期/旧任务重试等反馈，证明相关体验仍需调查，不能拿上一轮CI直接否定用户现象。
 
-完整问答见 [grill记录](acceptance-round2-grill-20261113.md)，新对话使用 [实施提示词](acceptance-round2-start-prompt-20261113.md)。术语见 [GLOSSARY](../../../GLOSSARY.md)，关键取舍见 [ADR](../../adr/0001-round2-card-and-storage-boundaries.md)。
+完整问答见 [grill记录](acceptance-round2-grill-20261113.md)，新对话使用 [实施提示词](acceptance-round2-start-prompt-20261113.md)。术语见 [GLOSSARY](../../GLOSSARY.md)，关键取舍见 [ADR](../../adr/0001-round2-card-and-storage-boundaries.md)。
 
 ## 原始反馈统一编号
 

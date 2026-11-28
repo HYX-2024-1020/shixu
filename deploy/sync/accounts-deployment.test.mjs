@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createMultiUserService } from "../../server/sync-multi-user.mjs";
+import { createMultiUserService } from "../../apps/server/sync-multi-user.mjs";
 import { backupAccounts } from "./backup-accounts.mjs";
 import { verifyAccounts } from "./verify-accounts.mjs";
 
@@ -46,7 +46,7 @@ test("account deployment probe exercises real HTTP, restart, isolation, original
   try {
     await start();
     // Restart on the same port; keep the administrator's independent connection.
-    const { AccountRegistry } = await import("../../server/sync-accounts.mjs");
+    const { AccountRegistry } = await import("../../apps/server/sync-accounts.mjs");
     const registry = new AccountRegistry(directory, "fixture".repeat(8));
     try {
       const port = service.server.address().port;

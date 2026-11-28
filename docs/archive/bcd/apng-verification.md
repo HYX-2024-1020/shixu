@@ -14,7 +14,7 @@
 
 - Windows读取415项、APNG/发布包直接相关13项，随后含16位alpha/拆分帧数据的12项及语义/发布包相关21项、核心97、同步125、build/mini检查及官方WXML/WXSS无窗口编译通过。共享来源增加静态默认图标记，小程序扩展名/MIME适配与生成文件同步。
 - 固定全像素对照：Edge156.0.4314.56 ImageDecoder/Canvas动画，Pillow12.3.0仅用于独立静态默认图；两份共10个读取帧hash/时长一致。手工2像素golden另核对半透明、清背景、恢复上一帧、零延迟、分母0及默认图隔离。顶层/四归档完整像素、顺序、尾件，Office Word段落/Excel B3锚点通过。损坏末帧不输出首帧，超限明确失败。
-- 首次Pillow动画oracle对照失败：半透明128帧叠不透明背景后Pillow给alpha191，而OVER应保持255；Edge输出与项目实现全像素一致。保留[原观测](../../../server/reading/fixtures/apng-pillow-observed.json)，不按Pillow差异修改生产结果。重生成入口scripts/generate-apng-fixtures.py、generate-apng-goldens.mjs；测试只消费固定样本，无外部依赖。
+- 首次Pillow动画oracle对照失败：半透明128帧叠不透明背景后Pillow给alpha191，而OVER应保持255；Edge输出与项目实现全像素一致。保留[原观测](../../../apps/server/reading/fixtures/apng-pillow-observed.json)，不按Pillow差异修改生产结果。重生成入口scripts/generate-apng-fixtures.py、generate-apng-goldens.mjs；测试只消费固定样本，无外部依赖。
 - 独立Linux只读树/普通UID nobody11项通过；受保护broker top temporary与ZIP deleted实际双端签名HTTP链通过，未授权daemon UID拒绝。两帧2048×2048样本的末窗tile8，1048576像素完全匹配；单次解析4189.12ms、端到端4582.57ms、RSS197020KiB，不是P95/cgroup峰值或容量证明。[机器证据](evidence/apng-linux.json)。
 - 双端AccountWorkspace与实际Page/Node wx adapter核对来源、时长、区域进度、停止/迟到丢弃、核验补传、图片依据核对与同事项语义合并；独立发布包实际读取.apng第二帧和时长。不是原生微信/手机/安装版证据，无重复本机UI。
 

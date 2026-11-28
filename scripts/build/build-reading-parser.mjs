@@ -79,7 +79,7 @@ for (const codec of ["decoder", "encoder"]) {
     [stem + ".cjs", generated],
     [stem + ".LICENSE", normalizedLicense],
   ]) {
-    const path = new URL("../../server/reading/" + name, import.meta.url);
+    const path = new URL("../../apps/server/reading/" + name, import.meta.url);
     if (process.argv.includes("--check")) {
       if ((await readFile(path, "utf8")) !== body)
         throw Error("STALE_JPEG_READER");
@@ -90,7 +90,7 @@ for (const format of ["docx", "xlsx"]) {
   const result = await build({
     entryPoints: [
       fileURLToPath(
-        new URL(`../../server/reading/${format}.mjs`, import.meta.url),
+        new URL(`../../apps/server/reading/${format}.mjs`, import.meta.url),
       ),
     ],
     bundle: true,
@@ -101,7 +101,7 @@ for (const format of ["docx", "xlsx"]) {
     minify: true,
   });
   const output = new URL(
-    `../../server/reading/${format}-reader.cjs`,
+    `../../apps/server/reading/${format}-reader.cjs`,
     import.meta.url,
   );
   const generated =
@@ -124,7 +124,7 @@ for (const format of ["docx", "xlsx"]) {
       throw Error("STALE_READING_PARSER");
     if (
       (await readFile(
-        new URL(`../../server/reading/${format}-reader.LICENSE`, import.meta.url),
+        new URL(`../../apps/server/reading/${format}-reader.LICENSE`, import.meta.url),
         "utf8",
       )) !== license
     )
@@ -132,7 +132,7 @@ for (const format of ["docx", "xlsx"]) {
   } else {
     await writeFile(output, generated);
     await writeFile(
-      new URL(`../../server/reading/${format}-reader.LICENSE`, import.meta.url),
+      new URL(`../../apps/server/reading/${format}-reader.LICENSE`, import.meta.url),
       license,
     );
   }

@@ -177,7 +177,7 @@ async function runCli() {
   )
     throw Error("CLEAN_COMMITTED_SOURCE_REQUIRED");
   const mappings = [
-    ["server/console-gateway.mjs", join(root, "server/console-gateway.mjs")],
+    ["server/console-gateway.mjs", join(root, "apps/server/console-gateway.mjs")],
     ["node.exe", process.execPath],
     ...[
       "dist/admin/index.html",
@@ -187,11 +187,11 @@ async function runCli() {
       "dist/console-icon.svg",
       "dist/console-xu-v2.ico",
       "LICENSE",
-      "THIRD_PARTY_NOTICES.md",
     ].map((p) => [p, join(root, p)]),
+    ["THIRD_PARTY_NOTICES.md", join(root, "docs/THIRD_PARTY_NOTICES.md")],
     ...["NotoSansSC-OFL.txt", "SpaceGrotesk-OFL.txt"].map((p) => [
       "notices/" + p,
-      join(root, "public/fonts", p),
+      join(root, "apps/web/public/fonts", p),
     ]),
   ];
   for (const name of await readdir(join(root, "dist/assets")))

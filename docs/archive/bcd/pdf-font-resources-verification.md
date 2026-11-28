@@ -4,7 +4,7 @@
 
 ## 实现与边界
 
-- 沿lockfile的PDF.js6.2.108打包168个bcmap、14个标准字体和3份原许可，185文件/1,948,053字节（约1.86MiB）；固定目录、长度、SHA-256在源码catalog逐项记录。构建拒绝新文件/改名/长度/hash变化，原文件和许可证随平台包、服务自包含包完整复制，生成物不提交Git。[第三方许可](../../../THIRD_PARTY_NOTICES.md)。
+- 沿lockfile的PDF.js6.2.108打包168个bcmap、14个标准字体和3份原许可，185文件/1,948,053字节（约1.86MiB）；固定目录、长度、SHA-256在源码catalog逐项记录。构建拒绝新文件/改名/长度/hash变化，原文件和许可证随平台包、服务自包含包完整复制，生成物不提交Git。[第三方许可](../../THIRD_PARTY_NOTICES.md)。
 - 适配实际PDF.js6 `BinaryDataFactory`；旧CMapReaderFactory/StandardFontDataFactory已不生效。文档只能选择精确白名单文件名，不能构造路径、URL或Wasm请求。逐资源固定长度读取、超长/符号链接/坏hash拒绝、文档内缓存返回独立副本；不加载系统或用户字体，不启用网络/JS/Wasm。文字与视觉共用资源策略，失败无可信页面前缀，两端显示相应字体/映射不可用。
 - 修复固定上游新用法在Node24中缺少`Math.sumPrecise`导致字体修复失败：局部二进制精确累加与一次nearest-even舍入，不改全局Math或原型。消去、次正规、负零、溢出、NaN/类型与ties-even专项通过。精确字体修复路径实际执行。
 - 非嵌入Zapf默认编码使用上游已有Dingbats Unicode表，修正铅笔/笔尖/勾号被提取为数字；`0123`码位对应`✐✑✒✓`，文字与视觉来源相同，显式ToUnicode优先。依据[PDF.js实际API](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib.html)、[ECMAScript求和语义](https://tc39.es/ecma262/#sec-math.sumprecise)及[公开Dingbats编码表](https://www.unicode.org/L2/L2000/00436-Dingbats.pdf)。

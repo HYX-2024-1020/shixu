@@ -3,15 +3,15 @@ import { runClientLoop } from "./reading-client-loop.mjs";
 import {
   scanPattern,
   scannedPdfBytes,
-} from "../../server/reading/pdf-visual-fixtures.mjs";
-import { decodePng } from "../../server/reading/image.mjs";
-import { zipBytes } from "../../server/reading/archive-fixtures.mjs";
+} from "../../apps/server/reading/pdf-visual-fixtures.mjs";
+import { decodePng } from "../../apps/server/reading/image.mjs";
+import { zipBytes } from "../../apps/server/reading/archive-fixtures.mjs";
 import {
   rar4Bytes,
   rarBytes,
   sevenZipBytes,
-} from "../../server/reading/native-archive-fixtures.mjs";
-import { sourceLocation, pdfProgressView } from "../../shared/reading-view.mjs";
+} from "../../apps/server/reading/native-archive-fixtures.mjs";
+import { sourceLocation, pdfProgressView } from "../../packages/shared/reading-view.mjs";
 
 export async function runPdfVisualClients({
   directory,

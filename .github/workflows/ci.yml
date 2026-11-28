@@ -77,7 +77,7 @@ jobs:
       - run: npm run reading:archive:build
       - run: npm run reading:webp:build
       - run: npm run reading:pdf:visual:build
-      - run: node --test server/reading/*.test.mjs
+      - run: node --test apps/server/reading/*.test.mjs
       - run: npm run build
       - run: npm run test:server
       - run: node scripts/check/product-load-acceptance.mjs

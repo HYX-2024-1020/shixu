@@ -1,4 +1,4 @@
-import { openHostCloudOperations } from "../../server/cloud-operations.mjs";
+import { openHostCloudOperations } from "../../apps/server/cloud-operations.mjs";
 import { randomUUID } from "node:crypto";
 // Protected host fallback; never accepts a command or destination from HTTP.
 if (

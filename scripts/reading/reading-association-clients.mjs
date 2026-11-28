@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { runClientLoop } from "./reading-client-loop.mjs";
-import { readMaterial } from "../../server/reading/material.mjs";
-import { buildGroups } from "../../server/generated/ai-core.mjs";
+import { readMaterial } from "../../apps/server/reading/material.mjs";
+import { buildGroups } from "../../apps/server/generated/ai-core.mjs";
 export async function runAssociationClients({
   directory,
   reader,
